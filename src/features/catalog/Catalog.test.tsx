@@ -110,13 +110,18 @@ describe('витрина кабинета', () => {
       { ...CEMENT, id: 'item-2', name: 'Песок', thumbnailUrl: undefined },
     ]));
 
-    renderScreen(<CatalogPage />);
+    const { container } = renderScreen(<CatalogPage />);
 
-    const withPhoto = await screen.findByRole('img', { name: '' });
-    expect(withPhoto).toHaveAttribute('src', 'https://cdn.example.kz/cement.jpg');
-    // Ровно один снимок на две позиции: у второй его нет, и картинки в строке
-    // быть не должно вовсе.
-    expect(screen.getAllByRole('img', { hidden: true })).toHaveLength(1);
+    await screen.findByText('Цемент М400');
+    // Не по роли: снимок подписан пустым `alt` — он украшает строку, а имя
+    // позиции стоит рядом ссылкой, и второй раз диктору его читать незачем.
+    // Пустой `alt` убирает картинку из дерева доступности, поэтому ищется она
+    // разметкой.
+    const images = container.querySelectorAll('img');
+    // Ровно один снимок на две позиции: у второй его нет, и подставлять туда
+    // нечего — там остаётся заполнитель.
+    expect(images).toHaveLength(1);
+    expect(images[0]).toHaveAttribute('src', 'https://cdn.example.kz/cement.jpg');
   });
 
   /*
