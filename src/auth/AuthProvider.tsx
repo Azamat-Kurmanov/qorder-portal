@@ -74,14 +74,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [userManager]);
 
   const token = user?.access_token ?? null;
+  // Номер берётся из разобранного профиля токена, а не разбирается здесь
+  // заново: oidc-client-ts уже проверил подпись и срок.
+  const phone = typeof user?.profile.preferred_username === 'string'
+    ? user.profile.preferred_username
+    : null;
 
   // Токен уезжает в мутатор запросов при каждой смене сессии: он читает его
   // напрямую, минуя React, и о перерисовках ничего не знает.
   useEffect(() => setSession(token, login), [token, login]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ authenticated: token !== null, token, sessionRejected, login, logout }),
-    [token, sessionRejected, login, logout],
+    () => ({ authenticated: token !== null, token, phone, sessionRejected, login, logout }),
+    [token, phone, sessionRejected, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

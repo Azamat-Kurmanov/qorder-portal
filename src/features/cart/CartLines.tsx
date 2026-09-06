@@ -50,7 +50,7 @@ export function CartLines({ editable = true, className }: CartLinesProps) {
               key={line.itemId}
               data-testid="cart-line"
               className={cn(
-                'flex items-center gap-3 px-3.5 py-3',
+                '@container flex flex-wrap items-center gap-x-3 gap-y-2.5 px-3.5 py-3',
                 // Разделитель между строками, а не рамка вокруг каждой:
                 // рамка разбивает список на отдельные предметы.
                 index > 0 && 'border-t border-hairline',
@@ -58,7 +58,7 @@ export function CartLines({ editable = true, className }: CartLinesProps) {
             >
               <LineThumb seed={line.itemId} />
 
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 break-words">
                 <p className="truncate text-sm font-medium text-ink">{line.name}</p>
                 {line.priceChanged ? (
                   // Цена, изменившаяся с момента добавления, — не мелочь оформления:
@@ -71,7 +71,19 @@ export function CartLines({ editable = true, className }: CartLinesProps) {
                 )}
               </div>
 
-              {editable && <QuantityField itemId={line.itemId} unit={line.unit} />}
+              {editable && (
+                <QuantityField
+                  itemId={line.itemId}
+                  unit={line.unit}
+                  // Ниже 420 точек ряд «миниатюра — название — ступеньки — сумма»
+                  // не складывается: несжимаемого в нём около 250 точек, и
+                  // названию остаётся ноль — оно исчезает, а подпись под ним
+                  // выезжает поверх ступенек. Поэтому в узкой колонке заявки
+                  // и в листе на телефоне поле уходит на свою строку, к правому
+                  // краю — под сумму, которую оно и меняет.
+                  className="@max-[420px]:order-last @max-[420px]:basis-full @max-[420px]:justify-end"
+                />
+              )}
 
               <p
                 data-testid="line-total"

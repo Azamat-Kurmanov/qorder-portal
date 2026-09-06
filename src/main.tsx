@@ -5,6 +5,24 @@ import './index.css';
 import '@fontsource-variable/inter';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthProvider';
+import { rememberViewer } from './auth/oidcConfig';
+
+/*
+ * Режим читается из адреса до первого рендера — и сразу из него убирается.
+ *
+ * До: вход поднимается вместе с провайдером, и режим, прочитанный позже,
+ * опоздал бы к выбору realm. Из адреса: переход из рабочего места — это
+ * обычная ссылка, другого способа передать признак у неё нет.
+ * Убирается: адрес с «mode=staff» человек скопирует и пришлёт клиенту,
+ * а тому в realm сотрудников делать нечего.
+ */
+const params = new URLSearchParams(window.location.search);
+if (params.get('mode') === 'staff') {
+  rememberViewer('staff');
+  params.delete('mode');
+  const query = params.toString();
+  window.history.replaceState({}, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+}
 
 // Дизайн-язык кабинета свой: рабочее место менеджера плотное, потому что в нём
 // проводят день, а кабинет открывают на три минуты с телефона. Отсюда крупные

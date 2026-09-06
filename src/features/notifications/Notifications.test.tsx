@@ -63,3 +63,30 @@ describe('уведомления кабинета', () => {
     expect(screen.queryByTestId('notifications-count')).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Плашка ведёт туда, где лежит новость.
+ *
+ * Ответ на вопрос лежит в разделе вопросов, ответ по заявке — в самой заявке.
+ * Плашка, отправившая человека не туда, хуже отсутствующей: он ищет
+ * и не находит.
+ */
+describe('куда ведёт плашка', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('ответ на вопрос ведёт в переписку, ответ по заявке — в заявку', async () => {
+    stubFetch([get('/api/portal/notifications', [
+      { id: 'n1', draftId: 'inq-1', kind: 'QUESTION_ANSWERED', createdAt: '2026-09-03T09:00:00Z' },
+      { id: 'n2', draftId: 'order-1', kind: 'ORDER_ANSWERED', createdAt: '2026-09-03T10:00:00Z' },
+    ])]);
+
+    renderScreen(<NotificationsBell />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 2' }));
+
+    expect(await screen.findByRole('link', { name: /продавец ответил на вопрос/i }))
+      .toHaveAttribute('href', '/questions');
+    expect(screen.getByRole('link', { name: /продавец ответил по заявке/i }))
+      .toHaveAttribute('href', '/orders/order-1');
+  });
+});

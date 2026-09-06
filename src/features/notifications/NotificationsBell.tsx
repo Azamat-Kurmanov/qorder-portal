@@ -25,10 +25,22 @@ const REASONS: Record<string, string> = {
   DEADLINE_SOON: 'Заявка ждёт вашего ответа, срок подходит',
   ACCEPTED: 'Заявка принята продавцом',
   QUESTION_ANSWERED: 'Продавец ответил на вопрос',
+  ORDER_ANSWERED: 'Продавец ответил по заявке',
 };
 
 function reasonOf(kind: string): string {
   return REASONS[kind] ?? 'По заявке есть новости';
+}
+
+/**
+ * Куда ведёт плашка.
+ *
+ * Ответ на вопрос лежит в разделе вопросов, всё остальное — в самой заявке.
+ * Плашка, отправившая человека не туда, хуже отсутствующей: он ищет
+ * и не находит, а новость считает потерянной.
+ */
+function destinationOf(kind: string, draftId: string): string {
+  return kind === 'QUESTION_ANSWERED' ? '/questions' : `/orders/${draftId}`;
 }
 
 /**
@@ -109,7 +121,7 @@ function NotificationRow({
 
   return (
     <Link
-      to={`/orders/${notification.draftId}`}
+      to={destinationOf(notification.kind, notification.draftId)}
       onClick={() => {
         read.mutate({ id: notification.id });
         onFollowed();

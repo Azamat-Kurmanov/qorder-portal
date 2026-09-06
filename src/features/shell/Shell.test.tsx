@@ -199,6 +199,42 @@ describe('оболочка кабинета', () => {
     expect(panel.className).toContain('inset-y-0');
   });
 
+  /**
+   * Знак поставщика стоит рядом с его именем — и только тогда, когда сервер
+   * его прислал.
+   *
+   * Имя при этом не исчезает: знак узнаётся взглядом, а читается имя, и
+   * поставщик, у которого знак не загрузился, обязан остаться узнаваемым.
+   * Заглушки вместо отсутствующего знака нет — она обещала бы то, чего
+   * продавец не давал.
+   */
+  it('знак поставщика стоит в шапке рядом с именем', async () => {
+    stubFetch([
+      get('/api/portal/suppliers', [
+        { supplierId: 'supplier-1', name: 'Стройбаза', logoUrl: 'https://cdn.example.kz/sb.png' },
+      ]),
+      ...shellRules(),
+    ]);
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    const mark = await screen.findByAltText('Стройбаза');
+    expect(mark).toHaveAttribute('src', 'https://cdn.example.kz/sb.png');
+    expect(screen.getAllByText('Стройбаза').length).toBeGreaterThan(0);
+  });
+
+  it('поставщик без знака показан одним именем, без заглушки', async () => {
+    stubFetch([
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Стройбаза' }]),
+      ...shellRules(),
+    ]);
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    expect(await screen.findByText('Стройбаза')).toBeInTheDocument();
+    expect(screen.queryByAltText('Стройбаза')).not.toBeInTheDocument();
+  });
+
   it('колокольчик уведомлений стоит в шапке', async () => {
     stubFetch(shellRules());
 

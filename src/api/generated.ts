@@ -16,13 +16,15 @@
  *
  * **Учётные записи стенда.** Заводятся, когда `KC_DEV_USERS=true`; пароли лежат в `.env` и в контракт не выносятся.
  *
- * | Учётная запись | Роли | Пароль в `.env` |
- * |---|---|---|
- * | `fo-admin` | TENANT_ADMIN, MANAGER, STOCK_KEEPER, ACCOUNTANT, VIEWER | `KC_DEV_ADMIN_PASSWORD` |
- * | `fo-manager` | MANAGER, VIEWER | `KC_DEV_MANAGER_PASSWORD` |
- * | `fo-stock` | STOCK_KEEPER, VIEWER | `KC_DEV_STOCK_PASSWORD` |
+ * Имя пользователя — номер телефона: сотрудник входит им же,                         что и клиент кабинета, и придуманных логинов в системе нет вовсе.
  *
- * Проверка отказа по роли делается сменой учётной записи, а не правкой прав: `fo-admin` совмещает все роли и на запрет не наткнётся никогда.
+ * | Номер | Кто это | Роли | Пароль в `.env` |
+ * |---|---|---|---|
+ * | `77010000101` | администратор арендатора | TENANT_ADMIN, MANAGER, STOCK_KEEPER, ACCOUNTANT, VIEWER | `KC_DEV_ADMIN_PASSWORD` |
+ * | `77010000102` | менеджер | MANAGER, VIEWER | `KC_DEV_MANAGER_PASSWORD` |
+ * | `77010000103` | кладовщик | STOCK_KEEPER, VIEWER | `KC_DEV_STOCK_PASSWORD` |
+ *
+ * Проверка отказа по роли делается сменой учётной записи, а не правкой прав: `77010000101` совмещает все роли и на запрет не наткнётся никогда.
  *
  * **Арендатор из токена обязан существовать в базе.** Учётные записи заводит Keycloak, а строку арендатора — нет: через API арендатор не создаётся вовсе. Пока её нет, любой запрос отвечает 404 с кодом `TENANT_NOT_FOUND`, хотя токен верный и роли на месте. Отказ приходит от прикладного слоя, а не от проверки доступа, и на настройку прав время тратить незачем: завести нужно арендатора с тем самым идентификатором, что стоит в `tenant_id` токена, и строку его настроек — все её поля имеют умолчания.
  *
@@ -83,6 +85,54 @@ export interface ErrorResponse {
   traceId?: string;
   /** Разбор ошибок по полям. Присутствует только при ошибке валидации */
   errors?: FieldError[];
+}
+
+/**
+ * Как продавец представляется клиентам
+ */
+export interface UpdateSellerDetailsRequest {
+  /**
+     * Наименование продавца. Им подписано каждое сообщение клиенту и назван его кабинет, поэтому пустым не бывает
+     * @minLength 0
+     * @maxLength 255
+     */
+  name: string;
+  /**
+     * БИН организации или ИИН предпринимателя. Пусто у того, кто его ещё не внёс: запрет работать до заполнения остановил бы приём заявок
+     * @pattern ^\s*$|^\d{12}$
+     */
+  binIin?: string;
+  /**
+     * Адрес продавца в сообщении клиенту
+     * @minLength 0
+     * @maxLength 512
+     */
+  address?: string;
+  /**
+     * Контакт продавца: телефон, почта или то и другое
+     * @minLength 0
+     * @maxLength 128
+     */
+  contact?: string;
+  /**
+     * Адрес знака продавца для кабинета клиента. Только http(s): адрес иной схемы кабинет всё равно не покажет, а `javascript:` в поле, которое подставляется в страницу, — не опечатка, а способ выполнить чужой код у клиента в браузере
+     * @minLength 0
+     * @maxLength 2048
+     * @pattern ^\s*$|^https?://\S+$
+     */
+  logoUrl?: string;
+}
+
+export interface SellerDetailsDto {
+  tenantId?: string;
+  name?: string;
+  binIin?: string;
+  address?: string;
+  contact?: string;
+  logoUrl?: string;
+  vatPayer?: boolean;
+  vatRate?: number;
+  offerValidityHours?: number;
 }
 
 /**
@@ -488,6 +538,7 @@ export interface DraftDetailDto {
   lines?: DraftLineDto[];
   conversation?: TranscriptMessageDto[];
   inquiry?: InquiryThreadDto;
+  customerReachable?: boolean;
 }
 
 /**
@@ -1051,6 +1102,22 @@ export interface OrderTemplateDto {
 }
 
 /**
+ * Итог уборки проверочных действий арендатора
+ */
+export interface ServiceResetDto {
+  /** Убрано проверочных заявок и вопросов */
+  drafts: number;
+  /** Очищено корзин */
+  carts: number;
+  /** Удалено шаблонов закупки */
+  templates: number;
+  /** Снято отметок избранного */
+  favorites: number;
+  /** Удалено отзывов */
+  reviews: number;
+}
+
+/**
  * Вопрос клиента продавцу
  */
 export interface AskQuestionRequest {
@@ -1208,6 +1275,10 @@ export interface PortalOrderDto {
   proposedTotal?: number;
   /** Чем предложенное отличается от отправленного */
   diff: SnapshotDiffDto[];
+  /** Ответ продавца по этой заявке. Пусто, пока он не отвечал: клиент кабинета читает ответ здесь, а не в мессенджере — туда он обычно и не писал */
+  sellerAnswer?: string;
+  /** Когда продавец ответил */
+  answeredAt?: string;
 }
 
 /**
@@ -1229,7 +1300,7 @@ export interface SubmitReviewRequest {
 }
 
 /**
- * Активация приглашения: код из ссылки и телефон
+ * Активация приглашения: код из ссылки и редакция уведомления
  */
 export interface ActivateInvitationRequest {
   /**
@@ -1237,12 +1308,6 @@ export interface ActivateInvitationRequest {
      * @minLength 1
      */
   code: string;
-  /**
-     * Телефон, на который выписано приглашение
-     * @minLength 1
-     * @pattern \d{10,15}
-     */
-  phone: string;
   /** Редакция уведомления об обработке данных, с которой согласился человек. Присылается та, что была ему показана: через год отвечать придётся за неё, а не за сегодняшнюю */
   consentVersion: string;
 }
@@ -1275,6 +1340,8 @@ export interface AccountDto {
   status: AccountDtoStatus;
   /** Когда клиент активировал приглашение. Пусто, пока не активировал */
   activatedAt?: string;
+  /** Служебная запись арендатора: кабинет, открытый им самим для проверки. У настоящего клиента всегда false */
+  service: boolean;
 }
 
 /**
@@ -1352,6 +1419,18 @@ export interface ConfirmationDto {
  */
 export interface ReplyToCustomerRequest {
   /**
+     * @minLength 0
+     * @maxLength 2000
+     */
+  text: string;
+}
+
+/**
+ * Ответ менеджера на вопрос клиента
+ */
+export interface AnswerQuestionRequest {
+  /**
+     * Текст ответа клиенту
      * @minLength 0
      * @maxLength 2000
      */
@@ -1639,6 +1718,16 @@ export interface BusinessDayImpactDto {
   waitingDraftCount: number;
 }
 
+/**
+ * Имя и знак арендатора для шапки рабочего места
+ */
+export interface TenantBrandingDto {
+  /** Название арендатора так, как он представляется клиентам */
+  name: string;
+  /** Адрес знака. Пусто у того, кто его не задал: шапка тогда обходится одним именем */
+  logoUrl?: string;
+}
+
 export interface SseEmitter {
   timeout?: number;
 }
@@ -1679,8 +1768,10 @@ export const PortalNotificationDtoKind = {
   DRAFT_QUEUED: 'DRAFT_QUEUED',
   STOCK_REQUESTED: 'STOCK_REQUESTED',
   DRAFT_EXPIRED: 'DRAFT_EXPIRED',
+  MANAGER_SILENT: 'MANAGER_SILENT',
   EXCHANGE_SILENT: 'EXCHANGE_SILENT',
   QUESTION_ANSWERED: 'QUESTION_ANSWERED',
+  ORDER_ANSWERED: 'ORDER_ANSWERED',
 } as const;
 
 /**
@@ -1912,8 +2003,10 @@ export const NotificationDtoKind = {
   DRAFT_QUEUED: 'DRAFT_QUEUED',
   STOCK_REQUESTED: 'STOCK_REQUESTED',
   DRAFT_EXPIRED: 'DRAFT_EXPIRED',
+  MANAGER_SILENT: 'MANAGER_SILENT',
   EXCHANGE_SILENT: 'EXCHANGE_SILENT',
   QUESTION_ANSWERED: 'QUESTION_ANSWERED',
+  ORDER_ANSWERED: 'ORDER_ANSWERED',
 } as const;
 
 /**
@@ -2429,6 +2522,268 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
+export type getSellerDetailsResponse200 = {
+  data: SellerDetailsDto
+  status: 200
+}
+
+export type getSellerDetailsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getSellerDetailsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getSellerDetailsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getSellerDetailsResponseSuccess = (getSellerDetailsResponse200) & {
+  headers: Headers;
+};
+export type getSellerDetailsResponseError = (getSellerDetailsResponse400 | getSellerDetailsResponse404 | getSellerDetailsResponse500) & {
+  headers: Headers;
+};
+
+export type getSellerDetailsResponse = (getSellerDetailsResponseSuccess | getSellerDetailsResponseError)
+
+export const getGetSellerDetailsUrl = () => {
+
+
+
+
+  return `/api/tenant/seller-details`
+}
+
+/**
+ * Тот же путь чтения, которым эти сведения берёт сборщик сообщения клиенту: форма правки показывает ровно то, что уйдёт в подпись подтверждения. Налог и срок действия предложения приходят вместе с остальным, но этим методом не меняются — они условия сделки, а не представление.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), вызвать метод — придёт наименование арендатора, а незаполненные реквизиты придут пустыми: это обычное состояние, а не признак неполадки.
+ * 2. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Как продавец представляется
+ */
+export const getSellerDetails = async ( options?: RequestInit): Promise<getSellerDetailsResponse> => {
+
+  return apiRequest<getSellerDetailsResponse>(getGetSellerDetailsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSellerDetailsQueryKey = () => {
+    return [
+    `/api/tenant/seller-details`
+    ] as const;
+    }
+
+
+export const getGetSellerDetailsQueryOptions = <TData = Awaited<ReturnType<typeof getSellerDetails>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSellerDetails>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSellerDetailsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSellerDetails>>> = ({ signal }) => getSellerDetails({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSellerDetails>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSellerDetailsQueryResult = NonNullable<Awaited<ReturnType<typeof getSellerDetails>>>
+export type GetSellerDetailsQueryError = ErrorResponse
+
+
+export function useGetSellerDetails<TData = Awaited<ReturnType<typeof getSellerDetails>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSellerDetails>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSellerDetails>>,
+          TError,
+          Awaited<ReturnType<typeof getSellerDetails>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSellerDetails<TData = Awaited<ReturnType<typeof getSellerDetails>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSellerDetails>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSellerDetails>>,
+          TError,
+          Awaited<ReturnType<typeof getSellerDetails>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSellerDetails<TData = Awaited<ReturnType<typeof getSellerDetails>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSellerDetails>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Как продавец представляется
+ */
+
+export function useGetSellerDetails<TData = Awaited<ReturnType<typeof getSellerDetails>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSellerDetails>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSellerDetailsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type updateSellerDetailsResponse200 = {
+  data: SellerDetailsDto
+  status: 200
+}
+
+export type updateSellerDetailsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updateSellerDetailsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updateSellerDetailsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updateSellerDetailsResponseSuccess = (updateSellerDetailsResponse200) & {
+  headers: Headers;
+};
+export type updateSellerDetailsResponseError = (updateSellerDetailsResponse400 | updateSellerDetailsResponse404 | updateSellerDetailsResponse500) & {
+  headers: Headers;
+};
+
+export type updateSellerDetailsResponse = (updateSellerDetailsResponseSuccess | updateSellerDetailsResponseError)
+
+export const getUpdateSellerDetailsUrl = () => {
+
+
+
+
+  return `/api/tenant/seller-details`
+}
+
+/**
+ * Присылается целиком: непереданное поле считается стёртым. Частичной правки нет намеренно — пустое поле здесь означает «этого у меня нет», и отличить его от «я про него не говорил» при частичной присылке нечем.
+ *
+ * Знак задаётся адресом http или https. Адрес иной схемы кабинет всё равно не покажет, а `javascript:` в поле, которое подставляется в страницу, — не опечатка, а способ выполнить чужой код у клиента в браузере.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`). Отправить:
+ *
+ * ```json
+ * {"name": "ТОО «Стройбаза»", "binIin": "123456789012", "address": "Алматы, пр. Рыскулова 232/4", "contact": "+7 727 000 00 00", "logoUrl": "https://cdn.example.kz/stroybaza.png"}
+ * ```
+ *
+ * Ответ — сохранённое состояние. Открыть кабинет клиента этого поставщика: знак стоит в шапке рядом с наименованием.
+ * 2. Отправить то же тело без `logoUrl` — знак пропал из кабинета: непереданное поле стёрто, а не сохранено прежним.
+ * 3. Негативный 400: `"logoUrl": "javascript:alert(1)"` — принимается только http и https.
+ * 4. Негативный 400: пустое `name` — им подписано каждое сообщение клиенту.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Изменить представление продавца
+ */
+export const updateSellerDetails = async (updateSellerDetailsRequest: UpdateSellerDetailsRequest, options?: RequestInit): Promise<updateSellerDetailsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<updateSellerDetailsResponse>(getUpdateSellerDetailsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateSellerDetailsRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateSellerDetailsMutationKey = () => ['updateSellerDetails'] as const;
+
+export const getUpdateSellerDetailsMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSellerDetails>>, TError,UpdateSellerDetailsMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof updateSellerDetails>>, TError,UpdateSellerDetailsMutationVariables, TContext> => {
+
+const mutationKey = getUpdateSellerDetailsMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSellerDetails>>, UpdateSellerDetailsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateSellerDetails(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSellerDetailsMutationResult = NonNullable<Awaited<ReturnType<typeof updateSellerDetails>>>
+    export type UpdateSellerDetailsMutationBody = UpdateSellerDetailsRequest
+    export type UpdateSellerDetailsMutationError = ErrorResponse
+    export type UpdateSellerDetailsMutationVariables = {data: UpdateSellerDetailsRequest}
+
+    /**
+ * @summary Изменить представление продавца
+ */
+export const useUpdateSellerDetails = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSellerDetails>>, TError,UpdateSellerDetailsMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateSellerDetails>>,
+        TError,
+        UpdateSellerDetailsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateSellerDetailsMutationOptions(options), queryClient);
+    }
+
 export type getBusinessHoursResponse200 = {
   data: BusinessHoursDto
   status: 200
@@ -2471,9 +2826,9 @@ export const getGetBusinessHoursUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. На ненастроенном арендаторе вызвать метод — список дней пуст, и это означает круглосуточную работу, а не закрытую компанию.
+ * 1. Войти администратором (`77010000101`). На ненастроенном арендаторе вызвать метод — список дней пуст, и это означает круглосуточную работу, а не закрытую компанию.
  * 2. Задать сетку и вызвать снова — дни на месте, с часами и перерывами.
- * 3. Негативный 403: тот же запрос под `fo-manager`.
+ * 3. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Недельная сетка часов приёма
  */
 export const getBusinessHours = async ( options?: RequestInit): Promise<getBusinessHoursResponse> => {
@@ -2608,7 +2963,7 @@ export const getReplaceBusinessHoursUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Отправить сетку из двух дней:
+ * 1. Войти администратором (`77010000101`). Отправить сетку из двух дней:
  *
  * ```json
  * {"days": [{"dayOfWeek": 1, "closed": false, "opensAt": "09:00", "closesAt": "18:00", "breakStart": "13:00", "breakEnd": "14:00"}, {"dayOfWeek": 7, "closed": true}]}
@@ -2616,7 +2971,7 @@ export const getReplaceBusinessHoursUrl = () => {
  *
  * 2. Ответ 200. Отправить сетку только с понедельником — воскресенье стёрлось. Уцелевший день означает, что сетку нельзя сократить с экрана.
  * 3. Негативный 400 по каждой причине отдельно: открытый день без часов; `closesAt` раньше `opensAt`; перерыв за пределами часов приёма; один и тот же `dayOfWeek` дважды.
- * 4. Негативный 403: тот же запрос под `fo-manager`.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Заменить недельную сетку
  */
 export const replaceBusinessHours = async (updateBusinessHoursRequest: UpdateBusinessHoursRequest, options?: RequestInit): Promise<replaceBusinessHoursResponse> => {
@@ -2854,7 +3209,7 @@ export const getGetDraftUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-manager`, взять идентификатор заявки из очереди.
+ * 1. Войти менеджером (`77010000102`), взять идентификатор заявки из очереди.
  * 2. Вызвать метод — в ответе разобранные строки и переписка клиента целиком, одним запросом. Пустая переписка означает, что менеджеру не с чем сверить разбор.
  * 3. Сверить: текст в переписке совпадает с тем, что отправляли вебхуком, и не подменён разобранными строками.
  * 4. Негативный 404: случайный идентификатор в пути.
@@ -2992,7 +3347,7 @@ export const getUpdateDraftUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-manager`, взять заявку и идентификатор позиции каталога.
+ * 1. Войти менеджером (`77010000102`), взять заявку и идентификатор позиции каталога.
  * 2. Отправить состав целиком:
  *
  * ```json
@@ -3123,12 +3478,12 @@ export const getUpdatePickupPointUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор точки из списка.
+ * 1. Войти администратором (`77010000101`), взять идентификатор точки из списка.
  * 2. Прислать точку целиком с новым адресом — ответ 200 с новым значением.
  * 3. Прислать её же с `"active": false` — точка осталась в списке и помечена закрытой, а заявка, где она выбрана, по-прежнему показывает адрес.
  * 4. Негативный 404: подставить в путь случайный идентификатор.
  * 5. Негативный 400: пустой адрес.
- * 6. Негативный 403: тот же запрос под `fo-manager`.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Поправить точку самовывоза
  */
 export const updatePickupPoint = async (id: string,
@@ -3248,11 +3603,11 @@ export const getDeletePickupPointUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор точки.
+ * 1. Войти администратором (`77010000101`), взять идентификатор точки.
  * 2. Удалить — 204. Запросить список: точки в нём нет.
  * 3. Повторить удаление — 404.
  * 4. Открыть заявку, оформленную на эту точку: адрес и название по-прежнему видны.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Убрать точку самовывоза
  */
 export const deletePickupPoint = async (id: string, options?: RequestInit): Promise<deletePickupPointResponse> => {
@@ -3360,7 +3715,7 @@ export const getGetDeliveryModeUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Вызвать метод на новом арендаторе — режим «только самовывоз». Это умолчание: арендатор, который не возит, ничего не настраивает.
+ * 1. Войти администратором (`77010000101`). Вызвать метод на новом арендаторе — режим «только самовывоз». Это умолчание: арендатор, который не возит, ничего не настраивает.
  * 2. Открыть любую заявку — доставка в ней разрешена и в списке причин, блокирующих отправку, не значится.
  * 3. Переключить режим на «доставка включена» и вызвать метод снова — ответ изменился.
  * @summary Режим доставки арендатора
@@ -3502,11 +3857,11 @@ export const getUpdateDeliveryModeUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. На стенде без способов доставки отправить `{"mode": "ENABLED"}` — 400. Это главная проверка: включённая доставка без способов остановила бы отправку всех заявок разом.
+ * 1. Войти администратором (`77010000101`). На стенде без способов доставки отправить `{"mode": "ENABLED"}` — 400. Это главная проверка: включённая доставка без способов остановила бы отправку всех заявок разом.
  * 2. Завести действующий способ доставки и повторить — 200.
  * 3. Выключить единственный способ и снова включить режим — снова 400: выключенный способ действующим не считается.
  * 4. Вернуть `{"mode": "PICKUP_ONLY"}` — 200 в любом случае, справочник для этого не нужен.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Переключить режим доставки
  */
 export const updateDeliveryMode = async (deliveryModeRequest: DeliveryModeRequest, options?: RequestInit): Promise<updateDeliveryModeResponse> => {
@@ -3625,12 +3980,12 @@ export const getUpdateDeliveryMethodUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор способа из справочника.
+ * 1. Войти администратором (`77010000101`), взять идентификатор способа из справочника.
  * 2. Прислать способ целиком, изменив стоимость с 1500 на 2000, — ответ 200 с новой суммой.
  * 3. Снять признак «активен» и убедиться, что способ остался в справочнике, но помечен неактивным.
  * 4. Негативный 404: подставить в путь случайный идентификатор.
  * 5. Негативный 400: прислать `"tariffRule": "FREE_ABOVE"` без `freeFromAmount`.
- * 6. Негативный 403: тот же запрос под `fo-manager`.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Поправить способ доставки
  */
 export const updateDeliveryMethod = async (id: string,
@@ -3750,11 +4105,11 @@ export const getDeleteDeliveryMethodUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, завести способ и запомнить его идентификатор.
+ * 1. Войти администратором (`77010000101`), завести способ и запомнить его идентификатор.
  * 2. Удалить — 204. Запросить справочник: способа в нём нет.
  * 3. Повторить удаление — 404, потому что для справочника способа уже не существует.
  * 4. Проверить мягкость удаления: заявка, оформленная с этим способом, продолжает открываться и показывает его название.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Убрать способ доставки
  */
 export const deleteDeliveryMethod = async (id: string, options?: RequestInit): Promise<deleteDeliveryMethodResponse> => {
@@ -3862,7 +4217,7 @@ export const getReorderItemMediaUrl = (itemId: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, добавить позиции три снимка и запомнить их идентификаторы в порядке добавления.
+ * 1. Войти администратором (`77010000101`), добавить позиции три снимка и запомнить их идентификаторы в порядке добавления.
  * 2. Отправить `{"mediaIds": ["третий", "первый", "второй"]}` — ответ 200 в этом же порядке.
  * 3. Запросить карточку заново: порядок сохранился, то есть он хранится, а не считается заново от времени добавления.
  * 4. Отправить список из одного идентификатора — он встаёт первым, остальные два остаются в карточке следом за ним.
@@ -3994,14 +4349,14 @@ export const getUpdateCatalogItemUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор заведённой позиции из списка позиций.
+ * 1. Войти администратором (`77010000101`), взять идентификатор заведённой позиции из списка позиций.
  * 2. Переименовать «Цемент М400» в «Цемент М500» — ответ 200.
  * 3. Поискать `цемент м500` — находится; поискать `м400` — уже нет. Найденная по старому названию позиция означает, что ключи поиска не пересчитались.
  * 4. Сохранить позицию ещё раз, не трогая остаток, — отметка времени остатка в ответе не сдвинулась.
  * 5. Сохранить позицию со свойством «Цвет» = «Серый», затем сохранить её же без поля свойств — в ответе свойств нет.
  * 6. Завести свойство позиции, которой владеет обмен, и провести выгрузку номенклатуры — название пришло из учётной системы, а свойство осталось на месте.
  * 7. Негативный 404: подставить в путь случайный идентификатор.
- * 8. Негативный 403: тот же запрос под `fo-manager`.
+ * 8. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Поправить позицию каталога
  */
 export const updateCatalogItem = async (id: string,
@@ -4126,12 +4481,12 @@ export const getUpdateCatalogCategoryUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор категории из справочника.
+ * 1. Войти администратором (`77010000101`), взять идентификатор категории из справочника.
  * 2. Переименовать «Сухие смеси» в «Смеси и цемент», порядок 5 — ответ 200, категория поднялась в списке.
  * 3. Запросить позиции с её `categoryId` — состав тот же: переименование рубрики не должно терять товар.
  * 4. Негативный 404: подставить в путь случайный идентификатор.
  * 5. Негативный 409: переименовать в название соседней категории.
- * 6. Повторить под `fo-manager` — тоже 200.
+ * 6. Повторить под менеджером (`77010000102`) — тоже 200.
  * 7. Негативный 403: тот же запрос под `fo-viewer`.
  * @summary Переименовать категорию
  */
@@ -4252,12 +4607,12 @@ export const getDeleteCatalogCategoryUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, поставить категорию нескольким позициям.
+ * 1. Войти администратором (`77010000101`), поставить категорию нескольким позициям.
  * 2. Удалить категорию — 204.
  * 3. Запросить позиции поиском по названию — они на месте, а `categoryId` у них пуст. Пропавшая позиция означала бы, что один клик в справочнике вычеркнул товар из продажи.
  * 4. Повторить удаление — снова 204, а не 404.
  * 5. Завести категорию с тем же названием — 201: удалённое название не занято навсегда.
- * 6. Негативный 403: тот же запрос под `fo-manager`.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Убрать категорию
  */
 export const deleteCatalogCategory = async (id: string, options?: RequestInit): Promise<deleteCatalogCategoryResponse> => {
@@ -4655,10 +5010,10 @@ export const getGetBusinessDaysUrl = (params?: GetBusinessDaysParams,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, вызвать метод без параметров — приходят праздники РК на год вперёд, предзаполненные системой.
+ * 1. Войти администратором (`77010000101`), вызвать метод без параметров — приходят праздники РК на год вперёд, предзаполненные системой.
  * 2. Убедиться, что прошедших дат в ответе нет: править их всё равно нельзя.
  * 3. Задать `from` и `to` на один месяц — в ответе только его даты, по возрастанию.
- * 4. Негативный 403: тот же запрос под `fo-manager`.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Исключения по датам
  */
 export const getBusinessDays = async (params?: GetBusinessDaysParams, options?: RequestInit): Promise<getBusinessDaysResponse> => {
@@ -4793,7 +5148,7 @@ export const getSaveBusinessDayUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Закрыть будущую дату:
+ * 1. Войти администратором (`77010000101`). Закрыть будущую дату:
  *
  * ```json
  * {"date": "<завтра>", "closed": true, "title": "Инвентаризация"}
@@ -4802,7 +5157,7 @@ export const getSaveBusinessDayUrl = () => {
  * 2. Сохранить ту же дату как рабочую с часами `10:00–15:00` — в списке исключений она одна, с новым решением. Появившаяся вторая запись означала бы два ответа на вопрос, работает ли компания в этот день.
  * 3. Открыть праздник из справочника — решение арендатора перекрывает справочник.
  * 4. Негативный 400: вчерашняя дата; сегодняшний день с часом открытия, который уже прошёл; `closesAt` раньше `opensAt`.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Задать режим дня
  */
 export const saveBusinessDay = async (saveBusinessDayRequest: SaveBusinessDayRequest, options?: RequestInit): Promise<saveBusinessDayResponse> => {
@@ -4926,7 +5281,7 @@ export const getRespondToStockRequestUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-stock`, открыть карточку запроса и взять идентификаторы строк.
+ * 1. Войти кладовщиком (`77010000103`), открыть карточку запроса и взять идентификаторы строк.
  * 2. Ответить по всем строкам:
  *
  * ```json
@@ -4937,7 +5292,7 @@ export const getRespondToStockRequestUrl = (id: string,) => {
  * 4. Повторить на другой заявке с `"answer": "PARTIAL"` и `"confirmedQuantity": 3` — заявка вернулась на разбор, а не к проверке.
  * 5. Негативный 400: прислать ответ не по всем строкам; прислать `PARTIAL` без `confirmedQuantity`; прислать одну строку дважды.
  * 6. Негативный 409: ответить второй раз по тому же запросу.
- * 7. Негативный 403: тот же запрос под `fo-manager` — иначе менеджер подтверждал бы наличие сам себе, и вопрос «кто сказал, что товар есть» остался бы без ответа.
+ * 7. Негативный 403: тот же запрос под менеджером (`77010000102`) — иначе менеджер подтверждал бы наличие сам себе, и вопрос «кто сказал, что товар есть» остался бы без ответа.
  * @summary Ответить складу по строкам
  */
 export const respondToStockRequest = async (id: string,
@@ -5070,7 +5425,7 @@ export const getReplyToReviewUrl = (id: string,) => {
  * 3. Ответить второй раз другим текстом — в списке один ответ, новый.
  * 4. Негативный 400: пустой либо пробельный `text`; текст длиннее 2000 знаков.
  * 5. Негативный 404: случайный идентификатор.
- * 6. Негативный 403: тот же запрос под `fo-stock`.
+ * 6. Негативный 403: тот же запрос под кладовщиком (`77010000103`).
  * @summary Ответить на отзыв
  */
 export const replyToReview = async (id: string,
@@ -5197,7 +5552,7 @@ export const getRejectReviewUrl = (id: string,) => {
  * 3. Открыть карточку позиции — `rating` пуст: отклонённое в оценку не входит.
  * 4. Автор отправляет отзыв заново — тот же идентификатор, состояние `PENDING`, отзыв снова в очереди.
  * 5. Негативный 404: случайный идентификатор.
- * 6. Негативный 403: тот же запрос под `fo-stock`.
+ * 6. Негативный 403: тот же запрос под кладовщиком (`77010000103`).
  * @summary Отклонить отзыв
  */
 export const rejectReview = async (id: string, options?: RequestInit): Promise<rejectReviewResponse> => {
@@ -5316,7 +5671,7 @@ export const getPublishReviewUrl = (id: string,) => {
  * 2. Открыть карточку этой позиции клиентом, который отзыва не писал, — отзыв виден, а `rating` и `reviewCount` в карточке заполнены.
  * 3. Одобрить тот же отзыв второй раз — снова 200.
  * 4. Негативный 404: случайный идентификатор либо отзыв другого арендатора.
- * 5. Негативный 403: тот же запрос под `fo-stock`.
+ * 5. Негативный 403: тот же запрос под кладовщиком (`77010000103`).
  * @summary Одобрить отзыв
  */
 export const publishReview = async (id: string, options?: RequestInit): Promise<publishReviewResponse> => {
@@ -5648,6 +6003,133 @@ export const useSavePortalTemplate = <TError = ErrorResponse,
       return useMutation(getSavePortalTemplateMutationOptions(options), queryClient);
     }
 
+export type resetPortalServiceDataResponse200 = {
+  data: ServiceResetDto
+  status: 200
+}
+
+export type resetPortalServiceDataResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type resetPortalServiceDataResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type resetPortalServiceDataResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type resetPortalServiceDataResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type resetPortalServiceDataResponseSuccess = (resetPortalServiceDataResponse200) & {
+  headers: Headers;
+};
+export type resetPortalServiceDataResponseError = (resetPortalServiceDataResponse400 | resetPortalServiceDataResponse403 | resetPortalServiceDataResponse404 | resetPortalServiceDataResponse500) & {
+  headers: Headers;
+};
+
+export type resetPortalServiceDataResponse = (resetPortalServiceDataResponseSuccess | resetPortalServiceDataResponseError)
+
+export const getResetPortalServiceDataUrl = () => {
+
+
+
+
+  return `/api/portal/service-data/reset`
+}
+
+/**
+ * Удаляет всё, что арендатор завёл в собственном кабинете, проверяя его: заявки и вопросы, корзину, шаблоны, отметки избранного и отзывы.
+ *
+ * Настоящие данные клиентов не затрагиваются ни при какой ошибке вызывающего: условие «служебная запись» стоит в самих запросах, а идентификатор записи метод берёт сам и снаружи не принимает.
+ *
+ * Служебная запись при этом остаётся — она не след проверки, а способ её начать.
+ *
+ * Клиенту метод недоступен: у него служебной записи нет, и убирать ему нечего.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), открыть кабинет, положить позицию в корзину и подать заявку.
+ * 2. Убедиться, что заявка видна в очереди менеджера со значком канала «из кабинета».
+ * 3. Вызвать метод — в ответе `drafts` не меньше единицы.
+ * 4. Открыть очередь снова: проверочной заявки в ней больше нет, а заявки клиентов на месте.
+ * 5. Негативный 403: тот же вызов токеном клиента.
+ * ```
+ * curl -s -X POST http://localhost:8080/api/portal/service-data/reset \
+ *   -H 'Authorization: Bearer <токен администратора>'
+ * ```
+ * @summary Убрать проверочные действия
+ */
+export const resetPortalServiceData = async ( options?: RequestInit): Promise<resetPortalServiceDataResponse> => {
+
+  return apiRequest<resetPortalServiceDataResponse>(getResetPortalServiceDataUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResetPortalServiceDataMutationKey = () => ['resetPortalServiceData'] as const;
+
+export const getResetPortalServiceDataMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPortalServiceData>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof resetPortalServiceData>>, TError,void, TContext> => {
+
+const mutationKey = getResetPortalServiceDataMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetPortalServiceData>>, void> = () => {
+
+
+          return  resetPortalServiceData()
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetPortalServiceDataMutationResult = NonNullable<Awaited<ReturnType<typeof resetPortalServiceData>>>
+
+    export type ResetPortalServiceDataMutationError = ErrorResponse
+
+
+    /**
+ * @summary Убрать проверочные действия
+ */
+export const useResetPortalServiceData = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPortalServiceData>>, TError,void, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resetPortalServiceData>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getResetPortalServiceDataMutationOptions(options), queryClient);
+    }
+
 export type getPortalQuestionsResponse200 = {
   data: QuestionThreadDto[]
   status: 200
@@ -5851,7 +6333,7 @@ export const getAskPortalQuestionUrl = () => {
  * ```
  *
  * 2. Ответ 201: пришли номер обращения, наименование позиции и `answered=false`.
- * 3. Войти `fo-manager` и открыть очередь заявок с параметром `source=PORTAL` — вопрос там, состояние `INQUIRY`, текст виден дословно. Отсутствие его в очереди означало бы, что вопрос ушёл в никуда.
+ * 3. Войти менеджером (`77010000102`) и открыть очередь заявок с параметром `source=PORTAL` — вопрос там, состояние `INQUIRY`, текст виден дословно. Отсутствие его в очереди означало бы, что вопрос ушёл в никуда.
  * 4. Открыть очередь с `source=WHATSAPP` — вопроса нет: вкладки не смешиваются.
  * 5. Отправить вопрос без `itemId` — 201, вопрос общий.
  * 6. Негативный 400: пустой либо пробельный `text`; текст длиннее 2000 знаков.
@@ -6130,7 +6612,7 @@ export const getSubmitPortalOrderUrl = () => {
  * **Как проверить вручную**
  *
  * 1. Набрать корзину в кабинете и отправить — 200 с номером заявки, редакцией и итогом; корзина пуста.
- * 2. Открыть очередь менеджера (`fo-manager`) — заявка там, статус «к проверке», канал `PORTAL`, все строки сопоставлены, блока уверенности разбора нет.
+ * 2. Открыть очередь менеджера (`77010000102`) — заявка там, статус «к проверке», канал `PORTAL`, все строки сопоставлены, блока уверенности разбора нет.
  * 3. Негативный 409: набрать корзину, поменять цену позиции в каталоге и отправить. Заявки нет, в теле — корзина с двумя ценами. Создание заявки здесь означало бы, что клиент купил по цене, которой не видел.
  * 4. Негативный 400: отправить пустую корзину.
  * 5. Негативный 403: заголовок поставщика, у которого клиента нет.
@@ -7009,21 +7491,27 @@ export const getActivatePortalInvitationUrl = () => {
 }
 
 /**
- * Единственный адрес кабинета, открытый без токена: у клиента его в этот момент ещё нет. Защита — одноразовый код на 128 бит, ограниченный срок, отпечаток вместо кода в базе и совпадение телефона.
+ * Связывает учётную запись у поставщика с человеком, который вошёл в кабинет. Токен обязателен: без него неизвестно, кого связывать.
  *
- * Отказ одинаков на все причины: просроченный, использованный, отозванный и несуществующий код, а также чужой телефон отвечают одним кодом и одним текстом. Разница в ответах превратила бы форму в способ узнать, кто чей поставщик.
+ * Телефон в теле запроса не передаётся. Он берётся из имени пользователя — в realm клиентов человек регистрируется номером и им же входит — и сверяется с номером, на который выписано приглашение. Приняв номер из формы, кабинет позволил бы назвать чужой: ссылку пересылают, и переславший открыл бы третьему лицу чужую историю заказов.
+ *
+ * Остальная защита прежняя: одноразовый код на 128 бит, ограниченный срок, отпечаток вместо кода в базе и ограничение частоты попыток.
+ *
+ * Отказ одинаков на все причины: просроченный, использованный, отозванный и несуществующий код, а также чужой номер отвечают одним кодом и одним текстом. Разница в ответах превратила бы форму в способ узнать, кто чей поставщик.
  *
  * **Как проверить вручную**
  *
- * 1. Взять код из ссылки, выданной приглашением.
- * 2. Отправить код и телефон `77010000001` **без токена** — ответ 200, статус `ACTIVE`.
- * 3. Повторить тот же запрос — 401: код гасится использованием.
- * 4. Негативный 401: новый код с чужим телефоном. Ответ обязан совпадать с ответом из пункта 3 дословно; разные тексты — это утечка.
- * 5. Негативный 401: случайный код той же длины.
+ * 1. Зарегистрироваться в кабинете номером `77010000001` и войти; взять `access_token` из инструментов разработчика.
+ * 2. Взять код из ссылки, выданной приглашением на тот же номер.
+ * 3. Отправить код с этим токеном — ответ 200, статус `ACTIVE`.
+ * 4. Повторить тот же запрос — 401: код гасится использованием.
+ * 5. Негативный 401: новый код, но токен человека с другим номером. Ответ обязан совпадать с ответом из пункта 4 дословно; разные тексты — это утечка.
+ * 6. Негативный 401: тот же запрос без токена вовсе.
  * ```
  * curl -s -X POST http://localhost:8080/api/portal/invitation/activate \
  *   -H 'Content-Type: application/json' \
- *   -d '{"code":"<код из ссылки>","phone":"77010000001"}'
+ *   -H 'Authorization: Bearer <токен клиента>' \
+ *   -d '{"code":"<код из ссылки>","consentVersion":"2026-09-05"}'
  * ```
  * @summary Активировать приглашение
  */
@@ -7744,7 +8232,7 @@ export const getRequestFullExportUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, вызвать метод — 202, а не 200. Код 200
+ * 1. Войти администратором (`77010000101`), вызвать метод — 202, а не 200. Код 200
  *    означал бы обещание немедленной сверки, которого мы
  *    выполнить не можем: соединение открывает учётная система.
  * 2. Прислать ключом обмена обычное сообщение — в ответе
@@ -7755,7 +8243,7 @@ export const getRequestFullExportUrl = () => {
  * 4. Прислать сообщение с `"full":true` — признак снялся.
  *    Снявшийся раньше признак означал бы, что заказ закрыт
  *    выгрузкой, которой не было.
- * 5. Негативный 403: тот же запрос под `fo-manager` — сверка
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`) — сверка
  *    всего каталога заново решается не на его уровне.
  * @summary Заказать полную выгрузку
  */
@@ -7874,13 +8362,13 @@ export const getRequestStockConfirmationUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Под `fo-admin` выставить арендатору режим согласования `ALWAYS` — тогда склад спрашивают по каждой заявке и проверка не зависит от свежести остатков.
- * 2. Войти `fo-manager`, взять заявку с сопоставленными строками.
+ * 1. Под `77010000101` выставить арендатору режим согласования `ALWAYS` — тогда склад спрашивают по каждой заявке и проверка не зависит от свежести остатков.
+ * 2. Войти менеджером (`77010000102`), взять заявку с сопоставленными строками.
  * 3. Вызвать метод — 200, заявка перешла в ожидание склада, в ответе снимок предъявленного состава.
  * 4. Изменить состав заявки и открыть запрос снова — снимок показывает прежний состав, а не новый. Обратное означало бы, что склад отвечает за то, чего не видел.
  * 5. Негативный 409: вызвать повторно на той же заявке — открытый запрос уже висит.
  * 6. Негативный 409: выставить режим `NOT_REQUIRED` и вызвать на другой заявке — согласование не требуется.
- * 7. Негативный 403: тот же запрос под `fo-stock` — запрашивает менеджер, а не кладовщик.
+ * 7. Негативный 403: тот же запрос под кладовщиком (`77010000103`) — запрашивает менеджер, а не кладовщик.
  * @summary Запросить у склада наличие
  */
 export const requestStockConfirmation = async (id: string, options?: RequestInit): Promise<requestStockConfirmationResponse> => {
@@ -7993,13 +8481,13 @@ export const getSendDraftToCustomerUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-manager`, взять заявку и снять с неё цены — сохранить состав со строкой без `price`.
+ * 1. Войти менеджером (`77010000102`), взять заявку и снять с неё цены — сохранить состав со строкой без `price`.
  * 2. Вызвать метод — 409, и в ответе названа причина: цены не проставлены. Проверять нужно именно перечень причин: отказ без объяснения оставляет менеджера перед кнопкой, которая молча не работает.
  * 3. Проставить цены и повторить. Если арендатор требует согласования склада, снова 409 — теперь причина в складе; пройти согласование и повторить.
  * 4. При включённой доставке повторить ещё раз: пока способ не выбран, причиной будет неразрешённая доставка.
  * 5. Снять все причины и вызвать метод — 200, заявка перешла в ожидание клиента, а сообщение легло в очередь исходящих. Ушедшее прямо из этого вызова сообщение означало бы, что отправка не переживёт падения моста.
  * 6. Вызвать ещё раз — второго сообщения клиенту не появилось.
- * 7. Негативный 409: взять заявку под `fo-admin` на себя и попробовать отправить её под `fo-manager` — заявку ведёт другой.
+ * 7. Негативный 409: взять заявку под администратором (`77010000101`) на себя и попробовать отправить её под менеджером (`77010000102`) — заявку ведёт другой.
  * 8. Негативный 404: случайный идентификатор в пути.
  * @summary Отправить состав клиенту на подтверждение
  */
@@ -8362,7 +8850,7 @@ export const getRejectDraftUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-manager`, взять заявку из очереди.
+ * 1. Войти менеджером (`77010000102`), взять заявку из очереди.
  * 2. Вызвать метод — заявка отклонена и из рабочей очереди пропала.
  * 3. Убедиться, что обратной кнопки «принять» в контракте нет ни у одной операции: в принятую заявку переводит только ответ клиента в переписке.
  * 4. Негативный 404: случайный идентификатор в пути.
@@ -8431,6 +8919,133 @@ export const useRejectDraft = <TError = ErrorResponse,
       return useMutation(getRejectDraftMutationOptions(options), queryClient);
     }
 
+export type answerCustomerQuestionResponse200 = {
+  data: DraftDetailDto
+  status: 200
+}
+
+export type answerCustomerQuestionResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type answerCustomerQuestionResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type answerCustomerQuestionResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type answerCustomerQuestionResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type answerCustomerQuestionResponseSuccess = (answerCustomerQuestionResponse200) & {
+  headers: Headers;
+};
+export type answerCustomerQuestionResponseError = (answerCustomerQuestionResponse400 | answerCustomerQuestionResponse404 | answerCustomerQuestionResponse409 | answerCustomerQuestionResponse500) & {
+  headers: Headers;
+};
+
+export type answerCustomerQuestionResponse = (answerCustomerQuestionResponseSuccess | answerCustomerQuestionResponseError)
+
+export const getAnswerCustomerQuestionUrl = (id: string,) => {
+
+
+
+
+  return `/api/drafts/${id}/question/answer`
+}
+
+/**
+ * Отправляет клиенту свободный текст ответа в ту же переписку и снимает паузу сроков: с этого момента ждёт снова клиент.
+ *
+ * Состав при этом не меняется и редакция остаётся прежней — клиент спрашивал, а не правил заказ. Нужно поменять состав — менеджер правит заявку обычным путём, и новая редакция уходит клиенту отправкой.
+ *
+ * Отдельного канала ответа нет: заготовки на все вопросы либо не отвечают по делу, либо превращаются в десяток заготовок.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Довести заявку до отправленной, ответить за клиента вопросом («а М500 есть?») — заявка встаёт в «ждёт ответа менеджера», сроки клиента останавливаются.
+ * 2. Вызвать этот метод — клиенту уходит сообщение, заявка возвращается в «ждёт клиента», накопленная пауза выросла.
+ * 3. Негативный 409: вызвать его же второй раз — открытого вопроса больше нет.
+ * 4. Негативный 400: пустой текст ответа.
+ * @summary Ответить на вопрос клиента
+ */
+export const answerCustomerQuestion = async (id: string,
+    answerQuestionRequest: AnswerQuestionRequest, options?: RequestInit): Promise<answerCustomerQuestionResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<answerCustomerQuestionResponse>(getAnswerCustomerQuestionUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(answerQuestionRequest)
+  }
+);}
+
+
+
+
+
+export const getAnswerCustomerQuestionMutationKey = () => ['answerCustomerQuestion'] as const;
+
+export const getAnswerCustomerQuestionMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerCustomerQuestion>>, TError,AnswerCustomerQuestionMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof answerCustomerQuestion>>, TError,AnswerCustomerQuestionMutationVariables, TContext> => {
+
+const mutationKey = getAnswerCustomerQuestionMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof answerCustomerQuestion>>, AnswerCustomerQuestionMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  answerCustomerQuestion(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnswerCustomerQuestionMutationResult = NonNullable<Awaited<ReturnType<typeof answerCustomerQuestion>>>
+    export type AnswerCustomerQuestionMutationBody = AnswerQuestionRequest
+    export type AnswerCustomerQuestionMutationError = ErrorResponse
+    export type AnswerCustomerQuestionMutationVariables = {id: string;data: AnswerQuestionRequest}
+
+    /**
+ * @summary Ответить на вопрос клиента
+ */
+export const useAnswerCustomerQuestion = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerCustomerQuestion>>, TError,AnswerCustomerQuestionMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof answerCustomerQuestion>>,
+        TError,
+        AnswerCustomerQuestionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAnswerCustomerQuestionMutationOptions(options), queryClient);
+    }
+
 export type parseDraftResponse202 = {
   data: void
   status: 202
@@ -8479,7 +9094,7 @@ export const getParseDraftUrl = (id: string,) => {
  * **Как проверить вручную**
  *
  * 1. Отправить вебхуком текст без признаков заказа — например «Здравствуйте, а вы работаете в субботу?». После закрытия окна появится заявка в статусе `INQUIRY`, и модель при этом не вызывалась.
- * 2. Войти `fo-manager`, вызвать метод на этой заявке — 202.
+ * 2. Войти менеджером (`77010000102`), вызвать метод на этой заявке — 202.
  * 3. Дождаться работы `worker` и открыть заявку: разбор отработал, статус сменился.
  * 4. Нажать ещё раз до того, как разбор отработал, — снова 202, но второй задачи в очереди не появилось.
  * 5. Негативный 409: вызвать на уже разобранной или отклонённой заявке — разбирать нечего.
@@ -8596,9 +9211,9 @@ export const getAssignDraftUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-manager`, взять ничью заявку из очереди.
+ * 1. Войти менеджером (`77010000102`), взять ничью заявку из очереди.
  * 2. Отправить `{}` (без ожидаемого владельца) — заявка закреплена за вами, в ответе видно кто и когда взял.
- * 3. Войти `fo-admin` и отправить `{}` на ту же заявку — 409: она уже не ничья.
+ * 3. Войти администратором (`77010000101`) и отправить `{}` на ту же заявку — 409: она уже не ничья.
  * 4. Отправить `{"expectedAssigneeId": "<идентификатор текущего владельца>"}` — перехват удался.
  * 5. Повторить прежний запрос с устаревшим владельцем — 409. Успех означал бы, что двое ведут одну заявку и пишут клиенту наперегонки.
  * 6. Негативный 404: случайный идентификатор в пути.
@@ -8721,10 +9336,10 @@ export const getReleaseDraftUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-manager`, взять заявку на себя.
+ * 1. Войти менеджером (`77010000102`), взять заявку на себя.
  * 2. Вызвать метод — 204; в очереди с фильтром `UNASSIGNED` заявка снова видна.
- * 3. Взять заявку под `fo-manager` и попробовать отпустить её под другим менеджером — 409.
- * 4. То же самое под `fo-admin` — 204: администратор отпускает любую, иначе заявка ушедшего сотрудника осталась бы закреплённой навсегда.
+ * 3. Взять заявку под менеджером (`77010000102`) и попробовать отпустить её под другим менеджером — 409.
+ * 4. То же самое под администратором (`77010000101`) — 204: администратор отпускает любую, иначе заявка ушедшего сотрудника осталась бы закреплённой навсегда.
  * @summary Вернуть заявку в общую очередь
  */
 export const releaseDraft = async (id: string, options?: RequestInit): Promise<releaseDraftResponse> => {
@@ -8837,7 +9452,7 @@ export const getAnswerInquiryUrl = (id: string,) => {
  * **Как проверить вручную**
  *
  * 1. Задать вопрос из кабинета клиентом (тег «Кабинет: вопросы»).
- * 2. Войти `fo-manager` и найти обращение в очереди: фильтр `source=PORTAL`, статус `INQUIRY`.
+ * 2. Войти менеджером (`77010000102`) и найти обращение в очереди: фильтр `source=PORTAL`, статус `INQUIRY`.
  * 3. Ответить этим методом — 200, в ответе виден текст и время ответа.
  * 4. Открыть кабинет клиентом: ответ виден в его вопросах.
  * 5. Негативный 404: тот же запрос по идентификатору обычной заявки — она не вопрос, отвечать нечему.
@@ -8967,7 +9582,7 @@ export const getAcceptDraftUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Взять заявку из кабинета в работу (`fo-manager`) и нажать принятие, ничего не меняя, — 200, статус `ACCEPTED`.
+ * 1. Взять заявку из кабинета в работу (`77010000102`) и нажать принятие, ничего не меняя, — 200, статус `ACCEPTED`.
  * 2. На другой такой же заявке поменять цену строки и повторить — 409 с кодом `DRAFT_SNAPSHOT_CHANGED`.
  * 3. Оставить комментарий менеджера и попробовать снова — принимается: комментарий клиенту не показывали.
  * 4. Негативный 409: заявка из переписки — её принимает ответ клиента в WhatsApp, а не кнопка.
@@ -9079,7 +9694,7 @@ export const getGetPickupPointsUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Убедиться, что режим доставки — «только самовывоз», и завести две точки, одну из них закрыть.
+ * 1. Войти администратором (`77010000101`). Убедиться, что режим доставки — «только самовывоз», и завести две точки, одну из них закрыть.
  * 2. Вызвать метод — в списке обе, закрытая помечена неактивной. Точки приходят и при выключенной доставке: не возящему арендатору они нужны в первую очередь.
  * 3. Негативный: запрос без токена — 401.
  * @summary Точки самовывоза арендатора
@@ -9221,7 +9836,7 @@ export const getCreatePickupPointUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Отправить:
+ * 1. Войти администратором (`77010000101`). Отправить:
  *
  * ```json
  * {"name": "Склад на Сейфуллина", "address": "Алматы, Сейфуллина 100, ворота 3", "workingHours": "пн-сб 09:00-18:00", "active": true}
@@ -9230,7 +9845,7 @@ export const getCreatePickupPointUrl = () => {
  * 2. Ответ 201; точка появилась в списке точек.
  * 3. Убедиться, что часы работы точки никак не связаны с часами приёма заявок: правка графика работы арендатора их не меняет.
  * 4. Негативный 400: пустое название, затем пустой адрес.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Завести точку самовывоза
  */
 export const createPickupPoint = async (pickupPointRequest: PickupPointRequest, options?: RequestInit): Promise<createPickupPointResponse> => {
@@ -9344,7 +9959,7 @@ export const getGetDeliveryMethodsUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. На чистом стенде список пуст.
+ * 1. Войти администратором (`77010000101`). На чистом стенде список пуст.
  * 2. Завести два способа — «Доставка по городу» и «Самовывоз», у второго снять признак «активен».
  * 3. Вызвать метод — в списке оба, выключенный помечен неактивным. Пропавший выключенный способ означает, что включить его обратно будет нечем.
  * 4. Удалить один способ и вызвать снова — его в списке нет, но чтение по идентификатору всё ещё работает.
@@ -9487,7 +10102,7 @@ export const getCreateDeliveryMethodUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Отправить:
+ * 1. Войти администратором (`77010000101`). Отправить:
  *
  * ```json
  * {"name": "Доставка по городу", "type": "CITY_DELIVERY", "requiresAddress": true, "requiresFloor": false, "requiresTimeSlot": false, "tariffRule": "FIXED", "tariffAmount": 1500, "active": true}
@@ -9496,7 +10111,7 @@ export const getCreateDeliveryMethodUrl = () => {
  * 2. Ответ 201, порядок в списке проставлен сервером, хотя в запросе его не было.
  * 3. Завести второй способ с `"tariffRule": "FREE_ABOVE"`, `"tariffAmount": 1500` и `"freeFromAmount": 20000` — это условие «бесплатно от 20 000».
  * 4. Негативный 400: тот же запрос с `"tariffRule": "FIXED"` без `tariffAmount`, затем с пустым названием.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Завести способ доставки
  */
 export const createDeliveryMethod = async (deliveryMethodRequest: DeliveryMethodRequest, options?: RequestInit): Promise<createDeliveryMethodResponse> => {
@@ -9610,7 +10225,7 @@ export const getGetDeliveryZonesUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, завести два способа доставки.
+ * 1. Войти администратором (`77010000101`), завести два способа доставки.
  * 2. Первому завести зоны «Центр» и «Пригород», второму — «Левый берег».
  * 3. Запросить зоны первого способа — ровно две, «Левого берега» среди них нет. Появившаяся чужая зона означает, что доставку посчитают по цене соседнего способа.
  * 4. Негативный 404: подставить в путь случайный идентификатор способа.
@@ -9753,12 +10368,12 @@ export const getSaveDeliveryZoneUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор способа.
+ * 1. Войти администратором (`77010000101`), взять идентификатор способа.
  * 2. Отправить `{"name": "Центр", "description": "в пределах проспекта", "price": 1000}` — ответ 201.
  * 3. Отправить то же имя с ценой 1500 — снова 201, но зона та же самая: идентификатор в ответе не изменился, а цена стала новой. Новый идентификатор означал бы, что правка зоны рвёт ссылку с оформленных заявок.
  * 4. Запросить зоны способа — зона одна, не две.
  * 5. Негативный 400: пустое имя, затем отрицательная цена.
- * 6. Негативный 403: тот же запрос под `fo-manager`.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Завести или поправить зону
  */
 export const saveDeliveryZone = async (id: string,
@@ -9873,7 +10488,7 @@ export const getGetDeliveryTimeSlotsUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор способа.
+ * 1. Войти администратором (`77010000101`), взять идентификатор способа.
  * 2. Завести окна в обратном порядке: сначала `18:00–21:00`, потом `09:00–12:00`.
  * 3. Запросить окна способа — первым идёт утреннее. Порядок добавления в ответе означал бы, что человек читает список вразнобой.
  * 4. Негативный 404: подставить в путь случайный идентификатор способа.
@@ -10016,11 +10631,11 @@ export const getSaveDeliveryTimeSlotUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор способа.
+ * 1. Войти администратором (`77010000101`), взять идентификатор способа.
  * 2. Отправить `{"fromTime": "09:00", "toTime": "12:00"}` — ответ 201.
  * 3. Отправить те же границы ещё раз — снова 201 и тот же идентификатор; в списке окон способа оно одно.
  * 4. Негативный 400: `{"fromTime": "18:00", "toTime": "09:00"}`.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Завести окно времени
  */
 export const saveDeliveryTimeSlot = async (id: string,
@@ -10137,13 +10752,13 @@ export const getCloseDataRequestUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор обращения
+ * 1. Войти администратором (`77010000101`), взять идентификатор обращения
  *    из списка открытых.
  * 2. Вызвать метод — 200; в ответе видно, кто и когда закрыл.
  * 3. Повторить на том же обращении — 404: закрытое обращение
  *    закрыть нельзя.
  * 4. Негативный 404: случайный идентификатор в пути.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Закрыть обращение
  */
 export const closeDataRequest = async (id: string, options?: RequestInit): Promise<closeDataRequestResponse> => {
@@ -10257,11 +10872,11 @@ export const getEraseCustomerDataUrl = (id: string,) => {
  * **Как проверить вручную**
  *
  * 1. Завести клиенту переписку и хотя бы одну заявку, запомнить его идентификатор.
- * 2. Войти `fo-admin`, вызвать метод — в отчёте названо число удалённых сообщений, заявок и журналов разбора, а рядом — что осталось.
+ * 2. Войти администратором (`77010000101`), вызвать метод — в отчёте названо число удалённых сообщений, заявок и журналов разбора, а рядом — что осталось.
  * 3. Открыть очередь заявок: заявок этого клиента нет, имя и телефон в карточке стёрты.
  * 4. Открыть журнал доступа: записи о том, кто смотрел данные, на месте. Их исчезновение означало бы, что удалением заметается след доступа.
  * 5. Вызвать метод повторно — 200 и нули, а не ошибка.
- * 6. Негативный 403: тот же запрос под `fo-manager`.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Удалить данные клиента
  */
 export const eraseCustomerData = async (id: string, options?: RequestInit): Promise<eraseCustomerDataResponse> => {
@@ -10376,12 +10991,12 @@ export const getIssuePortalInvitationUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, пригласить телефон `77010000001`.
+ * 1. Войти администратором (`77010000101`), пригласить телефон `77010000001`.
  * 2. В ответе ссылка вида `.../activate?code=…` и срок. Скопировать код: второй раз его не покажут.
  * 3. Запросить учётные записи — появилась запись со статусом `INVITED`: приглашение выписано, но доступа ещё нет.
  * 4. Пригласить тот же телефон снова — ссылка другая, запись та же. Вторая запись означала бы вторую историю заявок.
  * 5. Негативный 400: телефон с плюсом и пробелами — телефон записывается цифрами.
- * 6. Негативный 403: тот же запрос под `fo-manager`.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Пригласить клиента в кабинет
  */
 export const issuePortalInvitation = async (issueInvitationRequest: IssueInvitationRequest, options?: RequestInit): Promise<issuePortalInvitationResponse> => {
@@ -10500,10 +11115,10 @@ export const getUnblockPortalAccountUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, отозвать доступ у активной записи и вернуть его — статус снова `ACTIVE`.
+ * 1. Войти администратором (`77010000101`), отозвать доступ у активной записи и вернуть его — статус снова `ACTIVE`.
  * 2. Повторить с записью, которая доступ ещё не активировала: после возврата статус `INVITED`, а не `ACTIVE`.
  * 3. Негативный 404: случайный идентификатор в пути.
- * 4. Негативный 403: тот же запрос под `fo-manager`.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Вернуть доступ клиента
  */
 export const unblockPortalAccount = async (id: string, options?: RequestInit): Promise<unblockPortalAccountResponse> => {
@@ -10732,11 +11347,11 @@ export const getBlockPortalAccountUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор активной записи из списка учётных записей.
+ * 1. Войти администратором (`77010000101`), взять идентификатор активной записи из списка учётных записей.
  * 2. Отозвать доступ — статус в ответе `BLOCKED`.
  * 3. Попробовать активировать старую ссылку этого клиента — 401: отзыв не обходится ссылкой, лежащей в переписке.
  * 4. Негативный 404: случайный идентификатор в пути.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Отозвать доступ клиента
  */
 export const blockPortalAccount = async (id: string, options?: RequestInit): Promise<blockPortalAccountResponse> => {
@@ -10851,7 +11466,7 @@ export const getGetCatalogItemsUrl = (params?: GetCatalogItemsParams,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, завести позицию «Цемент М400» и «Qagaz A4» методом создания позиции.
+ * 1. Войти администратором (`77010000101`), завести позицию «Цемент М400» и «Qagaz A4» методом создания позиции.
  * 2. Вызвать с `query=цемнт` — «Цемент М400» обязана найтись, хотя написание с ошибкой и в каталоге его нет.
  * 3. Вызвать с `query=қағаз`, затем `qagaz` и `kagaz` — все три запроса дают «Qagaz A4». Разные ответы означают, что нормализация письменностей сломана.
  * 4. Вызвать с пустым `query` и `size=1` — в ответе одна позиция, а общее число равно всему каталогу.
@@ -11003,7 +11618,7 @@ export const getCreateCatalogItemUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`.
+ * 1. Войти администратором (`77010000101`).
  * 2. Создать позицию: наименование «Цемент М400», артикул `CEM-400`, цена 2500, единица «меш».
  * 3. Ответ 201; в нём проставлены отметка времени остатка и его источник, хотя в запросе их не было.
  * 4. Негативный 409: повторить тот же запрос — артикул занят.
@@ -11011,7 +11626,7 @@ export const getCreateCatalogItemUrl = () => {
  * 6. Создать позицию со свойствами «Модель» = «М-400» и «Вес» = «50 кг» — в ответе они идут в том же порядке. Другой порядок означает, что карточка перетасует характеристики, а вперёд поставщик ставит то, по чему выбирают.
  * 7. Отправить те же свойства и следом «модель» = «М-500» — в ответе «Модель» одна, со значением «М-400».
  * 8. Негативный 400 с кодом `CATALOG_ATTRIBUTES_TOO_MANY`: отправить двадцать одно свойство. Успех здесь означал бы, что часть свойств пропала молча.
- * 9. Повторить под `fo-manager` и `fo-stock` — тоже 201: каталог наполняют руками те, кто работает с товаром, а не только администратор.
+ * 9. Повторить под менеджером (`77010000102`) и `77010000103` — тоже 201: каталог наполняют руками те, кто работает с товаром, а не только администратор.
  * 10. Негативный 403: тот же запрос под `fo-viewer` — наблюдателю каталог доступен только на чтение.
  * @summary Завести позицию каталога
  */
@@ -11126,7 +11741,7 @@ export const getGetItemMediaUrl = (itemId: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, завести позицию «Цемент М-400» и взять её идентификатор.
+ * 1. Войти администратором (`77010000101`), завести позицию «Цемент М-400» и взять её идентификатор.
  * 2. Вызвать метод — ответ 200 с пустым списком.
  * 3. Добавить два снимка и вызвать снова — оба в списке, `sortOrder` 0 и 1.
  * 4. Негативный 404: подставить в путь случайный идентификатор.
@@ -11264,7 +11879,7 @@ export const getAddItemMediaUrl = (itemId: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор позиции.
+ * 1. Войти администратором (`77010000101`), взять идентификатор позиции.
  * 2. Отправить:
  *
  * ```json
@@ -11395,7 +12010,7 @@ export const getPreviewCatalogImportUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Подготовить файл `price.csv`:
+ * 1. Войти администратором (`77010000101`). Подготовить файл `price.csv`:
  *
  * ```
  * Артикул;Наименование;Единица;Цена
@@ -11408,7 +12023,7 @@ export const getPreviewCatalogImportUrl = () => {
  * 3. Запросить список позиций каталога — он не изменился. Появившиеся позиции означают, что предпросмотр пишет в базу, чего делать не должен.
  * 4. Переименовать в файле заголовок «Цена» в «Стоимость» и загрузить снова — цена не угадалась, её колонку придётся указать руками при подтверждении.
  * 5. Негативный 400: загрузить произвольный текстовый файл под именем `price.csv`.
- * 6. Негативный 403: тот же запрос под `fo-manager`.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Предпросмотр импорта прайса
  */
 export const previewCatalogImport = async (previewCatalogImportBody?: PreviewCatalogImportBody, options?: RequestInit): Promise<previewCatalogImportResponse> => {
@@ -11525,7 +12140,7 @@ export const getCommitCatalogImportUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Взять файл из предыдущего шага и сопоставление, которое вернул предпросмотр.
+ * 1. Войти администратором (`77010000101`). Взять файл из предыдущего шага и сопоставление, которое вернул предпросмотр.
  * 2. Отправить файл вместе с частью `request`:
  *
  * ```json
@@ -11536,7 +12151,7 @@ export const getCommitCatalogImportUrl = () => {
  * 4. Поправить в файле цену «Цемента М400» и подтвердить снова: записанных строк снова две, но позиций в каталоге не прибавилось, а цена обновилась. Выросшее число позиций означает, что импорт заводит дубликаты вместо обновления.
  * 5. Проверить остатки: с `updateStock: false` отметка времени остатка у позиции не сдвигается, сколько бы раз файл ни грузили.
  * 6. Негативный 400: отправить сопоставление без `NAME` — без наименования импорт не подтверждается.
- * 7. Негативный 403: тот же запрос под `fo-manager`.
+ * 7. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Записать прайс в каталог
  */
 export const commitCatalogImport = async (commitCatalogImportBody?: CommitCatalogImportBody, options?: RequestInit): Promise<commitCatalogImportResponse> => {
@@ -11651,10 +12266,10 @@ export const getGetCatalogCategoriesUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. На чистом стенде список пуст — категории заводит арендатор либо приносит импорт прайса.
+ * 1. Войти администратором (`77010000101`). На чистом стенде список пуст — категории заводит арендатор либо приносит импорт прайса.
  * 2. Завести «Бумага» с порядком 20 и «Сухие смеси» с порядком 10.
  * 3. Вызвать список — «Сухие смеси» первыми: порядок сильнее алфавита, иначе арендатор не смог бы поднять то, чем торгует.
- * 4. Тот же запрос под `fo-manager` — 200: справочник ему виден, он выбирает категорию на карточке позиции.
+ * 4. Тот же запрос под менеджером (`77010000102`) — 200: справочник ему виден, он выбирает категорию на карточке позиции.
  * @summary Справочник категорий
  */
 export const getCatalogCategories = async ( options?: RequestInit): Promise<getCatalogCategoriesResponse> => {
@@ -11799,11 +12414,11 @@ export const getCreateCatalogCategoryUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, завести категорию «Сухие смеси».
+ * 1. Войти администратором (`77010000101`), завести категорию «Сухие смеси».
  * 2. Ответ 201 с идентификатором; она появляется в справочнике.
  * 3. Негативный 409: завести «СУХИЕ СМЕСИ» — название занято. Успех здесь означал бы, что витрина покажет одну рубрику дважды.
  * 4. Негативный 400: отправить пустое название.
- * 5. Негативный 403: тот же запрос под `fo-manager` — справочник ведёт администратор арендатора.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`) — справочник ведёт администратор арендатора.
  * @summary Завести категорию
  */
 export const createCatalogCategory = async (saveItemCategoryRequest: SaveItemCategoryRequest, options?: RequestInit): Promise<createCatalogCategoryResponse> => {
@@ -12340,10 +12955,10 @@ export const getGetBusinessDayImpactUrl = (date: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Запросить последствия для праздничной даты — в ответе названа причина «праздник», а не просто признак «нерабочий».
+ * 1. Войти администратором (`77010000101`). Запросить последствия для праздничной даты — в ответе названа причина «праздник», а не просто признак «нерабочий».
  * 2. Запросить для воскресенья при закрытом воскресенье в сетке — причина указывает на недельную сетку.
  * 3. Завести заявку, ждущую ответа в ближайший рабочий день, и запросить последствия для этой даты — число ждущих клиентов больше нуля. Ноль здесь означал бы, что день закрывают вслепую.
- * 4. Негативный 403: тот же запрос под `fo-manager`.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Последствия изменения режима дня
  */
 export const getBusinessDayImpact = async (date: string, options?: RequestInit): Promise<getBusinessDayImpactResponse> => {
@@ -12424,6 +13039,145 @@ export function useGetBusinessDayImpact<TData = Awaited<ReturnType<typeof getBus
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetBusinessDayImpactQueryOptions(date,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getTenantBrandingResponse200 = {
+  data: TenantBrandingDto
+  status: 200
+}
+
+export type getTenantBrandingResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getTenantBrandingResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getTenantBrandingResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getTenantBrandingResponseSuccess = (getTenantBrandingResponse200) & {
+  headers: Headers;
+};
+export type getTenantBrandingResponseError = (getTenantBrandingResponse400 | getTenantBrandingResponse404 | getTenantBrandingResponse500) & {
+  headers: Headers;
+};
+
+export type getTenantBrandingResponse = (getTenantBrandingResponseSuccess | getTenantBrandingResponseError)
+
+export const getGetTenantBrandingUrl = () => {
+
+
+
+
+  return `/api/tenant/branding`
+}
+
+/**
+ * Открыто всем ролям рабочего места, в отличие от реквизитов: в чьём рабочем месте он находится, должен видеть каждый вошедший, включая кладовщика и наблюдателя. Ради этих двух полей отдавать им карточку продавца целиком нельзя — вместе с ней ушёл бы и налоговый статус.
+ *
+ * Знак задаётся на экране «Реквизиты продавца» (`PUT /api/tenant/seller-details`) и оттуда же попадает в кабинет клиента.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), задать знак реквизитами продавца, вызвать метод — придут имя и адрес знака.
+ * 2. Войти кладовщиком (`77010000103`) и вызвать метод — придёт то же самое: роль здесь ничего не решает.
+ * 3. Стереть знак и вызвать снова — `logoUrl` пуст, имя на месте.
+ * @summary Имя и знак арендатора
+ */
+export const getTenantBranding = async ( options?: RequestInit): Promise<getTenantBrandingResponse> => {
+
+  return apiRequest<getTenantBrandingResponse>(getGetTenantBrandingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTenantBrandingQueryKey = () => {
+    return [
+    `/api/tenant/branding`
+    ] as const;
+    }
+
+
+export const getGetTenantBrandingQueryOptions = <TData = Awaited<ReturnType<typeof getTenantBranding>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantBranding>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTenantBrandingQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTenantBranding>>> = ({ signal }) => getTenantBranding({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTenantBranding>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTenantBrandingQueryResult = NonNullable<Awaited<ReturnType<typeof getTenantBranding>>>
+export type GetTenantBrandingQueryError = ErrorResponse
+
+
+export function useGetTenantBranding<TData = Awaited<ReturnType<typeof getTenantBranding>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantBranding>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTenantBranding>>,
+          TError,
+          Awaited<ReturnType<typeof getTenantBranding>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTenantBranding<TData = Awaited<ReturnType<typeof getTenantBranding>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantBranding>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTenantBranding>>,
+          TError,
+          Awaited<ReturnType<typeof getTenantBranding>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTenantBranding<TData = Awaited<ReturnType<typeof getTenantBranding>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantBranding>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Имя и знак арендатора
+ */
+
+export function useGetTenantBranding<TData = Awaited<ReturnType<typeof getTenantBranding>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantBranding>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTenantBrandingQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -12636,10 +13390,10 @@ export const getGetStockRequestQueueUrl = (params?: GetStockRequestQueueParams,)
  * **Как проверить вручную**
  *
  * 1. Создать два запроса складу по разным заявкам с промежутком в минуту.
- * 2. Войти `fo-stock`, вызвать метод без параметров — оба запроса, ранний первым.
+ * 2. Войти кладовщиком (`77010000103`), вызвать метод без параметров — оба запроса, ранний первым.
  * 3. Ответить по одному из них и вызвать снова — в очереди остался только неотвеченный.
  * 4. Вызвать с `status=CONFIRMED` — виден отвеченный (`PARTIAL` или `REJECTED`, если склад подтвердил не всё).
- * 5. Негативный 403: тот же запрос под `fo-manager` — очередь склада принадлежит кладовщику.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`) — очередь склада принадлежит кладовщику.
  * @summary Очередь запросов складу
  */
 export const getStockRequestQueue = async (params?: GetStockRequestQueueParams, options?: RequestInit): Promise<getStockRequestQueueResponse> => {
@@ -12779,11 +13533,11 @@ export const getGetStockRequestUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-stock`, взять идентификатор запроса из очереди склада.
+ * 1. Войти кладовщиком (`77010000103`), взять идентификатор запроса из очереди склада.
  * 2. Вызвать метод — строки с количествами и текстом клиента.
  * 3. Проверить главное: ни в одной строке нет ни цены, ни суммы заявки. Просочившаяся цена — это утечка наценки тому, кто за неё не отвечает.
  * 4. Негативный 404: случайный идентификатор в пути.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Карточка запроса складу
  */
 export const getStockRequest = async (id: string, options?: RequestInit): Promise<getStockRequestResponse> => {
@@ -12932,12 +13686,12 @@ export const getGetReviewModerationQueueUrl = (params?: GetReviewModerationQueue
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin` и открыть очередь без параметров — приходят ожидающие отзывы; у каждого видны наименование позиции, оценка, текст и автор сокращённо.
+ * 1. Войти администратором (`77010000101`) и открыть очередь без параметров — приходят ожидающие отзывы; у каждого видны наименование позиции, оценка, текст и автор сокращённо.
  * 2. Оставить отзыв клиентом и открыть очередь снова — отзыв в ней.
  * 3. Одобрить его и открыть очередь снова — его там нет; открыть с `status=PUBLISHED` — он там.
  * 4. Войти администратором другого арендатора — чужих отзывов в очереди нет.
  * 5. Негативный 400: `status=WHATEVER`.
- * 6. Негативный 403: тот же запрос под `fo-stock`.
+ * 6. Негативный 403: тот же запрос под кладовщиком (`77010000103`).
  * @summary Отзывы в состоянии модерации
  */
 export const getReviewModerationQueue = async (params?: GetReviewModerationQueueParams, options?: RequestInit): Promise<getReviewModerationQueueResponse> => {
@@ -14967,7 +15721,7 @@ export const getExchangeStatusUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. На стенде, где обмена не было,
+ * 1. Войти администратором (`77010000101`). На стенде, где обмена не было,
  *    вызвать метод — время последнего сеанса пусто по обоим
  *    потокам. Подставленная сюда дата выдала бы незаконченную
  *    настройку за работающий обмен.
@@ -14977,7 +15731,7 @@ export const getExchangeStatusUrl = () => {
  * 3. Прислать остатки — заполнились оба. Общее «последний
  *    обмен» на этом шаге показало бы исправным обмен,
  *    у которого встал один из двух потоков.
- * 4. Негативный 403: тот же запрос под `fo-manager`.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Состояние обмена
  */
 export const exchangeStatus = async ( options?: RequestInit): Promise<exchangeStatusResponse> => {
@@ -15120,7 +15874,7 @@ export const getGetDraftQueueUrl = (params?: GetDraftQueueParams,) => {
  * **Как проверить вручную**
  *
  * 1. Завести заявку способом из операции приёма входящего сообщения (тег «Вебхуки каналов»): черновик через API не создаётся. Дождаться закрытия окна сборки — по умолчанию 90 секунд тишины, и закрывает его роль `worker`. При выключенном `worker` заявка не появится никогда.
- * 2. Войти `fo-manager`, вызвать метод без параметров — заявка в очереди.
+ * 2. Войти менеджером (`77010000102`), вызвать метод без параметров — заявка в очереди.
  * 3. Отфильтровать по `status` из ответа — заявка на месте; по заведомо другому статусу — список пуст.
  * 4. Проверить `assignee`: `UNASSIGNED` показывает ничьи заявки, `MINE` — взятые вами. Сразу после создания заявка ничья, поэтому во втором случае список пуст.
  * 5. Проверить `source`: `PORTAL` оставляет только заявки из кабинета, `WHATSAPP` — только из переписки. Поле `source` есть у каждой строки: по нему экран рисует значок канала.
@@ -15403,7 +16157,7 @@ export const getGetCatalogReplyUrl = (id: string,) => {
  * **Как проверить вручную**
  *
  * 1. Завести обращение: отправить вебхуком «А цемент у вас есть и почём?» — после закрытия окна появится заявка `INQUIRY`.
- * 2. Войти `fo-manager`, вызвать метод — в ответе текст с позициями каталога: название, цена, единица, наличие.
+ * 2. Войти менеджером (`77010000102`), вызвать метод — в ответе текст с позициями каталога: название, цена, единица, наличие.
  * 3. Убедиться, что клиенту ничего не ушло: очередь исходящих пуста. Ушедшее сообщение означало бы, что система ответила за менеджера.
  * 4. Снять цену у позиции и вызвать снова — позиции в подборке нет. Цена появляется в ответе клиенту, и подставлять вместо неё пустоту нельзя.
  * 5. Вызвать на заявке, к которой каталог ничего не подобрал, — приходит готовый текст, а не пустое поле.
@@ -15546,12 +16300,12 @@ export const getGetDataRequestsUrl = () => {
  *
  * 1. Отправить вебхуком сообщение клиента «удалите мои данные» —
  *    обращение распознаётся по тексту и заводится само.
- * 2. Войти `fo-admin`, вызвать метод — обращение в списке,
+ * 2. Войти администратором (`77010000101`), вызвать метод — обращение в списке,
  *    с датой поступления и сроком ответа.
  * 3. Закрыть обращение и вызвать снова — его в списке нет.
  *    Оставшееся закрытое обращение превращает список работы
  *    в архив, который перестают открывать.
- * 4. Негативный 403: тот же запрос под `fo-manager` — решение
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`) — решение
  *    об удалении данных принимает не он.
  * @summary Открытые обращения
  */
@@ -15692,10 +16446,10 @@ export const getGetPortalAccountsUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, вызвать список — на чистом стенде пусто.
+ * 1. Войти администратором (`77010000101`), вызвать список — на чистом стенде пусто.
  * 2. Пригласить клиента и вызвать снова — запись со статусом `INVITED` и пустой отметкой активации.
  * 3. Активировать приглашение и вызвать снова — статус `ACTIVE`, отметка активации проставлена.
- * 4. Негативный 403: тот же запрос под `fo-manager`.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Учётные записи кабинета
  */
 export const getPortalAccounts = async ( options?: RequestInit): Promise<getPortalAccountsResponse> => {
@@ -15832,11 +16586,11 @@ export const getDownloadCatalogImportTemplateUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-manager`, вызвать метод — придёт файл `fastorders-catalog-template.xlsx`.
+ * 1. Войти менеджером (`77010000102`), вызвать метод — придёт файл `fastorders-catalog-template.xlsx`.
  * 2. Открыть его: лист «Каталог» с шапкой и серой строкой-примером, лист «Как заполнять» с правилами.
  * 3. Удалить пример, вписать две свои позиции, сохранить.
  * 4. Отправить этот же файл в предпросмотр загрузки — все колонки распознаны, ни одна не осталась нераспознанной.
- * 5. Подтвердить загрузку под `fo-admin` — позиции появились в каталоге.
+ * 5. Подтвердить загрузку под администратором (`77010000101`) — позиции появились в каталоге.
  * 6. Негативный 403: тот же запрос под `fo-viewer`.
  * @summary Скачать шаблон прайса
  */
@@ -15979,7 +16733,7 @@ export const getGetCatalogAliasesUrl = (params?: GetCatalogAliasesParams,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`. Вызвать без параметров — на чистом стенде список пуст, и это правильный ответ: написания не заводят руками, их выучивает система.
+ * 1. Войти администратором (`77010000101`). Вызвать без параметров — на чистом стенде список пуст, и это правильный ответ: написания не заводят руками, их выучивает система.
  * 2. Получить выученное написание: на заявке, где строка клиента не сопоставилась, менеджер выбирает позицию каталога и сохраняет правки — текст клиента становится написанием этой позиции.
  * 3. Вызвать снова — написание в списке, источник «выученное».
  * 4. Вызвать с `itemId` этой позиции — в ответе только её написания; с идентификатором соседней позиции — пусто.
@@ -16140,9 +16894,9 @@ export const getGetAuditEventsUrl = (params?: GetAuditEventsParams,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Под `fo-manager` открыть карточку заявки — это и есть
+ * 1. Под `77010000102` открыть карточку заявки — это и есть
  *    доступ к данным клиента, который журнал обязан заметить.
- * 2. Войти `fo-admin`, вызвать метод без параметров — запись
+ * 2. Войти администратором (`77010000101`), вызвать метод без параметров — запись
  *    о просмотре на месте, новые сверху.
  * 3. Задать `actor` — идентификатор менеджера: остались только
  *    его действия. Задать `object` — идентификатор заявки:
@@ -16154,7 +16908,7 @@ export const getGetAuditEventsUrl = (params?: GetAuditEventsParams,) => {
  *    Неограниченный ответ на растущем журнале однажды положит
  *    и экран, и память процесса. Задать `size=1` и `page=1` —
  *    вторая запись сверху, `totalElements` тот же.
- * 6. Негативный 403: тот же запрос под `fo-manager`. Это главная
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`). Это главная
  *    проверка: доступ к журналу у того, чьи действия он пишет,
  *    обесценивает саму запись.
  * 7. Задать `phone` — номер клиента из карточки заявки: остались
@@ -16312,9 +17066,9 @@ export const getGetAuditSummaryUrl = (params?: GetAuditSummaryParams,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Под `fo-manager` открыть карточку заявки дважды, потом ещё
+ * 1. Под `77010000102` открыть карточку заявки дважды, потом ещё
  *    раз под другим менеджером.
- * 2. Войти `fo-admin`, вызвать метод с `phone` клиента:
+ * 2. Войти администратором (`77010000101`), вызвать метод с `phone` клиента:
  *    `total` равен числу записей в списке под тем же отбором,
  *    в `actors` двое, первым — тот, кто открывал чаще.
  * 3. Незнакомый `phone` — нули и пустой список, а не сводка
@@ -16465,8 +17219,8 @@ export const getExportAuditEventsUrl = (params?: ExportAuditEventsParams,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Под `fo-manager` открыть карточку заявки клиента.
- * 2. Войти `fo-admin`, вызвать метод с `phone` этого клиента —
+ * 1. Под `77010000102` открыть карточку заявки клиента.
+ * 2. Войти администратором (`77010000101`), вызвать метод с `phone` этого клиента —
  *    придёт файл с одной строкой на каждое обращение.
  * 3. Открыть его в Excel: кириллица читается, колонки
  *    разложены по ячейкам.
@@ -16475,7 +17229,7 @@ export const getExportAuditEventsUrl = (params?: ExportAuditEventsParams,) => {
  * 5. Негативный 400: сузить предел `AUDIT_EXPORT_LIMIT` до 1
  *    и повторить — отказ с числом найденных записей, а не
  *    обрезанный файл.
- * 6. Негативный 403: тот же запрос под `fo-manager`.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Выгрузка ответа по клиенту
  */
 export const exportAuditEvents = async (params?: ExportAuditEventsParams, options?: RequestInit): Promise<exportAuditEventsResponse> => {
@@ -16610,11 +17364,11 @@ export const getDeleteBusinessDayUrl = (date: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, задать режим будущего дня, затем убрать его.
+ * 1. Войти администратором (`77010000101`), задать режим будущего дня, затем убрать его.
  * 2. Ответ 204; в списке исключений даты нет, и день живёт по недельной сетке.
  * 3. Убрать предзаполненный праздник и запросить список снова — обратно он не вернулся. Возвращённый праздник означал бы, что справочник спорит с решением арендатора.
  * 4. Негативный 400: прошедшая дата в пути.
- * 5. Негативный 403: тот же запрос под `fo-manager`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Убрать режим дня
  */
 export const deleteBusinessDay = async (date: string, options?: RequestInit): Promise<deleteBusinessDayResponse> => {
@@ -16842,10 +17596,10 @@ export const getDeleteDeliveryZoneUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор зоны из списка зон способа.
+ * 1. Войти администратором (`77010000101`), взять идентификатор зоны из списка зон способа.
  * 2. Удалить — 204. Запросить зоны способа: зоны в списке нет.
  * 3. Повторить удаление — 404.
- * 4. Негативный 403: тот же запрос под `fo-manager`.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Убрать зону доставки
  */
 export const deleteDeliveryZone = async (id: string, options?: RequestInit): Promise<deleteDeliveryZoneResponse> => {
@@ -16958,10 +17712,10 @@ export const getDeleteDeliveryTimeSlotUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор окна из списка окон способа.
+ * 1. Войти администратором (`77010000101`), взять идентификатор окна из списка окон способа.
  * 2. Удалить — 204. Запросить окна способа: окна в списке нет.
  * 3. Повторить удаление — 404.
- * 4. Негативный 403: тот же запрос под `fo-manager`.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Убрать окно времени
  */
 export const deleteDeliveryTimeSlot = async (id: string, options?: RequestInit): Promise<deleteDeliveryTimeSlotResponse> => {
@@ -17069,7 +17823,7 @@ export const getDeleteItemMediaUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, добавить позиции два снимка.
+ * 1. Войти администратором (`77010000101`), добавить позиции два снимка.
  * 2. Удалить первый — 204. Запросить карточку: остался один, и это второй.
  * 3. Повторить удаление — 404 `CATALOG_MEDIA_NOT_FOUND`.
  * 4. Проверить, что снимки переживают перезапись позиции: сохранить позицию целиком через карточку товара и запросить медиа снова — оставшийся снимок на месте.
@@ -17185,10 +17939,10 @@ export const getDeleteCatalogAliasUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти `fo-admin`, взять идентификатор написания из списка написаний.
+ * 1. Войти администратором (`77010000101`), взять идентификатор написания из списка написаний.
  * 2. Удалить — 204. Запросить список: написания больше нет.
  * 3. Повторить тот же запрос — снова 204, а не 404. Ошибка на повторе означала бы, что экран нельзя обновить дважды.
- * 4. Негативный 403: тот же запрос под `fo-manager`.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Убрать ошибочное написание
  */
 export const deleteCatalogAlias = async (id: string, options?: RequestInit): Promise<deleteCatalogAliasResponse> => {

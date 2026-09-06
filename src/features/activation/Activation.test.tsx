@@ -48,7 +48,11 @@ describe('активация приглашения', () => {
 
     renderScreen(<ActivationPage />, { route: '/activate?code=abc123' });
 
-    await userEvent.type(screen.getByLabelText(/телефон/i), '77010000001');
+    // Номер не спрашивают: человек вошёл под ним. Показывают его затем, чтобы
+    // вошедший не тем сразу это увидел, а не гадал над одинаковым отказом.
+    expect(await screen.findByText(/7 701 000-00-01/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/телефон/i)).not.toBeInTheDocument();
+
     // Пока уведомление не принято, кабинет не открывается: обработка началась
     // бы раньше, чем человека о ней уведомили.
     expect(screen.getByRole('button', { name: /открыть кабинет/i })).toBeDisabled();
@@ -59,9 +63,10 @@ describe('активация приглашения', () => {
     await waitFor(() => {
       const activation = calls.find((call) => call.init?.method === 'POST');
       expect(activation).toBeDefined();
+      // Номера в теле нет: сервер читает его из токена сам, и названный
+      // формой номер открывал бы переславшему ссылку чужую историю заказов.
       expect(JSON.parse(String(activation?.init?.body))).toEqual({
         code: 'abc123',
-        phone: '77010000001',
         // Редакция уходит та, которую человеку показали: через год отвечать
         // придётся за неё, а не за сегодняшний текст.
         consentVersion: '2026-09-05',
@@ -80,7 +85,6 @@ describe('активация приглашения', () => {
 
     renderScreen(<ActivationPage />, { route: '/activate?code=expired' });
 
-    await userEvent.type(screen.getByLabelText(/телефон/i), '77010000001');
     await userEvent.click(await screen.findByRole('checkbox'));
     await userEvent.click(screen.getByRole('button', { name: /открыть кабинет/i }));
 

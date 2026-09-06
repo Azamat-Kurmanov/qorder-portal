@@ -25,12 +25,24 @@ import { setCurrentSupplierId } from '../../supplier/supplier';
  * использованный, чужой и несуществующий код. Показывать «код истёк» там,
  * где сервер этого не сказал, — значит выдумывать за него.
  */
+/**
+ * Номер группами, как его читают вслух: 7 701 999-88-77.
+ *
+ * Ровно для показа. Отправлять нечего — сервер берёт номер из токена, — и
+ * форматирование здесь ни на что, кроме глаз, не влияет.
+ */
+function phoneLabel(phone: string | null): string {
+  if (phone === null) return 'неизвестный номер';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length !== 11) return phone;
+  return `${digits[0]} ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9)}`;
+}
+
 export function ActivationPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { authenticated, login } = useAuth();
+  const { authenticated, login, phone } = useAuth();
 
-  const [phone, setPhone] = useState('');
   const [failed, setFailed] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const code = params.get('code') ?? '';
@@ -92,27 +104,19 @@ export function ActivationPage() {
         </>
       ) : (
         <>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-ink">Телефон</span>
-            <span className="text-xs text-ink-subtle">
-              Тот, на который поставщик выписал приглашение: цифрами, без пробелов
-            </span>
-            <input
-              type="tel"
-              inputMode="numeric"
-              placeholder="77010000001"
-              value={phone}
-              onChange={(event) => {
-                setPhone(event.currentTarget.value);
-                setFailed(false);
-              }}
-              className={cn(
-                'h-12 w-full rounded-[var(--radius-control)] border border-hairline bg-surface px-3',
-                'text-[17px] tabular-nums text-ink placeholder:text-ink-faint',
-                'transition-all duration-300 focus:border-ink/30 focus:outline-none focus:ring-2 focus:ring-brand/30',
-              )}
-            />
-          </label>
+          {/*
+            Номер не спрашивается: человек вошёл под ним, и сервер читает его
+            из токена сам. Показан он потому, что приглашение выписано на
+            конкретный номер: увидев чужой, человек поймёт, что вошёл не тем,
+            — а не будет гадать над одинаковым отказом.
+          */}
+          <p className={cn(
+            'rounded-[var(--radius-control)] border border-hairline bg-surface px-3 py-2.5',
+            'text-sm text-ink-muted',
+          )}>
+            Вы вошли как <span className="font-medium tabular-nums text-ink">{phoneLabel(phone)}</span>.
+            Приглашение должно быть выписано на этот номер.
+          </p>
 
           {failed && (
             /*
@@ -159,11 +163,11 @@ export function ActivationPage() {
 
           <Button
             size="lg"
-            disabled={phone.trim().length === 0 || !accepted || !notice || activate.isPending}
+            disabled={!accepted || !notice || activate.isPending}
             onClick={() =>
               notice
               && activate.mutate({
-                data: { code, phone: phone.trim(), consentVersion: notice.version },
+                data: { code, consentVersion: notice.version },
               })
             }
           >

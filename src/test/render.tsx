@@ -28,6 +28,10 @@ export function renderWithRealSupplier(ui: ReactElement) {
   const auth: AuthContextValue = {
     authenticated: true,
     token: 'test-token',
+    // Номер, под которым человек вошёл: в realm клиентов он и есть имя
+    // пользователя. Подставляется настоящим по форме — экран не должен
+    // работать с пустышкой там, где в бою получает состояние.
+    phone: '77010000001',
     sessionRejected: false,
     login: () => {},
     logout: () => {},
@@ -63,6 +67,7 @@ export function renderScreen(
   const auth: AuthContextValue = {
     authenticated: true,
     token: 'test-token',
+    phone: '77010000001',
     sessionRejected: false,
     login: () => {},
     logout: () => {},

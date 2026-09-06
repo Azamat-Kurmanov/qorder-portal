@@ -109,3 +109,45 @@ describe('заявка на пересогласовании', () => {
     expect(screen.queryByRole('button', { name: /отменить заявку/i })).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Ответ продавца по заявке.
+ *
+ * Клиент кабинета в мессенджер поставщику обычно не писал, и ответ на свой
+ * вопрос он может прочитать только здесь.
+ */
+describe('ответ продавца в заявке', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const answered = {
+    id: 'order-1',
+    state: 'IN_REVIEW',
+    needsAnswer: false,
+    cancellable: true,
+    createdAt: '2026-09-01T10:00:00Z',
+    total: 5000,
+    submitted: [{ name: 'Цемент М-400', quantity: 2, unit: 'мешок', price: 2500, amount: 5000 }],
+    diff: [],
+    sellerAnswer: 'В бумажных мешках по 50 кг',
+    answeredAt: '2026-09-05T08:00:00Z',
+  };
+
+  it('показывает ответ поставщика и говорит, что это он', async () => {
+    stubFetch([get('/api/portal/orders/order-1', answered)]);
+
+    openOrder();
+
+    expect(await screen.findByText('В бумажных мешках по 50 кг')).toBeInTheDocument();
+    // Без подписи ответ читается как ещё одна строка заявки.
+    expect(screen.getByText(/ответ продавца/i)).toBeInTheDocument();
+  });
+
+  it('без ответа блока нет: пустая рамка читается как потерянное сообщение', async () => {
+    stubFetch([get('/api/portal/orders/order-1', { ...answered, sellerAnswer: null, answeredAt: null })]);
+
+    openOrder();
+
+    expect(await screen.findByText('Состав заявки')).toBeInTheDocument();
+    expect(screen.queryByText(/ответ продавца/i)).not.toBeInTheDocument();
+  });
+});

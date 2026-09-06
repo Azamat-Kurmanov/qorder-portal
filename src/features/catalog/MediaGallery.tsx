@@ -15,8 +15,12 @@ import { cn } from '../../ui/cn';
  * Кадры листаются касанием по самому кадру, а внизу точками сказано, какой
  * из них открыт: полоса миниатюр отняла бы у телефона ещё сотню точек, и палец
  * попадает по снимку в триста точек вернее, чем по квадратику в шестьдесят
- * четыре. На мониторе места хватает, и там миниатюры остаются — по ним видно
- * сразу все кадры, а не только соседний.
+ * четыре. На планшете и мониторе места хватает, и там миниатюры остаются —
+ * по ним видно сразу все кадры, а не только соседний.
+ *
+ * Порог тот же, что у карточки (768): галерея и лист решения — половины
+ * одной раскладки, и перестраиваться на разной ширине им нельзя. Разъехавшись,
+ * они дают снимок без скруглений внутри карточки со скруглениями.
  *
  * Ролик стоит ссылкой, а не проигрывателем: карточку открывают с телефона,
  * и видео, начавшее грузиться само, съедает трафик у того, кто пришёл
@@ -48,8 +52,8 @@ export function MediaGallery({
     <div className="flex flex-col gap-2.5">
       <div
         className={cn(
-          'relative overflow-hidden bg-sunk lg:rounded-[var(--radius-gallery)]',
-          current ? 'h-[300px] lg:h-[380px]' : 'h-[168px] lg:h-[220px]',
+          'relative overflow-hidden bg-sunk md:rounded-[var(--radius-gallery)]',
+          current ? 'h-[300px] md:h-[380px]' : 'h-[168px] md:h-[220px]',
         )}
       >
         {current && (
@@ -116,7 +120,7 @@ export function MediaGallery({
           // Точки только говорят, где человек находится: нажимать в них нечего —
           // кадр листается касанием по снимку, а цель в семь точек была бы
           // обещанием, которого палец не выполнит.
-          <div aria-hidden="true" className="absolute bottom-4 right-4 flex gap-1.5 lg:hidden">
+          <div aria-hidden="true" className="absolute bottom-4 right-4 flex gap-1.5 md:hidden">
             {photos.map((photo, index) => (
               <span
                 key={photo.id}
@@ -128,7 +132,7 @@ export function MediaGallery({
       </div>
 
       {photos.length > 1 && (
-        <div className="hidden gap-2.5 lg:flex">
+        <div className="hidden gap-2.5 md:flex">
           {photos.map((photo, index) => (
             <button
               key={photo.id}

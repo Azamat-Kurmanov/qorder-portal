@@ -91,6 +91,22 @@ export function OrderPage() {
         </div>
       )}
 
+      {order.sellerAnswer && (
+        /*
+          Ответ продавца — здесь, а не в мессенджере: в кабинет приходят те,
+          кто в переписке не сидит, и другого места прочитать ответ у них нет.
+        */
+        <Card className="border-l-2 border-l-accent p-4">
+          <p className="text-sm font-medium text-ink-muted">
+            Ответ продавца
+            {order.answeredAt ? ` · ${orderDay(order.answeredAt)}` : ''}
+          </p>
+          <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-ink">
+            {order.sellerAnswer}
+          </p>
+        </Card>
+      )}
+
       <Revision
         title={order.proposed ? 'Вы отправляли' : 'Состав заявки'}
         lines={order.submitted}

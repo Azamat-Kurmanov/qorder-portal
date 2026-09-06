@@ -28,8 +28,23 @@ import { cn } from '../../ui/cn';
  * лист прокручивается поверх снимка, и первым экраном человек получает всё,
  * ради чего открывал.
  *
- * На мониторе тот же порядок разложен в две колонки: снимки слева, решение
- * справа и целиком в поле зрения — без прокрутки к цене.
+ * Кончается эта раскладка на 768 точках, а не на 1024, как остальная
+ * оболочка, и порог здесь свой намеренно. Снимок во всю ширину и кнопка
+ * «В корзину» во всю ширину — приём для ладони; на планшете в книжной
+ * ориентации та же кнопка тянется на восемьсот точек и читается не как
+ * решение, а как случайность вёрстки. Оболочке при этом ломаться незачем:
+ * рельс разделов на планшете и правда не помещается.
+ *
+ * На мониторе порядок тот же — снимок сверху, решение под ним, — и колонка
+ * одна. Двух колонок здесь не было ни дня без последствий: снимок кончался
+ * на восьмистах точках, а описание, характеристики и отзывы продолжались
+ * ещё на полторы тысячи, и слева под галереей висел пустой столб во весь
+ * рост страницы. Текст при этом сидел в половине ширины — он не «стоял
+ * рядом со снимком», он был им отжат вправо.
+ *
+ * Ширина колонки ограничена: строка в тысячу двести точек теряется при
+ * переносе взгляда, а снимок, растянутый на всю витрину, перестаёт быть
+ * снимком товара и становится баннером.
  */
 export function ItemCardPage() {
   const { itemId = '' } = useParams();
@@ -95,7 +110,13 @@ export function ItemCardPage() {
   const stockKnown = item.available != null || item.stock != null;
 
   return (
-    <div className="lg:pb-28">
+    /*
+      Одна колонка на весь монитор, и вместе с ней — путь обратно: ссылка
+      «Каталог» стоит над снимком и обязана начинаться с того же края.
+      Отдельно от карточки она уезжала бы к левому краю витрины, и колонка
+      читалась бы не как страница товара, а как блок, забытый посередине.
+    */
+    <div className="md:mx-auto md:w-full md:max-w-[720px] md:pb-28">
       {/*
         Путь обратно на мониторе — строкой над карточкой: кружок поверх снимка
         там незачем, мышь достаёт любой угол одинаково. Назван он «Каталогом»,
@@ -103,20 +124,20 @@ export function ItemCardPage() {
       */}
       <Link
         to="/catalog"
-        className="mb-4 hidden h-11 items-center gap-2 text-sm text-ink-muted transition-all duration-300 hover:text-ink lg:inline-flex"
+        className="mb-4 hidden h-11 items-center gap-2 text-sm text-ink-muted transition-all duration-300 hover:text-ink md:inline-flex"
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
         Каталог
       </Link>
 
-      <div className="lg:grid lg:grid-cols-[minmax(0,620px)_minmax(0,1fr)] lg:items-start lg:gap-7">
+      <div className="md:flex md:flex-col md:gap-6">
         {/*
           Отрицательные поля гасят отступы оболочки: на телефоне снимок идёт
           от края до края, иначе он читался бы картинкой внутри карточки,
           а не подложкой страницы. На мониторе гасить нечего — там галерея
-          стоит колонкой со своими скруглениями.
+          стоит первой строкой колонки, со своими скруглениями.
         */}
-        <div className="-mx-4 -mt-4 lg:mx-0 lg:mt-0">
+        <div className="-mx-4 -mt-4 md:mx-0 md:mt-0">
           <MediaGallery
             media={item.media}
             itemName={item.name}
@@ -141,11 +162,11 @@ export function ItemCardPage() {
             // уходит под липкую панель итога — белое обязано доходить
             // до края экрана, иначе под отзывами повиснет полоса основания.
             'relative z-10 -mx-4 -mt-5 flex flex-col gap-4 rounded-t-[20px] bg-surface px-4 pb-28 pt-5',
-            'lg:mx-0 lg:mt-0 lg:gap-[18px] lg:rounded-none lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0',
+            'md:mx-0 md:mt-0 md:gap-[18px] md:rounded-none md:bg-transparent md:px-0 md:pb-0 md:pt-0',
           )}
         >
           <div className="flex flex-col gap-2">
-            <h1 className="text-[20px] font-semibold leading-tight tracking-[-0.01em] text-ink lg:text-[28px]">
+            <h1 className="text-[20px] font-semibold leading-tight tracking-[-0.01em] text-ink md:text-[28px]">
               {item.name}
             </h1>
 
@@ -176,10 +197,10 @@ export function ItemCardPage() {
               её пересчитают.
             */}
             <div data-testid="item-price" className="flex flex-wrap items-baseline gap-2.5">
-              <span className="text-2xl font-bold tabular-nums tracking-[-0.02em] text-ink lg:text-[32px]">
+              <span className="text-2xl font-bold tabular-nums tracking-[-0.02em] text-ink md:text-[32px]">
                 {tenge(item.price)}
               </span>
-              <span className="text-[13px] text-ink-muted lg:text-sm">за {item.unit}</span>
+              <span className="text-[13px] text-ink-muted md:text-sm">за {item.unit}</span>
             </div>
 
             {terms && <p className="text-xs text-ink-subtle">{terms}</p>}
@@ -213,7 +234,7 @@ export function ItemCardPage() {
               size="lg"
               // Поля кнопки на телефоне уже обычных: рядом стоит счётчик,
               // и сумма в шесть цифр иначе выезжает за край экрана.
-              className="min-w-0 flex-1 px-4 text-[15px] lg:flex-none lg:px-7"
+              className="min-w-0 flex-1 px-4 text-[15px] md:flex-none md:px-7"
               onClick={() => setLine.mutate({ itemId: item.id, data: { quantity: wanted } })}
             >
               {/*
@@ -226,7 +247,7 @@ export function ItemCardPage() {
           </div>
 
           {item.description && (
-            <p className="whitespace-pre-line text-[13px] leading-relaxed text-ink-muted lg:text-sm">
+            <p className="whitespace-pre-line text-[13px] leading-relaxed text-ink-muted md:text-sm">
               {item.description}
             </p>
           )}
@@ -262,18 +283,35 @@ export function ItemCardPage() {
             кнопка у левого края. Задано снаружи, потому что сам файл формы
             принадлежит другой задаче.
           */}
-          <div className="[&>button]:h-12 [&>button]:w-full [&>button]:rounded-[var(--radius-card)] lg:[&>button]:w-auto">
+          <div className="[&>button]:h-12 [&>button]:w-full [&>button]:rounded-[var(--radius-card)] md:[&>button]:w-auto">
             <AskQuestionForm itemId={item.id} itemName={item.name} />
           </div>
 
           {/*
-            На мониторе отзывы встают в две колонки: колонка решения шире
-            шестисот точек, и отзыв в одну строку тянулся бы через весь экран,
-            теряя строку при переносе взгляда. Правится снаружи, а не в самом
-            ReviewsBlock: файл принадлежит другой задаче.
+            Отзывы встают в две колонки, когда колонка витрины это позволяет:
+            отзыв — это две-три строки, и в один столбец они выстраиваются
+            лестницей из огрызков, между которыми больше пустоты, чем текста.
+
+            Считается ширина самого блока, а не окна. Окно здесь не отвечает
+            ни за что: на планшете в 1024 точки колонка витрины остаётся
+            в четыреста пятьдесят — рельс разделов забирает 232, панель
+            корзины 340, — и правило «широкое окно, значит два столбца»
+            резало отзыв на четыре строки в полосе шириной в двести точек.
+            Ту же колонку меняет и складывание рельса, которого окно не видит
+            вовсе.
+
+            Порог — 520 точек: два столбца по 250 с промежутком между ними.
+            Уже этого отзыв рвётся по слову, шире — начинает пустовать: строка
+            в полтысячи точек под фразой «цена как договаривались» и есть та
+            самая пустота, ради избавления от которой столбца два.
+
+            Правится снаружи, а не в самом ReviewsBlock: файл принадлежит
+            другой задаче.
           */}
-          <div className="border-t border-hairline pt-3.5 lg:[&_ul]:grid lg:[&_ul]:grid-cols-2 lg:[&_ul]:gap-3">
-            <ReviewsBlock itemId={item.id} canReview={item.canReview} />
+          <div className="@container border-t border-hairline pt-3.5">
+            <div className="@[520px]:[&_ul]:grid @[520px]:[&_ul]:grid-cols-2 @[520px]:[&_ul]:gap-3">
+              <ReviewsBlock itemId={item.id} canReview={item.canReview} />
+            </div>
           </div>
         </div>
       </div>
@@ -300,7 +338,7 @@ function BackCircle() {
         'transition-all duration-300 active:scale-95',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
         // На мониторе путь обратно стоит строкой над карточкой.
-        'lg:hidden',
+        'md:hidden',
       )}
     >
       <ArrowLeft className="size-[18px]" aria-hidden="true" />

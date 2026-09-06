@@ -19,8 +19,40 @@ import { Card } from '../../ui/Card';
 import { Reveal } from '../../ui/Reveal';
 import { cn } from '../../ui/cn';
 import { useWideScreen } from '../../ui/useWideScreen';
+import { useColumnWidth } from '../../ui/useColumnWidth';
 
 /** Ширина, с которой на экране помещается колонка рубрик и три плитки рядом. */
+
+/**
+ * С какой ширины СВОЕЙ КОЛОНКИ витрина раскладывается плитками.
+ *
+ * Считано по содержимому, а не выбрано на глаз: колонка рубрик 232, промежуток
+ * 24 и три плитки с промежутками между ними — около 780 точек. Уже этого
+ * плитки начинают отнимать друг у друга буквы: название переносится по слогам,
+ * цена отрывается от единицы, а «В корзину» перестаёт помещаться в кнопку.
+ *
+ * Порог меряется по колонке, а не по окну. На планшете в 1024 точки окно
+ * широкое, а колонка витрины — 396: оболочка забирает 232 под разделы и 340
+ * под корзину. Витрина, спрашивавшая окно, раскладывала там девятьсот точек
+ * в четырёхстах, и плитки схлопывались в полоски по тридцать точек.
+ */
+const TILES_FROM = 780;
+
+/**
+ * С какой ширины колонки в ряд встаёт третья плитка.
+ *
+ * Считано так же: 232 под рубрики, 24 промежутка и три плитки не уже 230
+ * с промежутками между ними. Плитка в 230 точек держит название в две строки,
+ * цену с единицей в одну и «В корзину» целиком — уже этого она начинает
+ * отнимать буквы у самой себя.
+ *
+ * Ступень в две колонки заведена не ради полноты набора. При открытом рельсе
+ * и панели корзины колонка витрины не бывает шире 812 точек — оболочка
+ * ограничена 1440, — и три плитки укладывались туда по 170: название в три
+ * строки, цена оторвана от единицы. Две по 270 читаются, а третья приходит
+ * тогда, когда рельс сложили и место действительно появилось.
+ */
+const THREE_TILES_FROM = 978;
 
 /**
  * Главный экран кабинета: поиск, рубрики и витрина.
@@ -61,8 +93,22 @@ export function CatalogPage() {
   // адрес сменился, а набранное осталось от прошлого экрана.
   useEffect(() => setTyped(address), [address]);
   const [categoryId, setCategoryId] = useState<string | undefined>();
-  const wide = useWideScreen();
-  const query = wide ? address : typed;
+  /*
+   * Два разных вопроса, и раньше на них отвечал один признак.
+   *
+   * `shellWide` — про ОБОЛОЧКУ: стоит ли поиск в её верхней полосе. Ответ
+   * обязан совпадать с `lg` Tailwind, потому что полосу прячет класс.
+   *
+   * `roomy` — про МЕСТО: помещаются ли рядом колонка рубрик и три плитки.
+   * Между окном и витриной стоят колонка разделов и панель корзины, и на
+   * планшете от 1024 точек окна витрине достаётся 396.
+   */
+  const shellWide = useWideScreen();
+  const [columnRef, columnWidth] = useColumnWidth<HTMLDivElement>();
+  const roomy = columnWidth >= TILES_FROM;
+  // Сколько плиток в ряду — тот же вопрос о месте, только заданный второй раз.
+  const columns = columnWidth >= THREE_TILES_FROM ? 3 : 2;
+  const query = shellWide ? address : typed;
 
   const categories = useGetPortalCategories();
   const categoryList = categories.data?.status === 200 ? categories.data.data : [];
@@ -88,16 +134,23 @@ export function CatalogPage() {
   );
 
   return (
+    /*
+      Ширину меряет сам корень витрины: он занимает колонку целиком, и обе
+      его раскладки — сетка и колонка — тянутся на все сто процентов. Мерить
+      то, что от измерения не меняется в ширину, безопасно: раскладка
+      не гоняет сама себя по кругу.
+    */
     <div
+      ref={columnRef}
       className={
-        wide
+        roomy
           ? 'grid grid-cols-[232px_minmax(0,1fr)] items-start gap-6 pb-8'
           // Запас снизу — под липкую панель итога: без него последняя строка
           // витрины остаётся под ней и до неё не долистать.
           : 'flex flex-col gap-4 pb-28'
       }
     >
-      {wide && (
+      {roomy && (
         <CategoryColumn
           categories={categoryList}
           selected={categoryId}
@@ -108,7 +161,7 @@ export function CatalogPage() {
       <div className="flex min-w-0 flex-col gap-4">
         {/* На мониторе поиск уже стоит в верхней полосе оболочки — см. выбор
             источника запроса в начале компонента. */}
-        {wide ? null : (
+        {shellWide ? null : (
         <div className="relative">
           <svg
             aria-hidden="true"
@@ -137,7 +190,7 @@ export function CatalogPage() {
 
         <QuickInput />
 
-        {!wide && categoryList.length > 0 && (
+        {!roomy && categoryList.length > 0 && (
           // Рубрики одной прокручиваемой строкой: двадцать тысяч позиций
           // поиском не листаются, а сетка рубрик отняла бы пол-экрана.
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -157,16 +210,19 @@ export function CatalogPage() {
         )}
 
         {catalog.isPending ? (
-          <Skeletons wide={wide} />
+          <Skeletons columns={roomy ? columns : 0} />
         ) : items.length === 0 ? (
           <p className="py-12 text-center text-ink-subtle">
             Ничего не нашлось. Попробуйте другое слово или выберите рубрику.
           </p>
-        ) : wide ? (
+        ) : roomy ? (
           // Плитки в ряду тянутся до общей высоты — оттого действие и стоит
           // у них по нижнему краю: разъехавшиеся кнопки читаются как разные
           // состояния, а не как разной длины имена.
-          <div data-testid="item-grid" className="grid grid-cols-3 content-start gap-4">
+          <div
+            data-testid="item-grid"
+            className={cn('grid content-start gap-4', columns === 3 ? 'grid-cols-3' : 'grid-cols-2')}
+          >
             {items.map((item, index) => (
               <Reveal key={item.id} delay={Math.min(index, 3) * 0.04}>
                 <ItemTile item={item} taken={taken.has(item.id)} />
@@ -442,17 +498,31 @@ function CategoryChip({
   );
 }
 
-/** Ожидание в форме будущего содержимого: подмена высоты не даёт списку прыгнуть. */
-function Skeletons({ wide }: { wide: boolean }) {
+/**
+ * Ожидание в форме будущего содержимого: подмена высоты не даёт списку прыгнуть.
+ *
+ * Число колонок приходит то же, что и у витрины: заглушка в три колонки перед
+ * витриной в две — это прыжок, ради предотвращения которого её и рисуют.
+ * Ноль означает строки.
+ */
+function Skeletons({ columns }: { columns: 0 | 2 | 3 }) {
+  const tiles = columns > 0;
+
   return (
-    <div className={wide ? 'grid grid-cols-3 gap-4' : 'flex flex-col gap-3'}>
-      {(wide ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3]).map((cell) => (
+    <div
+      className={cn(
+        tiles ? 'grid gap-4' : 'flex flex-col gap-3',
+        columns === 3 && 'grid-cols-3',
+        columns === 2 && 'grid-cols-2',
+      )}
+    >
+      {(tiles ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3]).map((cell) => (
         <div
           key={cell}
           data-testid="item-skeleton"
           className={cn(
             'animate-pulse rounded-[var(--radius-card)] border border-hairline bg-sunk',
-            wide ? 'h-[320px]' : 'h-[92px]',
+            tiles ? 'h-[320px]' : 'h-[92px]',
           )}
         />
       ))}

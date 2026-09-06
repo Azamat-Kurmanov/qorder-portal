@@ -76,11 +76,12 @@ function catalogRules(items: unknown[] = [CEMENT], cart: unknown = emptyCart) {
 }
 
 /**
- * Монитор.
+ * Монитор: широкая ОБОЛОЧКА.
  *
- * Витрина спрашивает ширину у браузера, а не рисует обе раскладки разом:
- * плитки и строки в одном дереве значили бы два поля количества на позицию —
- * и для человека с экранным диктором, и для проверки.
+ * Отвечает за то, где живёт поиск, — в верхней полосе или в самой витрине.
+ * Раскладку витрины этот признак больше не выбирает: между окном и витриной
+ * стоят колонка разделов и панель корзины, и на 1024 точках окна витрине
+ * достаётся меньше четырёхсот.
  */
 function stubWideScreen() {
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -95,8 +96,25 @@ function stubWideScreen() {
   }));
 }
 
+/**
+ * Ширина КОЛОНКИ витрины — то, по чему она выбирает раскладку.
+ *
+ * Витрина меряет своё место сама (`useColumnWidth`), а jsdom размеров
+ * не считает и отдаёт нули: без подмены любой экран здесь узкий. Подменяется
+ * измерение, а не медиа-запрос, — ровно то, на что витрина и смотрит.
+ */
+function stubColumnWidth(width: number) {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+    width, height: 0, top: 0, left: 0, right: width, bottom: 0, x: 0, y: 0,
+    toJSON: () => ({}),
+  } as DOMRect);
+}
+
 describe('витрина кабинета', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   /**
    * Снимок берётся у сервера, когда он есть.
@@ -338,8 +356,58 @@ describe('витрина кабинета', () => {
     expect(screen.queryByTestId('category-column')).not.toBeInTheDocument();
   });
 
+  /**
+   * Ступень в две колонки.
+   *
+   * При открытом рельсе и панели корзины колонка витрины не бывает шире 812
+   * точек — оболочка ограничена 1440, — и три плитки укладывались туда по 170:
+   * название в три строки, цена оторвана от единицы.
+   */
+  it('на неполной ширине плитки встают в две колонки, а не в три', async () => {
+    stubWideScreen();
+    stubColumnWidth(812);
+    stubFetch([
+      get('/api/portal/categories', [{ id: 'cat-1', name: 'Сухие смеси', sortOrder: 1 }]),
+      get('/api/portal/catalog', { page: 0, size: 50, totalElements: 2, items: [CEMENT, SAND] }),
+      get('/api/portal/cart', emptyCart),
+    ]);
+    renderScreen(<CatalogPage />);
+
+    expect(await screen.findByTestId('item-grid')).toHaveClass('grid-cols-2');
+    // Плитки, а не строки: место под них есть, не хватает только третьей.
+    expect(screen.getAllByTestId('item-tile')).toHaveLength(2);
+    expect(screen.getByTestId('category-column')).toBeInTheDocument();
+  });
+
+  /**
+   * Планшет: окно широкое, а места нет.
+   *
+   * На 1024 точках оболочка забирает 232 под разделы и 340 под корзину —
+   * витрине остаётся меньше четырёхсот. Раскладка, выбранная по окну,
+   * раскладывала там колонку рубрик и три плитки, и плитки схлопывались
+   * в полоски по тридцать точек: названия, цены и кнопки обрезались.
+   */
+  it('на планшете витрина остаётся строками: окно широкое, а колонка узкая', async () => {
+    stubWideScreen();
+    stubColumnWidth(396);
+    stubFetch([
+      get('/api/portal/categories', [{ id: 'cat-1', name: 'Сухие смеси', sortOrder: 1 }]),
+      get('/api/portal/catalog', { page: 0, size: 50, totalElements: 2, items: [CEMENT, SAND] }),
+      get('/api/portal/cart', emptyCart),
+    ]);
+    renderScreen(<CatalogPage />);
+
+    expect(await screen.findAllByTestId('item-row')).toHaveLength(2);
+    expect(screen.queryByTestId('item-grid')).not.toBeInTheDocument();
+    // Колонка рубрик отняла бы у витрины ещё 232 точки из четырёхсот.
+    expect(screen.queryByTestId('category-column')).not.toBeInTheDocument();
+  });
+
   it('на мониторе витрина становится плитками в три колонки при колонке рубрик', async () => {
     stubWideScreen();
+    // Плитки решает не окно, а место: колонка рубрик, три плитки и промежутки.
+    // Третья плитка приходит от 978 точек колонки — при сложенном рельсе.
+    stubColumnWidth(1040);
     stubFetch([
       get('/api/portal/categories', [{ id: 'cat-1', name: 'Сухие смеси', sortOrder: 1 }]),
       get('/api/portal/catalog', { page: 0, size: 50, totalElements: 2, items: [CEMENT, SAND] }),

@@ -5,6 +5,7 @@ import { cn } from '../../ui/cn';
 interface QuantityFieldProps {
   itemId: string;
   unit: string;
+  className?: string;
 }
 
 /**
@@ -20,7 +21,7 @@ interface QuantityFieldProps {
  * Шаг кнопками, а не только вводом: на складе набирают одной рукой, и попасть
  * в «плюс» проще, чем в цифру. Обе кнопки 44px — иначе палец промахивается.
  */
-export function QuantityField({ itemId, unit }: QuantityFieldProps) {
+export function QuantityField({ itemId, unit, className }: QuantityFieldProps) {
   const cart = cartOf(useCart().data);
   const setLine = useSetCartLine();
   const stored = cart?.lines.find((line) => line.itemId === itemId)?.quantity;
@@ -51,7 +52,7 @@ export function QuantityField({ itemId, unit }: QuantityFieldProps) {
   const step = (delta: number) => schedule(Math.max(0, current + delta));
 
   return (
-    <div className="flex h-11 shrink-0 items-stretch">
+    <div className={cn('flex h-11 shrink-0 items-stretch', className)}>
       <button
         type="button"
         aria-label="Меньше"

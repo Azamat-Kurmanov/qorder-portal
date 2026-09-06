@@ -32,10 +32,22 @@ ARG VITE_KEYCLOAK_URL="http://localhost:8081"
 ARG VITE_KEYCLOAK_REALM="fastorders-customers"
 ARG VITE_KEYCLOAK_CLIENT_ID="fastorders-portal"
 
+# Второй вход — для арендатора, открывающего собственную витрину: realm
+# сотрудников и отдельный публичный клиент с возвратом на адрес кабинета.
+# Пароль при таком переходе не спрашивают: сессия в Keycloak уже открыта.
+ARG VITE_KEYCLOAK_STAFF_REALM="fastorders"
+ARG VITE_KEYCLOAK_STAFF_CLIENT_ID="fastorders-portal-staff"
+
+# Куда возвращает кнопка «В рабочее место».
+ARG VITE_WEB_URL="http://localhost:3000"
+
 ENV VITE_API_URL=$VITE_API_URL \
     VITE_KEYCLOAK_URL=$VITE_KEYCLOAK_URL \
     VITE_KEYCLOAK_REALM=$VITE_KEYCLOAK_REALM \
-    VITE_KEYCLOAK_CLIENT_ID=$VITE_KEYCLOAK_CLIENT_ID
+    VITE_KEYCLOAK_CLIENT_ID=$VITE_KEYCLOAK_CLIENT_ID \
+    VITE_KEYCLOAK_STAFF_REALM=$VITE_KEYCLOAK_STAFF_REALM \
+    VITE_KEYCLOAK_STAFF_CLIENT_ID=$VITE_KEYCLOAK_STAFF_CLIENT_ID \
+    VITE_WEB_URL=$VITE_WEB_URL
 
 # Сборка включает проверку типов: несобираемый кабинет обязан упасть здесь,
 # а не встретить клиента белым экраном

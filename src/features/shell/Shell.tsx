@@ -15,6 +15,8 @@ import { QuestionsPage } from '../questions/QuestionsPage';
 import { RequireSupplier } from '../profile/RequireSupplier';
 import { TemplatesPage } from '../templates/TemplatesPage';
 import { useGetPortalSuppliers } from '../../api/generated';
+import { currentViewer } from '../../auth/oidcConfig';
+import { StaffBanner } from './StaffBanner';
 import { useSupplier } from '../../supplier/useSupplier';
 import { Button } from '../../ui/Button';
 import { Sheet } from '../../ui/Sheet';
@@ -84,6 +86,15 @@ export function Shell() {
         случаях — человек нажимает её за одним и тем же.
       */}
       <Header onOpenSections={() => (wide ? setRailOpen((open) => !open) : setOpened(true))} />
+
+      {/*
+        Полоса арендатора стоит под шапкой и над всем остальным: она объясняет,
+        почему этот кабинет — не чей-то, а свой, и её незаметность означала бы,
+        что проверку приняли за работу клиента.
+      */}
+      {currentViewer() === 'staff' && (
+        <StaffBanner webUrl={import.meta.env.VITE_WEB_URL ?? '/'} />
+      )}
 
       <Sheet open={opened && !wide} onOpenChange={setOpened} title="Меню" side="left">
         <nav aria-label="Разделы" className="flex flex-col gap-1">
@@ -280,9 +291,14 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
  * Имя поставщика в шапке — со стрелкой и ссылкой на выбор.
  *
  * Стрелка обещает переключение, и обещание должно исполняться: ведёт туда же,
- * где поставщики перечислены списком. Логотипа нет намеренно — портальное API
- * отдаёт только идентификатор и имя, и рисовать заглушку значило бы обещать
- * то, чего сервер не присылает.
+ * где поставщики перечислены списком.
+ *
+ * Знак стоит рядом с именем, а не вместо него. Узнаётся он взглядом — у клиента
+ * с тремя поставщиками переключатель без знаков читается как список одинаковых
+ * строк, — но читается всё-таки имя, и поставщик, у которого картинка
+ * не загрузилась, обязан остаться узнаваемым. Знака у продавца может не быть
+ * вовсе: заглушка на его месте обещала бы то, чего он не давал, поэтому пусто
+ * означает пусто.
  *
  * Пока список не пришёл, стоит нейтральное слово: пустое место в шапке
  * читается как поломка, а «Поставщик» — как ещё не загруженное имя.
@@ -291,7 +307,8 @@ function SupplierMark() {
   const { supplierId } = useSupplier();
   const suppliers = useGetPortalSuppliers();
   const list = suppliers.data?.status === 200 ? suppliers.data.data : [];
-  const name = list.find((supplier) => supplier.supplierId === supplierId)?.name;
+  const current = list.find((supplier) => supplier.supplierId === supplierId);
+  const name = current?.name;
 
   return (
     <Link
@@ -312,6 +329,22 @@ function SupplierMark() {
         Поставщик
       </span>
       <span className="flex min-w-0 items-center gap-1.5">
+        {/*
+          Подписан именем поставщика, а не словом «логотип»: диктору важно,
+          чей это знак, а не то, что это картинка. Рядом стоит то же имя
+          текстом — повтор здесь дешевле, чем поставщик, опознаваемый только
+          по картинке.
+        */}
+        {current?.logoUrl && (
+          <img
+            src={current.logoUrl}
+            alt={current.name}
+            className={cn(
+              'size-7 shrink-0 rounded-[var(--radius-control)] object-contain',
+              'border border-hairline bg-surface lg:size-6',
+            )}
+          />
+        )}
         <span className="truncate text-[17px] font-semibold tracking-[-0.01em] text-ink lg:text-sm lg:font-medium">
           {name ?? 'выбрать'}
         </span>
