@@ -2,6 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
+// Язык поднимается до первого рендера: подпись, нарисованная раньше, чем
+// известен язык, мигнула бы русским текстом на казахском экране.
+import './i18n';
 import '@fontsource-variable/inter';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthProvider';
@@ -32,7 +35,24 @@ if (params.get('mode') === 'staff') {
 
 // Один клиент на приложение: корзина, витрина и профиль обязаны делить кеш,
 // иначе ответ на изменение количества не обновит панель итога.
-const queryClient = new QueryClient();
+//
+// Отказ сервера не повторяется: «нет доступа» и «не найдено» — это ответ,
+// а не сбой связи, и второй такой же запрос вернёт то же самое. Повторы
+// по умолчанию превращали каждый отказ в четыре: в журнале клиента, у
+// которого поставщик не открыл кабинет, стояли по три-четыре одинаковых
+// «403» на каждый экран. Сетевой сбой и поломка сервера повторяются
+// по-прежнему — там второй запрос имеет смысл.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        const status = (error as { status?: number }).status;
+        if (status !== undefined && status >= 400 && status < 500) return false;
+        return failureCount < 3;
+      },
+    },
+  },
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

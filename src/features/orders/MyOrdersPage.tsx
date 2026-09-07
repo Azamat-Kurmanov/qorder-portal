@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getGetMyPortalOrdersQueryKey,
@@ -10,7 +11,7 @@ import {
 import { OrderStateBadge } from './OrderStateBadge';
 import { RevisionDiff } from './RevisionDiff';
 import { RepeatOrderButton } from './RepeatOrderButton';
-import { orderDay, positions } from './orderText';
+import { orderDay } from './orderText';
 import { tenge } from '../../shared/format';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -33,6 +34,7 @@ import { cn } from '../../ui/cn';
  * пришёл сюда за своей заявкой, и строка текста отвечает на его вопрос быстрее.
  */
 export function MyOrdersPage() {
+  const { t } = useTranslation();
   const response = useGetMyPortalOrders();
   const orders: PortalOrderDto[] = response.data?.status === 200 ? response.data.data : [];
 
@@ -53,8 +55,8 @@ export function MyOrdersPage() {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col gap-2">
-        <h1 className="text-xl font-semibold tracking-tight text-ink">Мои заявки</h1>
-        <p className="text-ink-subtle">Заявок пока нет. Соберите корзину в каталоге и отправьте её.</p>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">{t('orders.title')}</h1>
+        <p className="text-ink-subtle">{t('orders.empty')}</p>
       </div>
     );
   }
@@ -63,9 +65,9 @@ export function MyOrdersPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Мои заявки</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">{t('orders.title')}</h1>
 
-      {group(orders).map(({ key, title, items }) => (
+      {group(orders).map(({ key, titleKey, items }) => (
         <section
           key={key}
           data-testid={`group-${key}`}
@@ -76,7 +78,7 @@ export function MyOrdersPage() {
             id={`orders-${key}`}
             className="px-1 text-[13px] font-medium tracking-tight text-ink-subtle"
           >
-            {title}
+            {t(titleKey)}
           </h2>
 
           {items.map((order, index) => (
@@ -100,21 +102,23 @@ export function MyOrdersPage() {
  * требует действия клиента, и второе такое правило здесь однажды разошлось бы
  * с первым.
  */
-const GROUPS: { key: string; title: string; holds: (order: PortalOrderDto) => boolean }[] = [
-  { key: 'answer', title: 'Нужен ваш ответ', holds: (order) => order.needsAnswer },
+const GROUPS: { key: string; titleKey: string; holds: (order: PortalOrderDto) => boolean }[] = [
+  // Хранится ключ, а не заголовок: список считается один раз на модуле,
+  // а заголовок зависит от языка и обязан пересчитываться при его смене.
+  { key: 'answer', titleKey: 'orders.tabs.needAnswer', holds: (order) => order.needsAnswer },
   {
     key: 'supplier',
-    title: 'У продавца',
+    titleKey: 'orders.tabs.atSeller',
     holds: (order) => order.state !== 'ACCEPTED' && order.state !== 'CLOSED',
   },
-  { key: 'settled', title: 'Решённые', holds: () => true },
+  { key: 'settled', titleKey: 'orders.tabs.resolved', holds: () => true },
 ];
 
 /** Раскладка по группам с сохранением порядка сервера внутри каждой. */
 function group(orders: PortalOrderDto[]) {
-  return GROUPS.map(({ key, title }, index) => ({
+  return GROUPS.map(({ key, titleKey }, index) => ({
     key,
-    title,
+    titleKey,
     items: orders.filter(
       (order) => GROUPS.findIndex((candidate) => candidate.holds(order)) === index,
     ),
@@ -145,6 +149,7 @@ function lastAccepted(orders: PortalOrderDto[]): string | undefined {
  * сами по себе.
  */
 function OrderCard({ order, repeatable }: { order: PortalOrderDto; repeatable: boolean }) {
+  const { t } = useTranslation();
   const day = orderDay(order.createdAt);
 
   return (
@@ -185,7 +190,11 @@ function OrderCard({ order, repeatable }: { order: PortalOrderDto; repeatable: b
       {order.needsAnswer && order.diff.length > 0 ? (
         <RevisionDiff diff={order.diff} variant="sentence" />
       ) : (
-        <p className="text-xs text-ink-subtle">{positions(order.submitted.length)}</p>
+        <p className="text-xs text-ink-subtle">
+          {order.submitted.length}
+          {' '}
+          {t('common.positions', { count: order.submitted.length })}
+        </p>
       )}
 
       {order.needsAnswer && <Answer order={order} day={day} />}
@@ -209,6 +218,7 @@ function OrderCard({ order, repeatable }: { order: PortalOrderDto; repeatable: b
  * длинной полосой, по которой палец промахивается.
  */
 function Answer({ order, day }: { order: PortalOrderDto; day: string }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const refresh = {
@@ -229,7 +239,7 @@ function Answer({ order, day }: { order: PortalOrderDto; day: string }) {
         disabled={busy}
         onClick={() => confirm.mutate({ id: order.id })}
       >
-        {confirm.isPending ? 'Отправляем…' : 'Согласен'}
+        {confirm.isPending ? t('orders.sending') : t('orders.agree')}
       </Button>
       <Button
         variant="outline"
@@ -238,7 +248,7 @@ function Answer({ order, day }: { order: PortalOrderDto; day: string }) {
         disabled={busy}
         onClick={() => decline.mutate({ id: order.id })}
       >
-        {decline.isPending ? 'Отправляем…' : 'Отменить'}
+        {decline.isPending ? t('orders.sending') : t('orders.decline')}
       </Button>
     </div>
   );

@@ -1,4 +1,6 @@
 import { CircleCheck, MapPin, Package } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { Method, PickupPoint } from '../../api/generated';
 import { slotLabel, useDeliveryOptions } from '../cart/DeliveryBlock';
 import { tenge } from '../../shared/format';
@@ -22,6 +24,7 @@ import { Reveal } from '../../ui/Reveal';
  * условий — сравнение превратилось бы в чтение трёх абзацев.
  */
 export function DeliveryInfoPage() {
+  const { t } = useTranslation();
   const delivery = useDeliveryOptions();
 
   if (!delivery) {
@@ -39,14 +42,14 @@ export function DeliveryInfoPage() {
     <div className="flex flex-col gap-4 pb-20">
       <header className="flex flex-col gap-1">
         <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">
-          Доставка и самовывоз
+          {t('delivery.title')}
         </h1>
         {/*
           «Условия продавца» — про то, чьё это обещание: тарифы задаёт он
           и меняет когда захочет. Даты, на которую условия верны, в ответе
           сервера нет, и выдумывать её нельзя: она читалась бы как гарантия.
         */}
-        <p className="text-[13px] text-ink-subtle">Условия продавца</p>
+        <p className="text-[13px] text-ink-subtle">{t('delivery.terms')}</p>
       </header>
 
       {/*
@@ -67,7 +70,7 @@ export function DeliveryInfoPage() {
           <CircleCheck className="size-5 shrink-0 text-in-stock" aria-hidden="true" />
         )}
         <p className={pickupOnly ? 'text-[15px] font-medium text-ink' : 'text-[15px] font-medium text-in-stock'}>
-          {pickupOnly ? 'Продавец не возит: только самовывоз' : 'Продавец доставляет товар'}
+          {pickupOnly ? t('delivery.pickupOnly') : t('delivery.delivers')}
         </p>
       </div>
 
@@ -75,7 +78,7 @@ export function DeliveryInfoPage() {
         <Reveal>
           <Card className="overflow-hidden p-0">
             <h2 className="border-b border-hairline px-3.5 py-3 text-[13px] font-semibold text-ink-muted">
-              Способы доставки
+              {t('delivery.methods')}
             </h2>
             <ul className="divide-y divide-hairline">
               {delivery.methods.map((method) => (
@@ -92,7 +95,7 @@ export function DeliveryInfoPage() {
         <Reveal delay={0.04}>
           <Card className="overflow-hidden p-0">
             <h2 className="border-b border-hairline px-3.5 py-3 text-[13px] font-semibold text-ink-muted">
-              Самовывоз
+              {t('delivery.pickup')}
             </h2>
             <ul className="divide-y divide-hairline">
               {delivery.pickupPoints.map((point) => (
@@ -107,21 +110,20 @@ export function DeliveryInfoPage() {
 
       {pickupOnly && delivery.pickupPoints.length === 0 && (
         <p className="text-[15px] text-ink-subtle">
-          Точки самовывоза поставщик пока не указал — спросите его в разделе
-          «Вопросы продавцу».
+          {t('delivery.noPoints')}
         </p>
       )}
 
       <p className="text-[12px] leading-relaxed text-ink-subtle">
-        Условия задаёт продавец и может их менять. Стоимость по вашей заявке
-        считается при оформлении.
+        {t('delivery.note')}
       </p>
     </div>
   );
 }
 
 function MethodRow({ method }: { method: Method }) {
-  const terms = termsOf(method);
+  const { t } = useTranslation();
+  const terms = termsOf(method, t);
 
   return (
     <div className="flex flex-col gap-2 p-3.5">
@@ -131,7 +133,7 @@ function MethodRow({ method }: { method: Method }) {
           data-testid={`method-price-${method.id}`}
           className="shrink-0 text-[15px] font-semibold tabular-nums text-ink"
         >
-          {priceOf(method)}
+          {priceOf(method, t)}
         </span>
       </div>
 
@@ -170,14 +172,16 @@ function PickupRow({ point }: { point: PickupPoint }) {
  * как бесплатно, а потом получил бы счёт. Цена по зонам называется «от»
  * — назови её точной, и клиент из дальней зоны посчитал бы её обещанием.
  */
-function priceOf(method: Method): string {
-  if (method.negotiable) return 'договорная';
+function priceOf(method: Method, t: TFunction): string {
+  if (method.negotiable) return t('delivery.negotiable');
   if (method.price != null) return tenge(method.price);
 
   const zonePrices = method.zones.map((zone) => zone.price).filter((price) => price != null);
-  if (zonePrices.length > 0) return `от ${tenge(Math.min(...zonePrices))}`;
+  if (zonePrices.length > 0) {
+    return t('delivery.priceFrom', { amount: tenge(Math.min(...zonePrices)) });
+  }
 
-  return 'не указана';
+  return t('delivery.unset');
 }
 
 /**
@@ -187,7 +191,7 @@ function priceOf(method: Method): string {
  * а не после: они решают, стоит ли добрать до порога и получится ли принять
  * машину. Пустые части выпадают — «бесплатно от —» хуже, чем ничего.
  */
-function termsOf(method: Method): string {
+function termsOf(method: Method, t: TFunction): string {
   const parts: string[] = [];
 
   if (method.zones.length > 0) {
@@ -199,23 +203,25 @@ function termsOf(method: Method): string {
   }
 
   if (method.freeFromAmount != null && !method.negotiable) {
-    parts.push(`бесплатно от ${tenge(method.freeFromAmount)}`);
+    parts.push(t('delivery.freeFrom', { amount: tenge(method.freeFromAmount) }));
   }
 
   if (method.slots.length > 0) {
-    parts.push(`окна ${method.slots.map((slot) => slotLabel(slot.fromTime, slot.toTime)).join(', ')}`);
+    parts.push(t('delivery.slots', {
+      list: method.slots.map((slot) => slotLabel(slot.fromTime, slot.toTime)).join(', '),
+    }));
   }
 
   // Что спросят при оформлении — часть условий: этаж без лифта человек хочет
   // обдумать заранее, а не в момент отправки заявки.
   const asked = [
-    method.requiresAddress ? 'адрес' : null,
-    method.requiresFloor ? 'этаж' : null,
-    method.requiresTimeSlot ? 'окно времени' : null,
+    method.requiresAddress ? t('delivery.address') : null,
+    method.requiresFloor ? t('delivery.floor') : null,
+    method.requiresTimeSlot ? t('delivery.window') : null,
   ].filter(Boolean);
-  if (asked.length > 0) parts.push(`при оформлении понадобится ${asked.join(', ')}`);
+  if (asked.length > 0) parts.push(t('delivery.willAsk', { list: asked.join(', ') }));
 
-  if (method.negotiable) parts.push('цену назовёт продавец при подтверждении заявки');
+  if (method.negotiable) parts.push(t('delivery.priceLater'));
 
   return parts.join(' · ');
 }

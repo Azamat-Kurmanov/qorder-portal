@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   useGetPortalCatalog,
   useGetPortalCategories,
@@ -72,6 +74,7 @@ const THREE_TILES_FROM = 978;
  * первую страницу.
  */
 export function CatalogPage() {
+  const { t } = useTranslation();
   /*
    * Где живёт поисковый запрос, зависит от ширины, и это не прихоть.
    *
@@ -174,8 +177,8 @@ export function CatalogPage() {
           </svg>
           <input
             type="search"
-            aria-label="Поиск по каталогу"
-            placeholder="Что нужно? Например, цемент"
+            aria-label={t('catalog.search')}
+            placeholder={t('catalog.searchPlaceholder')}
             value={typed}
             onChange={(event) => setTyped(event.currentTarget.value)}
             className={cn(
@@ -195,7 +198,7 @@ export function CatalogPage() {
           // поиском не листаются, а сетка рубрик отняла бы пол-экрана.
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <CategoryChip selected={categoryId === undefined} onSelect={() => setCategoryId(undefined)}>
-              Всё
+              {t('catalog.all')}
             </CategoryChip>
             {categoryList.map((category) => (
               <CategoryChip
@@ -213,7 +216,7 @@ export function CatalogPage() {
           <Skeletons columns={roomy ? columns : 0} />
         ) : items.length === 0 ? (
           <p className="py-12 text-center text-ink-subtle">
-            Ничего не нашлось. Попробуйте другое слово или выберите рубрику.
+            {t('catalog.nothingFound')}
           </p>
         ) : roomy ? (
           // Плитки в ряду тянутся до общей высоты — оттого действие и стоит
@@ -249,15 +252,56 @@ export function CatalogPage() {
 }
 
 /**
+ * Открыть карточку позиции нажатием по прямоугольнику.
+ *
+ * Обработчик на контейнере, а не ссылка вокруг всего: внутри лежат сердечко,
+ * «В корзину» и поле количества, а ссылка с кнопками внутри — недопустимая
+ * разметка, которую экранный диктор читает одним бессмысленным именем.
+ * Поэтому имя остаётся настоящей ссылкой — по ней ходят с клавиатуры,
+ * её открывают в новой вкладке и по ней же карточку называют вслух, — а
+ * нажатие по остальному прямоугольнику только повторяет то, что ссылка
+ * и так умеет.
+ *
+ * Три случая обработчик пропускает мимо себя:
+ *
+ * — нажатие пришло из ссылки, кнопки или поля. Они отвечают за себя сами,
+ *   и увести с витрины промахнувшегося по «плюсу» — ровно то, ради чего
+ *   ссылка когда-то жила на одном имени;
+ * — нажатие с Ctrl или ⌘. Человек просил новую вкладку, а обработчик умеет
+ *   только сменить экран под собой; пусть лучше не делает ничего, чем делает
+ *   не то;
+ * — нажатие, которым закончилось выделение текста. Скопировать имя или цену
+ *   из строки — обычное дело, и уезжать с витрины на отпускании кнопки
+ *   после выделения нельзя.
+ */
+function useOpenCard(itemId: string) {
+  const navigate = useNavigate();
+
+  return (event: React.MouseEvent<HTMLElement>) => {
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if ((event.target as HTMLElement).closest('a, button, input, label, [role="button"]')) return;
+    if ((window.getSelection()?.toString() ?? '') !== '') return;
+
+    navigate(`/catalog/${itemId}`);
+  };
+}
+
+/**
  * Строка витрины на телефоне.
  *
- * Ссылка — на имени, а не на всей строке: строку занимают счётчик и сердечко,
- * и карточка, открывающаяся от касания где угодно, уводила бы с витрины тех,
- * кто просто промахнулся по «плюсу».
+ * Открывается касанием куда угодно по строке, а не только по имени: имя
+ * занимает треть ширины, а остальные две трети — цена, наличие и пустое
+ * место — до сих пор не отвечали ни на что, и в карточку приходилось
+ * прицеливаться.
+ *
+ * Ссылка на имени при этом остаётся настоящей ссылкой — см. `useOpenCard`.
  */
 function ItemRow({ item, taken }: { item: ShowcaseItemDto; taken: boolean }) {
+  const { t } = useTranslation();
+  const openCard = useOpenCard(item.id);
+
   return (
-    <div data-testid="item-row" className="flex gap-3 p-4">
+    <div data-testid="item-row" onClick={openCard} className="flex cursor-pointer gap-3 p-4">
       <ItemThumb itemId={item.id} src={item.thumbnailUrl} className="size-16 rounded-[var(--radius-tile)]" />
 
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -283,7 +327,7 @@ function ItemRow({ item, taken }: { item: ShowcaseItemDto; taken: boolean }) {
           <span className="text-[17px] font-semibold tracking-[-0.01em] tabular-nums text-ink">
             {tenge(item.price)}
           </span>
-          <span className="min-w-0 text-xs text-ink-subtle">{priceNote(item)}</span>
+          <span className="min-w-0 text-xs text-ink-subtle">{priceNote(item, t)}</span>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
@@ -301,10 +345,21 @@ function ItemRow({ item, taken }: { item: ShowcaseItemDto; taken: boolean }) {
  * Снимок сверху, потому что на широком экране выбирают глазами: имя и цена
  * там читаются вторыми. Сердечко лежит поверх снимка — единственное место,
  * где оно не отнимает ширину у имени.
+ *
+ * Нажимается плитка целиком, как и строка: снимок в плитке крупнее имени,
+ * и целиться мышью в две строки текста под ним человек не обязан.
  */
 function ItemTile({ item, taken }: { item: ShowcaseItemDto; taken: boolean }) {
+  const { t } = useTranslation();
+  const openCard = useOpenCard(item.id);
+
   return (
-    <Card interactive data-testid="item-tile" className="flex h-full flex-col overflow-hidden">
+    <Card
+      interactive
+      data-testid="item-tile"
+      onClick={openCard}
+      className="flex h-full cursor-pointer flex-col overflow-hidden"
+    >
       <div className="relative">
         <ItemThumb itemId={item.id} src={item.thumbnailUrl} className="h-[168px] w-full" />
         <FavoriteButton
@@ -326,7 +381,7 @@ function ItemTile({ item, taken }: { item: ShowcaseItemDto; taken: boolean }) {
           <span className="text-[19px] font-semibold tracking-[-0.01em] tabular-nums text-ink">
             {tenge(item.price)}
           </span>
-          <span className="min-w-0 text-xs text-ink-subtle">{priceNote(item)}</span>
+          <span className="min-w-0 text-xs text-ink-subtle">{priceNote(item, t)}</span>
         </div>
 
         <StockNote stock={item.stock} available={item.available} className="mt-0 text-xs" />
@@ -356,6 +411,7 @@ function CartAction({
   taken: boolean;
   full?: boolean;
 }) {
+  const { t } = useTranslation();
   const setLine = useSetCartLine();
 
   if (taken) return <QuantityField itemId={item.id} unit={item.unit} />;
@@ -373,7 +429,7 @@ function CartAction({
       <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4">
         <path d="M8 4v8M4 8h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
       </svg>
-      В корзину
+      {t('catalog.toCart')}
     </Button>
   );
 }
@@ -385,10 +441,14 @@ function CartAction({
  * полноте торговой информации действует на витрине раньше, чем на оформлении,
  * и цена без даты превращается в бессрочное обещание.
  */
-function priceNote(item: ShowcaseItemDto): string {
-  const parts = [`за ${item.unit}`];
-  if (item.vatRate !== undefined) parts.push(`с НДС ${money(item.vatRate)}%`);
-  if (item.priceAsOf) parts.push(`цена на ${shortDate(item.priceAsOf)}`);
+function priceNote(item: ShowcaseItemDto, t: TFunction): string {
+  const parts = [t('catalog.priceNote.perUnit', { unit: item.unit })];
+  if (item.vatRate !== undefined) {
+    parts.push(t('catalog.priceNote.vat', { rate: money(item.vatRate) }));
+  }
+  if (item.priceAsOf) {
+    parts.push(t('catalog.priceNote.asOf', { date: shortDate(item.priceAsOf) }));
+  }
   return parts.join(' · ');
 }
 
@@ -412,17 +472,18 @@ function CategoryColumn({
   selected?: string;
   onSelect: (categoryId?: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <aside
       data-testid="category-column"
-      aria-label="Рубрики"
+      aria-label={t('catalog.rubrics')}
       className="sticky top-20 flex flex-col gap-[3px] rounded-[var(--radius-card)] border border-hairline bg-sunk p-4"
     >
       <span className="px-3 pb-2.5 text-[11px] uppercase tracking-[0.1em] text-ink-subtle">
-        Рубрики
+        {t('catalog.rubrics')}
       </span>
       <CategoryLink selected={selected === undefined} onSelect={() => onSelect(undefined)}>
-        Всё
+        {t('catalog.all')}
       </CategoryLink>
       {categories.map((category) => (
         <CategoryLink

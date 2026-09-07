@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { cartOf, useCart } from './useCart';
 import { CartLines } from './CartLines';
-import { positionWord } from './CartBar';
 import { tenge } from '../../shared/format';
 import { Button } from '../../ui/Button';
 import { cn } from '../../ui/cn';
@@ -19,17 +19,21 @@ import { cn } from '../../ui/cn';
  * и молчало в другом.
  *
  * Колонка стоит и пустой: появись она только с первой позицией, витрина
- * прыгала бы на 340 точек в момент нажатия «в заявку».
+ * прыгала бы на 340 точек в момент нажатия «в заявку». По той же причине она
+ * стоит и до ответа сервера о поставщиках — но состав в это время не
+ * запрашивает: `active` включается, когда известно, что поставщик есть.
+ * У клиента, которому кабинет не открыли, запрос за составом вернул бы отказ.
  */
-export function CartPanel() {
+export function CartPanel({ active = true }: { active?: boolean }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const cart = cartOf(useCart().data);
+  const cart = cartOf(useCart(active).data);
   const lines = cart?.lines ?? [];
 
   return (
     <aside
       data-testid="cart-panel"
-      aria-label="Заявка"
+      aria-label={t('cart.panelTitle')}
       className={cn(
         'hidden flex-col gap-4 border-l border-hairline bg-surface px-5 py-6 lg:flex',
         // Липкая и со своей прокруткой: итог нужен виден в тот момент, когда
@@ -38,18 +42,16 @@ export function CartPanel() {
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold text-ink">Заявка</h2>
+        <h2 className="text-base font-semibold text-ink">{t('cart.panelTitle')}</h2>
         {lines.length > 0 && (
           <span className="text-xs text-ink-subtle">
-            {lines.length} {positionWord(lines.length)}
+            {t('common.positions', { count: lines.length })}
           </span>
         )}
       </div>
 
       {lines.length === 0 ? (
-        <p className="text-sm text-ink-subtle">
-          Пока пусто. Добавьте позиции с витрины — итог посчитается здесь.
-        </p>
+        <p className="text-sm text-ink-subtle">{t('cart.panelEmpty')}</p>
       ) : (
         <>
           <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
@@ -58,11 +60,11 @@ export function CartPanel() {
 
           <div className="mt-auto flex flex-col gap-3 border-t border-hairline pt-4">
             <div className="flex items-baseline justify-between gap-2 text-xl font-bold tracking-[-0.01em] text-ink">
-              <span>Итого</span>
+              <span>{t('cart.total')}</span>
               <span className="tabular-nums">{tenge(cart?.total ?? 0)}</span>
             </div>
             <Button size="lg" className="w-full" onClick={() => navigate('/checkout')}>
-              Оформить заявку
+              {t('cart.checkoutFull')}
             </Button>
           </div>
         </>

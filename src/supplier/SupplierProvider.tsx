@@ -18,7 +18,7 @@ export function SupplierProvider({ children }: SupplierProviderProps) {
   const queryClient = useQueryClient();
   const [supplierId, setSupplierId] = useState<string | null>(currentSupplierId);
 
-  const select = useCallback((next: string) => {
+  const select = useCallback((next: string | null) => {
     setCurrentSupplierId(next);
     setSupplierId(next);
     // Именно clear, а не invalidate: данные прежнего поставщика не должны

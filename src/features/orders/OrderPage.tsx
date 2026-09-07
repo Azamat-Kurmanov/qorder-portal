@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -26,6 +27,7 @@ import { orderDay } from './orderText';
  * и разбирать слова клиента незачем: в кабинете он нажимает, а не пишет.
  */
 export function OrderPage() {
+  const { t } = useTranslation();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -61,7 +63,7 @@ export function OrderPage() {
         role="alert"
         className="rounded-[var(--radius-card)] border border-gone/30 bg-gone/8 p-4 text-ink"
       >
-        Заявка не найдена.
+        {t('orders.notFound')}
       </p>
     );
   }
@@ -72,7 +74,7 @@ export function OrderPage() {
     <div className="flex flex-col gap-4 pb-28">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight text-ink">
-          Заявка от {orderDay(order.createdAt)}
+          {t('orders.orderFrom', { day: orderDay(order.createdAt) })}
         </h1>
         <OrderStateBadge state={order.state} />
       </div>
@@ -82,10 +84,9 @@ export function OrderPage() {
           role="alert"
           className="rounded-[var(--radius-card)] border border-accent/30 bg-accent-soft p-4"
         >
-          <p className="font-medium text-ink">Поставщик предлагает изменения</p>
+          <p className="font-medium text-ink">{t('orders.changesTitle')}</p>
           <p className="mt-1 text-sm text-ink-muted">
-            Посмотрите, что изменилось, и ответьте: подтверждение относится
-            к предложенному составу.
+            {t('orders.changesNote')}
           </p>
           <RevisionDiff diff={order.diff} />
         </div>
@@ -98,7 +99,7 @@ export function OrderPage() {
         */
         <Card className="border-l-2 border-l-accent p-4">
           <p className="text-sm font-medium text-ink-muted">
-            Ответ продавца
+            {t('orders.sellerAnswer')}
             {order.answeredAt ? ` · ${orderDay(order.answeredAt)}` : ''}
           </p>
           <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-ink">
@@ -108,7 +109,7 @@ export function OrderPage() {
       )}
 
       <Revision
-        title={order.proposed ? 'Вы отправляли' : 'Состав заявки'}
+        title={order.proposed ? t('orders.youSent') : t('orders.contents')}
         lines={order.submitted}
         total={order.total}
         testId="submitted"
@@ -116,14 +117,14 @@ export function OrderPage() {
 
       {order.proposed && (
         <Revision
-          title="Поставщик предлагает"
+          title={t('orders.supplierOffers')}
           lines={order.proposed}
           total={order.proposedTotal ?? 0}
           testId="proposed"
         />
       )}
 
-      {answered && <p className="text-sm text-ink-subtle">Ответ отправлен поставщику.</p>}
+      {answered && <p className="text-sm text-ink-subtle">{t('orders.answerSent')}</p>}
 
       {order.needsAnswer && (
         // Две кнопки одной ширины: согласие и отказ равноправны, и более
@@ -133,31 +134,31 @@ export function OrderPage() {
         <div className="grid grid-cols-2 gap-2">
           <Button
             size="lg"
-            aria-label={`Согласен с изменениями в заявке от ${orderDay(order.createdAt)}`}
+            aria-label={t('orders.agreeAria', { day: orderDay(order.createdAt) })}
             disabled={busy}
             onClick={() => confirm.mutate({ id })}
           >
-            {confirm.isPending ? 'Отправляем…' : 'Согласен'}
+            {confirm.isPending ? t('orders.sending') : t('orders.agree')}
           </Button>
           <Button
             size="lg"
             variant="outline"
-            aria-label={`Отменить заявку от ${orderDay(order.createdAt)}`}
+            aria-label={t('orders.cancelAria', { day: orderDay(order.createdAt) })}
             disabled={busy}
             onClick={() => decline.mutate({ id })}
           >
-            {decline.isPending ? 'Отправляем…' : 'Отменить'}
+            {decline.isPending ? t('orders.sending') : t('orders.decline')}
           </Button>
         </div>
       )}
 
       {order.cancellable && !order.needsAnswer && (
         <Button variant="ghost" disabled={busy} onClick={() => cancel.mutate({ id })}>
-          {cancel.isPending ? 'Отменяем…' : 'Отменить заявку'}
+          {cancel.isPending ? t('orders.cancelling') : t('orders.cancel')}
         </Button>
       )}
 
-      <Button variant="ghost" onClick={() => navigate('/orders')}>Ко всем заявкам</Button>
+      <Button variant="ghost" onClick={() => navigate('/orders')}>{t('orders.toAll')}</Button>
     </div>
   );
 }
@@ -169,6 +170,7 @@ function Revision({ title, lines, total, testId }: {
   total: number;
   testId: string;
 }) {
+  const { t } = useTranslation();
   return (
     <Card className="p-4" data-testid={testId}>
       <p className="mb-2 font-semibold text-ink">{title}</p>
@@ -193,7 +195,7 @@ function Revision({ title, lines, total, testId }: {
 
       <div className="my-2 h-px bg-hairline" />
       <div className="flex justify-between font-semibold text-ink">
-        <span>Итого</span>
+        <span>{t('orders.total')}</span>
         <span className="tabular-nums">{tenge(total)}</span>
       </div>
     </Card>

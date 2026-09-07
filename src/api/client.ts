@@ -1,5 +1,6 @@
 import { getSessionToken, requestReauthentication } from '../auth/session';
 import { currentSupplierId } from '../supplier/supplier';
+import { currentLanguage } from '../i18n';
 
 const NO_BODY_STATUSES = new Set([204, 205, 304]);
 
@@ -40,7 +41,7 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
 
   // Тексты ошибок приходят с сервера уже на языке заголовка: расхождение
   // с языком интерфейса выглядело бы как чужая ошибка на чужом экране.
-  headers.set('Accept-Language', 'ru');
+  headers.set('Accept-Language', currentLanguage());
 
   const token = getSessionToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);

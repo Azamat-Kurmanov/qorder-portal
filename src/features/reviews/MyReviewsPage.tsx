@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -31,14 +32,15 @@ import { Stars } from './Stars';
  * стало с его текстом. Отзыв, исчезнувший без объяснения, пишут второй раз.
  */
 export function MyReviewsPage() {
+  const { t } = useTranslation();
   const reviews = useGetPortalMyReviews();
   const list = reviews.data?.status === 200 ? reviews.data.data : [];
 
   return (
     <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5">
       <header className="flex flex-col gap-0.5">
-        <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">Мои отзывы</h1>
-        <p className="text-[13px] text-ink-subtle">Что вы написали о товарах поставщика</p>
+        <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">{t('reviews.title')}</h1>
+        <p className="text-[13px] text-ink-subtle">{t('reviews.subtitle')}</p>
       </header>
 
       <AwaitingBlock />
@@ -50,8 +52,7 @@ export function MyReviewsPage() {
         />
       ) : list.length === 0 ? (
         <p className="text-[15px] leading-relaxed text-ink-subtle">
-          Вы ещё не оценивали товары этого поставщика. Отзыв можно оставить
-          о том, что вы у него покупали, — из карточки товара или отсюда.
+          {t('reviews.empty')}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -80,6 +81,7 @@ export function MyReviewsPage() {
  * по дороге.
  */
 function AwaitingBlock() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const awaiting = useGetPortalItemsAwaitingReview();
   const items = awaiting.data?.status === 200 ? awaiting.data.data : [];
@@ -91,7 +93,7 @@ function AwaitingBlock() {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="awaiting-heading">
       <h2 id="awaiting-heading" className="text-base font-semibold text-ink">
-        Ждут вашей оценки
+        {t('reviews.awaiting')}
       </h2>
       <ul className="flex flex-col gap-3">
         {items.map((item) => (
@@ -121,6 +123,7 @@ function AwaitingRow({
   item: AwaitingReviewDto;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -130,18 +133,25 @@ function AwaitingRow({
         >
           {item.itemName}
         </Link>
-        <span className="text-sm text-ink-faint">куплено {shortDate(item.purchasedAt)}</span>
+        <span className="text-sm text-ink-faint">
+          {t('reviews.purchasedAt', { date: shortDate(item.purchasedAt) })}
+        </span>
       </div>
-      <ReviewForm itemId={item.itemId} submitLabel="Оценить" onSaved={onSaved} />
+      <ReviewForm itemId={item.itemId} submitLabel={t('reviews.rate')} onSaved={onSaved} />
     </div>
   );
 }
 
-/** Подпись состояния: человеку нужно слово, а не код модерации. */
-const STATUS_LABEL: Record<ItemReviewDtoStatus, string> = {
-  PENDING: 'Ждёт проверки продавцом',
-  PUBLISHED: 'Опубликован',
-  REJECTED: 'Отклонён продавцом',
+/**
+ * Подпись состояния: человеку нужно слово, а не код модерации.
+ *
+ * Здесь ключ словаря, а не само слово: карта считается один раз на модуле,
+ * и подпись, посчитанная тут, осталась бы на прежнем языке после его смены.
+ */
+const STATUS_KEY: Record<ItemReviewDtoStatus, string> = {
+  PENDING: 'reviews.pending',
+  PUBLISHED: 'reviews.published',
+  REJECTED: 'reviews.rejected',
 };
 
 /**
@@ -152,6 +162,7 @@ const STATUS_LABEL: Record<ItemReviewDtoStatus, string> = {
  * значит отправлять его искать товар, который он уже нашёл.
  */
 function MyReviewRow({ review }: { review: ItemReviewDto }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -195,11 +206,11 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
         ) : (
           // Позиция снята с продажи: отзыв о ней остаётся, а вести на карточку
           // некуда — она не откроется.
-          <span className="text-sm text-ink-faint">Позиция снята с продажи</span>
+          <span className="text-sm text-ink-faint">{t('reviews.gone')}</span>
         )}
         <span className="text-sm text-ink-faint">{shortDate(review.createdAt)}</span>
         <span className="rounded-full bg-sunk px-2 py-0.5 text-[13px] text-unclear">
-          {STATUS_LABEL[review.status] ?? review.status}
+          {STATUS_KEY[review.status] ? t(STATUS_KEY[review.status]) : review.status}
         </span>
       </div>
 
@@ -208,11 +219,11 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
           itemId={review.itemId}
           initialRating={review.rating}
           initialText={review.text ?? ''}
-          submitLabel="Сохранить"
+          submitLabel={t('reviews.save')}
           // Правленый отзыв возвращается на модерацию на сервере, и человек,
           // у которого одобренный отзыв вдруг стал ожидающим, иначе решит,
           // что что-то сломалось.
-          note="Исправленный отзыв снова уйдёт на проверку продавцом."
+          note={t('reviews.editNote')}
           onCancel={() => setEditing(false)}
           onSaved={() => {
             setEditing(false);
@@ -225,14 +236,14 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
 
           {review.reply && (
             <div className="mt-1 rounded-[var(--radius-control)] border-l-2 border-accent bg-sunk p-3">
-              <p className="text-[13px] font-medium text-ink-muted">Ответ продавца</p>
+              <p className="text-[13px] font-medium text-ink-muted">{t('reviews.sellerAnswer')}</p>
               <p className="mt-1 text-[15px] leading-relaxed text-ink">{review.reply}</p>
             </div>
           )}
 
           {failed && (
             <p role="alert" className="text-sm text-gone">
-              Отзыв не удалился. Попробуйте ещё раз.
+              {t('reviews.deleteFailed')}
             </p>
           )}
 
@@ -246,7 +257,7 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
                 setConfirming(false);
               }}
             >
-              Изменить
+              {t('reviews.edit')}
             </Button>
             {/*
               Подтверждение на месте, а не окном: окон подтверждения в кабинете
@@ -260,15 +271,15 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
                   disabled={remove.isPending}
                   onClick={() => remove.mutate({ itemId: review.itemId })}
                 >
-                  Да, удалить
+                  {t('reviews.confirmDelete')}
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setConfirming(false)}>
-                  Отмена
+                  {t('reviews.cancel')}
                 </Button>
               </>
             ) : (
               <Button type="button" onClick={() => setConfirming(true)}>
-                Удалить
+                {t('reviews.delete')}
               </Button>
             )}
           </div>

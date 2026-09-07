@@ -2451,6 +2451,22 @@ export interface ShowcaseCardDto {
 }
 
 /**
+ * Адрес, названный одному из поставщиков
+ */
+export interface KnownAddressDto {
+  /** Поставщик, которому этот адрес называли */
+  supplierId: string;
+  /** Адрес доставки */
+  address: string;
+  /** Город. Пусто — обычное состояние */
+  city?: string;
+  /** Этаж. Пусто — обычное состояние */
+  floor?: number;
+  /** Когда подана заявка, из которой взят адрес: по нему кабинет сортирует предложения */
+  usedAt: string;
+}
+
+/**
  * Повод
  */
 export type NotificationDtoKind = typeof NotificationDtoKind[keyof typeof NotificationDtoKind];
@@ -2852,6 +2868,8 @@ export type CommitCatalogImportBody = {
   request: CommitImportRequest;
 };
 
+export type Probe200 = {[key: string]: string};
+
 export type GetStockRequestQueueParams = {
 status?: GetStockRequestQueueStatus;
 };
@@ -2882,6 +2900,8 @@ export const GetReviewModerationQueueStatus = {
   PUBLISHED: 'PUBLISHED',
   REJECTED: 'REJECTED',
 } as const;
+
+export type Context200 = {[key: string]: unknown};
 
 export type GetPortalCatalogParams = {
 query?: string;
@@ -16415,6 +16435,103 @@ export const useAcceptStockExchange = <TError = ErrorResponse | void,
       return useMutation(getAcceptStockExchangeMutationOptions(options), queryClient);
     }
 
+export type probeResponse200 = {
+  data: Probe200
+  status: 200
+}
+
+export type probeResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type probeResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type probeResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type probeResponseSuccess = (probeResponse200) & {
+  headers: Headers;
+};
+export type probeResponseError = (probeResponse400 | probeResponse404 | probeResponse500) & {
+  headers: Headers;
+};
+
+export type probeResponse = (probeResponseSuccess | probeResponseError)
+
+export const getProbeUrl = () => {
+
+
+
+
+  return `/api/1c/probe`
+}
+
+export const probe = async ( options?: RequestInit): Promise<probeResponse> => {
+
+  return apiRequest<probeResponse>(getProbeUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getProbeMutationKey = () => ['probe'] as const;
+
+export const getProbeMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof probe>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof probe>>, TError,void, TContext> => {
+
+const mutationKey = getProbeMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof probe>>, void> = () => {
+
+
+          return  probe()
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ProbeMutationResult = NonNullable<Awaited<ReturnType<typeof probe>>>
+
+    export type ProbeMutationError = ErrorResponse
+
+
+    export const useProbe = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof probe>>, TError,void, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof probe>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getProbeMutationOptions(options), queryClient);
+    }
+
 export type acceptCatalogExchangeResponse200 = {
   data: ExchangeAckDto
   status: 200
@@ -18048,6 +18165,130 @@ export function useGetReviewModerationQueue<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetReviewModerationQueueQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type contextResponse200 = {
+  data: Context200
+  status: 200
+}
+
+export type contextResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type contextResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type contextResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type contextResponseSuccess = (contextResponse200) & {
+  headers: Headers;
+};
+export type contextResponseError = (contextResponse400 | contextResponse404 | contextResponse500) & {
+  headers: Headers;
+};
+
+export type contextResponse = (contextResponseSuccess | contextResponseError)
+
+export const getContextUrl = () => {
+
+
+
+
+  return `/api/probe/context`
+}
+
+export const context = async ( options?: RequestInit): Promise<contextResponse> => {
+
+  return apiRequest<contextResponse>(getContextUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getContextQueryKey = () => {
+    return [
+    `/api/probe/context`
+    ] as const;
+    }
+
+
+export const getContextQueryOptions = <TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getContextQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof context>>> = ({ signal }) => context({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ContextQueryResult = NonNullable<Awaited<ReturnType<typeof context>>>
+export type ContextQueryError = ErrorResponse
+
+
+export function useContext<TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof context>>,
+          TError,
+          Awaited<ReturnType<typeof context>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useContext<TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof context>>,
+          TError,
+          Awaited<ReturnType<typeof context>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useContext<TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+
+export function useContext<TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getContextQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -20380,6 +20621,156 @@ export const useClearPortalCart = <TError = ErrorResponse,
       > => {
       return useMutation(getClearPortalCartMutationOptions(options), queryClient);
     }
+
+export type getPortalKnownAddressesResponse200 = {
+  data: KnownAddressDto[]
+  status: 200
+}
+
+export type getPortalKnownAddressesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalKnownAddressesResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type getPortalKnownAddressesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalKnownAddressesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalKnownAddressesResponseSuccess = (getPortalKnownAddressesResponse200) & {
+  headers: Headers;
+};
+export type getPortalKnownAddressesResponseError = (getPortalKnownAddressesResponse400 | getPortalKnownAddressesResponse401 | getPortalKnownAddressesResponse404 | getPortalKnownAddressesResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalKnownAddressesResponse = (getPortalKnownAddressesResponseSuccess | getPortalKnownAddressesResponseError)
+
+export const getGetPortalKnownAddressesUrl = () => {
+
+
+
+
+  return `/api/portal/addresses`
+}
+
+/**
+ * Подсказка форме доставки: адрес, который клиент уже называл одному из своих поставщиков, не нужно набирать заново у следующего.
+ *
+ * Заголовка поставщика не требует — как и список поставщиков и сводка непрочитанного, он задаётся раньше выбора: клиенту ещё только предстоит решить, у кого оформлять доставку, а не подтверждать уже выбранного.
+ *
+ * Строка приходит только на поставщика, у которого есть непустой адрес: поставщик, которому клиент ничего не возил, строки не даёт — пустой адрес не является предложением.
+ *
+ * Идентификаторы справочника — способ доставки, зона, точка самовывоза — в ответе не отдаются никогда: они принадлежат справочнику того поставщика, у которого адрес был назван, и предложенные другому поставщику указывали бы в никуда.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Принять приглашения двух поставщиков одним номером и подать заявку с адресом у одного из них.
+ * 2. Вызвать метод без заголовка поставщика — одна строка, с адресом, городом и этажом того поставщика; второй поставщик в ответе отсутствует.
+ * 3. Подать у того же поставщика вторую заявку с другим адресом — строка меняется на адрес из неё.
+ * 4. Администратору поставщика отозвать доступ клиента — строка исчезает.
+ * 5. Негативный 401: тот же запрос без токена.
+ * @summary Мои известные адреса
+ */
+export const getPortalKnownAddresses = async ( options?: RequestInit): Promise<getPortalKnownAddressesResponse> => {
+
+  return apiRequest<getPortalKnownAddressesResponse>(getGetPortalKnownAddressesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalKnownAddressesQueryKey = () => {
+    return [
+    `/api/portal/addresses`
+    ] as const;
+    }
+
+
+export const getGetPortalKnownAddressesQueryOptions = <TData = Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalKnownAddressesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalKnownAddresses>>> = ({ signal }) => getPortalKnownAddresses({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalKnownAddressesQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalKnownAddresses>>>
+export type GetPortalKnownAddressesQueryError = ErrorResponse
+
+
+export function useGetPortalKnownAddresses<TData = Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalKnownAddresses>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalKnownAddresses>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalKnownAddresses<TData = Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalKnownAddresses>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalKnownAddresses>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalKnownAddresses<TData = Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Мои известные адреса
+ */
+
+export function useGetPortalKnownAddresses<TData = Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalKnownAddresses>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalKnownAddressesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export type listOrdersResponse200 = {
   data: CustomerOrderDto[]

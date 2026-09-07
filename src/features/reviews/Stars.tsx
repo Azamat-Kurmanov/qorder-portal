@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /**
  * Звёзды оценки: одна и та же фигура и в списке, и в форме.
  *
@@ -27,8 +28,12 @@ export function Star({ filled }: { filled: boolean }) {
  * ничего не сообщают.
  */
 export function Stars({ value }: { value: number }) {
+  const { t } = useTranslation();
   return (
-    <span className="inline-flex items-center gap-0.5 text-accent" aria-label={`Оценка ${value} из 5`}>
+    <span
+      className="inline-flex items-center gap-0.5 text-accent"
+      aria-label={t('reviews.stars', { value })}
+    >
       {[1, 2, 3, 4, 5].map((star) => (
         <Star key={star} filled={star <= Math.round(value)} />
       ))}

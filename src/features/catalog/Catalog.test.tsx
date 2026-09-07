@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CatalogPage } from './CatalogPage';
 import { ItemThumb } from './ItemThumb';
+import { Route, Routes } from 'react-router-dom';
 import { renderScreen } from '../../test/render';
 import { get, method, stubFetch, type StubbedResponse } from '../../test/http';
 
@@ -108,6 +109,21 @@ function stubColumnWidth(width: number) {
     width, height: 0, top: 0, left: 0, right: width, bottom: 0, x: 0, y: 0,
     toJSON: () => ({}),
   } as DOMRect);
+}
+
+/**
+ * Витрина и заглушка карточки на одном роутере.
+ *
+ * Переход проверяется появлением другого экрана, а не адресом в памяти:
+ * ссылка, ведущая в никуда, оставила бы адрес правильным.
+ */
+function renderCatalogWithCard() {
+  return renderScreen(
+    <Routes>
+      <Route path="/" element={<CatalogPage />} />
+      <Route path="/catalog/:itemId" element={<h1>Карточка позиции</h1>} />
+    </Routes>,
+  );
 }
 
 describe('витрина кабинета', () => {
@@ -437,4 +453,59 @@ describe('витрина кабинета', () => {
     render(<ItemThumb itemId="item-2" />);
     expect(screen.queryByText('видео')).not.toBeInTheDocument();
   });
+  /**
+   * Карточка открывается нажатием куда угодно по прямоугольнику позиции.
+   *
+   * Прицеливаться в имя закупщик не обязан: имя занимает треть строки, а
+   * остальные две трети — цена, наличие и пустое место — до сих пор
+   * не отвечали ни на что.
+   */
+  it('нажатие по пустому месту строки открывает карточку позиции', async () => {
+    stubFetch(catalogRules());
+    renderCatalogWithCard();
+
+    const row = await screen.findByTestId('item-row');
+    await userEvent.click(within(row).getByText('2 500 ₸'));
+
+    expect(await screen.findByRole('heading', { name: 'Карточка позиции' })).toBeInTheDocument();
+  });
+
+  it('нажатие по пустому месту плитки открывает карточку позиции', async () => {
+    stubWideScreen();
+    stubColumnWidth(1040);
+    stubFetch(catalogRules());
+    renderCatalogWithCard();
+
+    const tile = await screen.findByTestId('item-tile');
+    await userEvent.click(within(tile).getByText('2 500 ₸'));
+
+    expect(await screen.findByRole('heading', { name: 'Карточка позиции' })).toBeInTheDocument();
+  });
+
+  /**
+   * Кнопки внутри прямоугольника остаются кнопками.
+   *
+   * Ради этого имя и было единственной ссылкой: строка, уводящая с витрины
+   * от любого касания, уводила бы и тех, кто целился в «плюс».
+   */
+  it('сердечко и «В корзину» внутри строки не уводят с витрины', async () => {
+    stubFetch([
+      ...catalogRules(),
+      get('/api/portal/favorites', []),
+      method('POST', '/api/portal/favorites/item-1/toggle', { itemId: 'item-1', favorite: true }),
+      ...cartServer(cartWith('item-1', 1)),
+    ]);
+    renderCatalogWithCard();
+
+    const row = await screen.findByTestId('item-row');
+
+    await userEvent.click(within(row).getByRole('button', { name: 'В избранное' }));
+    expect(await screen.findByRole('button', { name: 'Убрать из избранного' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Карточка позиции' })).not.toBeInTheDocument();
+
+    await userEvent.click(within(row).getByRole('button', { name: 'В корзину' }));
+    expect(await screen.findByRole('spinbutton')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Карточка позиции' })).not.toBeInTheDocument();
+  });
 });
+

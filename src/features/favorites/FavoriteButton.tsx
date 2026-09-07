@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   getGetPortalCatalogItemQueryKey,
   getGetPortalCatalogQueryKey,
@@ -28,6 +29,7 @@ export function FavoriteButton({
   favorite: boolean;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const toggle = useTogglePortalFavorite({
@@ -72,7 +74,7 @@ export function FavoriteButton({
   return (
     <button
       type="button"
-      aria-label={favorite ? 'Убрать из избранного' : 'В избранное'}
+      aria-label={favorite ? t('favorites.remove') : t('favorites.add')}
       aria-pressed={favorite}
       disabled={toggle.isPending}
       onClick={() => toggle.mutate({ itemId })}

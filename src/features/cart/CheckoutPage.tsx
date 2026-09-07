@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -39,6 +40,7 @@ function chosen(delivery: Delivery): Delivery | undefined {
  * корзиной: заявка не создаётся, и решение принимает клиент.
  */
 export function CheckoutPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const cart = cartOf(useCart().data);
@@ -78,12 +80,11 @@ export function CheckoutPage() {
   if (submitted) {
     return (
       <div className="flex flex-col items-start gap-4 p-4">
-        <h1 className="text-xl font-semibold tracking-tight text-ink">Заявка отправлена</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">{t('checkout.sent.title')}</h1>
         <p className="text-ink-muted">
-          Поставщик проверит наличие и цены и вернётся с ответом. Пока проверка
-          идёт, заявка уже у него — повторять её не нужно.
+          {t('checkout.sent.note')}
         </p>
-        <Button size="lg" onClick={() => navigate('/catalog')}>В каталог</Button>
+        <Button size="lg" onClick={() => navigate('/catalog')}>{t('checkout.sent.toCatalog')}</Button>
       </div>
     );
   }
@@ -102,7 +103,7 @@ export function CheckoutPage() {
         и человек, нажавший «Оформление», окажется на экране с другим именем
         и решит, что промахнулся.
       */}
-      <h1 className="text-xl font-semibold tracking-tight text-ink lg:text-2xl">Оформление</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-ink lg:text-2xl">{t('checkout.title')}</h1>
 
       {/*
         На мониторе итог стоит отдельной колонкой справа и остаётся на месте
@@ -122,10 +123,9 @@ export function CheckoutPage() {
               role="alert"
               className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-unclear/30 bg-unclear/8 p-4"
             >
-              <p className="font-medium text-ink">Состав изменился</p>
+              <p className="font-medium text-ink">{t('checkout.changed.title')}</p>
               <p className="text-sm text-ink-muted">
-                Проверьте цены и наличие: заявка не отправлена, пока вы не согласитесь
-                с изменениями.
+                {t('checkout.changed.note')}
               </p>
             </div>
           )}
@@ -141,12 +141,12 @@ export function CheckoutPage() {
 
           <Card className="flex flex-col gap-2 p-3.5">
             <label className="flex flex-col gap-1">
-              <span className="text-[15px] font-semibold text-ink">Комментарий поставщику</span>
+              <span className="text-[15px] font-semibold text-ink">{t('checkout.comment')}</span>
               <textarea
                 rows={2}
                 value={note}
                 onChange={(event) => setNote(event.currentTarget.value)}
-                placeholder="Например: выгрузить у второго подъезда, позвонить за час"
+                placeholder={t('checkout.commentPlaceholder')}
                 className={cn(
                   'w-full resize-y rounded-[var(--radius-tile)] border border-hairline bg-surface p-3',
                   'text-sm text-ink placeholder:text-ink-faint',
@@ -170,25 +170,25 @@ export function CheckoutPage() {
             'lg:bottom-auto lg:top-4 lg:pb-4',
           )}
         >
-          <p className="text-base font-semibold text-ink">Итог</p>
+          <p className="text-base font-semibold text-ink">{t('checkout.summary.title')}</p>
 
           <div className="flex justify-between text-sm text-ink-muted">
-            <span>Товары</span>
+            <span>{t('checkout.summary.goods')}</span>
             <span data-testid="goods-total" className="tabular-nums text-ink">
               {tenge(goodsTotal)}
             </span>
           </div>
           <div className="flex justify-between text-sm text-ink-muted">
-            <span>Доставка</span>
+            <span>{t('checkout.summary.delivery')}</span>
             <span data-testid="delivery-total" className="tabular-nums text-ink">
-              {shipping === undefined ? 'по договорённости' : tenge(shipping)}
+              {shipping === undefined ? t('checkout.summary.negotiable') : tenge(shipping)}
             </span>
           </div>
 
           <div className="h-px bg-hairline" />
 
           <div className="flex items-baseline justify-between text-lg font-bold tracking-tight text-ink">
-            <span>К оплате</span>
+            <span>{t('checkout.summary.toPay')}</span>
             <span data-testid="total" className="tabular-nums">
               {tenge(goodsTotal + (shipping ?? 0))}
             </span>
@@ -204,17 +204,16 @@ export function CheckoutPage() {
               })
             }
           >
-            {submit.isPending ? 'Отправляем…' : 'Отправить заявку'}
+            {submit.isPending ? t('checkout.sending') : t('checkout.send')}
           </Button>
 
           {shipping === undefined && (
             <p className="text-xs text-ink-subtle">
-              Стоимость доставки поставщик добавит при проверке.
+              {t('checkout.summary.shippingNote')}
             </p>
           )}
           <p className="hidden text-xs leading-relaxed text-ink-subtle lg:block">
-            Поставщик проверит наличие и подтвердит. Если состав изменится, вы увидите
-            новую редакцию и подтвердите её сами.
+            {t('checkout.note')}
           </p>
         </Card>
       </div>

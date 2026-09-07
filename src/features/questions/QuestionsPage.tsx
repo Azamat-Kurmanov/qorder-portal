@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   useGetPortalCatalogItem,
   useGetPortalQuestions,
@@ -27,14 +28,15 @@ import { Reveal } from '../../ui/Reveal';
  * про цемент.
  */
 export function QuestionsPage() {
+  const { t } = useTranslation();
   const questions = useGetPortalQuestions();
   const threads = questions.data?.status === 200 ? questions.data.data : [];
 
   return (
     <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5">
       <header className="flex flex-col gap-0.5">
-        <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">Вопросы продавцу</h1>
-        <p className="text-[13px] text-ink-subtle">Переписка о товаре, сроках и доставке</p>
+        <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">{t('questions.title')}</h1>
+        <p className="text-[13px] text-ink-subtle">{t('questions.subtitle')}</p>
       </header>
 
       {questions.isPending ? (
@@ -44,8 +46,7 @@ export function QuestionsPage() {
         />
       ) : threads.length === 0 ? (
         <p className="text-[15px] leading-relaxed text-ink-subtle">
-          Здесь вы спрашиваете продавца о товаре, сроках и доставке, а он отвечает.
-          Переписка не мешается с заявками: вопрос ничего не заказывает.
+          {t('questions.empty')}
         </p>
       ) : (
         <ul className="flex flex-col gap-6">
@@ -65,6 +66,7 @@ export function QuestionsPage() {
 }
 
 function Thread({ thread }: { thread: QuestionThreadDto }) {
+  const { t } = useTranslation();
   return (
     <article data-testid={`thread-${thread.id}`} className="flex flex-col gap-2">
       <div data-testid={`thread-subject-${thread.id}`} className="flex flex-col items-center gap-1">
@@ -98,13 +100,14 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
             сервера нет, и придуманное имя однажды окажется чужим.
           */}
           <span className="text-[11px] text-ink-subtle">
-            Ответ продавца{thread.answeredAt ? ` · ${atTime(thread.answeredAt)}` : ''}
+            {t('questions.sellerAnswer')}
+            {thread.answeredAt ? ` · ${atTime(thread.answeredAt)}` : ''}
           </span>
         </div>
       ) : (
         // «Ждёт ответа» — не украшение: без него человек не знает, дошёл ли
         // вопрос вообще, и спрашивает второй раз.
-        <p className="self-start text-sm text-unclear">Ждёт ответа продавца</p>
+        <p className="self-start text-sm text-unclear">{t('questions.waiting')}</p>
       )}
 
       {thread.itemId && <DiscussedItem itemId={thread.itemId} />}
@@ -124,6 +127,7 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
  * сервер уже не примет. О чём шёл разговор, сказано выше названием.
  */
 function DiscussedItem({ itemId }: { itemId: string }) {
+  const { t } = useTranslation();
   const card = useGetPortalCatalogItem(itemId);
   const setLine = useSetCartLine();
 
@@ -156,7 +160,7 @@ function DiscussedItem({ itemId }: { itemId: string }) {
         disabled={setLine.isPending}
         onClick={() => setLine.mutate({ itemId: item.id, data: { quantity: 1 } })}
       >
-        {setLine.isSuccess ? 'В заявке' : 'Добавить в заявку'}
+        {setLine.isSuccess ? t('questions.inRequest') : t('questions.addToRequest')}
       </Button>
     </div>
   );

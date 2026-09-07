@@ -1,4 +1,5 @@
 import { cn } from '../../ui/cn';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Тёплые пары для заполнителя.
@@ -58,6 +59,7 @@ export function ItemThumb({
   video?: boolean;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const [from, to] = placeholderOf(itemId);
 
   return (
@@ -84,7 +86,7 @@ export function ItemThumb({
             <path d="M2.5 4.5h7v7h-7z" stroke="currentColor" strokeWidth="1.4" />
             <path d="m9.5 8 4-2.2v4.4L9.5 8Z" fill="currentColor" />
           </svg>
-          видео
+          {t('catalog.video')}
         </span>
       )}
     </div>

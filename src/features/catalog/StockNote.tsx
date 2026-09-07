@@ -1,4 +1,5 @@
 import { cn } from '../../ui/cn';
+import { useTranslation } from 'react-i18next';
 import { money } from '../../shared/format';
 
 /**
@@ -16,19 +17,23 @@ export function StockNote({
   available?: number | null;
   className?: string;
 }) {
+  const { t } = useTranslation();
+
   // Сравнение с null обязательно, а не только с undefined: при наличии флагом
   // сервер присылает поле со значением null, и проверка на одно лишь undefined
   // рисовала бы «Свободно: 0» там, где остаток есть, но числом не показывается.
   if (available !== undefined && available !== null) {
     return (
       <StockLine tone={available > 0 ? 'in-stock' : 'subtle'} className={className}>
-        Свободно: {money(available)}
+        {t('catalog.stock.available', { amount: money(available) })}
       </StockLine>
     );
   }
-  if (stock === 'IN_STOCK') return <StockLine tone="in-stock" className={className}>В наличии</StockLine>;
+  if (stock === 'IN_STOCK') {
+    return <StockLine tone="in-stock" className={className}>{t('catalog.stock.inStock')}</StockLine>;
+  }
   if (stock === 'UNKNOWN') {
-    return <StockLine tone="unclear" className={className}>Наличие уточняется</StockLine>;
+    return <StockLine tone="unclear" className={className}>{t('catalog.stock.unclear')}</StockLine>;
   }
   return null;
 }

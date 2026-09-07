@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -28,6 +29,7 @@ import { RepeatOrderButton } from '../orders/RepeatOrderButton';
  * которой уже нет.
  */
 export function TemplatesPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
@@ -59,18 +61,18 @@ export function TemplatesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Шаблоны</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">{t('templates.title')}</h1>
 
       <RepeatOrderButton />
 
       <Card className="flex flex-col gap-3 p-4">
-        <p className="font-semibold text-ink">Сохранить текущую корзину</p>
+        <p className="font-semibold text-ink">{t('templates.saveCurrent')}</p>
         <div className="flex items-end gap-2">
           <label className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <span className="text-sm font-medium text-ink">Название</span>
+            <span className="text-sm font-medium text-ink">{t('templates.name')}</span>
             <input
               type="text"
-              placeholder="Например: объект на Абая"
+              placeholder={t('templates.namePlaceholder')}
               value={name}
               onChange={(event) => setName(event.currentTarget.value)}
               className={cn(
@@ -84,14 +86,14 @@ export function TemplatesPage() {
             disabled={name.trim().length === 0 || save.isPending}
             onClick={() => save.mutate({ data: { name: name.trim() } })}
           >
-            {save.isPending ? 'Сохраняем…' : 'Сохранить'}
+            {save.isPending ? t('templates.saving') : t('templates.save')}
           </Button>
         </div>
       </Card>
 
       {templates.length === 0 ? (
         <p className="text-ink-subtle">
-          Шаблонов пока нет. Соберите корзину и сохраните её под названием.
+          {t('templates.empty')}
         </p>
       ) : (
         templates.map((template, index) => (
@@ -99,7 +101,9 @@ export function TemplatesPage() {
             <Card interactive data-testid="template-row" className="flex items-center justify-between gap-3 p-4">
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="font-semibold text-ink">{template.name}</span>
-                <span className="text-sm text-ink-subtle">позиций: {template.lineCount}</span>
+                <span className="text-sm text-ink-subtle">
+                  {t('templates.lineCount', { count: template.lineCount })}
+                </span>
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
@@ -109,11 +113,11 @@ export function TemplatesPage() {
                   disabled={fill.isPending}
                   onClick={() => fill.mutate({ templateId: template.id })}
                 >
-                  {fill.isPending ? 'Кладём…' : 'В корзину'}
+                  {fill.isPending ? t('templates.adding') : t('templates.toCart')}
                 </Button>
                 <button
                   type="button"
-                  aria-label={`Удалить шаблон ${template.name}`}
+                  aria-label={t('templates.deleteAria', { name: template.name })}
                   onClick={() => remove.mutate({ id: template.id })}
                   className={cn(
                     'flex size-11 items-center justify-center rounded-[var(--radius-control)]',

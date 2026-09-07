@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Link } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,17 +22,22 @@ import { shortDate } from '../../shared/format';
  * тому, кто заказывает цемент. Неизвестный повод описывается общими словами,
  * а не прячется: сервер умеет присылать больше поводов, чем знает эта
  * страница, и промолчать о заявке хуже, чем сказать о ней неточно.
+ *
+ * Список известных поводов стоит в коде, а не выводится из словаря: словарь
+ * отвечает за слова, а за то, какие поводы экран умеет назвать, — экран.
  */
-const REASONS: Record<string, string> = {
-  RENEGOTIATION: 'Продавец изменил заявку — посмотрите, что поменялось',
-  DEADLINE_SOON: 'Заявка ждёт вашего ответа, срок подходит',
-  ACCEPTED: 'Заявка принята продавцом',
-  QUESTION_ANSWERED: 'Продавец ответил на вопрос',
-  ORDER_ANSWERED: 'Продавец ответил по заявке',
-};
+const KNOWN_REASONS = [
+  'RENEGOTIATION',
+  'DEADLINE_SOON',
+  'ACCEPTED',
+  'QUESTION_ANSWERED',
+  'ORDER_ANSWERED',
+];
 
-function reasonOf(kind: string): string {
-  return REASONS[kind] ?? 'По заявке есть новости';
+function reasonOf(kind: string, t: TFunction): string {
+  return KNOWN_REASONS.includes(kind)
+    ? t(`notifications.reasons.${kind}`)
+    : t('notifications.reasons.fallback');
 }
 
 /**
@@ -52,13 +59,20 @@ function destinationOf(kind: string, draftId: string): string {
  *
  * Прочитанным уведомление становится по переходу к заявке, а не по открытию
  * листа: открыл, отвлёкся, закрыл — и повод исчез, не будучи прочитанным.
+ *
+ * `active` выключает запрос, пока неизвестно, есть ли у клиента поставщик:
+ * уведомления принадлежат поставщику, и в кабинете, который ещё не открыли,
+ * запрос за ними возвращает отказ.
  */
-export function NotificationsBell() {
+export function NotificationsBell({ active = true }: { active?: boolean }) {
+  const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
-  const notifications = useGetPortalNotifications();
+  const notifications = useGetPortalNotifications({ query: { enabled: active } });
   const list = notifications.data?.status === 200 ? notifications.data.data : [];
 
-  const label = list.length > 0 ? `Уведомления: ${list.length}` : 'Уведомления';
+  const label = list.length > 0
+    ? t('notifications.withCount', { count: list.length })
+    : t('notifications.title');
 
   return (
     <>
@@ -84,9 +98,9 @@ export function NotificationsBell() {
         )}
       </button>
 
-      <Sheet open={opened} onOpenChange={setOpened} title="Уведомления">
+      <Sheet open={opened} onOpenChange={setOpened} title={t('notifications.title')}>
         {list.length === 0 ? (
-          <p className="text-sm text-ink-subtle">Новостей нет.</p>
+          <p className="text-sm text-ink-subtle">{t('notifications.empty')}</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {list.map((notification) => (
@@ -111,6 +125,7 @@ function NotificationRow({
   notification: PortalNotificationDto;
   onFollowed: () => void;
 }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const read = useReadPortalNotification({
     mutation: {
@@ -138,7 +153,7 @@ function NotificationRow({
         'transition-all duration-300 hover:bg-canvas active:scale-95',
       )}
     >
-      <span className="text-[15px] text-ink">{reasonOf(notification.kind)}</span>
+      <span className="text-[15px] text-ink">{reasonOf(notification.kind, t)}</span>
       <span className="text-[13px] text-ink-faint">{shortDate(notification.createdAt)}</span>
     </Link>
   );

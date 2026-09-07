@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, Heart, Menu, Search, ShoppingBag, User } from 'lucide-react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { CatalogPage } from '../catalog/CatalogPage';
@@ -17,8 +18,11 @@ import { MyReviewsPage } from '../reviews/MyReviewsPage';
 import { TemplatesPage } from '../templates/TemplatesPage';
 import { useGetPortalSuppliers, useGetPortalUnreadSummary } from '../../api/generated';
 import { currentViewer } from '../../auth/oidcConfig';
+import { ActivationBanner } from './ActivationBanner';
+import { LanguagePicker } from './LanguagePicker';
 import { StaffBanner } from './StaffBanner';
 import { useSupplier } from '../../supplier/useSupplier';
+import { useSupplierAccess } from '../../supplier/useSupplierAccess';
 import { Button } from '../../ui/Button';
 import { Logo } from '../../ui/Logo';
 import { Sheet } from '../../ui/Sheet';
@@ -32,16 +36,21 @@ import { cn } from '../../ui/cn';
  * и на мониторе оказались бы разные кабинеты, и объяснять по телефону, куда
  * нажать, стало бы нечем.
  */
+/*
+ * Хранится ключ, а не подпись: подпись зависит от языка, а список считается
+ * один раз на модуле — посчитанная здесь, она осталась бы прежней до
+ * перезагрузки страницы.
+ */
 const SECTIONS = [
-  { label: 'Каталог', path: '/catalog' },
-  { label: 'Избранное', path: '/favorites' },
-  { label: 'Оформление', path: '/checkout' },
-  { label: 'Мои заявки', path: '/orders' },
-  { label: 'Шаблоны закупки', path: '/templates' },
-  { label: 'Вопросы продавцу', path: '/questions' },
-  { label: 'Мои отзывы', path: '/reviews' },
-  { label: 'Доставка и самовывоз', path: '/delivery' },
-  { label: 'Поставщики', path: '/profile' },
+  { key: 'catalog', path: '/catalog' },
+  { key: 'favorites', path: '/favorites' },
+  { key: 'checkout', path: '/checkout' },
+  { key: 'orders', path: '/orders' },
+  { key: 'templates', path: '/templates' },
+  { key: 'questions', path: '/questions' },
+  { key: 'reviews', path: '/reviews' },
+  { key: 'delivery', path: '/delivery' },
+  { key: 'profile', path: '/profile' },
 ];
 
 /**
@@ -94,6 +103,7 @@ function useOthersUnread(): number {
  * для которой справа есть пустое место.
  */
 export function Shell() {
+  const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
   const wide = useWideScreen();
   // Колонка развёрнута, пока её не сложили: человек, открывший кабинет
@@ -101,13 +111,18 @@ export function Shell() {
   const [railOpen, setRailOpen] = useState(true);
   const location = useLocation();
   const others = useOthersUnread();
+  const { activated, ready } = useSupplierAccess();
 
   /*
    * На оформлении заявка и есть экран: колонка справа показывала бы тот же
    * состав второй раз и отнимала бы у формы треть ширины. Грид тогда
    * перестраивается на две колонки — иначе 340 точек остались бы пустыми.
+   *
+   * В неоткрытом кабинете колонки нет по другой причине: заявки у клиента
+   * без поставщика не существует, и запрос за ней вернул бы отказ — тот
+   * самый, вместо которого стоит полоса с объяснением.
    */
-  const withCart = !location.pathname.startsWith('/checkout');
+  const withCart = !location.pathname.startsWith('/checkout') && activated;
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -116,7 +131,11 @@ export function Shell() {
         колонку, на телефоне открывает лист. Названа она «Меню» в обоих
         случаях — человек нажимает её за одним и тем же.
       */}
-      <Header onOpenSections={() => (wide ? setRailOpen((open) => !open) : setOpened(true))} />
+      <Header
+        activated={activated}
+        ready={ready}
+        onOpenSections={() => (wide ? setRailOpen((open) => !open) : setOpened(true))}
+      />
 
       {/*
         Полоса арендатора стоит под шапкой и над всем остальным: она объясняет,
@@ -127,8 +146,23 @@ export function Shell() {
         <StaffBanner webUrl={import.meta.env.VITE_WEB_URL ?? '/'} />
       )}
 
-      <Sheet open={opened && !wide} onOpenChange={setOpened} title="Меню" side="left">
-        <nav aria-label="Разделы" className="flex flex-col gap-1">
+      {/*
+        Полоса о неоткрытом кабинете — единственное, что клиенту без
+        поставщика вообще есть смысл показывать: всё остальное здесь
+        принадлежит поставщику.
+      */}
+      {!activated && <ActivationBanner />}
+
+      <Sheet open={opened && !wide} onOpenChange={setOpened} title={t('shell.menu')} side="left">
+        {/*
+          Язык — первой строкой: на телефоне кружка профиля в шапке нет,
+          и другого места для переключателя там не остаётся.
+        */}
+        <div className="flex items-center justify-between gap-2 pb-2">
+          <LanguagePicker />
+        </div>
+
+        <nav aria-label={t('shell.sectionsNav')} className="flex flex-col gap-1">
           {SECTIONS.map((section) => (
             <SectionLink
               key={section.path}
@@ -165,14 +199,14 @@ export function Shell() {
         */}
         {railOpen && (
         <nav
-          aria-label="Разделы кабинета"
+          aria-label={t('shell.sectionsRail')}
           className={cn(
             'hidden flex-col gap-[3px] border-r border-hairline bg-sunk px-4 py-6 lg:flex',
             'lg:sticky lg:top-[68px] lg:h-[calc(100dvh-68px)] lg:overflow-y-auto',
           )}
         >
           <span className="px-3 pb-2.5 text-[11px] uppercase tracking-[0.1em] text-ink-subtle">
-            Разделы
+            {t('shell.sectionsTitle')}
           </span>
           {SECTIONS.map((section) => (
             <SectionLink
@@ -202,7 +236,13 @@ export function Shell() {
           </Routes>
         </main>
 
-        {withCart && <CartPanel />}
+        {/*
+          Колонка заявки стоит и до ответа сервера — иначе витрина прыгала бы
+          на 340 точек в момент, когда список поставщиков дошёл. Запрос за
+          составом заявки при этом ждёт подтверждения: уйди он раньше,
+          клиент без поставщика получил бы на него отказ.
+        */}
+        {withCart && <CartPanel active={ready} />}
       </div>
     </div>
   );
@@ -221,7 +261,16 @@ export function Shell() {
  * здесь раньше, не говорило ничего: кабинет одинаков у всех, а закупаются
  * у разных.
  */
-function Header({ onOpenSections }: { onOpenSections: () => void }) {
+function Header({
+  activated,
+  ready,
+  onOpenSections,
+}: {
+  activated: boolean;
+  ready: boolean;
+  onOpenSections: () => void;
+}) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 
@@ -239,7 +288,7 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Меню"
+          aria-label={t('shell.menu')}
           className="shrink-0"
           onClick={onOpenSections}
         >
@@ -262,7 +311,7 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
         */}
         <Link
           to="/catalog"
-          aria-label="FastOrders, на витрину"
+          aria-label={t('shell.logo')}
           className="hidden shrink-0 items-center gap-2.5 lg:flex"
         >
           <Logo decorative className="h-8" />
@@ -286,8 +335,8 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
           <Search className="size-[18px] shrink-0 text-ink-subtle" aria-hidden="true" />
           <input
             type="search"
-            aria-label="Поиск по каталогу"
-            placeholder="Что нужно? Например, цемент"
+            aria-label={t('shell.search')}
+            placeholder={t('shell.searchPlaceholder')}
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
             className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-faint"
@@ -295,7 +344,7 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
         </form>
 
         <div className="ml-auto flex shrink-0 items-center gap-2 lg:gap-2.5">
-          <HeaderAction to="/favorites" label="Избранное">
+          <HeaderAction to="/favorites" label={t('shell.sections.favorites')}>
             <Heart className="size-5" aria-hidden="true" />
           </HeaderAction>
 
@@ -304,7 +353,7 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
             стоят колонкой справа, и значок был бы третьим местом с той же
             суммой.
           */}
-          <HeaderAction to="/checkout" label="Заявка" className="lg:hidden">
+          <HeaderAction to="/checkout" label={t('shell.cart')} className="lg:hidden">
             <ShoppingBag className="size-5" aria-hidden="true" />
           </HeaderAction>
 
@@ -315,10 +364,25 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
               'transition-all duration-300 hover:bg-ink/5 active:scale-95',
             )}
           >
-            Мои заявки
+            {t('shell.orders')}
           </Link>
 
-          <NotificationsBell />
+          {/*
+            В неоткрытом кабинете колокольчика нет: новостям взяться неоткуда,
+            а запрос за ними вернул бы отказ. Пустой колокольчик обещал бы,
+            что новости сюда придут, — они придут только после активации.
+          */}
+          {activated && <NotificationsBell active={ready} />}
+
+          {/*
+            Переключатель языка — рядом с профилем и только на мониторе.
+            На телефоне шапка занята именем поставщика и значками, и четвёртая
+            цель отняла бы ширину у имени, ради которого шапку и переделывали;
+            там тот же переключатель стоит первой строкой выдвижного меню.
+          */}
+          <div className="hidden lg:block">
+            <LanguagePicker />
+          </div>
 
           {/*
             Кружок профиля вместо инициалов: имени вошедшего кабинет не знает —
@@ -327,7 +391,7 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
           */}
           <Link
             to="/profile"
-            aria-label="Профиль"
+            aria-label={t('shell.profile')}
             className={cn(
               'hidden size-10 shrink-0 items-center justify-center rounded-full lg:flex',
               'bg-accent-soft text-accent transition-all duration-300 active:scale-95',
@@ -358,6 +422,7 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
  * читается как поломка, а «Поставщик» — как ещё не загруженное имя.
  */
 function SupplierMark() {
+  const { t } = useTranslation();
   const { supplierId } = useSupplier();
   const suppliers = useGetPortalSuppliers();
   const list = suppliers.data?.status === 200 ? suppliers.data.data : [];
@@ -386,7 +451,7 @@ function SupplierMark() {
           'lg:text-[13px] lg:normal-case lg:tracking-normal',
         )}
       >
-        Поставщик
+        {t('shell.supplier')}
       </span>
       <span className="flex min-w-0 items-center gap-1.5">
         {/*
@@ -406,13 +471,13 @@ function SupplierMark() {
           />
         )}
         <span className="truncate text-[17px] font-semibold tracking-[-0.01em] text-ink lg:text-sm lg:font-medium">
-          {name ?? 'выбрать'}
+          {name ?? t('shell.supplierChoose')}
         </span>
         <ChevronDown className="size-4 shrink-0 text-ink-subtle" aria-hidden="true" />
         {others > 0 && (
           <span
             role="img"
-            aria-label="У других поставщиков есть новости"
+            aria-label={t('shell.othersHaveNews')}
             className="size-2 shrink-0 rounded-full bg-accent"
           />
         )}
@@ -471,11 +536,12 @@ function SectionLink({
   badge,
   onFollow,
 }: {
-  section: { label: string; path: string };
+  section: { key: string; path: string };
   current: string;
   badge?: number;
   onFollow?: () => void;
 }) {
+  const { t } = useTranslation();
   const active = current === section.path
     || (section.path !== '/catalog' && current.startsWith(`${section.path}/`))
     || (section.path === '/orders' && current.startsWith('/orders'));
@@ -491,14 +557,14 @@ function SectionLink({
         active ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-ink/5',
       )}
     >
-      {section.label}
+      {t(`shell.sections.${section.key}`)}
       {badge !== undefined && badge > 0 && (
         // Тот же приём, что у пилюли в списке поставщиков и у точки в шапке:
         // роль и осмысленное имя со словом. Голое число диктор произнёс бы
         // без единицы измерения — «Поставщики 4, ссылка» вместо понятного.
         <span
           role="img"
-          aria-label={`Непрочитанных: ${badge}`}
+          aria-label={t('shell.unread', { count: badge })}
           className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-semibold text-surface"
         >
           {badge}

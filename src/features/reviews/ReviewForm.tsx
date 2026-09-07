@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSubmitPortalReview, type ItemReviewDto } from '../../api/generated';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -24,8 +25,8 @@ export function ReviewForm({
   itemId,
   initialRating = 0,
   initialText = '',
-  submitLabel = 'Оставить отзыв',
-  note = 'Отзыв появится на витрине после проверки продавцом.',
+  submitLabel,
+  note,
   onSaved,
   onCancel,
 }: {
@@ -37,6 +38,7 @@ export function ReviewForm({
   onSaved: (review: ItemReviewDto) => void;
   onCancel?: () => void;
 }) {
+  const { t } = useTranslation();
   const [rating, setRating] = useState(initialRating);
   const [text, setText] = useState(initialText);
   const [failed, setFailed] = useState(false);
@@ -62,13 +64,13 @@ export function ReviewForm({
       <StarsInput value={rating} onChange={setRating} />
 
       <label className="flex flex-col gap-1.5 text-sm text-ink-muted">
-        Отзыв
+        {t('reviews.review')}
         <textarea
           value={text}
           maxLength={2000}
           rows={3}
           onChange={(event) => setText(event.currentTarget.value)}
-          placeholder="Что понравилось, что нет"
+          placeholder={t('reviews.textPlaceholder')}
           className={cn(
             'w-full resize-y rounded-[var(--radius-control)] border border-hairline bg-surface',
             'p-3 text-[15px] text-ink placeholder:text-ink-faint',
@@ -79,16 +81,16 @@ export function ReviewForm({
 
       {failed && (
         <p role="alert" className="text-sm text-gone">
-          Отзыв не отправился. Попробуйте ещё раз.
+          {t('reviews.sendFailed')}
         </p>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[13px] text-ink-subtle">{note}</p>
+        <p className="text-[13px] text-ink-subtle">{note ?? t('reviews.afterCheck')}</p>
         <div className="flex items-center gap-2">
           {onCancel && (
             <Button type="button" variant="ghost" onClick={onCancel}>
-              Отмена
+              {t('reviews.cancel')}
             </Button>
           )}
           <Button
@@ -96,7 +98,7 @@ export function ReviewForm({
             disabled={rating === 0 || submit.isPending}
             onClick={() => submit.mutate({ itemId, data: { rating, text: text.trim() || undefined } })}
           >
-            {submitLabel}
+            {submitLabel ?? t('reviews.leave')}
           </Button>
         </div>
       </div>
@@ -117,15 +119,16 @@ export function StarsInput({
   value: number;
   onChange: (rating: number) => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <div role="radiogroup" aria-label="Оценка" className="flex items-center gap-1">
+    <div role="radiogroup" aria-label={t('reviews.rating')} className="flex items-center gap-1">
       {[1, 2, 3, 4, 5].map((rating) => (
         <button
           key={rating}
           type="button"
           role="radio"
           aria-checked={value === rating}
-          aria-label={`Оценка ${rating} из 5`}
+          aria-label={t('reviews.stars', { value: rating })}
           onClick={() => onChange(rating)}
           className={cn(
             'inline-flex size-11 items-center justify-center rounded-full',

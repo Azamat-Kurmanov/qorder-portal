@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -34,6 +35,7 @@ import { cn } from '../../ui/cn';
  * карточками растянули бы четыре позиции на два экрана.
  */
 export function FavoritesPage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const favorites = useGetPortalFavorites();
   const items = favorites.data?.status === 200 ? favorites.data.data : [];
@@ -70,12 +72,14 @@ export function FavoritesPage() {
     <div className="flex flex-col gap-4 pb-28">
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">Избранное</h1>
+          <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">{t('favorites.title')}</h1>
           {items.length > 0 && (
             // «Отложено вами» — про то, что список личный: он ничего не сообщил
             // продавцу и ни к чему не обязывает.
             <p className="text-[13px] text-ink-subtle">
-              {items.length} {positionWord(items.length)} · отложено вами
+              {items.length} {t('common.positions', { count: items.length })}
+              {' · '}
+              {t('favorites.setAside')}
             </p>
           )}
         </div>
@@ -83,7 +87,7 @@ export function FavoritesPage() {
         {items.length > 0 && (
           <button
             type="button"
-            aria-label="Очистить избранное"
+            aria-label={t('favorites.clearAria')}
             disabled={toggle.isPending}
             onClick={() => {
               // Отказ сети посреди очереди оставляет часть отметок снятыми —
@@ -98,16 +102,16 @@ export function FavoritesPage() {
               'disabled:pointer-events-none disabled:opacity-50',
             )}
           >
-            Очистить
+            {t('favorites.clear')}
           </button>
         )}
       </header>
 
       {skipped.length > 0 && (
         <Card data-testid="skipped-notice" className="flex flex-col gap-1 p-4">
-          <p className="text-sm font-medium text-ink">В заявку добавлено не всё</p>
+          <p className="text-sm font-medium text-ink">{t('favorites.notAll')}</p>
           <p className="text-sm text-ink-muted">
-            Сейчас нельзя заказать: {skipped.map((line) => line.name).join(', ')}
+            {t('favorites.cannotOrder', { names: skipped.map((line) => line.name).join(', ') })}
           </p>
         </Card>
       )}
@@ -120,8 +124,7 @@ export function FavoritesPage() {
         </Card>
       ) : items.length === 0 ? (
         <p className="text-[15px] leading-relaxed text-ink-subtle">
-          Пока пусто. Отмечайте позиции сердечком в каталоге — они соберутся здесь,
-          и повторную закупку не придётся искать заново.
+          {t('favorites.empty')}
         </p>
       ) : (
         <Card className="overflow-hidden p-0">
@@ -146,7 +149,7 @@ export function FavoritesPage() {
           disabled={toCart.isPending}
           onClick={() => toCart.mutate()}
         >
-          Добавить доступное в заявку
+          {t('favorites.addAvailable')}
         </Button>
       )}
 
@@ -156,6 +159,7 @@ export function FavoritesPage() {
 }
 
 function FavoriteRow({ item }: { item: FavoriteItemDto }) {
+  const { t } = useTranslation();
   return (
     <div className={cn('flex gap-3 px-4 py-3.5', !item.available && 'opacity-60')}>
       <div className="flex min-w-0 flex-1 flex-col gap-1 py-0.5">
@@ -178,7 +182,7 @@ function FavoriteRow({ item }: { item: FavoriteItemDto }) {
         ) : (
           // Не «недоступна», а кто и что сделал: клиенту нужно понять, что ждать
           // возвращения бессмысленно и пора искать замену.
-          <p className="text-[12px] text-gone">Продавец снял с витрины</p>
+          <p className="text-[12px] text-gone">{t('favorites.gone')}</p>
         )}
       </div>
 
@@ -195,15 +199,3 @@ function FavoriteRow({ item }: { item: FavoriteItemDto }) {
   );
 }
 
-/** «1 позиция», «2 позиции», «5 позиций»: счёт читают, а не расшифровывают. */
-function positionWord(count: number): string {
-  const tail = count % 100;
-  if (tail >= 11 && tail <= 14) return 'позиций';
-  switch (count % 10) {
-    case 1: return 'позиция';
-    case 2:
-    case 3:
-    case 4: return 'позиции';
-    default: return 'позиций';
-  }
-}

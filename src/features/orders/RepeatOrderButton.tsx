@@ -1,4 +1,5 @@
 import { Button } from '../../ui/Button';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetPortalCartQueryKey, useRepeatLastPortalOrder } from '../../api/generated';
@@ -22,6 +23,7 @@ export function RepeatOrderButton({ variant = 'soft', className }: {
   variant?: 'soft' | 'outline';
   className?: string;
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -44,7 +46,7 @@ export function RepeatOrderButton({ variant = 'soft', className }: {
       disabled={repeat.isPending}
       onClick={() => repeat.mutate()}
     >
-      {repeat.isPending ? 'Собираем…' : 'Повторить прошлый заказ'}
+      {repeat.isPending ? t('orders.collecting') : t('orders.repeat')}
     </Button>
   );
 }

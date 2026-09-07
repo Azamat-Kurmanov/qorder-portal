@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useResetPortalServiceData } from '../../api/generated';
 import { Button } from '../../ui/Button';
@@ -18,6 +19,7 @@ import { cn } from '../../ui/cn';
  * следы копятся в очереди и мешают менеджеру.
  */
 export function StaffBanner({ webUrl }: { webUrl: string }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [erased, setErased] = useState<number | null>(null);
 
@@ -41,15 +43,15 @@ export function StaffBanner({ webUrl }: { webUrl: string }) {
         'flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink',
       )}
     >
-      <span className="font-medium">Свой кабинет, открытый для проверки</span>
-      <span className="text-ink-muted">
-        Заявки отсюда помечаются проверочными и в метрики канала не идут
-      </span>
+      <span className="font-medium">{t('shell.staffBanner.title')}</span>
+      <span className="text-ink-muted">{t('shell.staffBanner.note')}</span>
 
       <div className="ml-auto flex items-center gap-2">
         {erased !== null && (
           <span className="text-ink-muted">
-            {erased > 0 ? `Убрано заявок: ${erased}` : 'Убирать было нечего'}
+            {erased > 0
+              ? t('shell.staffBanner.erased', { count: erased })
+              : t('shell.staffBanner.nothingToErase')}
           </span>
         )}
         <Button
@@ -57,7 +59,7 @@ export function StaffBanner({ webUrl }: { webUrl: string }) {
           onClick={() => reset.mutate()}
           disabled={reset.isPending}
         >
-          {reset.isPending ? 'Убираем…' : 'Убрать проверочные действия'}
+          {reset.isPending ? t('shell.staffBanner.erasing') : t('shell.staffBanner.erase')}
         </Button>
         {/*
           Обычная ссылка, а не переход роутера: рабочее место — другое
@@ -70,7 +72,7 @@ export function StaffBanner({ webUrl }: { webUrl: string }) {
             'text-sm font-medium text-accent transition-all duration-300 hover:bg-ink/5',
           )}
         >
-          В рабочее место
+          {t('shell.staffBanner.toWorkplace')}
         </a>
       </div>
     </div>

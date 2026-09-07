@@ -6,6 +6,7 @@ import { ProfilePage } from '../features/profile/ProfilePage';
 import { renderScreen, renderWithRealSupplier } from '../test/render';
 import { get, stubFetch } from '../test/http';
 import { setCurrentSupplierId } from '../supplier/supplier';
+import i18n from '../i18n';
 
 const emptyCatalog = [
   get('/api/portal/categories', []),
@@ -70,6 +71,31 @@ describe('поставщик в запросах кабинета', () => {
     await waitFor(() => {
       const last = calls[calls.length - 1];
       expect(new Headers(last.init?.headers).get('X-Supplier-Id')).toBe('supplier-2');
+    });
+  });
+});
+
+describe('язык в запросах кабинета', () => {
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    window.localStorage.clear();
+    setCurrentSupplierId(null);
+    await i18n.changeLanguage('ru');
+  });
+
+  it('заголовок языка равен языку интерфейса, а не константе', async () => {
+    await i18n.changeLanguage('kk');
+    setCurrentSupplierId('supplier-1');
+    const { calls } = stubFetch(emptyCatalog);
+
+    renderScreen(<CatalogPage />);
+
+    await waitFor(() => expect(calls.length).toBeGreaterThan(0));
+    // Сервер переводит тексты ошибок по этому заголовку. Останься он
+    // константой — казахский экран показывал бы русские отказы.
+    calls.forEach((call) => {
+      const headers = new Headers(call.init?.headers);
+      expect(headers.get('Accept-Language')).toBe('kk');
     });
   });
 });

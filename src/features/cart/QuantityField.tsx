@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cartOf, useCart, useSetCartLine } from './useCart';
 import { cn } from '../../ui/cn';
 
@@ -22,6 +23,7 @@ interface QuantityFieldProps {
  * в «плюс» проще, чем в цифру. Обе кнопки 44px — иначе палец промахивается.
  */
 export function QuantityField({ itemId, unit, className }: QuantityFieldProps) {
+  const { t } = useTranslation();
   const cart = cartOf(useCart().data);
   const setLine = useSetCartLine();
   const stored = cart?.lines.find((line) => line.itemId === itemId)?.quantity;
@@ -55,7 +57,7 @@ export function QuantityField({ itemId, unit, className }: QuantityFieldProps) {
     <div className={cn('flex h-11 shrink-0 items-stretch', className)}>
       <button
         type="button"
-        aria-label="Меньше"
+        aria-label={t('cart.less')}
         onClick={() => step(-1)}
         disabled={current <= 0}
         className={cn(STEPPER, 'rounded-l-[var(--radius-control)] border-r-0')}
@@ -84,7 +86,7 @@ export function QuantityField({ itemId, unit, className }: QuantityFieldProps) {
 
       <button
         type="button"
-        aria-label="Больше"
+        aria-label={t('cart.more')}
         onClick={() => step(1)}
         className={cn(STEPPER, 'rounded-r-[var(--radius-control)] border-l-0')}
       >

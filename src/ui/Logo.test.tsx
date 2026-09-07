@@ -6,7 +6,10 @@ describe('Logo', () => {
   it('по умолчанию подписан именем системы', () => {
     render(<Logo />);
 
-    expect(screen.getByAltText(PRODUCT_NAME)).toBeInTheDocument();
+    // Изображений два — светлое и тёмное; какое видно, решает CSS
+    // по настройке браузера, и подпись обязана быть у обоих.
+    const marks = screen.getAllByAltText(PRODUCT_NAME);
+    expect(marks).toHaveLength(2);
   });
 
   it('рядом с надписью «FastOrders» знак остаётся без подписи', () => {
@@ -15,12 +18,16 @@ describe('Logo', () => {
     render(<Logo decorative />);
 
     expect(screen.queryByAltText(PRODUCT_NAME)).not.toBeInTheDocument();
-    expect(document.querySelector('img')).toHaveAttribute('aria-hidden', 'true');
+    for (const mark of document.querySelectorAll('img')) {
+      expect(mark).toHaveAttribute('aria-hidden', 'true');
+    }
   });
 
   it('высота задаётся вызывающим, ширина считается по ней', () => {
     render(<Logo height={40} />);
 
-    expect(screen.getByAltText(PRODUCT_NAME)).toHaveStyle({ height: '40px', width: 'auto' });
+    for (const mark of screen.getAllByAltText(PRODUCT_NAME)) {
+      expect(mark).toHaveStyle({ height: '40px', width: 'auto' });
+    }
   });
 });

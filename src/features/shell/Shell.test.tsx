@@ -366,6 +366,32 @@ describe('оболочка кабинета', () => {
     expect(search.className).toContain('lg:flex');
   });
 
+  /**
+   * Переключатель языка стоит в шапке рядом с профилем — на мониторе.
+   * На телефоне кружка профиля в шапке нет вовсе, а сама шапка занята именем
+   * поставщика и тремя значками: четвёртый отнял бы ширину у имени, ради
+   * которого шапку и переделывали. Там тот же переключатель стоит первой
+   * строкой выдвижного меню — язык меняют один раз, ради него разумно
+   * открыть меню.
+   */
+  it('переключатель языка стоит в шапке и в выдвижном меню', async () => {
+    stubFetch(shellRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    const header = screen.getByRole('banner');
+    const inHeader = within(header).getByRole('button', { name: /Язык интерфейса/ });
+    expect(inHeader).toBeInTheDocument();
+    // В шапке — только на мониторе: на телефоне он стоял бы дважды, здесь
+    // и в меню, и отнимал бы ширину у имени поставщика.
+    expect(inHeader.closest('.hidden')?.className).toContain('lg:block');
+
+    await userEvent.click(within(header).getByRole('button', { name: 'Меню' }));
+    const menu = await screen.findByRole('dialog', { name: 'Меню' });
+    expect(within(menu).getByRole('button', { name: /Язык интерфейса/ }))
+      .toBeInTheDocument();
+  });
+
   it('выбранный раздел назван выбранным, а не только подкрашен', async () => {
     stubFetch(shellRules());
 
@@ -467,5 +493,96 @@ describe('новости у других поставщиков', () => {
 
     expect(screen.queryByLabelText('У других поставщиков есть новости')).not.toBeInTheDocument();
     expect(within(rail).getByRole('link', { name: /Поставщики/ })).not.toHaveTextContent(/\d/);
+  });
+});
+
+/**
+ * Кабинет открывает поставщик — до этого клиенту здесь показывать нечего.
+ *
+ * Живой случай выглядел так: список поставщиков пуст, а выбранный ранее
+ * поставщик остался в хранилище и уходил заголовком в каждом запросе.
+ * Клиент видел витрину, которая не грузится, и четыре отказа подряд вместо
+ * объяснения. Отказ ничего не объясняет: понять по нему, что нужна ссылка
+ * от поставщика, невозможно.
+ */
+describe('кабинет, который поставщик ещё не открыл', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /**
+   * Правила стоят полным набором нарочно.
+   *
+   * Заглушка падает на незаявленном запросе, и урезанный набор доказывал бы
+   * молчание кабинета случайной ошибкой с невнятным текстом. Проверяется
+   * не то, что запрос упал, а то, что он не уходил вовсе — по списку вызовов.
+   */
+  function noSuppliersRules() {
+    return [
+      get('/api/portal/suppliers', []),
+      ...shellRules(),
+    ];
+  }
+
+  it('полоса под шапкой красным зовёт за ссылкой активации', async () => {
+    stubFetch(noSuppliersRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    const banner = await screen.findByRole('alert');
+    expect(banner).toHaveTextContent(/ссылку активации/);
+    // Липкая: человек прокручивает страницу, и объяснение, уехавшее вверх,
+    // оставляет его наедине с пустым экраном.
+    expect(banner.className).toContain('sticky');
+    // Красным — тем же токеном, которым кабинет говорит об отказах.
+    expect(banner.className).toContain('text-gone');
+    // По центру: во всю ширину монитора строка у левого края теряется.
+    expect(banner.className).toContain('justify-center');
+  });
+
+  it('витрина, заявка и уведомления не уходят в сеть, пока поставщика нет', async () => {
+    const { calls } = stubFetch(noSuppliersRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    await screen.findByRole('alert');
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('/api/portal/suppliers'))).toBe(true);
+    });
+
+    const asked = calls.map((call) => call.url.split('?')[0]);
+    expect(asked.some((url) => url.includes('/api/portal/catalog'))).toBe(false);
+    expect(asked.some((url) => url.includes('/api/portal/categories'))).toBe(false);
+    expect(asked.some((url) => url.includes('/api/portal/cart'))).toBe(false);
+    // Сводка непрочитанного кончается тем же путём: сравнение точное,
+    // иначе `/notifications/summary` сошло бы за список уведомлений.
+    expect(asked.some((url) => url.endsWith('/api/portal/notifications'))).toBe(false);
+  });
+
+  it('вместо витрины стоит список поставщиков, а не пустой каталог', async () => {
+    stubFetch(noSuppliersRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    expect(await screen.findByRole('heading', { name: 'Поставщики' })).toBeInTheDocument();
+  });
+
+  it('колокольчик из шапки уходит: новостям взяться неоткуда', async () => {
+    stubFetch(noSuppliersRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('button', { name: /Уведомления/ })).not.toBeInTheDocument();
+  });
+
+  it('у клиента с поставщиком полосы нет', async () => {
+    stubFetch(shellRules());
+
+    // Ждём именно ответа списка: до него утверждение об отсутствии полосы
+    // истинно само по себе и ничего не доказывает.
+    const { queryClient } = renderScreen(<Shell />, { route: '/catalog' });
+    await waitFor(() => {
+      expect(queryClient.getQueryState(getGetPortalSuppliersQueryKey())?.status).toBe('success');
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

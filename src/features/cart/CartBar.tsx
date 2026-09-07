@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { cartOf, useCart } from './useCart';
 import { CartLines } from './CartLines';
@@ -20,6 +21,7 @@ import { Sheet } from '../../ui/Sheet';
  * системные диалоги выглядят чужеродно и блокируют страницу.
  */
 export function CartBar() {
+  const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
   const navigate = useNavigate();
   const cart = cartOf(useCart().data);
@@ -54,7 +56,7 @@ export function CartBar() {
             ].join(' ')}
           >
             <span className="text-xs text-ink-subtle">
-              {positions} {positionWord(positions)}
+              {positions} {t('common.positions', { count: positions })}
             </span>
             <span className="text-[17px] font-semibold tabular-nums text-ink">
               {tenge(cart?.total ?? 0)}
@@ -62,12 +64,12 @@ export function CartBar() {
           </button>
 
           <Button size="lg" onClick={() => navigate('/checkout')}>
-            Оформить
+            {t('cart.checkout')}
           </Button>
         </div>
       </div>
 
-      <Sheet open={opened} onOpenChange={setOpened} title="Корзина">
+      <Sheet open={opened} onOpenChange={setOpened} title={t('cart.sheetTitle')}>
         <div className="flex flex-col gap-3">
           <CartLines />
           <p className="text-right text-base font-semibold tabular-nums text-ink">
@@ -81,7 +83,7 @@ export function CartBar() {
               navigate('/checkout');
             }}
           >
-            Оформить
+            {t('cart.checkout')}
           </Button>
         </div>
       </Sheet>
@@ -89,16 +91,3 @@ export function CartBar() {
   );
 }
 
-/**
- * «Позиция — позиции — позиций».
- *
- * Отсюда же её берёт колонка заявки: счёт один и тот же, и разойдись
- * склонения, полоса и колонка называли бы один набор по-разному.
- */
-export function positionWord(count: number): string {
-  const tail = count % 10;
-  const hundred = count % 100;
-  if (tail === 1 && hundred !== 11) return 'позиция';
-  if (tail >= 2 && tail <= 4 && (hundred < 12 || hundred > 14)) return 'позиции';
-  return 'позиций';
-}

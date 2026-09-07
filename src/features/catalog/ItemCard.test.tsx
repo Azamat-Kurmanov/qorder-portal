@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { ItemCardPage } from './ItemCardPage';
@@ -79,14 +79,12 @@ describe('карточка товара', () => {
     renderCard();
 
     expect(await screen.findByRole('heading', { name: 'Цемент М400' })).toBeInTheDocument();
-    // Снимок — картинкой, ролик — ссылкой: видео не грузится само, пока
+    // Снимок — картинкой, ролик — меткой: видео не грузится само, пока
     // на него не нажали, иначе карточка съедала бы мобильный трафик.
     expect(screen.getByRole('img', { name: 'Мешок 50 кг' })).toHaveAttribute(
       'src', 'https://cdn.example/cement.jpg',
     );
-    expect(screen.getByRole('link', { name: /видео/i })).toHaveAttribute(
-      'href', 'https://cdn.example/cement.mp4',
-    );
+    expect(screen.getByRole('button', { name: /видео/i })).toBeInTheDocument();
 
     // Свойства — то, по чему сравнивают две похожие позиции.
     expect(screen.getByText('Марка')).toBeInTheDocument();
@@ -204,7 +202,13 @@ describe('карточка товара', () => {
     expect(screen.getByRole('button', { name: 'В избранное' })).toBeInTheDocument();
   });
 
-  it('кадры листаются касанием по снимку', async () => {
+  /**
+   * Касание по кадру больше не перелистывает — оно открывает.
+   *
+   * Кадр в карточке мал, и по нему видно, что снимок есть, но не видно
+   * товара. Листают дальше уже во весь экран, вместе с роликами.
+   */
+  it('касание по кадру открывает снимки во весь экран', async () => {
     stubFetch(cardRules({
       ...CARD,
       media: [
@@ -216,10 +220,16 @@ describe('карточка товара', () => {
     renderCard();
 
     expect(await screen.findByTestId('gallery-photo')).toHaveAttribute('src', 'https://cdn.example/1.jpg');
-    // Полосы миниатюр на телефоне нет — кадр меняется касанием по самому кадру:
-    // цель в 300 точек надёжнее квадратика в 64.
-    await userEvent.click(screen.getByRole('button', { name: 'Следующий снимок' }));
-    expect(screen.getByTestId('gallery-photo')).toHaveAttribute('src', 'https://cdn.example/2.jpg');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Открыть снимок' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('img', { name: 'Мешок 50 кг' }))
+      .toHaveAttribute('src', 'https://cdn.example/1.jpg');
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Следующий кадр' }));
+    expect(within(dialog).getByRole('img', { name: 'Цемент М400' }))
+      .toHaveAttribute('src', 'https://cdn.example/2.jpg');
   });
 
   it('кнопка называет сумму и кладёт позицию, даже если счётчика не касались', async () => {

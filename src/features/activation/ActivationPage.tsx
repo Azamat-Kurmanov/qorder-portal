@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Logo } from '../../ui/Logo';
@@ -11,6 +12,7 @@ import {
   type ConsentNoticeDto,
 } from '../../api/generated';
 import { useAuth } from '../../auth/useAuth';
+import { LanguagePicker } from '../shell/LanguagePicker';
 import { setCurrentSupplierId } from '../../supplier/supplier';
 
 /**
@@ -32,14 +34,15 @@ import { setCurrentSupplierId } from '../../supplier/supplier';
  * Ровно для показа. Отправлять нечего — сервер берёт номер из токена, — и
  * форматирование здесь ни на что, кроме глаз, не влияет.
  */
-function phoneLabel(phone: string | null): string {
-  if (phone === null) return 'неизвестный номер';
+function phoneLabel(phone: string | null, unknown: string): string {
+  if (phone === null) return unknown;
   const digits = phone.replace(/\D/g, '');
   if (digits.length !== 11) return phone;
   return `${digits[0]} ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9)}`;
 }
 
 export function ActivationPage() {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const { authenticated, login, phone } = useAuth();
@@ -73,11 +76,10 @@ export function ActivationPage() {
   if (!code) {
     return (
       <Screen>
-        <h1 className="text-xl font-semibold tracking-tight text-ink">Ссылка неполная</h1>
-        <p className="text-ink-muted">
-          В ссылке нет кода приглашения. Откройте её целиком — так, как
-          прислал поставщик.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">
+          {t('activation.incomplete.title')}
+        </h1>
+        <p className="text-ink-muted">{t('activation.incomplete.note')}</p>
       </Screen>
     );
   }
@@ -87,24 +89,27 @@ export function ActivationPage() {
       {/* Знак вместо прежней точки: это первый экран системы, который видит
           приглашённый клиент, и назвать её здесь больше нечем. Изображение
           `decorative` — имя стоит надписью рядом. */}
+      {/*
+        Язык переключается прямо здесь: это единственный экран, открытый без
+        входа, и человек, получивший ссылку, читает на нём уведомление
+        об обработке данных. Согласие с русским текстом не является согласием
+        с казахским — значит выбрать язык он обязан до того, как согласится.
+      */}
       <div className="flex items-center gap-2">
         <Logo height={22} decorative />
         <span className="text-sm font-semibold text-ink">FastOrders</span>
+        <div className="ml-auto">
+          <LanguagePicker />
+        </div>
       </div>
 
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Вход в кабинет</h1>
-      <p className="text-sm text-ink-muted">
-        Поставщик пригласил вас в кабинет: там его каталог с ценами и приём
-        заявок. Приглашение одноразовое и действует ограниченное время.
-      </p>
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">{t('activation.title')}</h1>
+      <p className="text-sm text-ink-muted">{t('activation.note')}</p>
 
       {!authenticated ? (
         <>
-          <p className="text-sm text-ink-muted">
-            Сначала войдите — тогда кабинет откроется сразу и с этого
-            устройства, и со следующего.
-          </p>
-          <Button size="lg" onClick={login}>Войти</Button>
+          <p className="text-sm text-ink-muted">{t('activation.signInFirst')}</p>
+          <Button size="lg" onClick={login}>{t('activation.signIn')}</Button>
         </>
       ) : (
         <>
@@ -118,8 +123,11 @@ export function ActivationPage() {
             'rounded-[var(--radius-control)] border border-hairline bg-surface px-3 py-2.5',
             'text-sm text-ink-muted',
           )}>
-            Вы вошли как <span className="font-medium tabular-nums text-ink">{phoneLabel(phone)}</span>.
-            Приглашение должно быть выписано на этот номер.
+            {t('activation.signedInPrefix')}{' '}
+            <span className="font-medium tabular-nums text-ink">
+              {phoneLabel(phone, t('activation.unknownPhone'))}
+            </span>.{' '}
+            {t('activation.signedInAs')}
           </p>
 
           {failed && (
@@ -132,7 +140,7 @@ export function ActivationPage() {
               role="alert"
               className="rounded-[var(--radius-control)] border border-gone/30 bg-gone/8 px-3 py-2 text-sm text-ink"
             >
-              Приглашение недействительно
+              {t('activation.failed')}
             </p>
           )}
 
@@ -146,7 +154,7 @@ export function ActivationPage() {
             <div className="flex flex-col gap-2">
               <details className="rounded-[var(--radius-control)] border border-hairline bg-surface p-3">
                 <summary className="cursor-pointer text-sm font-medium text-ink">
-                  Уведомление об обработке персональных данных
+                  {t('activation.consentTitle')}
                 </summary>
                 <div className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-ink-muted">
                   {notice.text}
@@ -160,7 +168,7 @@ export function ActivationPage() {
                   onChange={(event) => setAccepted(event.currentTarget.checked)}
                   className="mt-0.5 size-5 accent-[var(--color-brand)]"
                 />
-                <span>Я прочитал уведомление и соглашаюсь на обработку своих данных</span>
+                <span>{t('activation.consentAccept')}</span>
               </label>
             </div>
           )}
@@ -175,7 +183,7 @@ export function ActivationPage() {
               })
             }
           >
-            {activate.isPending ? 'Открываем…' : 'Открыть кабинет'}
+            {activate.isPending ? t('activation.opening') : t('activation.open')}
           </Button>
         </>
       )}

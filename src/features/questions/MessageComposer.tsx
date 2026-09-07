@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetPortalQuestionsQueryKey, useAskPortalQuestion } from '../../api/generated';
 import { cn } from '../../ui/cn';
@@ -17,6 +18,7 @@ import { cn } from '../../ui/cn';
  * значило бы обещать то, чего в контракте нет.
  */
 export function MessageComposer() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [failed, setFailed] = useState(false);
@@ -58,7 +60,7 @@ export function MessageComposer() {
     >
       {failed && (
         <p role="alert" className="pb-2 text-sm text-gone">
-          Сообщение не отправилось. Попробуйте ещё раз.
+          {t('questions.messageFailed')}
         </p>
       )}
 
@@ -68,8 +70,8 @@ export function MessageComposer() {
           rows={1}
           value={text}
           maxLength={2000}
-          aria-label="Сообщение продавцу"
-          placeholder="Написать сообщение"
+          aria-label={t('questions.message')}
+          placeholder={t('questions.writeMessage')}
           onChange={(event) => {
             setText(event.currentTarget.value);
             // Поле растёт под текст: вопрос в три строки, набираемый в щель
@@ -86,7 +88,7 @@ export function MessageComposer() {
 
         <button
           type="button"
-          aria-label="Отправить сообщение"
+          aria-label={t('questions.sendMessage')}
           disabled={text.trim().length === 0 || ask.isPending}
           onClick={send}
           className={cn(

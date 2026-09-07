@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { ActivationPage } from './ActivationPage';
 import { renderScreen } from '../../test/render';
 import { get, method, stubFetch } from '../../test/http';
+import i18n from '../../i18n';
 
 /** Уведомление читается до входа: без него кнопка не должна работать вовсе. */
 const NOTICE = {
@@ -98,5 +99,45 @@ describe('активация приглашения', () => {
     renderScreen(<ActivationPage />, { route: '/activate' });
 
     expect(screen.getByText(/ссылка неполная/i)).toBeInTheDocument();
+  });
+
+  /**
+   * Единственный экран, открытый без входа, — и единственный, где человек
+   * читает уведомление об обработке данных и соглашается с ним. Согласие
+   * с русским текстом не является согласием с казахским, поэтому язык
+   * обязан переключаться здесь же, а не только внутри кабинета.
+   */
+  it('язык переключается прямо на странице приглашения', async () => {
+    stubFetch([get('/api/portal/consent-notice', NOTICE)]);
+
+    renderScreen(<ActivationPage />, { route: '/activate?code=abc123' });
+
+    expect(await screen.findByRole('button', { name: /Язык интерфейса/ }))
+      .toBeInTheDocument();
+  });
+
+  it('смена языка перечитывает уведомление о согласии', async () => {
+    const { calls } = stubFetch([get('/api/portal/consent-notice', NOTICE)]);
+
+    renderScreen(<ActivationPage />, { route: '/activate?code=abc123' });
+
+    await screen.findByRole('button', { name: /Язык интерфейса/ });
+    await waitFor(() => {
+      expect(calls.some((call) => call.url.includes('/consent-notice'))).toBe(true);
+    });
+    const before = calls.filter((call) => call.url.includes('/consent-notice')).length;
+
+    await userEvent.click(screen.getByRole('button', { name: /Язык интерфейса/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'ҚАЗ' }));
+
+    // Уведомление приходит на языке заголовка, и вместе с согласием на сервер
+    // уходит редакция документа: показать казахский экран с русским текстом
+    // значит записать согласие с текстом, которого человек не читал.
+    await waitFor(() => {
+      expect(calls.filter((call) => call.url.includes('/consent-notice')).length)
+        .toBeGreaterThan(before);
+    });
+
+    await i18n.changeLanguage('ru');
   });
 });

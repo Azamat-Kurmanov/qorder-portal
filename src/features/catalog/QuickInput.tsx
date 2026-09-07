@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../../ui/Button';
 import { cn } from '../../ui/cn';
 import { useGetPortalCatalog } from '../../api/generated';
@@ -16,6 +17,7 @@ import { useSetCartLine } from '../cart/useCart';
  * находить не то, что показывает каталог.
  */
 export function QuickInput() {
+  const { t } = useTranslation();
   const [text, setText] = useState('');
   const [chosen, setChosen] = useState<{ id: string; name: string } | null>(null);
   const [quantity, setQuantity] = useState<number | string>('');
@@ -50,8 +52,8 @@ export function QuickInput() {
       <div className="min-w-0 flex-1">
         <input
           type="text"
-          aria-label="Быстрый ввод"
-          placeholder="Начните вводить название"
+          aria-label={t('catalog.quickInput')}
+          placeholder={t('catalog.quickInputPlaceholder')}
           list="quick-input-options"
           value={text}
           onChange={(event) => {
@@ -72,7 +74,7 @@ export function QuickInput() {
       <input
         type="number"
         inputMode="numeric"
-        aria-label="Количество для быстрого ввода"
+        aria-label={t('catalog.quickInputQuantity')}
         placeholder="0"
         min={0}
         value={quantity}
@@ -83,7 +85,7 @@ export function QuickInput() {
         className={cn(FIELD, 'w-20 text-center tabular-nums')}
       />
 
-      <Button onClick={add} disabled={!chosen}>Добавить</Button>
+      <Button onClick={add} disabled={!chosen}>{t('catalog.add')}</Button>
     </div>
   );
 }

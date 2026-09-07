@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ItemMediaDto } from '../../api/generated';
+import { MediaLightbox } from './MediaLightbox';
 import { cn } from '../../ui/cn';
 
 /**
@@ -12,19 +14,24 @@ import { cn } from '../../ui/cn';
  * на шапку кабинета. Пустая полоса при этом ниже: пол-экрана пустого места
  * ради двух кнопок не стоит того.
  *
- * Кадры листаются касанием по самому кадру, а внизу точками сказано, какой
- * из них открыт: полоса миниатюр отняла бы у телефона ещё сотню точек, и палец
- * попадает по снимку в триста точек вернее, чем по квадратику в шестьдесят
- * четыре. На планшете и мониторе места хватает, и там миниатюры остаются —
- * по ним видно сразу все кадры, а не только соседний.
+ * Касание по кадру открывает его во весь экран, а не перелистывает на
+ * соседний: кадр в карточке — тридцать тысяч точек, по нему видно, что товар
+ * есть, но не видно самого товара, и нажимающий на снимок просит рассмотреть
+ * тот, на который смотрит. Листают дальше уже там — вместе с роликами, одной
+ * лентой. Точки внизу остаются указателем: сколько кадров всего и который
+ * открыт. На планшете и мониторе к ним добавляются миниатюры — по ним видно
+ * сразу все кадры, а не только соседний, — и они по-прежнему меняют кадр
+ * в самой карточке, не открывая ничего.
  *
  * Порог тот же, что у карточки (768): галерея и лист решения — половины
  * одной раскладки, и перестраиваться на разной ширине им нельзя. Разъехавшись,
  * они дают снимок без скруглений внутри карточки со скруглениями.
  *
- * Ролик стоит ссылкой, а не проигрывателем: карточку открывают с телефона,
+ * Ролик стоит меткой, а не проигрывателем: карточку открывают с телефона,
  * и видео, начавшее грузиться само, съедает трафик у того, кто пришёл
- * посмотреть цену. Нажал — открылось.
+ * посмотреть цену. Нажал — открылось, и открылось здесь же, в той же ленте,
+ * а не на голом файле в чужой вкладке, откуда возвращаются только кнопкой
+ * браузера.
  */
 export function MediaGallery({
   media,
@@ -39,23 +46,53 @@ export function MediaGallery({
   /** Что стоит в правом верхнем углу снимка. Обычно — избранное. */
   topRight?: ReactNode;
 }) {
+  const { t } = useTranslation();
   const photos = media.filter((entry) => entry.kind === 'PHOTO');
   const videos = media.filter((entry) => entry.kind === 'VIDEO');
   const [shown, setShown] = useState(0);
+  // Номер кадра в общей ленте, по которому открыт диалог, или null — закрыт.
+  // Номер, а не признак «открыт»: рассмотреть хотят тот кадр, по которому
+  // нажали, а не первый в карточке.
+  const [openAt, setOpenAt] = useState<number | null>(null);
 
   // Кадр мог исчезнуть, пока карточка открыта: продавец правит галерею из
   // своего кабинета, и запомненный номер уводил бы в пустоту.
   const at = Math.min(shown, Math.max(photos.length - 1, 0));
   const current = photos[at];
+  /*
+   * Позиция, к которой приложили только ролик.
+   *
+   * Полоса рисуется и без снимков — на ней стоят «назад» и «избранное», — но
+   * пустая заливка сообщала бы, что смотреть нечего, тогда как продавец
+   * видео приложил. Кадр из ролика ни система, ни витрина не достают
+   * (`thumbnailUrl` у такой позиции пуст намеренно), поэтому первый кадр
+   * показывает сам ролик: заголовок файла и остановка на десятой доле
+   * секунды — цена этого куда меньше, чем цена ролика целиком.
+   */
+  const standIn = current ? undefined : videos[0];
 
   return (
     <div className="flex flex-col gap-2.5">
       <div
         className={cn(
           'relative overflow-hidden bg-sunk md:rounded-[var(--radius-gallery)]',
-          current ? 'h-[300px] md:h-[380px]' : 'h-[168px] md:h-[220px]',
+          current || standIn ? 'h-[300px] md:h-[380px]' : 'h-[168px] md:h-[220px]',
         )}
       >
+        {standIn && (
+          <video
+            data-testid="gallery-video-frame"
+            src={`${standIn.url}#t=0.1`}
+            preload="metadata"
+            muted
+            playsInline
+            // Без `controls`: это не проигрыватель, а кадр вместо пустоты.
+            // Смотрят ролик во весь экран, куда ведёт метка снизу.
+            aria-hidden="true"
+            className="size-full object-cover"
+          />
+        )}
+
         {current && (
           <img
             data-testid="gallery-photo"
@@ -69,13 +106,13 @@ export function MediaGallery({
           />
         )}
 
-        {photos.length > 1 && (
-          // Кнопка во весь кадр, а не стрелка у края: цель размером со снимок
+        {(current || standIn) && (
+          // Кнопка во весь кадр, а не значок в углу: цель размером со снимок
           // не требует прицеливаться, а озвучиванию она называется словами.
           <button
             type="button"
-            aria-label="Следующий снимок"
-            onClick={() => setShown((at + 1) % photos.length)}
+            aria-label={current ? t('catalog.openPhoto') : t('catalog.watchVideo')}
+            onClick={() => setOpenAt(media.indexOf(current ?? standIn!))}
             className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           />
         )}
@@ -91,11 +128,10 @@ export function MediaGallery({
         {videos.length > 0 && (
           <div className="absolute bottom-1 left-2 flex items-center gap-1">
             {videos.map((video, index) => (
-              <a
+              <button
                 key={video.id}
-                href={video.url}
-                target="_blank"
-                rel="noreferrer"
+                type="button"
+                onClick={() => setOpenAt(media.indexOf(video))}
                 // Метка ростом в 30 точек, а область нажатия — в 44: мелкая
                 // метка на снимке читается подписью, но промахиваться по ней
                 // пальцем человек не обязан.
@@ -109,9 +145,11 @@ export function MediaGallery({
                   <svg aria-hidden="true" viewBox="0 0 24 24" className="size-3.5 fill-current">
                     <path d="M8 5.5v13l11-6.5-11-6.5Z" />
                   </svg>
-                  {videos.length > 1 ? `Видео ${index + 1}` : 'Видео'}
+                  {videos.length > 1
+                    ? t('catalog.videoNumbered', { number: index + 1 })
+                    : t('catalog.videoLabel')}
                 </span>
-              </a>
+              </button>
             ))}
           </div>
         )}
@@ -137,7 +175,7 @@ export function MediaGallery({
             <button
               key={photo.id}
               type="button"
-              aria-label={`Снимок ${index + 1}`}
+              aria-label={t('catalog.photoNumbered', { number: index + 1 })}
               aria-pressed={index === at}
               onClick={() => setShown(index)}
               className={cn(
@@ -150,6 +188,15 @@ export function MediaGallery({
             </button>
           ))}
         </div>
+      )}
+
+      {openAt !== null && (
+        <MediaLightbox
+          media={media}
+          itemName={itemName}
+          startAt={openAt}
+          onClose={() => setOpenAt(null)}
+        />
       )}
     </div>
   );

@@ -1,4 +1,6 @@
 import { cartOf, useCart } from './useCart';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { LineThumb } from './LineThumb';
 import { QuantityField } from './QuantityField';
 import { money, tenge } from '../../shared/format';
@@ -31,6 +33,7 @@ interface CartLinesProps {
  * по цене, которой он не видел.
  */
 export function CartLines({ editable = true, className }: CartLinesProps) {
+  const { t } = useTranslation();
   const cart = cartOf(useCart().data);
   const lines = cart?.lines ?? [];
   const skipped = cart?.skipped ?? [];
@@ -40,7 +43,7 @@ export function CartLines({ editable = true, className }: CartLinesProps) {
       <SkippedNotice skipped={skipped} />
 
       {lines.length === 0 && (
-        <p className="text-ink-subtle">Корзина пуста. Выберите позиции в каталоге.</p>
+        <p className="text-ink-subtle">{t('cart.empty')}</p>
       )}
 
       {lines.length > 0 && (
@@ -64,10 +67,13 @@ export function CartLines({ editable = true, className }: CartLinesProps) {
                   // Цена, изменившаяся с момента добавления, — не мелочь оформления:
                   // клиент собирал заявку на другую сумму, и увидеть он должен обе.
                   <p className="mt-0.5 text-xs text-unclear">
-                    Цена изменилась: было {tenge(line.priceAtAdding)}, стало {tenge(line.price)}
+                    {t('cart.priceChanged', {
+                      was: tenge(line.priceAtAdding),
+                      now: tenge(line.price),
+                    })}
                   </p>
                 ) : (
-                  <p className="mt-0.5 text-xs text-ink-subtle">{amountLine(line, editable)}</p>
+                  <p className="mt-0.5 text-xs text-ink-subtle">{amountLine(line, editable, t)}</p>
                 )}
               </div>
 
@@ -106,9 +112,9 @@ export function CartLines({ editable = true, className }: CartLinesProps) {
  * его рядом со ступеньками — и при расхождении (поле ещё не отправило новое
  * значение) строка сообщила бы два разных количества сразу.
  */
-function amountLine(line: CartLineDto, editable: boolean): string {
+function amountLine(line: CartLineDto, editable: boolean, t: TFunction): string {
   return editable
-    ? `${tenge(line.price)} за ${line.unit}`
+    ? t('cart.pricePerUnit', { price: tenge(line.price), unit: line.unit })
     : `${money(line.quantity)} ${line.unit} × ${tenge(line.price)}`;
 }
 
@@ -119,6 +125,8 @@ function amountLine(line: CartLineDto, editable: boolean): string {
  * что заказал набор, а приедет неполный.
  */
 export function SkippedNotice({ skipped }: { skipped: SkippedLineDto[] }) {
+  const { t } = useTranslation();
+
   if (skipped.length === 0) return null;
 
   return (
@@ -126,13 +134,13 @@ export function SkippedNotice({ skipped }: { skipped: SkippedLineDto[] }) {
       role="alert"
       className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-unclear/30 bg-unclear/8 p-4"
     >
-      <p className="font-medium text-ink">Не добавлено</p>
+      <p className="font-medium text-ink">{t('cart.notAdded')}</p>
       {skipped.map((line) => (
         <p key={line.itemId} className="text-sm text-ink">
           {line.name} — {line.reason}
         </p>
       ))}
-      <p className="text-sm text-ink-subtle">Выберите замену в каталоге.</p>
+      <p className="text-sm text-ink-subtle">{t('cart.chooseReplacement')}</p>
     </div>
   );
 }

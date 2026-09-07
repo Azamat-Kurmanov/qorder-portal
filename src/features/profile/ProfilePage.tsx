@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { useGetPortalSuppliers, useGetPortalUnreadSummary } from '../../api/generated';
@@ -11,6 +12,7 @@ import { useAuth } from '../../auth/useAuth';
  * один, и постоянный выбор на виду создавал бы вопрос там, где его нет.
  */
 export function ProfilePage() {
+  const { t } = useTranslation();
   const suppliers = useGetPortalSuppliers();
   const { supplierId, select } = useSupplier();
   const { logout } = useAuth();
@@ -23,12 +25,10 @@ export function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">Поставщики</h1>
+      <h1 className="text-xl font-semibold tracking-tight text-ink">{t('profile.title')}</h1>
 
       {list.length === 0 && (
-        <p className="text-ink-subtle">
-          Пока ни одного: кабинет открывает поставщик — попросите у него ссылку-приглашение.
-        </p>
+        <p className="text-ink-subtle">{t('profile.empty')}</p>
       )}
 
       {list.map((supplier) => {
@@ -44,7 +44,7 @@ export function ProfilePage() {
               <span className="font-medium text-ink">{supplier.name}</span>
               {supplier.supplierId === supplierId && (
                 <span className="inline-flex h-6 items-center rounded-full border border-accent/30 bg-accent-soft px-2 text-xs font-medium text-accent">
-                  Выбран
+                  {t('profile.selected')}
                 </span>
               )}
             </div>
@@ -58,7 +58,7 @@ export function ProfilePage() {
             {unread > 0 && (
               <span
                 role="img"
-                aria-label={`Непрочитанных: ${unread}`}
+                aria-label={t('profile.unread', { count: unread })}
                 className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-semibold text-surface"
               >
                 {unread}
@@ -67,14 +67,14 @@ export function ProfilePage() {
 
             {supplier.supplierId !== supplierId && (
               <Button variant="soft" onClick={() => select(supplier.supplierId)}>
-                Перейти
+                {t('profile.switch')}
               </Button>
             )}
           </Card>
         );
       })}
 
-      <Button variant="ghost" onClick={logout}>Выйти</Button>
+      <Button variant="ghost" onClick={logout}>{t('profile.logout')}</Button>
     </div>
   );
 }

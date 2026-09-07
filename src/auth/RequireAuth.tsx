@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, type ReactNode } from 'react';
 import { Button } from '../ui/Button';
 import { Logo } from '../ui/Logo';
@@ -19,6 +20,7 @@ interface RequireAuthProps {
  * объяснения.
  */
 export function RequireAuth({ children }: RequireAuthProps) {
+  const { t } = useTranslation();
   const { authenticated, sessionRejected, login, logout } = useAuth();
 
   useEffect(() => {
@@ -30,13 +32,9 @@ export function RequireAuth({ children }: RequireAuthProps) {
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="flex max-w-[420px] flex-col items-center gap-3 text-center">
           <Logo height={40} />
-          <h3 className="text-lg font-semibold text-ink">Доступ не открыт</h3>
-          <p className="text-ink-subtle">
-            Вход выполнен, но поставщик пока не открыл вам кабинет. Если вы
-            получили ссылку-приглашение, активируйте её; если активировали —
-            напишите поставщику.
-          </p>
-          <Button variant="ghost" onClick={logout}>Выйти</Button>
+          <h3 className="text-lg font-semibold text-ink">{t('auth.noAccess.title')}</h3>
+          <p className="text-ink-subtle">{t('auth.noAccess.note')}</p>
+          <Button variant="ghost" onClick={logout}>{t('auth.logout')}</Button>
         </div>
       </div>
     );
@@ -53,7 +51,7 @@ export function RequireAuth({ children }: RequireAuthProps) {
             aria-hidden="true"
             className="size-6 animate-spin rounded-full border-2 border-hairline border-t-accent"
           />
-          <p className="text-ink-subtle">Открываем вход…</p>
+          <p className="text-ink-subtle">{t('auth.opening')}</p>
         </div>
       </div>
     );

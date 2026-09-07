@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 import { useGetPortalCatalogItem } from '../../api/generated';
 import { CartBar } from '../cart/CartBar';
@@ -47,6 +48,7 @@ import { cn } from '../../ui/cn';
  * снимком товара и становится баннером.
  */
 export function ItemCardPage() {
+  const { t } = useTranslation();
   const { itemId = '' } = useParams();
   const card = useGetPortalCatalogItem(itemId);
   const cart = cartOf(useCart().data);
@@ -65,14 +67,14 @@ export function ItemCardPage() {
     return (
       <div className="flex flex-col items-start gap-4 py-12">
         <p className="text-ink-subtle">
-          Позиция не открывается. Возможно, поставщик снял её с продажи.
+          {t('catalog.gone')}
         </p>
         <Link
           to="/catalog"
           className="inline-flex h-11 items-center gap-2 text-sm font-medium text-ink-muted transition-all duration-300 hover:text-ink active:scale-95"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
-          В каталог
+          {t('catalog.toCatalog')}
         </Link>
       </div>
     );
@@ -84,8 +86,8 @@ export function ItemCardPage() {
   // Требование о полноте торговой информации от размера шрифта не зависит:
   // строка не исчезает, а только уступает первый взгляд самой цене.
   const terms = [
-    item.vatRate != null ? `в том числе НДС ${money(item.vatRate)}%` : undefined,
-    item.priceAsOf ? `цена на ${shortDate(item.priceAsOf)}` : undefined,
+    item.vatRate != null ? t('catalog.vat', { rate: money(item.vatRate) }) : undefined,
+    item.priceAsOf ? t('catalog.asOf', { date: shortDate(item.priceAsOf) }) : undefined,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -127,7 +129,7 @@ export function ItemCardPage() {
         className="mb-4 hidden h-11 items-center gap-2 text-sm text-ink-muted transition-all duration-300 hover:text-ink md:inline-flex"
       >
         <ArrowLeft className="size-4" aria-hidden="true" />
-        Каталог
+        {t('catalog.title')}
       </Link>
 
       <div className="md:flex md:flex-col md:gap-6">
@@ -255,7 +257,7 @@ export function ItemCardPage() {
           {item.attributes.length > 0 && (
             <section aria-labelledby="attributes-heading" className="flex flex-col gap-2">
               <h2 id="attributes-heading" className="text-base font-semibold text-ink">
-                Характеристики
+                {t('catalog.attributes')}
               </h2>
               {/*
                 Список описаний, а не таблица: свойств у позиции от двух
@@ -328,10 +330,12 @@ export function ItemCardPage() {
  * и истории, куда возвращаться, у такого посетителя нет.
  */
 function BackCircle() {
+  const { t } = useTranslation();
+
   return (
     <Link
       to="/catalog"
-      aria-label="В каталог"
+      aria-label={t('catalog.toCatalog')}
       className={cn(
         'inline-flex size-11 items-center justify-center rounded-full',
         'bg-surface/85 text-ink backdrop-blur',

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Logo } from '../ui/Logo';
@@ -14,6 +15,7 @@ import { useAuth } from './useAuth';
  * видит ошибку после успешного входа.
  */
 export function CallbackPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { login } = useAuth();
   const started = useRef(false);
@@ -36,11 +38,11 @@ export function CallbackPage() {
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="flex max-w-[420px] flex-col items-center gap-3 text-center">
           <Logo height={40} />
-          <h3 className="text-lg font-semibold text-ink">Вход не завершился</h3>
+          <h3 className="text-lg font-semibold text-ink">{t('auth.callbackFailed.title')}</h3>
           <p className="text-ink-subtle">
-            Ссылка возврата уже использована или устарела. Попробуйте войти заново.
+            {t('auth.callbackFailed.note')}
           </p>
-          <Button onClick={login}>Войти снова</Button>
+          <Button onClick={login}>{t('auth.callbackFailed.again')}</Button>
         </div>
       </div>
     );
@@ -56,7 +58,7 @@ export function CallbackPage() {
           aria-hidden="true"
           className="size-6 animate-spin rounded-full border-2 border-hairline border-t-accent"
         />
-        <p className="text-ink-subtle">Завершаем вход…</p>
+        <p className="text-ink-subtle">{t('auth.completing')}</p>
       </div>
     </div>
   );
