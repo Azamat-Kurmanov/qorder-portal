@@ -13,12 +13,14 @@ import { NotificationsBell } from '../notifications/NotificationsBell';
 import { ProfilePage } from '../profile/ProfilePage';
 import { QuestionsPage } from '../questions/QuestionsPage';
 import { RequireSupplier } from '../profile/RequireSupplier';
+import { MyReviewsPage } from '../reviews/MyReviewsPage';
 import { TemplatesPage } from '../templates/TemplatesPage';
-import { useGetPortalSuppliers } from '../../api/generated';
+import { useGetPortalSuppliers, useGetPortalUnreadSummary } from '../../api/generated';
 import { currentViewer } from '../../auth/oidcConfig';
 import { StaffBanner } from './StaffBanner';
 import { useSupplier } from '../../supplier/useSupplier';
 import { Button } from '../../ui/Button';
+import { Logo } from '../../ui/Logo';
 import { Sheet } from '../../ui/Sheet';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { cn } from '../../ui/cn';
@@ -37,9 +39,37 @@ const SECTIONS = [
   { label: 'Мои заявки', path: '/orders' },
   { label: 'Шаблоны закупки', path: '/templates' },
   { label: 'Вопросы продавцу', path: '/questions' },
+  { label: 'Мои отзывы', path: '/reviews' },
   { label: 'Доставка и самовывоз', path: '/delivery' },
   { label: 'Поставщики', path: '/profile' },
 ];
+
+/**
+ * Сколько новостей ждёт у поставщиков, кроме текущего.
+ *
+ * Текущий не считается намеренно: его новости показывает колокольчик, и одно
+ * и то же число в двух местах шапки читается как два разных повода.
+ *
+ * Считаются только строки сводки, чей поставщик есть в списке поставщиков.
+ * На сервере встречается расхождение: поставщик, у которого не читаются
+ * сведения о продавце, выпадает из списка, но остаётся в сводке со счётом.
+ * Список поставщиков — источник истины о том, к кому клиент может пойти;
+ * сводка может знать о поставщике, к которому идти уже некуда, и точка
+ * в шапке или бейдж «Поставщики», зажжённые от него, были бы тупиковым
+ * индикатором — горит, а идти некуда.
+ */
+function useOthersUnread(): number {
+  const { supplierId } = useSupplier();
+  const summary = useGetPortalUnreadSummary();
+  const suppliers = useGetPortalSuppliers();
+  const rows = summary.data?.status === 200 ? summary.data.data : [];
+  const knownIds = new Set(
+    suppliers.data?.status === 200 ? suppliers.data.data.map((supplier) => supplier.supplierId) : [],
+  );
+  return rows
+    .filter((row) => row.supplierId !== supplierId && knownIds.has(row.supplierId))
+    .reduce((sum, row) => sum + row.unread, 0);
+}
 
 /**
  * Оболочка кабинета: шапка, разделы, экраны и заявка.
@@ -70,6 +100,7 @@ export function Shell() {
   // впервые, обязан увидеть разделы, а не догадаться нажать на полоски.
   const [railOpen, setRailOpen] = useState(true);
   const location = useLocation();
+  const others = useOthersUnread();
 
   /*
    * На оформлении заявка и есть экран: колонка справа показывала бы тот же
@@ -103,6 +134,7 @@ export function Shell() {
               key={section.path}
               section={section}
               current={location.pathname}
+              badge={section.path === '/profile' ? others : undefined}
               onFollow={() => setOpened(false)}
             />
           ))}
@@ -143,7 +175,12 @@ export function Shell() {
             Разделы
           </span>
           {SECTIONS.map((section) => (
-            <SectionLink key={section.path} section={section} current={location.pathname} />
+            <SectionLink
+              key={section.path}
+              section={section}
+              current={location.pathname}
+              badge={section.path === '/profile' ? others : undefined}
+            />
           ))}
         </nav>
         )}
@@ -158,6 +195,7 @@ export function Shell() {
             <Route path="/orders/:id" element={<RequireSupplier><OrderPage /></RequireSupplier>} />
             <Route path="/templates" element={<RequireSupplier><TemplatesPage /></RequireSupplier>} />
             <Route path="/questions" element={<RequireSupplier><QuestionsPage /></RequireSupplier>} />
+            <Route path="/reviews" element={<RequireSupplier><MyReviewsPage /></RequireSupplier>} />
             <Route path="/delivery" element={<RequireSupplier><DeliveryInfoPage /></RequireSupplier>} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="*" element={<Navigate to="/catalog" replace />} />
@@ -209,12 +247,28 @@ function Header({ onOpenSections }: { onOpenSections: () => void }) {
         </Button>
 
         {/*
-          Знак продукта — только на мониторе: на телефоне те же 130 точек
-          нужнее имени поставщика, а куда клиент попал, ему и так известно.
+          Знак продукта и надпись — только на мониторе (решение владельца).
+          На телефоне их нет: шапка там и без них тесная, и знак отнимал
+          ширину у имени поставщика — «ТОО Стройбаза Алматы» усекалось
+          до «ТОО …». Кому принадлежит кабинет, важнее того, чья это
+          система: адрес клиент открывает по присланной ссылке и второй раз
+          не выбирает, а поставщиков у него бывает несколько.
+
+          Знак системы на телефоне человек всё равно видит — на экране входа
+          и на активации приглашения, где ширину у него никто не оспаривает.
+
+          Само изображение помечено `decorative`: имя системы стоит подписью
+          у ссылки, и экранный читатель произносит его один раз.
         */}
-        <Link to="/catalog" className="hidden shrink-0 items-center gap-2.5 lg:flex">
-          <span aria-hidden="true" className="size-[9px] rounded-full bg-brand" />
-          <span className="text-base font-semibold tracking-[-0.01em] text-ink">FastOrders</span>
+        <Link
+          to="/catalog"
+          aria-label="FastOrders, на витрину"
+          className="hidden shrink-0 items-center gap-2.5 lg:flex"
+        >
+          <Logo decorative className="h-8" />
+          <span className="text-base font-semibold tracking-[-0.01em] text-ink">
+            FastOrders
+          </span>
         </Link>
 
         <SupplierMark />
@@ -309,6 +363,12 @@ function SupplierMark() {
   const list = suppliers.data?.status === 200 ? suppliers.data.data : [];
   const current = list.find((supplier) => supplier.supplierId === supplierId);
   const name = current?.name;
+  /*
+   * Точка, а не число: оно повторило бы бейдж раздела, а места в шапке нет.
+   * Нужна она потому, что на телефоне рельс спрятан в выдвижном листе, и без
+   * метки здесь клиент бейджа не увидит вовсе.
+   */
+  const others = useOthersUnread();
 
   return (
     <Link
@@ -349,6 +409,13 @@ function SupplierMark() {
           {name ?? 'выбрать'}
         </span>
         <ChevronDown className="size-4 shrink-0 text-ink-subtle" aria-hidden="true" />
+        {others > 0 && (
+          <span
+            role="img"
+            aria-label="У других поставщиков есть новости"
+            className="size-2 shrink-0 rounded-full bg-accent"
+          />
+        )}
       </span>
     </Link>
   );
@@ -401,10 +468,12 @@ function HeaderAction({
 function SectionLink({
   section,
   current,
+  badge,
   onFollow,
 }: {
   section: { label: string; path: string };
   current: string;
+  badge?: number;
   onFollow?: () => void;
 }) {
   const active = current === section.path
@@ -423,6 +492,18 @@ function SectionLink({
       )}
     >
       {section.label}
+      {badge !== undefined && badge > 0 && (
+        // Тот же приём, что у пилюли в списке поставщиков и у точки в шапке:
+        // роль и осмысленное имя со словом. Голое число диктор произнёс бы
+        // без единицы измерения — «Поставщики 4, ссылка» вместо понятного.
+        <span
+          role="img"
+          aria-label={`Непрочитанных: ${badge}`}
+          className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-semibold text-surface"
+        >
+          {badge}
+        </span>
+      )}
     </NavLink>
   );
 }

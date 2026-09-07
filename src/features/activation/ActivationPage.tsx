@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../ui/Button';
+import { Logo } from '../../ui/Logo';
 import { Card } from '../../ui/Card';
 import { cn } from '../../ui/cn';
 import {
@@ -83,8 +84,11 @@ export function ActivationPage() {
 
   return (
     <Screen>
+      {/* Знак вместо прежней точки: это первый экран системы, который видит
+          приглашённый клиент, и назвать её здесь больше нечем. Изображение
+          `decorative` — имя стоит надписью рядом. */}
       <div className="flex items-center gap-2">
-        <span aria-hidden="true" className="size-2 rounded-full bg-brand" />
+        <Logo height={22} decorative />
         <span className="text-sm font-semibold text-ink">FastOrders</span>
       </div>
 

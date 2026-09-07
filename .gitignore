@@ -3,6 +3,5 @@ dist
 .env
 *.tsbuildinfo
 .idea
-docs
 temp
 .claude

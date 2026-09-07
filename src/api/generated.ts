@@ -88,6 +88,63 @@ export interface ErrorResponse {
 }
 
 /**
+ * Роль сотрудника арендатора
+ */
+export type UpdateStaffRolesRequestRolesItem = typeof UpdateStaffRolesRequestRolesItem[keyof typeof UpdateStaffRolesRequestRolesItem];
+
+
+export const UpdateStaffRolesRequestRolesItem = {
+  TENANT_ADMIN: 'TENANT_ADMIN',
+  MANAGER: 'MANAGER',
+  STOCK_KEEPER: 'STOCK_KEEPER',
+  ACCOUNTANT: 'ACCOUNTANT',
+  VIEWER: 'VIEWER',
+} as const;
+
+/**
+ * Роли сотрудника целиком
+ */
+export interface UpdateStaffRolesRequest {
+  /**
+     * Полный набор ролей после изменения
+     * @minItems 1
+     */
+  roles: UpdateStaffRolesRequestRolesItem[];
+}
+
+/**
+ * Роль сотрудника арендатора
+ */
+export type StaffMemberDtoRolesItem = typeof StaffMemberDtoRolesItem[keyof typeof StaffMemberDtoRolesItem];
+
+
+export const StaffMemberDtoRolesItem = {
+  TENANT_ADMIN: 'TENANT_ADMIN',
+  MANAGER: 'MANAGER',
+  STOCK_KEEPER: 'STOCK_KEEPER',
+  ACCOUNTANT: 'ACCOUNTANT',
+  VIEWER: 'VIEWER',
+} as const;
+
+/**
+ * Сотрудник арендатора
+ */
+export interface StaffMemberDto {
+  /** Учётная запись в realm сотрудников */
+  id: string;
+  /** Номер телефона: он же имя пользователя при входе */
+  phone: string;
+  /** Имя, каким сотрудник виден в очереди и в журнале доступа */
+  name: string;
+  /** Почта: нужна, чтобы восстановить пароль */
+  email?: string;
+  /** Роли: их набор и задаёт видимые разделы */
+  roles: StaffMemberDtoRolesItem[];
+  /** Может ли сотрудник войти. Уволенному вход закрывают, а учётную запись оставляют: она подписывает его прошлые действия */
+  enabled: boolean;
+}
+
+/**
  * Как продавец представляется клиентам
  */
 export interface UpdateSellerDetailsRequest {
@@ -121,6 +178,29 @@ export interface UpdateSellerDetailsRequest {
      * @pattern ^\s*$|^https?://\S+$
      */
   logoUrl?: string;
+  /**
+     * Банк получателя в счёте на оплату
+     * @minLength 0
+     * @maxLength 255
+     */
+  bankName?: string;
+  /**
+     * БИК банка получателя
+     * @minLength 0
+     * @maxLength 16
+     */
+  bankBic?: string;
+  /**
+     * ИИК получателя: двадцать знаков казахстанского формата
+     * @minLength 0
+     * @maxLength 34
+     */
+  bankAccount?: string;
+  /**
+     * Код бенефициара: две цифры, без которых платёж не проходит
+     * @pattern ^\s*$|^\d{2}$
+     */
+  bankKbe?: string;
 }
 
 export interface SellerDetailsDto {
@@ -133,6 +213,108 @@ export interface SellerDetailsDto {
   vatPayer?: boolean;
   vatRate?: number;
   offerValidityHours?: number;
+  bankName?: string;
+  bankBic?: string;
+  bankAccount?: string;
+  bankKbe?: string;
+}
+
+export interface UpdatePlatformSettingsRequest {
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  name: string;
+  /** @pattern |\d{12} */
+  binIin?: string;
+  /**
+     * @minLength 0
+     * @maxLength 512
+     */
+  address?: string;
+  /**
+     * @minLength 0
+     * @maxLength 128
+     */
+  contact?: string;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  bankName?: string;
+  /**
+     * @minLength 0
+     * @maxLength 16
+     */
+  bankBic?: string;
+  /**
+     * @minLength 0
+     * @maxLength 34
+     */
+  bankAccount?: string;
+  /** @pattern |\d{2} */
+  bankKbe?: string;
+  vatPayer?: boolean;
+  /**
+     * @minimum 0
+     * @maximum 99.99
+     */
+  vatRate?: number;
+}
+
+export interface PlatformSettingsDto {
+  name?: string;
+  binIin?: string;
+  address?: string;
+  contact?: string;
+  bankName?: string;
+  bankBic?: string;
+  bankAccount?: string;
+  bankKbe?: string;
+  vatPayer?: boolean;
+  vatRate?: number;
+}
+
+export interface UpdateWhatsappPackageRequest {
+  enabled?: boolean;
+}
+
+export type ServiceRequestDtoServicePackage = typeof ServiceRequestDtoServicePackage[keyof typeof ServiceRequestDtoServicePackage];
+
+
+export const ServiceRequestDtoServicePackage = {
+  WHATSAPP_INTAKE: 'WHATSAPP_INTAKE',
+} as const;
+
+export type ServiceRequestDtoStatus = typeof ServiceRequestDtoStatus[keyof typeof ServiceRequestDtoStatus];
+
+
+export const ServiceRequestDtoStatus = {
+  REQUESTED: 'REQUESTED',
+  INVOICED: 'INVOICED',
+  PAID: 'PAID',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export interface ServiceRequestDto {
+  id?: string;
+  servicePackage?: ServiceRequestDtoServicePackage;
+  status?: ServiceRequestDtoStatus;
+  requestedAt?: string;
+  invoiceNumber?: string;
+  invoicedAt?: string;
+  amount?: number;
+  vatRate?: number;
+  vatAmount?: number;
+  total?: number;
+  currency?: string;
+  paidAt?: string;
+  seller?: PlatformSettingsDto;
+}
+
+export interface WhatsappPackageDto {
+  enabled?: boolean;
+  request?: ServiceRequestDto;
 }
 
 /**
@@ -346,6 +528,46 @@ export interface CatalogCandidate {
   score?: number;
 }
 
+/**
+ * Строка заказа на момент согласия клиента
+ */
+export interface CustomerOrderLineDto {
+  lineNo?: number;
+  name?: string;
+  quantity?: number;
+  unit?: string;
+  price?: number;
+  amount?: number;
+}
+
+/**
+ * Заказ, созданный подтверждением клиента
+ */
+export interface CustomerOrderDto {
+  id?: string;
+  draftId?: string;
+  number?: string;
+  customerName?: string;
+  customerPhone?: string;
+  acceptedAt?: string;
+  goodsTotal?: number;
+  deliveryPrice?: number;
+  total?: number;
+  deliveryMethod?: string;
+  deliveryPoint?: string;
+  deliveryAddress?: string;
+  deliveryCity?: string;
+  deliveryDate?: string;
+  deliverySlot?: string;
+  invoicedAt?: string;
+  paidAt?: string;
+  pickedAt?: string;
+  issuedAt?: string;
+  cancelledAt?: string;
+  cancelReason?: string;
+  lines?: CustomerOrderLineDto[];
+}
+
 export type DraftDeliveryDtoStatus = typeof DraftDeliveryDtoStatus[keyof typeof DraftDeliveryDtoStatus];
 
 
@@ -539,6 +761,7 @@ export interface DraftDetailDto {
   conversation?: TranscriptMessageDto[];
   inquiry?: InquiryThreadDto;
   customerReachable?: boolean;
+  order?: CustomerOrderDto;
 }
 
 /**
@@ -892,6 +1115,26 @@ export interface CatalogItemDto {
 }
 
 /**
+ * Показывать ли позицию в кабинете клиента
+ */
+export interface SetItemVisibilityRequest {
+  /** Истина — позиция в витрине, ложь — убрана из неё */
+  visible: boolean;
+}
+
+/**
+ * Карточка позиции каталога
+ */
+export interface CatalogItemCardDto {
+  /** Сама позиция */
+  item: CatalogItemDto;
+  /** Показывается ли позиция клиенту в кабинете */
+  visible: boolean;
+  /** Фото и видео в порядке показа; пустой список — обычное состояние позиции, которую ещё не снимали */
+  media: ItemMediaDto[];
+}
+
+/**
  * Категория номенклатуры: название и место в витрине
  */
 export interface SaveItemCategoryRequest {
@@ -918,6 +1161,95 @@ export interface ItemCategoryDto {
   name: string;
   /** Порядок в витрине: меньшее значение выше. При равных значениях порядок задаёт название */
   sortOrder: number;
+}
+
+/**
+ * Роль сотрудника арендатора
+ */
+export type CreateStaffRequestRolesItem = typeof CreateStaffRequestRolesItem[keyof typeof CreateStaffRequestRolesItem];
+
+
+export const CreateStaffRequestRolesItem = {
+  TENANT_ADMIN: 'TENANT_ADMIN',
+  MANAGER: 'MANAGER',
+  STOCK_KEEPER: 'STOCK_KEEPER',
+  ACCOUNTANT: 'ACCOUNTANT',
+  VIEWER: 'VIEWER',
+} as const;
+
+/**
+ * Новый сотрудник арендатора
+ */
+export interface CreateStaffRequest {
+  /**
+     * Номер телефона: он же имя пользователя при входе
+     * @minLength 1
+     * @pattern 7\d{10}
+     */
+  phone: string;
+  /**
+     * Имя и фамилия — так сотрудник виден в очереди и в журнале
+     * @minLength 1
+     */
+  name: string;
+  /**
+     * Почта: нужна, чтобы восстановить пароль
+     * @minLength 1
+     */
+  email: string;
+  /**
+     * Роли: набор задаёт разделы, которые сотрудник увидит. Их можно совмещать — менеджер со складом получает оба раздела
+     * @minItems 1
+     */
+  roles: CreateStaffRequestRolesItem[];
+}
+
+/**
+ * Заведённый сотрудник и одноразовый пароль для первого входа
+ */
+export interface StaffCreatedDto {
+  /** Сотрудник */
+  member: StaffMemberDto;
+  /** Временный пароль: показывается один раз и обязателен к смене при первом входе */
+  temporaryPassword: string;
+}
+
+export interface IssueServiceInvoiceRequest {
+  /** @minimum 0.01 */
+  amount: number;
+  /** @minimum 0 */
+  vatRate?: number;
+  /** @pattern [A-Z]{3} */
+  currency: string;
+}
+
+export interface CancelServiceRequestRequest {
+  /**
+     * @minLength 0
+     * @maxLength 512
+     */
+  reason: string;
+}
+
+export interface AddChannelRequest {
+  /**
+     * @minLength 1
+     * @pattern \d{10,15}
+     */
+  phone: string;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  displayName?: string;
+}
+
+export interface ChannelDto {
+  id?: string;
+  phone?: string;
+  displayName?: string;
+  status?: string;
+  createdAt?: string;
 }
 
 /**
@@ -1279,6 +1611,8 @@ export interface PortalOrderDto {
   sellerAnswer?: string;
   /** Когда продавец ответил */
   answeredAt?: string;
+  /** Выписан ли счёт: по нему экран показывает кнопку скачивания */
+  invoiceAvailable: boolean;
 }
 
 /**
@@ -1342,6 +1676,10 @@ export interface AccountDto {
   activatedAt?: string;
   /** Служебная запись арендатора: кабинет, открытый им самим для проверки. У настоящего клиента всегда false */
   service: boolean;
+  /** Название клиента, каким его знает модуль заявок. Список учётных записей читают глазами, а один телефон от другого на глаз не отличается */
+  customerName?: string;
+  /** Почта клиента: адрес, на который ушло приглашение. Пусто у служебной записи и у записей, заведённых до появления письма */
+  email?: string;
 }
 
 /**
@@ -1352,6 +1690,44 @@ export interface FavoriteToggleDto {
   itemId: string;
   /** Позиция теперь в избранном */
   favorite: boolean;
+}
+
+/**
+ * Причина разворота заказа
+ */
+export interface ReopenOrderRequest {
+  /**
+     * @minLength 0
+     * @maxLength 512
+     */
+  reason: string;
+}
+
+/**
+ * Счёт на оплату по подтверждённому заказу
+ */
+export interface InvoiceDto {
+  id?: string;
+  orderId?: string;
+  number?: string;
+  issuedAt?: string;
+  sellerName?: string;
+  sellerBin?: string;
+  sellerAddress?: string;
+  sellerContact?: string;
+  bankName?: string;
+  bankBic?: string;
+  bankAccount?: string;
+  bankKbe?: string;
+  buyerName?: string;
+  buyerPhone?: string;
+  goodsTotal?: number;
+  deliveryPrice?: number;
+  vatRate?: number;
+  vatAmount?: number;
+  total?: number;
+  amountInWords?: string;
+  lines?: CustomerOrderLineDto[];
 }
 
 export interface ConfirmationDeliveryDto {
@@ -1546,6 +1922,12 @@ export interface IssueInvitationRequest {
      */
   phone: string;
   /**
+     * Почта клиента: на неё уходит приглашение. Обязательна — приглашение больше не передаётся из рук в руки
+     * @minLength 0
+     * @maxLength 255
+     */
+  email: string;
+  /**
      * Имя клиента. Пусто — система возьмёт то, которым он представился в переписке
      * @minLength 0
      * @maxLength 255
@@ -1554,13 +1936,15 @@ export interface IssueInvitationRequest {
 }
 
 /**
- * Приглашение в кабинет: ссылка показывается один раз
+ * Результат выписки приглашения
  */
 export interface InvitationDto {
-  /** Ссылка активации целиком: её администратор передаёт клиенту */
-  link: string;
-  /** Когда приглашение перестанет действовать */
+  /** Адрес, на который ушло приглашение */
+  email: string;
+  /** До какого момента приглашение действует */
   expiresAt: string;
+  /** Ушло ли письмо. Ложь — приглашение выписано, но доставить его не удалось: выписать повторно */
+  delivered: boolean;
 }
 
 /**
@@ -1693,6 +2077,63 @@ export interface ExchangeAckDto {
   fullExportRequested: boolean;
 }
 
+export interface PlatformTenantDto {
+  id?: string;
+  name?: string;
+  binIin?: string;
+  status?: string;
+  messengerIntake?: boolean;
+}
+
+export type PlatformServiceRequestDtoServicePackage = typeof PlatformServiceRequestDtoServicePackage[keyof typeof PlatformServiceRequestDtoServicePackage];
+
+
+export const PlatformServiceRequestDtoServicePackage = {
+  WHATSAPP_INTAKE: 'WHATSAPP_INTAKE',
+} as const;
+
+export type PlatformServiceRequestDtoStatus = typeof PlatformServiceRequestDtoStatus[keyof typeof PlatformServiceRequestDtoStatus];
+
+
+export const PlatformServiceRequestDtoStatus = {
+  REQUESTED: 'REQUESTED',
+  INVOICED: 'INVOICED',
+  PAID: 'PAID',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export interface PlatformServiceRequestDto {
+  id?: string;
+  tenantId?: string;
+  tenantName?: string;
+  servicePackage?: PlatformServiceRequestDtoServicePackage;
+  status?: PlatformServiceRequestDtoStatus;
+  requestedAt?: string;
+  invoiceNumber?: string;
+  invoicedAt?: string;
+  total?: number;
+  currency?: string;
+  paidAt?: string;
+}
+
+/**
+ * Отображение наличия в кабинете клиента
+ */
+export type TenantCapabilitiesDtoPortalStockDisplay = typeof TenantCapabilitiesDtoPortalStockDisplay[keyof typeof TenantCapabilitiesDtoPortalStockDisplay];
+
+
+export const TenantCapabilitiesDtoPortalStockDisplay = {
+  AVAILABILITY_FLAG: 'AVAILABILITY_FLAG',
+  EXACT_QUANTITY: 'EXACT_QUANTITY',
+  HIDDEN: 'HIDDEN',
+} as const;
+
+export interface TenantCapabilitiesDto {
+  messengerIntake?: boolean;
+  /** Отображение наличия в кабинете клиента */
+  portalStockDisplay?: TenantCapabilitiesDtoPortalStockDisplay;
+}
+
 /**
  * Почему день нерабочий
  */
@@ -1753,6 +2194,18 @@ export interface PortalSupplierDto {
 }
 
 /**
+ * Купленная позиция без отзыва
+ */
+export interface AwaitingReviewDto {
+  /** Позиция: ею открывается карточка и ею отправляется отзыв */
+  itemId: string;
+  /** Наименование позиции на сегодня */
+  itemName: string;
+  /** Когда подана самая свежая принятая заявка с этой позицией */
+  purchasedAt: string;
+}
+
+/**
  * Повод уведомления
  */
 export type PortalNotificationDtoKind = typeof PortalNotificationDtoKind[keyof typeof PortalNotificationDtoKind];
@@ -1785,6 +2238,16 @@ export interface PortalNotificationDto {
   kind: PortalNotificationDtoKind;
   /** Когда появилось */
   createdAt: string;
+}
+
+/**
+ * Непрочитанное у одного поставщика
+ */
+export interface PortalUnreadDto {
+  /** Поставщик; им же строка сшивается со списком поставщиков */
+  supplierId: string;
+  /** Сколько непрочитанных плашек. Ноль — обычное состояние, а не признак того, что поставщик выпал */
+  unread: number;
 }
 
 /**
@@ -2194,9 +2657,58 @@ export interface CatalogReplyDto {
 }
 
 /**
+ * Чего не хватает позиции для витрины
+ */
+export type CatalogItemRowDtoMissingItem = typeof CatalogItemRowDtoMissingItem[keyof typeof CatalogItemRowDtoMissingItem];
+
+
+export const CatalogItemRowDtoMissingItem = {
+  PRICE: 'PRICE',
+  PHOTO: 'PHOTO',
+  DESCRIPTION: 'DESCRIPTION',
+  CATEGORY: 'CATEGORY',
+} as const;
+
+/**
+ * Позиция каталога в списке экрана
+ */
+export interface CatalogItemRowDto {
+  /** Идентификатор позиции */
+  id: string;
+  /** Артикул поставщика */
+  sku?: string;
+  /** Наименование */
+  name: string;
+  /** Единица измерения */
+  unit: string;
+  /** Цена за единицу */
+  price?: number;
+  /** Ставка НДС в процентах */
+  vatRate?: number;
+  /** Момент, на который цена верна */
+  priceUpdatedAt?: string;
+  /** Остаток и то, насколько ему можно верить */
+  stock: StockView;
+  /** Позицией владеет обмен с учётной системой */
+  managedBy1c: boolean;
+  /** Рубрика витрины */
+  categoryId?: string;
+  /** Прямой адрес первого снимка. Пусто — снимков нет */
+  coverUrl?: string;
+  /** Сколько всего фото и видео у позиции */
+  mediaCount: number;
+  /** Есть ли ролик: обложкой он не служит, но в строке отмечается значком */
+  hasVideo: boolean;
+  /** Показывается ли позиция клиенту в кабинете */
+  visible: boolean;
+  /** Чего не хватает для витрины; пустой список — позиция полна */
+  missing: CatalogItemRowDtoMissingItem[];
+}
+
+/**
  * Страница результатов
  */
-export interface PageResponseCatalogItemDto {
+export interface PageResponseCatalogItemRowDto {
   /** Номер страницы, с нуля */
   page?: number;
   /** Размер страницы */
@@ -2204,7 +2716,7 @@ export interface PageResponseCatalogItemDto {
   /** Всего элементов */
   totalElements?: number;
   /** Элементы страницы */
-  items?: CatalogItemDto[];
+  items?: CatalogItemRowDto[];
 }
 
 /**
@@ -2326,6 +2838,7 @@ to?: string;
 export type GetCatalogItemsParams = {
 query?: string;
 categoryId?: string;
+incompleteOnly?: boolean;
 page?: number;
 size?: number;
 };
@@ -2376,6 +2889,26 @@ categoryId?: string;
 page?: number;
 size?: number;
 };
+
+export type ListOrdersParams = {
+/**
+ * Чего заказ ждёт: работа, а не состояние
+ */
+filter?: ListOrdersFilter;
+};
+
+export type ListOrdersFilter = typeof ListOrdersFilter[keyof typeof ListOrdersFilter];
+
+
+export const ListOrdersFilter = {
+  ALL: 'ALL',
+  AWAITING_INVOICE: 'AWAITING_INVOICE',
+  AWAITING_PAYMENT: 'AWAITING_PAYMENT',
+  AWAITING_PICKING: 'AWAITING_PICKING',
+  AWAITING_ISSUE: 'AWAITING_ISSUE',
+  ISSUED: 'ISSUED',
+  CANCELLED: 'CANCELLED',
+} as const;
 
 export type GetDraftQueueParams = {
 status?: GetDraftQueueStatus;
@@ -2521,6 +3054,137 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export type updateStaffRolesResponse200 = {
+  data: StaffMemberDto
+  status: 200
+}
+
+export type updateStaffRolesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updateStaffRolesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updateStaffRolesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updateStaffRolesResponse503 = {
+  data: ErrorResponse
+  status: 503
+}
+
+export type updateStaffRolesResponseSuccess = (updateStaffRolesResponse200) & {
+  headers: Headers;
+};
+export type updateStaffRolesResponseError = (updateStaffRolesResponse400 | updateStaffRolesResponse404 | updateStaffRolesResponse500 | updateStaffRolesResponse503) & {
+  headers: Headers;
+};
+
+export type updateStaffRolesResponse = (updateStaffRolesResponseSuccess | updateStaffRolesResponseError)
+
+export const getUpdateStaffRolesUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/staff/${id}/roles`
+}
+
+/**
+ * Заменяет набор ролей целиком: снятая на экране галочка означает снятую роль.
+ *
+ * Дописывающая ручка оставила бы снятое на месте, и объяснить это администратору было бы нечем.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Завести сотрудника с ролью `MANAGER`.
+ * 2. Вызвать метод с одним `STOCK_KEEPER` — роль менеджера снята.
+ * 3. Войти под этим сотрудником: очереди заявок больше не видно, согласование склада видно.
+ * 4. Негативный 403: тот же запрос менеджером.
+ * ```
+ * curl -s -X PUT http://localhost:8080/api/tenant/staff/<id>/roles \
+ *   -H 'Content-Type: application/json' \
+ *   -H 'Authorization: Bearer <токен администратора>' \
+ *   -d '{"roles":["STOCK_KEEPER"]}'
+ * ```
+ * @summary Заменить роли сотрудника
+ */
+export const updateStaffRoles = async (id: string,
+    updateStaffRolesRequest: UpdateStaffRolesRequest, options?: RequestInit): Promise<updateStaffRolesResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<updateStaffRolesResponse>(getUpdateStaffRolesUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateStaffRolesRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffRolesMutationKey = () => ['updateStaffRoles'] as const;
+
+export const getUpdateStaffRolesMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffRoles>>, TError,UpdateStaffRolesMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffRoles>>, TError,UpdateStaffRolesMutationVariables, TContext> => {
+
+const mutationKey = getUpdateStaffRolesMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffRoles>>, UpdateStaffRolesMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateStaffRoles(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffRolesMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffRoles>>>
+    export type UpdateStaffRolesMutationBody = UpdateStaffRolesRequest
+    export type UpdateStaffRolesMutationError = ErrorResponse
+    export type UpdateStaffRolesMutationVariables = {id: string;data: UpdateStaffRolesRequest}
+
+    /**
+ * @summary Заменить роли сотрудника
+ */
+export const useUpdateStaffRoles = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffRoles>>, TError,UpdateStaffRolesMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffRoles>>,
+        TError,
+        UpdateStaffRolesMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateStaffRolesMutationOptions(options), queryClient);
+    }
 
 export type getSellerDetailsResponse200 = {
   data: SellerDetailsDto
@@ -2782,6 +3446,525 @@ export const useUpdateSellerDetails = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getUpdateSellerDetailsMutationOptions(options), queryClient);
+    }
+
+export type getPlatformSettingsResponse200 = {
+  data: PlatformSettingsDto
+  status: 200
+}
+
+export type getPlatformSettingsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPlatformSettingsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPlatformSettingsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPlatformSettingsResponseSuccess = (getPlatformSettingsResponse200) & {
+  headers: Headers;
+};
+export type getPlatformSettingsResponseError = (getPlatformSettingsResponse400 | getPlatformSettingsResponse404 | getPlatformSettingsResponse500) & {
+  headers: Headers;
+};
+
+export type getPlatformSettingsResponse = (getPlatformSettingsResponseSuccess | getPlatformSettingsResponseError)
+
+export const getGetPlatformSettingsUrl = () => {
+
+
+
+
+  return `/api/tenant/platform/settings`
+}
+
+/**
+ * Читает любой сотрудник арендатора: по этим реквизитам он платит за пакет. Незаполненные приходят пустыми — это обычное состояние свежей системы, а не признак неполадки: платформа заводит их до первого счёта, а не до первого запуска.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), вызвать метод — придут реквизиты либо пустые поля.
+ * 2. Сравнить с тем, что показано в счёте на экране «Приём из мессенджера»: там стоит отпечаток на момент выписки, и после смены реквизитов он остаётся прежним.
+ * @summary Реквизиты платформы
+ */
+export const getPlatformSettings = async ( options?: RequestInit): Promise<getPlatformSettingsResponse> => {
+
+  return apiRequest<getPlatformSettingsResponse>(getGetPlatformSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlatformSettingsQueryKey = () => {
+    return [
+    `/api/tenant/platform/settings`
+    ] as const;
+    }
+
+
+export const getGetPlatformSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getPlatformSettings>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlatformSettings>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlatformSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlatformSettings>>> = ({ signal }) => getPlatformSettings({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlatformSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPlatformSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getPlatformSettings>>>
+export type GetPlatformSettingsQueryError = ErrorResponse
+
+
+export function useGetPlatformSettings<TData = Awaited<ReturnType<typeof getPlatformSettings>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlatformSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlatformSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getPlatformSettings>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlatformSettings<TData = Awaited<ReturnType<typeof getPlatformSettings>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlatformSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlatformSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getPlatformSettings>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlatformSettings<TData = Awaited<ReturnType<typeof getPlatformSettings>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlatformSettings>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Реквизиты платформы
+ */
+
+export function useGetPlatformSettings<TData = Awaited<ReturnType<typeof getPlatformSettings>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlatformSettings>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPlatformSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type updatePlatformSettingsResponse200 = {
+  data: PlatformSettingsDto
+  status: 200
+}
+
+export type updatePlatformSettingsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updatePlatformSettingsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updatePlatformSettingsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updatePlatformSettingsResponseSuccess = (updatePlatformSettingsResponse200) & {
+  headers: Headers;
+};
+export type updatePlatformSettingsResponseError = (updatePlatformSettingsResponse400 | updatePlatformSettingsResponse404 | updatePlatformSettingsResponse500) & {
+  headers: Headers;
+};
+
+export type updatePlatformSettingsResponse = (updatePlatformSettingsResponseSuccess | updatePlatformSettingsResponseError)
+
+export const getUpdatePlatformSettingsUrl = () => {
+
+
+
+
+  return `/api/tenant/platform/settings`
+}
+
+/**
+ * Действие платформы: это её представление, а не настройка арендатора.
+ *
+ * Присылается целиком — непереданное поле считается стёртым. Частичной правки нет намеренно: пустое поле означает «этого у меня нет», и отличить его от «я про него не говорил» при частичной присылке нечем.
+ *
+ * Выставленные счета правка не меняет: реквизиты запоминаются выпиской. Иначе прошлогодний счёт задним числом оказался бы выписан на новый расчётный счёт.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Администратором платформы отправить:
+ *
+ * ```json
+ * {"name": "ТОО «ФастОрдерс»", "binIin": "210840001234", "bankName": "АО «Банк»", "bankBic": "ABCDKZKX", "bankAccount": "KZ123456789012345678", "bankKbe": "17", "vatPayer": true, "vatRate": 12.00}
+ * ```
+ *
+ * 2. Выставить счёт арендатору — в нём появятся эти реквизиты.
+ * 3. Сменить банк и открыть тот же счёт: реквизиты в нём прежние.
+ * 4. Негативный 403: тот же запрос администратором арендатора.
+ * 5. Негативный 400: пустое `name` — им подписан каждый счёт.
+ * @summary Изменить реквизиты платформы
+ */
+export const updatePlatformSettings = async (updatePlatformSettingsRequest: UpdatePlatformSettingsRequest, options?: RequestInit): Promise<updatePlatformSettingsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<updatePlatformSettingsResponse>(getUpdatePlatformSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updatePlatformSettingsRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePlatformSettingsMutationKey = () => ['updatePlatformSettings'] as const;
+
+export const getUpdatePlatformSettingsMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformSettings>>, TError,UpdatePlatformSettingsMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof updatePlatformSettings>>, TError,UpdatePlatformSettingsMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePlatformSettingsMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePlatformSettings>>, UpdatePlatformSettingsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updatePlatformSettings(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePlatformSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updatePlatformSettings>>>
+    export type UpdatePlatformSettingsMutationBody = UpdatePlatformSettingsRequest
+    export type UpdatePlatformSettingsMutationError = ErrorResponse
+    export type UpdatePlatformSettingsMutationVariables = {data: UpdatePlatformSettingsRequest}
+
+    /**
+ * @summary Изменить реквизиты платформы
+ */
+export const useUpdatePlatformSettings = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformSettings>>, TError,UpdatePlatformSettingsMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePlatformSettings>>,
+        TError,
+        UpdatePlatformSettingsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePlatformSettingsMutationOptions(options), queryClient);
+    }
+
+export type getWhatsappPackageResponse200 = {
+  data: WhatsappPackageDto
+  status: 200
+}
+
+export type getWhatsappPackageResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getWhatsappPackageResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getWhatsappPackageResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getWhatsappPackageResponseSuccess = (getWhatsappPackageResponse200) & {
+  headers: Headers;
+};
+export type getWhatsappPackageResponseError = (getWhatsappPackageResponse400 | getWhatsappPackageResponse404 | getWhatsappPackageResponse500) & {
+  headers: Headers;
+};
+
+export type getWhatsappPackageResponse = (getWhatsappPackageResponseSuccess | getWhatsappPackageResponseError)
+
+export const getGetWhatsappPackageUrl = () => {
+
+
+
+
+  return `/api/tenant/packages/whatsapp`
+}
+
+/**
+ * Кабинет клиента работает у арендатора по умолчанию; приём заявок из мессенджера с разбором текста — отдельный платный пакет. Состояние показывается администратору арендатора, потому что без него он ищет неполадку в подключении номера, тогда как номер тут ни при чём: сообщения не принимаются вовсе.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), вызвать метод — у нового арендатора придёт `false`: пакет не подключён, и это обычное состояние, а не признак неполадки.
+ * 2. Негативный 403: тот же запрос под менеджером (`77010000102`) — он с пакетом ничего не делает, а знание о том, за что платит компания, к работе с заявками не относится.
+ * @summary Подключён ли приём из мессенджера
+ */
+export const getWhatsappPackage = async ( options?: RequestInit): Promise<getWhatsappPackageResponse> => {
+
+  return apiRequest<getWhatsappPackageResponse>(getGetWhatsappPackageUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWhatsappPackageQueryKey = () => {
+    return [
+    `/api/tenant/packages/whatsapp`
+    ] as const;
+    }
+
+
+export const getGetWhatsappPackageQueryOptions = <TData = Awaited<ReturnType<typeof getWhatsappPackage>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappPackage>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWhatsappPackageQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWhatsappPackage>>> = ({ signal }) => getWhatsappPackage({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWhatsappPackage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWhatsappPackageQueryResult = NonNullable<Awaited<ReturnType<typeof getWhatsappPackage>>>
+export type GetWhatsappPackageQueryError = ErrorResponse
+
+
+export function useGetWhatsappPackage<TData = Awaited<ReturnType<typeof getWhatsappPackage>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappPackage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWhatsappPackage>>,
+          TError,
+          Awaited<ReturnType<typeof getWhatsappPackage>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWhatsappPackage<TData = Awaited<ReturnType<typeof getWhatsappPackage>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappPackage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWhatsappPackage>>,
+          TError,
+          Awaited<ReturnType<typeof getWhatsappPackage>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWhatsappPackage<TData = Awaited<ReturnType<typeof getWhatsappPackage>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappPackage>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Подключён ли приём из мессенджера
+ */
+
+export function useGetWhatsappPackage<TData = Awaited<ReturnType<typeof getWhatsappPackage>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappPackage>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWhatsappPackageQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type setWhatsappPackageResponse200 = {
+  data: WhatsappPackageDto
+  status: 200
+}
+
+export type setWhatsappPackageResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type setWhatsappPackageResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type setWhatsappPackageResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type setWhatsappPackageResponseSuccess = (setWhatsappPackageResponse200) & {
+  headers: Headers;
+};
+export type setWhatsappPackageResponseError = (setWhatsappPackageResponse400 | setWhatsappPackageResponse404 | setWhatsappPackageResponse500) & {
+  headers: Headers;
+};
+
+export type setWhatsappPackageResponse = (setWhatsappPackageResponseSuccess | setWhatsappPackageResponseError)
+
+export const getSetWhatsappPackageUrl = () => {
+
+
+
+
+  return `/api/tenant/packages/whatsapp`
+}
+
+/**
+ * Действие платформы, а не арендатора: пакет платный, счёт за него выставляется вне системы, и включает его тот, кто продал. Администратору арендатора метод недоступен — иначе платная возможность включается бесплатно.
+ *
+ * Подключение и отключение — одно действие в две стороны: отдельного адреса на отключение нет, иначе к одному полю вели бы два пути.
+ *
+ * Арендатор берётся из токена, а не из тела: адрес, принимающий чужой идентификатор, стал бы действием над любым арендатором по выбору вызывающего.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором платформы, отправить `{"enabled": true}` — ответ `{"enabled": true}`. Прислать вебхук на канал этого арендатора: сообщение принимается и попадает в окно сборки.
+ * 2. Отправить `{"enabled": false}` и повторить вебхук — 404, и сообщение не сохранено.
+ * 3. Негативный 403: то же тело под администратором арендатора (`77010000101`).
+ * @summary Подключить приём из мессенджера
+ */
+export const setWhatsappPackage = async (updateWhatsappPackageRequest: UpdateWhatsappPackageRequest, options?: RequestInit): Promise<setWhatsappPackageResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<setWhatsappPackageResponse>(getSetWhatsappPackageUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateWhatsappPackageRequest)
+  }
+);}
+
+
+
+
+
+export const getSetWhatsappPackageMutationKey = () => ['setWhatsappPackage'] as const;
+
+export const getSetWhatsappPackageMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setWhatsappPackage>>, TError,SetWhatsappPackageMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof setWhatsappPackage>>, TError,SetWhatsappPackageMutationVariables, TContext> => {
+
+const mutationKey = getSetWhatsappPackageMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setWhatsappPackage>>, SetWhatsappPackageMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  setWhatsappPackage(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetWhatsappPackageMutationResult = NonNullable<Awaited<ReturnType<typeof setWhatsappPackage>>>
+    export type SetWhatsappPackageMutationBody = UpdateWhatsappPackageRequest
+    export type SetWhatsappPackageMutationError = ErrorResponse
+    export type SetWhatsappPackageMutationVariables = {data: UpdateWhatsappPackageRequest}
+
+    /**
+ * @summary Подключить приём из мессенджера
+ */
+export const useSetWhatsappPackage = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setWhatsappPackage>>, TError,SetWhatsappPackageMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setWhatsappPackage>>,
+        TError,
+        SetWhatsappPackageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetWhatsappPackageMutationOptions(options), queryClient);
     }
 
 export type getBusinessHoursResponse200 = {
@@ -4295,6 +5478,149 @@ export const useReorderItemMedia = <TError = ErrorResponse,
       return useMutation(getReorderItemMediaMutationOptions(options), queryClient);
     }
 
+export type getCatalogItemResponse200 = {
+  data: CatalogItemCardDto
+  status: 200
+}
+
+export type getCatalogItemResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getCatalogItemResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getCatalogItemResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getCatalogItemResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getCatalogItemResponseSuccess = (getCatalogItemResponse200) & {
+  headers: Headers;
+};
+export type getCatalogItemResponseError = (getCatalogItemResponse400 | getCatalogItemResponse403 | getCatalogItemResponse404 | getCatalogItemResponse500) & {
+  headers: Headers;
+};
+
+export type getCatalogItemResponse = (getCatalogItemResponseSuccess | getCatalogItemResponseError)
+
+export const getGetCatalogItemUrl = (id: string,) => {
+
+
+
+
+  return `/api/catalog/items/${id}`
+}
+
+/**
+ * Позиция, её фото и видео в порядке показа и признак того, показывается ли она клиенту. Одним ответом: карточку открывают по прямой ссылке, и собирать её из страницы списка значило бы листать каталог, пока позиция не попадётся. Позиция другого арендатора отвечает так же, как несуществующая.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести позицию «Плита OSB» и добавить ей два снимка.
+ * 2. Вызвать метод с её идентификатором — в ответе позиция, оба снимка в порядке показа и `visible: true`.
+ * 3. Убрать оба снимка и вызвать снова — `media` пуст, ответ 200.
+ * 4. Негативный: случайный идентификатор в пути — 404 с кодом `CATALOG_ITEM_NOT_FOUND`.
+ * @summary Карточка позиции каталога
+ */
+export const getCatalogItem = async (id: string, options?: RequestInit): Promise<getCatalogItemResponse> => {
+
+  return apiRequest<getCatalogItemResponse>(getGetCatalogItemUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCatalogItemQueryKey = (id: string,) => {
+    return [
+    `/api/catalog/items/${id}`
+    ] as const;
+    }
+
+
+export const getGetCatalogItemQueryOptions = <TData = Awaited<ReturnType<typeof getCatalogItem>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogItem>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCatalogItemQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogItem>>> = ({ signal }) => getCatalogItem(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCatalogItem>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCatalogItemQueryResult = NonNullable<Awaited<ReturnType<typeof getCatalogItem>>>
+export type GetCatalogItemQueryError = ErrorResponse
+
+
+export function useGetCatalogItem<TData = Awaited<ReturnType<typeof getCatalogItem>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogItem>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogItem>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogItem>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCatalogItem<TData = Awaited<ReturnType<typeof getCatalogItem>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogItem>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogItem>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogItem>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCatalogItem<TData = Awaited<ReturnType<typeof getCatalogItem>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogItem>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Карточка позиции каталога
+ */
+
+export function useGetCatalogItem<TData = Awaited<ReturnType<typeof getCatalogItem>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogItem>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCatalogItemQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type updateCatalogItemResponse200 = {
   data: CatalogItemDto
   status: 200
@@ -4427,6 +5753,129 @@ export const useUpdateCatalogItem = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getUpdateCatalogItemMutationOptions(options), queryClient);
+    }
+
+export type setCatalogItemVisibilityResponse200 = {
+  data: CatalogItemCardDto
+  status: 200
+}
+
+export type setCatalogItemVisibilityResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type setCatalogItemVisibilityResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type setCatalogItemVisibilityResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type setCatalogItemVisibilityResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type setCatalogItemVisibilityResponseSuccess = (setCatalogItemVisibilityResponse200) & {
+  headers: Headers;
+};
+export type setCatalogItemVisibilityResponseError = (setCatalogItemVisibilityResponse400 | setCatalogItemVisibilityResponse403 | setCatalogItemVisibilityResponse404 | setCatalogItemVisibilityResponse500) & {
+  headers: Headers;
+};
+
+export type setCatalogItemVisibilityResponse = (setCatalogItemVisibilityResponseSuccess | setCatalogItemVisibilityResponseError)
+
+export const getSetCatalogItemVisibilityUrl = (id: string,) => {
+
+
+
+
+  return `/api/catalog/items/${id}/visibility`
+}
+
+/**
+ * Убирает позицию из витрины кабинета и возвращает обратно. Отдельным адресом от сохранения позиции: менять видимость вправе администратор, а править позицию — все, кто работает с товаром. Спрятанная позиция остаётся в каталоге со своей ценой: убирать товар стиранием цены значит ломать счёт и сопоставление строк заявки.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести позицию с ценой и убедиться, что она видна в кабинете клиента.
+ * 2. Вызвать метод с `visible: false` — позиция пропадает из витрины кабинета, но остаётся на экране каталога.
+ * 3. Вызвать с `visible: true` — возвращается в витрину.
+ * 4. Негативный: тот же вызов под менеджером — 403.
+ * @summary Показывать ли позицию клиенту
+ */
+export const setCatalogItemVisibility = async (id: string,
+    setItemVisibilityRequest: SetItemVisibilityRequest, options?: RequestInit): Promise<setCatalogItemVisibilityResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<setCatalogItemVisibilityResponse>(getSetCatalogItemVisibilityUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setItemVisibilityRequest)
+  }
+);}
+
+
+
+
+
+export const getSetCatalogItemVisibilityMutationKey = () => ['setCatalogItemVisibility'] as const;
+
+export const getSetCatalogItemVisibilityMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCatalogItemVisibility>>, TError,SetCatalogItemVisibilityMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof setCatalogItemVisibility>>, TError,SetCatalogItemVisibilityMutationVariables, TContext> => {
+
+const mutationKey = getSetCatalogItemVisibilityMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCatalogItemVisibility>>, SetCatalogItemVisibilityMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setCatalogItemVisibility(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCatalogItemVisibilityMutationResult = NonNullable<Awaited<ReturnType<typeof setCatalogItemVisibility>>>
+    export type SetCatalogItemVisibilityMutationBody = SetItemVisibilityRequest
+    export type SetCatalogItemVisibilityMutationError = ErrorResponse
+    export type SetCatalogItemVisibilityMutationVariables = {id: string;data: SetItemVisibilityRequest}
+
+    /**
+ * @summary Показывать ли позицию клиенту
+ */
+export const useSetCatalogItemVisibility = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCatalogItemVisibility>>, TError,SetCatalogItemVisibilityMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setCatalogItemVisibility>>,
+        TError,
+        SetCatalogItemVisibilityMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetCatalogItemVisibilityMutationOptions(options), queryClient);
     }
 
 export type updateCatalogCategoryResponse200 = {
@@ -4959,6 +6408,1266 @@ export const useReceiveWahaEvent = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getReceiveWahaEventMutationOptions(options), queryClient);
+    }
+
+export type listStaffResponse200 = {
+  data: StaffMemberDto[]
+  status: 200
+}
+
+export type listStaffResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listStaffResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listStaffResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listStaffResponse503 = {
+  data: ErrorResponse
+  status: 503
+}
+
+export type listStaffResponseSuccess = (listStaffResponse200) & {
+  headers: Headers;
+};
+export type listStaffResponseError = (listStaffResponse400 | listStaffResponse404 | listStaffResponse500 | listStaffResponse503) & {
+  headers: Headers;
+};
+
+export type listStaffResponse = (listStaffResponseSuccess | listStaffResponseError)
+
+export const getListStaffUrl = () => {
+
+
+
+
+  return `/api/tenant/staff`
+}
+
+/**
+ * Список сотрудников с ролями, включая тех, кому вход закрыт.
+ *
+ * Пароля в списке нет и быть не может: живой знает только Keycloak, а временный показывался один раз при заведении.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), вызвать метод — в списке есть он сам и заведённые им сотрудники.
+ * 2. Убедиться, что сотрудников соседнего арендатора в списке нет.
+ * 3. Негативный 403: тот же запрос менеджером.
+ * ```
+ * curl -s http://localhost:8080/api/tenant/staff \
+ *   -H 'Authorization: Bearer <токен администратора>'
+ * ```
+ * @summary Сотрудники арендатора
+ */
+export const listStaff = async ( options?: RequestInit): Promise<listStaffResponse> => {
+
+  return apiRequest<listStaffResponse>(getListStaffUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffQueryKey = () => {
+    return [
+    `/api/tenant/staff`
+    ] as const;
+    }
+
+
+export const getListStaffQueryOptions = <TData = Awaited<ReturnType<typeof listStaff>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaff>>> = ({ signal }) => listStaff({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListStaffQueryResult = NonNullable<Awaited<ReturnType<typeof listStaff>>>
+export type ListStaffQueryError = ErrorResponse
+
+
+export function useListStaff<TData = Awaited<ReturnType<typeof listStaff>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listStaff>>,
+          TError,
+          Awaited<ReturnType<typeof listStaff>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListStaff<TData = Awaited<ReturnType<typeof listStaff>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listStaff>>,
+          TError,
+          Awaited<ReturnType<typeof listStaff>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListStaff<TData = Awaited<ReturnType<typeof listStaff>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Сотрудники арендатора
+ */
+
+export function useListStaff<TData = Awaited<ReturnType<typeof listStaff>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStaff>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListStaffQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createStaffMemberResponse200 = {
+  data: StaffCreatedDto
+  status: 200
+}
+
+export type createStaffMemberResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createStaffMemberResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createStaffMemberResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type createStaffMemberResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createStaffMemberResponse503 = {
+  data: ErrorResponse
+  status: 503
+}
+
+export type createStaffMemberResponseSuccess = (createStaffMemberResponse200) & {
+  headers: Headers;
+};
+export type createStaffMemberResponseError = (createStaffMemberResponse400 | createStaffMemberResponse404 | createStaffMemberResponse409 | createStaffMemberResponse500 | createStaffMemberResponse503) & {
+  headers: Headers;
+};
+
+export type createStaffMemberResponse = (createStaffMemberResponseSuccess | createStaffMemberResponseError)
+
+export const getCreateStaffMemberUrl = () => {
+
+
+
+
+  return `/api/tenant/staff`
+}
+
+/**
+ * Создаёт учётную запись в realm сотрудников и выдаёт роли.
+ *
+ * Имя пользователя — номер телефона: им сотрудник и входит. Пароль в запросе не передаётся: его порождает система, показывает **один раз** в ответе и помечает обязательным к смене при первом входе. Принять пароль от администратора значило бы, что он придумывает его за сотрудника и знает после этого навсегда.
+ *
+ * Роли совмещаются: менеджер со складом получает оба раздела. Набор ролей закрыт и задан заранее — придумать новую нельзя.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`).
+ * 2. Завести сотрудника с ролями `MANAGER` и `STOCK_KEEPER` — в ответе временный пароль.
+ * 3. Выйти и войти новым номером с этим паролем: Keycloak потребует задать свой.
+ * 4. Убедиться, что видны и очередь заявок, и согласование склада.
+ * 5. Негативный 409: тот же номер второй раз.
+ * 6. Негативный 403: тот же запрос менеджером.
+ * ```
+ * curl -s -X POST http://localhost:8080/api/tenant/staff \
+ *   -H 'Content-Type: application/json' \
+ *   -H 'Authorization: Bearer <токен администратора>' \
+ *   -d '{"phone":"77010000105","name":"Асхат Каримов","email":"askhat@example.kz","roles":["MANAGER"]}'
+ * ```
+ * @summary Завести сотрудника
+ */
+export const createStaffMember = async (createStaffRequest: CreateStaffRequest, options?: RequestInit): Promise<createStaffMemberResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<createStaffMemberResponse>(getCreateStaffMemberUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createStaffRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateStaffMemberMutationKey = () => ['createStaffMember'] as const;
+
+export const getCreateStaffMemberMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffMember>>, TError,CreateStaffMemberMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createStaffMember>>, TError,CreateStaffMemberMutationVariables, TContext> => {
+
+const mutationKey = getCreateStaffMemberMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStaffMember>>, CreateStaffMemberMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStaffMember(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStaffMemberMutationResult = NonNullable<Awaited<ReturnType<typeof createStaffMember>>>
+    export type CreateStaffMemberMutationBody = CreateStaffRequest
+    export type CreateStaffMemberMutationError = ErrorResponse
+    export type CreateStaffMemberMutationVariables = {data: CreateStaffRequest}
+
+    /**
+ * @summary Завести сотрудника
+ */
+export const useCreateStaffMember = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffMember>>, TError,CreateStaffMemberMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createStaffMember>>,
+        TError,
+        CreateStaffMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateStaffMemberMutationOptions(options), queryClient);
+    }
+
+export type unblockStaffMemberResponse200 = {
+  data: StaffMemberDto
+  status: 200
+}
+
+export type unblockStaffMemberResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type unblockStaffMemberResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type unblockStaffMemberResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type unblockStaffMemberResponse503 = {
+  data: ErrorResponse
+  status: 503
+}
+
+export type unblockStaffMemberResponseSuccess = (unblockStaffMemberResponse200) & {
+  headers: Headers;
+};
+export type unblockStaffMemberResponseError = (unblockStaffMemberResponse400 | unblockStaffMemberResponse404 | unblockStaffMemberResponse500 | unblockStaffMemberResponse503) & {
+  headers: Headers;
+};
+
+export type unblockStaffMemberResponse = (unblockStaffMemberResponseSuccess | unblockStaffMemberResponseError)
+
+export const getUnblockStaffMemberUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/staff/${id}/access`
+}
+
+/**
+ * Возвращает вход сотруднику, которому его закрывали.
+ *
+ * Роли при этом остаются прежними: закрытие входа не трогает их вовсе, и вернувшийся сотрудник видит то же, что видел.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Закрыть вход сотруднику и убедиться, что он не входит.
+ * 2. Вызвать этот метод — вход снова работает, роли на месте.
+ * ```
+ * curl -s -X POST http://localhost:8080/api/tenant/staff/<id>/access \
+ *   -H 'Authorization: Bearer <токен администратора>'
+ * ```
+ * @summary Открыть сотруднику вход
+ */
+export const unblockStaffMember = async (id: string, options?: RequestInit): Promise<unblockStaffMemberResponse> => {
+
+  return apiRequest<unblockStaffMemberResponse>(getUnblockStaffMemberUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnblockStaffMemberMutationKey = () => ['unblockStaffMember'] as const;
+
+export const getUnblockStaffMemberMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unblockStaffMember>>, TError,UnblockStaffMemberMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof unblockStaffMember>>, TError,UnblockStaffMemberMutationVariables, TContext> => {
+
+const mutationKey = getUnblockStaffMemberMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unblockStaffMember>>, UnblockStaffMemberMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  unblockStaffMember(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnblockStaffMemberMutationResult = NonNullable<Awaited<ReturnType<typeof unblockStaffMember>>>
+
+    export type UnblockStaffMemberMutationError = ErrorResponse
+    export type UnblockStaffMemberMutationVariables = {id: string}
+
+    /**
+ * @summary Открыть сотруднику вход
+ */
+export const useUnblockStaffMember = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unblockStaffMember>>, TError,UnblockStaffMemberMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof unblockStaffMember>>,
+        TError,
+        UnblockStaffMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUnblockStaffMemberMutationOptions(options), queryClient);
+    }
+
+export type blockStaffMemberResponse200 = {
+  data: StaffMemberDto
+  status: 200
+}
+
+export type blockStaffMemberResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type blockStaffMemberResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type blockStaffMemberResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type blockStaffMemberResponse503 = {
+  data: ErrorResponse
+  status: 503
+}
+
+export type blockStaffMemberResponseSuccess = (blockStaffMemberResponse200) & {
+  headers: Headers;
+};
+export type blockStaffMemberResponseError = (blockStaffMemberResponse400 | blockStaffMemberResponse404 | blockStaffMemberResponse500 | blockStaffMemberResponse503) & {
+  headers: Headers;
+};
+
+export type blockStaffMemberResponse = (blockStaffMemberResponseSuccess | blockStaffMemberResponseError)
+
+export const getBlockStaffMemberUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/staff/${id}/access`
+}
+
+/**
+ * Закрывает вход, оставляя учётную запись.
+ *
+ * Удалять её нельзя: она подписывает прошлые действия сотрудника в журнале доступа, и удаление стёрло бы эту подпись — заявки остались бы, а кто их вёл, стало бы неизвестно.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Закрыть вход заведённому сотруднику.
+ * 2. Попробовать войти под ним — Keycloak не пускает.
+ * 3. Открыть журнал доступа: его прошлые действия на месте.
+ * ```
+ * curl -s -X DELETE http://localhost:8080/api/tenant/staff/<id>/access \
+ *   -H 'Authorization: Bearer <токен администратора>'
+ * ```
+ * @summary Закрыть сотруднику вход
+ */
+export const blockStaffMember = async (id: string, options?: RequestInit): Promise<blockStaffMemberResponse> => {
+
+  return apiRequest<blockStaffMemberResponse>(getBlockStaffMemberUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getBlockStaffMemberMutationKey = () => ['blockStaffMember'] as const;
+
+export const getBlockStaffMemberMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof blockStaffMember>>, TError,BlockStaffMemberMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof blockStaffMember>>, TError,BlockStaffMemberMutationVariables, TContext> => {
+
+const mutationKey = getBlockStaffMemberMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof blockStaffMember>>, BlockStaffMemberMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  blockStaffMember(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BlockStaffMemberMutationResult = NonNullable<Awaited<ReturnType<typeof blockStaffMember>>>
+
+    export type BlockStaffMemberMutationError = ErrorResponse
+    export type BlockStaffMemberMutationVariables = {id: string}
+
+    /**
+ * @summary Закрыть сотруднику вход
+ */
+export const useBlockStaffMember = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof blockStaffMember>>, TError,BlockStaffMemberMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof blockStaffMember>>,
+        TError,
+        BlockStaffMemberMutationVariables,
+        TContext
+      > => {
+      return useMutation(getBlockStaffMemberMutationOptions(options), queryClient);
+    }
+
+export type requestWhatsappPackageResponse200 = {
+  data: WhatsappPackageDto
+  status: 200
+}
+
+export type requestWhatsappPackageResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type requestWhatsappPackageResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type requestWhatsappPackageResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type requestWhatsappPackageResponseSuccess = (requestWhatsappPackageResponse200) & {
+  headers: Headers;
+};
+export type requestWhatsappPackageResponseError = (requestWhatsappPackageResponse400 | requestWhatsappPackageResponse404 | requestWhatsappPackageResponse500) & {
+  headers: Headers;
+};
+
+export type requestWhatsappPackageResponse = (requestWhatsappPackageResponseSuccess | requestWhatsappPackageResponseError)
+
+export const getRequestWhatsappPackageUrl = () => {
+
+
+
+
+  return `/api/tenant/packages/whatsapp/request`
+}
+
+/**
+ * Действие арендатора: он решает подключиться, а платформа отвечает счётом. Раньше подключение жило вне системы — арендатор писал менеджеру, тот правил настройку, — и следа от этого не оставалось нигде.
+ *
+ * Повторная подача при открытой заявке возвращает её же, а не заводит вторую: два счёта за одно и то же превращаются в спор о том, какой из них оплачен.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), вызвать метод — придёт заявка в состоянии `REQUESTED`, приём при этом всё ещё выключен.
+ * 2. Вызвать второй раз — состояние и идентификатор те же: вторая заявка не заводится.
+ * @summary Подать заявку на подключение
+ */
+export const requestWhatsappPackage = async ( options?: RequestInit): Promise<requestWhatsappPackageResponse> => {
+
+  return apiRequest<requestWhatsappPackageResponse>(getRequestWhatsappPackageUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRequestWhatsappPackageMutationKey = () => ['requestWhatsappPackage'] as const;
+
+export const getRequestWhatsappPackageMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestWhatsappPackage>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof requestWhatsappPackage>>, TError,void, TContext> => {
+
+const mutationKey = getRequestWhatsappPackageMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestWhatsappPackage>>, void> = () => {
+
+
+          return  requestWhatsappPackage()
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestWhatsappPackageMutationResult = NonNullable<Awaited<ReturnType<typeof requestWhatsappPackage>>>
+
+    export type RequestWhatsappPackageMutationError = ErrorResponse
+
+
+    /**
+ * @summary Подать заявку на подключение
+ */
+export const useRequestWhatsappPackage = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestWhatsappPackage>>, TError,void, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof requestWhatsappPackage>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRequestWhatsappPackageMutationOptions(options), queryClient);
+    }
+
+export type markWhatsappPaidResponse200 = {
+  data: WhatsappPackageDto
+  status: 200
+}
+
+export type markWhatsappPaidResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type markWhatsappPaidResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type markWhatsappPaidResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type markWhatsappPaidResponseSuccess = (markWhatsappPaidResponse200) & {
+  headers: Headers;
+};
+export type markWhatsappPaidResponseError = (markWhatsappPaidResponse400 | markWhatsappPaidResponse404 | markWhatsappPaidResponse500) & {
+  headers: Headers;
+};
+
+export type markWhatsappPaidResponse = (markWhatsappPaidResponseSuccess | markWhatsappPaidResponseError)
+
+export const getMarkWhatsappPaidUrl = () => {
+
+
+
+
+  return `/api/tenant/packages/whatsapp/paid`
+}
+
+/**
+ * Платёжного шлюза нет: деньги приходят мимо системы, и признать их поступившими может только человек, видевший выписку. Поэтому действие за платформой.
+ *
+ * Включение — часть этого же действия, а не отдельная кнопка: пакет становится рабочим от денег, и разведи их по двум нажатиям — однажды оплату отметят, а включить забудут.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Администратором платформы вызвать метод по выставленному счёту — состояние `PAID`, `enabled` становится `true`. Прислать вебхук на канал этого арендатора: сообщение принимается.
+ * 2. Негативный 409: вызов до выставления счёта — платить по несуществующему документу нельзя.
+ * 3. Негативный 403: тот же запрос администратором арендатора.
+ * @summary Признать оплату и включить пакет
+ */
+export const markWhatsappPaid = async ( options?: RequestInit): Promise<markWhatsappPaidResponse> => {
+
+  return apiRequest<markWhatsappPaidResponse>(getMarkWhatsappPaidUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkWhatsappPaidMutationKey = () => ['markWhatsappPaid'] as const;
+
+export const getMarkWhatsappPaidMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markWhatsappPaid>>, TError,void, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof markWhatsappPaid>>, TError,void, TContext> => {
+
+const mutationKey = getMarkWhatsappPaidMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markWhatsappPaid>>, void> = () => {
+
+
+          return  markWhatsappPaid()
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkWhatsappPaidMutationResult = NonNullable<Awaited<ReturnType<typeof markWhatsappPaid>>>
+
+    export type MarkWhatsappPaidMutationError = ErrorResponse
+
+
+    /**
+ * @summary Признать оплату и включить пакет
+ */
+export const useMarkWhatsappPaid = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markWhatsappPaid>>, TError,void, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markWhatsappPaid>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getMarkWhatsappPaidMutationOptions(options), queryClient);
+    }
+
+export type issueWhatsappInvoiceResponse200 = {
+  data: WhatsappPackageDto
+  status: 200
+}
+
+export type issueWhatsappInvoiceResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type issueWhatsappInvoiceResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type issueWhatsappInvoiceResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type issueWhatsappInvoiceResponseSuccess = (issueWhatsappInvoiceResponse200) & {
+  headers: Headers;
+};
+export type issueWhatsappInvoiceResponseError = (issueWhatsappInvoiceResponse400 | issueWhatsappInvoiceResponse404 | issueWhatsappInvoiceResponse500) & {
+  headers: Headers;
+};
+
+export type issueWhatsappInvoiceResponse = (issueWhatsappInvoiceResponseSuccess | issueWhatsappInvoiceResponseError)
+
+export const getIssueWhatsappInvoiceUrl = () => {
+
+
+
+
+  return `/api/tenant/packages/whatsapp/invoice`
+}
+
+/**
+ * Цену назначает платформа и фиксирует этим действием: назначенная позже другая выставленный документ не меняет.
+ *
+ * Налог считается **в том числе**, как и в счёте клиенту: итог равен сумме, а не больше её на ставку. Ставка необязательна — приписать налог тому, кто его не платит, хуже, чем промолчать.
+ *
+ * Номер счёта сквозной по всем арендаторам и свой у каждого года: это документы одного продавца.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Администратором платформы отправить:
+ *
+ * ```json
+ * {"amount": 45000, "vatRate": 12.00, "currency": "KZT"}
+ * ```
+ *
+ * Ответ: состояние `INVOICED`, `total` равен 45000, `vatAmount` — 4821.43 (налог внутри суммы), номер вида `2026-00001`.
+ * 2. Негативный 409: повторный вызов — счёт по заявке уже выставлен.
+ * 3. Негативный 403: тот же запрос администратором арендатора.
+ * @summary Выставить счёт по заявке
+ */
+export const issueWhatsappInvoice = async (issueServiceInvoiceRequest: IssueServiceInvoiceRequest, options?: RequestInit): Promise<issueWhatsappInvoiceResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<issueWhatsappInvoiceResponse>(getIssueWhatsappInvoiceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(issueServiceInvoiceRequest)
+  }
+);}
+
+
+
+
+
+export const getIssueWhatsappInvoiceMutationKey = () => ['issueWhatsappInvoice'] as const;
+
+export const getIssueWhatsappInvoiceMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueWhatsappInvoice>>, TError,IssueWhatsappInvoiceMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof issueWhatsappInvoice>>, TError,IssueWhatsappInvoiceMutationVariables, TContext> => {
+
+const mutationKey = getIssueWhatsappInvoiceMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof issueWhatsappInvoice>>, IssueWhatsappInvoiceMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  issueWhatsappInvoice(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IssueWhatsappInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof issueWhatsappInvoice>>>
+    export type IssueWhatsappInvoiceMutationBody = IssueServiceInvoiceRequest
+    export type IssueWhatsappInvoiceMutationError = ErrorResponse
+    export type IssueWhatsappInvoiceMutationVariables = {data: IssueServiceInvoiceRequest}
+
+    /**
+ * @summary Выставить счёт по заявке
+ */
+export const useIssueWhatsappInvoice = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueWhatsappInvoice>>, TError,IssueWhatsappInvoiceMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof issueWhatsappInvoice>>,
+        TError,
+        IssueWhatsappInvoiceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getIssueWhatsappInvoiceMutationOptions(options), queryClient);
+    }
+
+export type cancelWhatsappRequestResponse200 = {
+  data: WhatsappPackageDto
+  status: 200
+}
+
+export type cancelWhatsappRequestResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type cancelWhatsappRequestResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type cancelWhatsappRequestResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type cancelWhatsappRequestResponseSuccess = (cancelWhatsappRequestResponse200) & {
+  headers: Headers;
+};
+export type cancelWhatsappRequestResponseError = (cancelWhatsappRequestResponse400 | cancelWhatsappRequestResponse404 | cancelWhatsappRequestResponse500) & {
+  headers: Headers;
+};
+
+export type cancelWhatsappRequestResponse = (cancelWhatsappRequestResponseSuccess | cancelWhatsappRequestResponseError)
+
+export const getCancelWhatsappRequestUrl = () => {
+
+
+
+
+  return `/api/tenant/packages/whatsapp/cancel`
+}
+
+/**
+ * Путь не всегда доходит до денег: арендатор передумал, счёт выписан по ошибке, договорились иначе. Без этого действия открытая заявка держит арендатора навсегда — вторую он подать не может, а закрыть первую нечем.
+ *
+ * Причина обязательна: закрытая без объяснения заявка через месяц выглядит потерянной.
+ *
+ * Закрытая заявка не возвращается в поданную — подаётся новая. Иначе номер уже выставленного документа переиспользовался бы.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Администратором платформы отправить `{"reason": "выставлено по ошибке"}` — состояние `CANCELLED`.
+ * 2. Администратором арендатора подать заявку заново — она заводится, и это новая заявка со своим счётом.
+ * 3. Негативный 409: закрытие, когда открытой заявки нет.
+ * @summary Закрыть заявку без оплаты
+ */
+export const cancelWhatsappRequest = async (cancelServiceRequestRequest: CancelServiceRequestRequest, options?: RequestInit): Promise<cancelWhatsappRequestResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<cancelWhatsappRequestResponse>(getCancelWhatsappRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(cancelServiceRequestRequest)
+  }
+);}
+
+
+
+
+
+export const getCancelWhatsappRequestMutationKey = () => ['cancelWhatsappRequest'] as const;
+
+export const getCancelWhatsappRequestMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelWhatsappRequest>>, TError,CancelWhatsappRequestMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof cancelWhatsappRequest>>, TError,CancelWhatsappRequestMutationVariables, TContext> => {
+
+const mutationKey = getCancelWhatsappRequestMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelWhatsappRequest>>, CancelWhatsappRequestMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  cancelWhatsappRequest(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelWhatsappRequestMutationResult = NonNullable<Awaited<ReturnType<typeof cancelWhatsappRequest>>>
+    export type CancelWhatsappRequestMutationBody = CancelServiceRequestRequest
+    export type CancelWhatsappRequestMutationError = ErrorResponse
+    export type CancelWhatsappRequestMutationVariables = {data: CancelServiceRequestRequest}
+
+    /**
+ * @summary Закрыть заявку без оплаты
+ */
+export const useCancelWhatsappRequest = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelWhatsappRequest>>, TError,CancelWhatsappRequestMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancelWhatsappRequest>>,
+        TError,
+        CancelWhatsappRequestMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCancelWhatsappRequestMutationOptions(options), queryClient);
+    }
+
+export type listChannelsResponse200 = {
+  data: ChannelDto[]
+  status: 200
+}
+
+export type listChannelsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listChannelsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listChannelsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listChannelsResponseSuccess = (listChannelsResponse200) & {
+  headers: Headers;
+};
+export type listChannelsResponseError = (listChannelsResponse400 | listChannelsResponse404 | listChannelsResponse500) & {
+  headers: Headers;
+};
+
+export type listChannelsResponse = (listChannelsResponseSuccess | listChannelsResponseError)
+
+export const getListChannelsUrl = () => {
+
+
+
+
+  return `/api/tenant/channels`
+}
+
+/**
+ * Состояние каждого спрашивается у шлюза при чтении, а не хранится у нас: подключение живёт в чужой системе и рвётся без нашего участия — телефон выключили, WhatsApp разлогинили с другого устройства.
+ *
+ * Молчащий шлюз список не роняет: номер показывается с записанным состоянием. Арендатор должен видеть свои номера и тогда, когда мост лежит.
+ *
+ * Доступно только с оплаченным пакетом — иначе арендатор увидел бы подключённый номер, с которого ничего не доходит.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`) арендатора с оплаченным пакетом — придёт список номеров.
+ * 2. Негативный 404: тот же запрос у арендатора без пакета.
+ * @summary Подключённые номера
+ */
+export const listChannels = async ( options?: RequestInit): Promise<listChannelsResponse> => {
+
+  return apiRequest<listChannelsResponse>(getListChannelsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListChannelsQueryKey = () => {
+    return [
+    `/api/tenant/channels`
+    ] as const;
+    }
+
+
+export const getListChannelsQueryOptions = <TData = Awaited<ReturnType<typeof listChannels>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listChannels>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListChannelsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listChannels>>> = ({ signal }) => listChannels({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listChannels>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListChannelsQueryResult = NonNullable<Awaited<ReturnType<typeof listChannels>>>
+export type ListChannelsQueryError = ErrorResponse
+
+
+export function useListChannels<TData = Awaited<ReturnType<typeof listChannels>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listChannels>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listChannels>>,
+          TError,
+          Awaited<ReturnType<typeof listChannels>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListChannels<TData = Awaited<ReturnType<typeof listChannels>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listChannels>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listChannels>>,
+          TError,
+          Awaited<ReturnType<typeof listChannels>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListChannels<TData = Awaited<ReturnType<typeof listChannels>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listChannels>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Подключённые номера
+ */
+
+export function useListChannels<TData = Awaited<ReturnType<typeof listChannels>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listChannels>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListChannelsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type addChannelResponse200 = {
+  data: ChannelDto
+  status: 200
+}
+
+export type addChannelResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type addChannelResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type addChannelResponse409 = {
+  data: ChannelDto
+  status: 409
+}
+
+export type addChannelResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type addChannelResponseSuccess = (addChannelResponse200) & {
+  headers: Headers;
+};
+export type addChannelResponseError = (addChannelResponse400 | addChannelResponse404 | addChannelResponse409 | addChannelResponse500) & {
+  headers: Headers;
+};
+
+export type addChannelResponse = (addChannelResponseSuccess | addChannelResponseError)
+
+export const getAddChannelUrl = () => {
+
+
+
+
+  return `/api/tenant/channels`
+}
+
+/**
+ * Заводит номер и сразу поднимает его сессию в шлюзе: заведённый без сессии, он показывал бы QR, которого не существует.
+ *
+ * Дальше номер привязывают сканированием QR из WhatsApp на телефоне — адрес `getChannelQr`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отправить `{"phone": "77010000199", "displayName": "Отдел продаж"}` — придёт номер в состоянии `QR_REQUIRED`.
+ * 2. Негативный 409: тот же номер второй раз — два канала на один номер означали бы заявку, собранную дважды.
+ * 3. Негативный 400: номер с разделителями или короче десяти цифр.
+ * @summary Подключить номер
+ */
+export const addChannel = async (addChannelRequest: AddChannelRequest, options?: RequestInit): Promise<addChannelResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<addChannelResponse>(getAddChannelUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(addChannelRequest)
+  }
+);}
+
+
+
+
+
+export const getAddChannelMutationKey = () => ['addChannel'] as const;
+
+export const getAddChannelMutationOptions = <TError = ErrorResponse | ChannelDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addChannel>>, TError,AddChannelMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof addChannel>>, TError,AddChannelMutationVariables, TContext> => {
+
+const mutationKey = getAddChannelMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addChannel>>, AddChannelMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  addChannel(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddChannelMutationResult = NonNullable<Awaited<ReturnType<typeof addChannel>>>
+    export type AddChannelMutationBody = AddChannelRequest
+    export type AddChannelMutationError = ErrorResponse | ChannelDto
+    export type AddChannelMutationVariables = {data: AddChannelRequest}
+
+    /**
+ * @summary Подключить номер
+ */
+export const useAddChannel = <TError = ErrorResponse | ChannelDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addChannel>>, TError,AddChannelMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addChannel>>,
+        TError,
+        AddChannelMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddChannelMutationOptions(options), queryClient);
     }
 
 export type getBusinessDaysResponse200 = {
@@ -7448,6 +10157,128 @@ export const useSubmitPortalReview = <TError = ErrorResponse,
       return useMutation(getSubmitPortalReviewMutationOptions(options), queryClient);
     }
 
+export type deletePortalReviewResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deletePortalReviewResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePortalReviewResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type deletePortalReviewResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePortalReviewResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePortalReviewResponseSuccess = (deletePortalReviewResponse204) & {
+  headers: Headers;
+};
+export type deletePortalReviewResponseError = (deletePortalReviewResponse400 | deletePortalReviewResponse403 | deletePortalReviewResponse404 | deletePortalReviewResponse500) & {
+  headers: Headers;
+};
+
+export type deletePortalReviewResponse = (deletePortalReviewResponseSuccess | deletePortalReviewResponseError)
+
+export const getDeletePortalReviewUrl = (itemId: string,) => {
+
+
+
+
+  return `/api/portal/items/${itemId}/reviews`
+}
+
+/**
+ * Убирает отзыв клиента о позиции. Адресуется позицией, а не идентификатором отзыва: отзыв клиента о позиции всегда один, и удаление стоит по тому же адресу, что и отправка.
+ *
+ * Позиция после этого снова считается неоценённой: забравший своё мнение человек остаётся тем, кто купил и не оценил.
+ *
+ * Отзыв, написанный заново после удаления, занимает ту же строку — оценка повторной отправкой не накручивается.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Оставить отзыв о купленной позиции, одобрить его в рабочем месте поставщика — на карточке появилась оценка.
+ * 2. Удалить — 204; оценки и числа отзывов на карточке снова нет, в отзывах позиции пусто.
+ * 3. Повторить удаление — 404 `PORTAL_REVIEW_NOT_FOUND`.
+ * 4. Написать отзыв заново — 201, идентификатор тот же, что был до удаления, состояние `PENDING`.
+ * 5. Негативный 404: удалить отзыв входом другого клиента того же поставщика.
+ * 6. Негативный 403: заголовок поставщика, у которого клиента нет.
+ * @summary Удалить свой отзыв
+ */
+export const deletePortalReview = async (itemId: string, options?: RequestInit): Promise<deletePortalReviewResponse> => {
+
+  return apiRequest<deletePortalReviewResponse>(getDeletePortalReviewUrl(itemId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePortalReviewMutationKey = () => ['deletePortalReview'] as const;
+
+export const getDeletePortalReviewMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalReview>>, TError,DeletePortalReviewMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof deletePortalReview>>, TError,DeletePortalReviewMutationVariables, TContext> => {
+
+const mutationKey = getDeletePortalReviewMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePortalReview>>, DeletePortalReviewMutationVariables> = (props) => {
+          const {itemId} = props ?? {};
+
+          return  deletePortalReview(itemId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePortalReviewMutationResult = NonNullable<Awaited<ReturnType<typeof deletePortalReview>>>
+
+    export type DeletePortalReviewMutationError = ErrorResponse
+    export type DeletePortalReviewMutationVariables = {itemId: string}
+
+    /**
+ * @summary Удалить свой отзыв
+ */
+export const useDeletePortalReview = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalReview>>, TError,DeletePortalReviewMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePortalReview>>,
+        TError,
+        DeletePortalReviewMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePortalReviewMutationOptions(options), queryClient);
+    }
+
 export type activatePortalInvitationResponse200 = {
   data: AccountDto
   status: 200
@@ -8054,6 +10885,875 @@ export const useRepeatLastPortalOrder = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getRepeatLastPortalOrderMutationOptions(options), queryClient);
+    }
+
+export type reopenOrderResponse200 = {
+  data: CustomerOrderDto
+  status: 200
+}
+
+export type reopenOrderResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type reopenOrderResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type reopenOrderResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type reopenOrderResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type reopenOrderResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type reopenOrderResponseSuccess = (reopenOrderResponse200) & {
+  headers: Headers;
+};
+export type reopenOrderResponseError = (reopenOrderResponse400 | reopenOrderResponse403 | reopenOrderResponse404 | reopenOrderResponse409 | reopenOrderResponse500) & {
+  headers: Headers;
+};
+
+export type reopenOrderResponse = (reopenOrderResponseSuccess | reopenOrderResponseError)
+
+export const getReopenOrderUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}/reopen`
+}
+
+/**
+ * Клиент передумал: заказ отменяется с причиной, согласие аннулируется, заявка возвращается менеджеру и снова правится. Явное действие вместо тихой правки принятого — иначе от решения не остаётся следа.
+ *
+ * Оплаченный или собранный заказ так не разворачивается: деньги пришли, товар снят с полки, и договариваться придётся с людьми.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Менеджером развернуть свежий заказ с причиной — 200, заявка снова `READY_FOR_CHECK` и правится.
+ * 2. Негативный 409: развернуть оплаченный заказ.
+ * 3. Негативный 400: пустая причина.
+ * @summary Развернуть заказ
+ */
+export const reopenOrder = async (id: string,
+    reopenOrderRequest: ReopenOrderRequest, options?: RequestInit): Promise<reopenOrderResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<reopenOrderResponse>(getReopenOrderUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reopenOrderRequest)
+  }
+);}
+
+
+
+
+
+export const getReopenOrderMutationKey = () => ['reopenOrder'] as const;
+
+export const getReopenOrderMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenOrder>>, TError,ReopenOrderMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof reopenOrder>>, TError,ReopenOrderMutationVariables, TContext> => {
+
+const mutationKey = getReopenOrderMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reopenOrder>>, ReopenOrderMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reopenOrder(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReopenOrderMutationResult = NonNullable<Awaited<ReturnType<typeof reopenOrder>>>
+    export type ReopenOrderMutationBody = ReopenOrderRequest
+    export type ReopenOrderMutationError = ErrorResponse
+    export type ReopenOrderMutationVariables = {id: string;data: ReopenOrderRequest}
+
+    /**
+ * @summary Развернуть заказ
+ */
+export const useReopenOrder = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reopenOrder>>, TError,ReopenOrderMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reopenOrder>>,
+        TError,
+        ReopenOrderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReopenOrderMutationOptions(options), queryClient);
+    }
+
+export type markOrderPickedResponse200 = {
+  data: CustomerOrderDto
+  status: 200
+}
+
+export type markOrderPickedResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type markOrderPickedResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type markOrderPickedResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type markOrderPickedResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type markOrderPickedResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type markOrderPickedResponseSuccess = (markOrderPickedResponse200) & {
+  headers: Headers;
+};
+export type markOrderPickedResponseError = (markOrderPickedResponse400 | markOrderPickedResponse403 | markOrderPickedResponse404 | markOrderPickedResponse409 | markOrderPickedResponse500) & {
+  headers: Headers;
+};
+
+export type markOrderPickedResponse = (markOrderPickedResponseSuccess | markOrderPickedResponseError)
+
+export const getMarkOrderPickedUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}/picked`
+}
+
+/**
+ * Ставит склад со своего экрана.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти кладовщиком (`77010000103`), отметить сборку — 200.
+ * 2. Заказ ушёл из `AWAITING_PICKING` и появился в `AWAITING_ISSUE`.
+ * 3. Негативный 403: то же под бухгалтером (`77010000104`).
+ * @summary Заказ собран
+ */
+export const markOrderPicked = async (id: string, options?: RequestInit): Promise<markOrderPickedResponse> => {
+
+  return apiRequest<markOrderPickedResponse>(getMarkOrderPickedUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkOrderPickedMutationKey = () => ['markOrderPicked'] as const;
+
+export const getMarkOrderPickedMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOrderPicked>>, TError,MarkOrderPickedMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof markOrderPicked>>, TError,MarkOrderPickedMutationVariables, TContext> => {
+
+const mutationKey = getMarkOrderPickedMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markOrderPicked>>, MarkOrderPickedMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  markOrderPicked(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkOrderPickedMutationResult = NonNullable<Awaited<ReturnType<typeof markOrderPicked>>>
+
+    export type MarkOrderPickedMutationError = ErrorResponse
+    export type MarkOrderPickedMutationVariables = {id: string}
+
+    /**
+ * @summary Заказ собран
+ */
+export const useMarkOrderPicked = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOrderPicked>>, TError,MarkOrderPickedMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markOrderPicked>>,
+        TError,
+        MarkOrderPickedMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkOrderPickedMutationOptions(options), queryClient);
+    }
+
+export type markOrderPaidResponse200 = {
+  data: CustomerOrderDto
+  status: 200
+}
+
+export type markOrderPaidResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type markOrderPaidResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type markOrderPaidResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type markOrderPaidResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type markOrderPaidResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type markOrderPaidResponseSuccess = (markOrderPaidResponse200) & {
+  headers: Headers;
+};
+export type markOrderPaidResponseError = (markOrderPaidResponse400 | markOrderPaidResponse403 | markOrderPaidResponse404 | markOrderPaidResponse409 | markOrderPaidResponse500) & {
+  headers: Headers;
+};
+
+export type markOrderPaidResponse = (markOrderPaidResponseSuccess | markOrderPaidResponseError)
+
+export const getMarkOrderPaidUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}/payment`
+}
+
+/**
+ * Счёт для этого не обязателен: деньги приходят и по договору, и наличными. Требование счёта заставило бы бухгалтера выставлять его задним числом ради кнопки.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Бухгалтером отметить оплату по заказу без счёта — 200.
+ * 2. Негативный 409: отметить второй раз.
+ * 3. Негативный 403: то же под менеджером (`77010000102`).
+ * @summary Оплата получена
+ */
+export const markOrderPaid = async (id: string, options?: RequestInit): Promise<markOrderPaidResponse> => {
+
+  return apiRequest<markOrderPaidResponse>(getMarkOrderPaidUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkOrderPaidMutationKey = () => ['markOrderPaid'] as const;
+
+export const getMarkOrderPaidMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOrderPaid>>, TError,MarkOrderPaidMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof markOrderPaid>>, TError,MarkOrderPaidMutationVariables, TContext> => {
+
+const mutationKey = getMarkOrderPaidMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markOrderPaid>>, MarkOrderPaidMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  markOrderPaid(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkOrderPaidMutationResult = NonNullable<Awaited<ReturnType<typeof markOrderPaid>>>
+
+    export type MarkOrderPaidMutationError = ErrorResponse
+    export type MarkOrderPaidMutationVariables = {id: string}
+
+    /**
+ * @summary Оплата получена
+ */
+export const useMarkOrderPaid = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOrderPaid>>, TError,MarkOrderPaidMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markOrderPaid>>,
+        TError,
+        MarkOrderPaidMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkOrderPaidMutationOptions(options), queryClient);
+    }
+
+export type markOrderIssuedResponse200 = {
+  data: CustomerOrderDto
+  status: 200
+}
+
+export type markOrderIssuedResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type markOrderIssuedResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type markOrderIssuedResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type markOrderIssuedResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type markOrderIssuedResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type markOrderIssuedResponseSuccess = (markOrderIssuedResponse200) & {
+  headers: Headers;
+};
+export type markOrderIssuedResponseError = (markOrderIssuedResponse400 | markOrderIssuedResponse403 | markOrderIssuedResponse404 | markOrderIssuedResponse409 | markOrderIssuedResponse500) & {
+  headers: Headers;
+};
+
+export type markOrderIssuedResponse = (markOrderIssuedResponseSuccess | markOrderIssuedResponseError)
+
+export const getMarkOrderIssuedUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}/issued`
+}
+
+/**
+ * Выдать несобранное нельзя: отказ, а не молчаливая отметка.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Кладовщиком отметить выдачу собранного заказа — 200.
+ * 2. Негативный 409: отметить выдачу несобранного — выдавать нечего.
+ * 3. Негативный 403: то же под менеджером.
+ * @summary Заказ выдан клиенту
+ */
+export const markOrderIssued = async (id: string, options?: RequestInit): Promise<markOrderIssuedResponse> => {
+
+  return apiRequest<markOrderIssuedResponse>(getMarkOrderIssuedUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkOrderIssuedMutationKey = () => ['markOrderIssued'] as const;
+
+export const getMarkOrderIssuedMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOrderIssued>>, TError,MarkOrderIssuedMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof markOrderIssued>>, TError,MarkOrderIssuedMutationVariables, TContext> => {
+
+const mutationKey = getMarkOrderIssuedMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markOrderIssued>>, MarkOrderIssuedMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  markOrderIssued(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkOrderIssuedMutationResult = NonNullable<Awaited<ReturnType<typeof markOrderIssued>>>
+
+    export type MarkOrderIssuedMutationError = ErrorResponse
+    export type MarkOrderIssuedMutationVariables = {id: string}
+
+    /**
+ * @summary Заказ выдан клиенту
+ */
+export const useMarkOrderIssued = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOrderIssued>>, TError,MarkOrderIssuedMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markOrderIssued>>,
+        TError,
+        MarkOrderIssuedMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkOrderIssuedMutationOptions(options), queryClient);
+    }
+
+export type getInvoiceResponse200 = {
+  data: InvoiceDto
+  status: 200
+}
+
+export type getInvoiceResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getInvoiceResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getInvoiceResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getInvoiceResponseSuccess = (getInvoiceResponse200) & {
+  headers: Headers;
+};
+export type getInvoiceResponseError = (getInvoiceResponse400 | getInvoiceResponse404 | getInvoiceResponse500) & {
+  headers: Headers;
+};
+
+export type getInvoiceResponse = (getInvoiceResponseSuccess | getInvoiceResponseError)
+
+export const getGetInvoiceUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}/invoice`
+}
+
+/**
+ * Реквизиты в счёте — снимок того дня, когда его выписали. Арендатор сменит банк, а выданный клиенту счёт останется тем же документом.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Выписать счёт и открыть его — номер тот же, что у заказа, состав тот же, сумма прописью совпадает с цифрами.
+ * 2. Поменять банк арендатора в реквизитах продавца и открыть счёт снова — банк в счёте прежний. Изменившийся означал бы, что клиент оплатил не туда.
+ * 3. Негативный 404: счёт по заказу ещё не выписан.
+ * @summary Выписанный счёт
+ */
+export const getInvoice = async (id: string, options?: RequestInit): Promise<getInvoiceResponse> => {
+
+  return apiRequest<getInvoiceResponse>(getGetInvoiceUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInvoiceQueryKey = (id: string,) => {
+    return [
+    `/api/orders/${id}/invoice`
+    ] as const;
+    }
+
+
+export const getGetInvoiceQueryOptions = <TData = Awaited<ReturnType<typeof getInvoice>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInvoice>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInvoiceQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInvoice>>> = ({ signal }) => getInvoice(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInvoice>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetInvoiceQueryResult = NonNullable<Awaited<ReturnType<typeof getInvoice>>>
+export type GetInvoiceQueryError = ErrorResponse
+
+
+export function useGetInvoice<TData = Awaited<ReturnType<typeof getInvoice>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInvoice>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInvoice>>,
+          TError,
+          Awaited<ReturnType<typeof getInvoice>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetInvoice<TData = Awaited<ReturnType<typeof getInvoice>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInvoice>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInvoice>>,
+          TError,
+          Awaited<ReturnType<typeof getInvoice>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetInvoice<TData = Awaited<ReturnType<typeof getInvoice>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInvoice>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Выписанный счёт
+ */
+
+export function useGetInvoice<TData = Awaited<ReturnType<typeof getInvoice>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getInvoice>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetInvoiceQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type markOrderInvoicedResponse200 = {
+  data: InvoiceDto
+  status: 200
+}
+
+export type markOrderInvoicedResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type markOrderInvoicedResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type markOrderInvoicedResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type markOrderInvoicedResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type markOrderInvoicedResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type markOrderInvoicedResponseSuccess = (markOrderInvoicedResponse200) & {
+  headers: Headers;
+};
+export type markOrderInvoicedResponseError = (markOrderInvoicedResponse400 | markOrderInvoicedResponse403 | markOrderInvoicedResponse404 | markOrderInvoicedResponse409 | markOrderInvoicedResponse500) & {
+  headers: Headers;
+};
+
+export type markOrderInvoicedResponse = (markOrderInvoicedResponseSuccess | markOrderInvoicedResponseError)
+
+export const getMarkOrderInvoicedUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}/invoice`
+}
+
+/**
+ * Собирает счёт по заказу и отмечает его выставленным. Реквизиты запоминаются на этот момент.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти бухгалтером (`77010000104`), отметить счёт — 200, заказ ушёл из `AWAITING_INVOICE`.
+ * 2. Негативный 409: отметить второй раз — отметка уже стоит.
+ * 3. Негативный 403: то же под кладовщиком (`77010000103`).
+ * @summary Счёт выставлен
+ */
+export const markOrderInvoiced = async (id: string, options?: RequestInit): Promise<markOrderInvoicedResponse> => {
+
+  return apiRequest<markOrderInvoicedResponse>(getMarkOrderInvoicedUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkOrderInvoicedMutationKey = () => ['markOrderInvoiced'] as const;
+
+export const getMarkOrderInvoicedMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOrderInvoiced>>, TError,MarkOrderInvoicedMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof markOrderInvoiced>>, TError,MarkOrderInvoicedMutationVariables, TContext> => {
+
+const mutationKey = getMarkOrderInvoicedMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markOrderInvoiced>>, MarkOrderInvoicedMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  markOrderInvoiced(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkOrderInvoicedMutationResult = NonNullable<Awaited<ReturnType<typeof markOrderInvoiced>>>
+
+    export type MarkOrderInvoicedMutationError = ErrorResponse
+    export type MarkOrderInvoicedMutationVariables = {id: string}
+
+    /**
+ * @summary Счёт выставлен
+ */
+export const useMarkOrderInvoiced = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markOrderInvoiced>>, TError,MarkOrderInvoicedMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markOrderInvoiced>>,
+        TError,
+        MarkOrderInvoicedMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMarkOrderInvoicedMutationOptions(options), queryClient);
+    }
+
+export type sendInvoiceResponse200 = {
+  data: InvoiceDto
+  status: 200
+}
+
+export type sendInvoiceResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type sendInvoiceResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type sendInvoiceResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type sendInvoiceResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type sendInvoiceResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type sendInvoiceResponseSuccess = (sendInvoiceResponse200) & {
+  headers: Headers;
+};
+export type sendInvoiceResponseError = (sendInvoiceResponse400 | sendInvoiceResponse403 | sendInvoiceResponse404 | sendInvoiceResponse409 | sendInvoiceResponse500) & {
+  headers: Headers;
+};
+
+export type sendInvoiceResponse = (sendInvoiceResponseSuccess | sendInvoiceResponseError)
+
+export const getSendInvoiceUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}/invoice/send`
+}
+
+/**
+ * Уходит в переписку файлом с короткой подписью. Действие человека, а не следствие выписки: счёт готовят и когда клиент приедет за товаром сам.
+ *
+ * Отправляется ровно тот файл, который выписан: он кладётся в сообщение, а не собирается при доставке.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Выписать счёт по заказу из переписки и нажать отправку — 200, в очереди исходящих появилось сообщение с вложением.
+ * 2. Дождаться прохода моста — клиент получил файл в WhatsApp.
+ * 3. Негативный 409: заказ из кабинета — переписки у него нет, отправлять некуда.
+ * 4. Негативный 404: счёт ещё не выписан.
+ * @summary Отправить счёт клиенту
+ */
+export const sendInvoice = async (id: string, options?: RequestInit): Promise<sendInvoiceResponse> => {
+
+  return apiRequest<sendInvoiceResponse>(getSendInvoiceUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSendInvoiceMutationKey = () => ['sendInvoice'] as const;
+
+export const getSendInvoiceMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendInvoice>>, TError,SendInvoiceMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof sendInvoice>>, TError,SendInvoiceMutationVariables, TContext> => {
+
+const mutationKey = getSendInvoiceMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendInvoice>>, SendInvoiceMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  sendInvoice(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendInvoiceMutationResult = NonNullable<Awaited<ReturnType<typeof sendInvoice>>>
+
+    export type SendInvoiceMutationError = ErrorResponse
+    export type SendInvoiceMutationVariables = {id: string}
+
+    /**
+ * @summary Отправить счёт клиенту
+ */
+export const useSendInvoice = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendInvoice>>, TError,SendInvoiceMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendInvoice>>,
+        TError,
+        SendInvoiceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendInvoiceMutationOptions(options), queryClient);
     }
 
 export type markNotificationReadResponse200 = {
@@ -10967,10 +14667,15 @@ export type issuePortalInvitationResponse500 = {
   status: 500
 }
 
+export type issuePortalInvitationResponse503 = {
+  data: ErrorResponse
+  status: 503
+}
+
 export type issuePortalInvitationResponseSuccess = (issuePortalInvitationResponse201) & {
   headers: Headers;
 };
-export type issuePortalInvitationResponseError = (issuePortalInvitationResponse400 | issuePortalInvitationResponse403 | issuePortalInvitationResponse404 | issuePortalInvitationResponse500) & {
+export type issuePortalInvitationResponseError = (issuePortalInvitationResponse400 | issuePortalInvitationResponse403 | issuePortalInvitationResponse404 | issuePortalInvitationResponse500 | issuePortalInvitationResponse503) & {
   headers: Headers;
 };
 
@@ -10985,18 +14690,19 @@ export const getIssuePortalInvitationUrl = () => {
 }
 
 /**
- * Возвращает ссылку активации — **один раз**: в базе лежит отпечаток кода, и повторно ссылку не показать. Передаёт её человек: своего отправителя писем платформа не заводит, а написать клиенту первым в переписку не вправе.
+ * Заводит клиенту учётную запись в realm клиентов и отправляет ссылку активации письмом на введённый адрес — самой ссылки в ответе больше нет: администратору незачем видеть секрет, который уже ушёл получателю. Ответ говорит только, куда письмо отправлено и доставилось ли оно.
  *
- * Клиент ищется по телефону и заводится, если его ещё нет: заявки из переписки и заявки из кабинета обязаны сходиться на одном человеке. Повторное приглашение того же клиента гасит прежний код и выдаёт новый.
+ * Клиент ищется по телефону и заводится, если его ещё нет: заявки из переписки и заявки из кабинета обязаны сходиться на одном человеке. Повторное приглашение того же клиента гасит прежний код, выдаёт новый и пересылает письмо заново — это и есть способ вернуть доступ клиенту, забывшему пароль или не получившему письмо с первого раза. Учётной записи, уже заведённой другим поставщиком, новый пароль не выдаётся: она работает в его кабинете, и сброс пароля выкинул бы её оттуда.
  *
  * **Как проверить вручную**
  *
- * 1. Войти администратором (`77010000101`), пригласить телефон `77010000001`.
- * 2. В ответе ссылка вида `.../activate?code=…` и срок. Скопировать код: второй раз его не покажут.
+ * 1. Войти администратором (`77010000101`), пригласить телефон `77010000001` с почтой.
+ * 2. В ответе адрес почты, срок действия и признак доставки — ссылки и кода в нём нет.
  * 3. Запросить учётные записи — появилась запись со статусом `INVITED`: приглашение выписано, но доступа ещё нет.
- * 4. Пригласить тот же телефон снова — ссылка другая, запись та же. Вторая запись означала бы вторую историю заявок.
+ * 4. Пригласить тот же телефон снова — запись та же, письмо ушло повторно. Вторая запись означала бы вторую историю заявок.
  * 5. Негативный 400: телефон с плюсом и пробелами — телефон записывается цифрами.
  * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * 7. Негативный 503: управление учётными записями клиентов не настроено.
  * @summary Пригласить клиента в кабинет
  */
 export const issuePortalInvitation = async (issueInvitationRequest: IssueInvitationRequest, options?: RequestInit): Promise<issuePortalInvitationResponse> => {
@@ -11194,6 +14900,11 @@ export type revokePortalInvitationResponse400 = {
   status: 400
 }
 
+export type revokePortalInvitationResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
 export type revokePortalInvitationResponse404 = {
   data: ErrorResponse
   status: 404
@@ -11207,7 +14918,7 @@ export type revokePortalInvitationResponse500 = {
 export type revokePortalInvitationResponseSuccess = (revokePortalInvitationResponse200) & {
   headers: Headers;
 };
-export type revokePortalInvitationResponseError = (revokePortalInvitationResponse400 | revokePortalInvitationResponse404 | revokePortalInvitationResponse500) & {
+export type revokePortalInvitationResponseError = (revokePortalInvitationResponse400 | revokePortalInvitationResponse403 | revokePortalInvitationResponse404 | revokePortalInvitationResponse500) & {
   headers: Headers;
 };
 
@@ -11230,11 +14941,12 @@ export const getRevokePortalInvitationUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Выписать приглашение, скопировать ссылку.
+ * 1. Выписать приглашение — ссылка и код уходят клиенту письмом, в ответе на выписку их нет.
  * 2. Вызвать этот метод для той же учётной записи — 200.
- * 3. Попробовать активировать по скопированной ссылке — отказ: приглашение недействительно.
+ * 3. Попробовать активировать по коду из письма — отказ: приглашение недействительно.
  * 4. Проверить журнал доступа: там `PORTAL_INVITATION_REVOKED` с вашим именем.
  * 5. Негативный 404: случайный идентификатор в пути.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Отозвать приглашение
  */
 export const revokePortalInvitation = async (id: string, options?: RequestInit): Promise<revokePortalInvitationResponse> => {
@@ -11418,7 +15130,7 @@ export const useBlockPortalAccount = <TError = ErrorResponse,
     }
 
 export type getCatalogItemsResponse200 = {
-  data: PageResponseCatalogItemDto
+  data: PageResponseCatalogItemRowDto
   status: 200
 }
 
@@ -11472,6 +15184,10 @@ export const getGetCatalogItemsUrl = (params?: GetCatalogItemsParams,) => {
  * 4. Вызвать с пустым `query` и `size=1` — в ответе одна позиция, а общее число равно всему каталогу.
  * 5. Завести категорию, поставить её позиции и вызвать с `categoryId` — в ответе только позиции этой категории; без параметра список прежний.
  * 6. Негативный: тот же запрос без токена — 401.
+ *
+ * Строка несёт обложку, число кадров и перечень того, чего позиции не хватает для витрины: без этого поставщик не видит, у каких позиций карточка в кабинете пустая. Описания и свойств в строке нет — их отдаёт карточка.
+ *
+ * `incompleteOnly` оставляет только позиции, которым чего-то не хватает для витрины: без цены, без снимка, без описания либо без рубрики. Отбирает сервер — отбор по уже полученной странице врал бы о числе найденного.
  * @summary Страница позиций каталога
  */
 export const getCatalogItems = async (params?: GetCatalogItemsParams, options?: RequestInit): Promise<getCatalogItemsResponse> => {
@@ -12913,6 +16629,566 @@ export const useAcceptCatalogExchange = <TError = ErrorResponse | void,
       return useMutation(getAcceptCatalogExchangeMutationOptions(options), queryClient);
     }
 
+export type listPlatformTenantsResponse200 = {
+  data: PlatformTenantDto[]
+  status: 200
+}
+
+export type listPlatformTenantsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPlatformTenantsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPlatformTenantsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPlatformTenantsResponseSuccess = (listPlatformTenantsResponse200) & {
+  headers: Headers;
+};
+export type listPlatformTenantsResponseError = (listPlatformTenantsResponse400 | listPlatformTenantsResponse404 | listPlatformTenantsResponse500) & {
+  headers: Headers;
+};
+
+export type listPlatformTenantsResponse = (listPlatformTenantsResponseSuccess | listPlatformTenantsResponseError)
+
+export const getListPlatformTenantsUrl = () => {
+
+
+
+
+  return `/api/tenant/platform/tenants`
+}
+
+/**
+ * Список, по которому платформа выбирает, с кем работать. Дальше выбранный арендатор передаётся заголовком `X-FO-Tenant`, и все остальные адреса ведут себя так, будто запрос пришёл от него.
+ *
+ * Единственное чтение, намеренно обходящее изоляцию: платформа стоит над арендаторами, и список из одного ей бесполезен. Обход ограничен четырьмя полями — имя, БИН, состояние и признак пакета: список нужен, чтобы найти нужного, а не читать чужие дела.
+ *
+ * Заголовок значит что-либо только у этой роли. У остальных он молча не читается — не отвергается: чужой заголовок не должен ни давать чужих данных, ни ломать работу того, кто ни в чём не виноват.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти сотрудником платформы (`superadmin` в realm `fastorders-platform`), вызвать метод — придут все арендаторы с признаком подключённого пакета.
+ * 2. Вызвать `getWhatsappPackage` с заголовком `X-FO-Tenant` чужого арендатора — придёт его состояние, а не своё.
+ * 3. Негативный 400: тот же заголовок со значением «abc».
+ * 4. Негативный 403: список под администратором арендатора.
+ * @summary Арендаторы платформы
+ */
+export const listPlatformTenants = async ( options?: RequestInit): Promise<listPlatformTenantsResponse> => {
+
+  return apiRequest<listPlatformTenantsResponse>(getListPlatformTenantsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformTenantsQueryKey = () => {
+    return [
+    `/api/tenant/platform/tenants`
+    ] as const;
+    }
+
+
+export const getListPlatformTenantsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformTenantsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformTenants>>> = ({ signal }) => listPlatformTenants({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPlatformTenantsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformTenants>>>
+export type ListPlatformTenantsQueryError = ErrorResponse
+
+
+export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenants>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenants>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenants>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenants>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Арендаторы платформы
+ */
+
+export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPlatformTenantsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type listPlatformServiceRequestsResponse200 = {
+  data: PlatformServiceRequestDto[]
+  status: 200
+}
+
+export type listPlatformServiceRequestsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPlatformServiceRequestsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPlatformServiceRequestsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPlatformServiceRequestsResponseSuccess = (listPlatformServiceRequestsResponse200) & {
+  headers: Headers;
+};
+export type listPlatformServiceRequestsResponseError = (listPlatformServiceRequestsResponse400 | listPlatformServiceRequestsResponse404 | listPlatformServiceRequestsResponse500) & {
+  headers: Headers;
+};
+
+export type listPlatformServiceRequestsResponse = (listPlatformServiceRequestsResponseSuccess | listPlatformServiceRequestsResponseError)
+
+export const getListPlatformServiceRequestsUrl = () => {
+
+
+
+
+  return `/api/tenant/platform/service-requests`
+}
+
+/**
+ * Заявки всех арендаторов одним списком. Наверху те, что ждут хода платформы: поданная заявка (назвать цену) и выставленный счёт (проверить поступление). Ниже — оплаченные и закрытые, между собой по времени подачи.
+ *
+ * Действия над заявкой живут по адресам пакета и требуют заголовка `X-FO-Tenant`: сам список отвечает на вопрос «с кем работать», а работа идёт уже в кабинете названного арендатора.
+ *
+ * Второе чтение, намеренно обходящее изоляцию, — по той же причине, что и список арендаторов: заявки одного арендатора не отвечают на вопрос платформы. Обход ограничен полями строки списка: реквизитов продавца и того, кто подал заявку, здесь нет.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти сотрудником платформы (`superadmin` в realm `fastorders-platform`), вызвать метод — придут заявки всех арендаторов, поданные и со счётом сверху.
+ * 2. Подать заявку вторым арендатором — она встанет в начало списка.
+ * 3. Выставить по ней счёт и снова открыть список: номер счёта и сумма на месте, строка осталась выше оплаченных.
+ * 4. Негативный 403: тот же запрос администратором арендатора.
+ * @summary Заявки на пакеты
+ */
+export const listPlatformServiceRequests = async ( options?: RequestInit): Promise<listPlatformServiceRequestsResponse> => {
+
+  return apiRequest<listPlatformServiceRequestsResponse>(getListPlatformServiceRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformServiceRequestsQueryKey = () => {
+    return [
+    `/api/tenant/platform/service-requests`
+    ] as const;
+    }
+
+
+export const getListPlatformServiceRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformServiceRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformServiceRequests>>> = ({ signal }) => listPlatformServiceRequests({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPlatformServiceRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformServiceRequests>>>
+export type ListPlatformServiceRequestsQueryError = ErrorResponse
+
+
+export function useListPlatformServiceRequests<TData = Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformServiceRequests>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformServiceRequests>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformServiceRequests<TData = Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformServiceRequests>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformServiceRequests>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformServiceRequests<TData = Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Заявки на пакеты
+ */
+
+export function useListPlatformServiceRequests<TData = Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformServiceRequests>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPlatformServiceRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getChannelQrResponse200 = {
+  data: Blob
+  status: 200
+}
+
+export type getChannelQrResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getChannelQrResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getChannelQrResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getChannelQrResponseSuccess = (getChannelQrResponse200) & {
+  headers: Headers;
+};
+export type getChannelQrResponseError = (getChannelQrResponse400 | getChannelQrResponse404 | getChannelQrResponse500) & {
+  headers: Headers;
+};
+
+export type getChannelQrResponse = (getChannelQrResponseSuccess | getChannelQrResponseError)
+
+export const getGetChannelQrUrl = (channelId: string,) => {
+
+
+
+
+  return `/api/tenant/channels/${channelId}/qr`
+}
+
+/**
+ * Картинка приходит байтами через нас, а не адресом шлюза: ключ ко всем сессиям всех арендаторов не должен уезжать на страницу.
+ *
+ * QR живёт недолго и обновляется шлюзом: страница перезапрашивает его, пока состояние номера не станет `CONNECTED`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Открыть адрес в браузере — придёт картинка QR.
+ * 2. Отсканировать её в WhatsApp: «Связанные устройства» → «Привязка устройства». Через несколько секунд `listChannels` показывает `CONNECTED`.
+ * @summary QR для привязки номера
+ */
+export const getChannelQr = async (channelId: string, options?: RequestInit): Promise<getChannelQrResponse> => {
+
+  return apiRequest<getChannelQrResponse>(getGetChannelQrUrl(channelId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetChannelQrQueryKey = (channelId: string,) => {
+    return [
+    `/api/tenant/channels/${channelId}/qr`
+    ] as const;
+    }
+
+
+export const getGetChannelQrQueryOptions = <TData = Awaited<ReturnType<typeof getChannelQr>>, TError = ErrorResponse>(channelId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getChannelQr>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetChannelQrQueryKey(channelId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getChannelQr>>> = ({ signal }) => getChannelQr(channelId, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: channelId !== null && channelId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getChannelQr>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetChannelQrQueryResult = NonNullable<Awaited<ReturnType<typeof getChannelQr>>>
+export type GetChannelQrQueryError = ErrorResponse
+
+
+export function useGetChannelQr<TData = Awaited<ReturnType<typeof getChannelQr>>, TError = ErrorResponse>(
+ channelId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getChannelQr>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getChannelQr>>,
+          TError,
+          Awaited<ReturnType<typeof getChannelQr>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetChannelQr<TData = Awaited<ReturnType<typeof getChannelQr>>, TError = ErrorResponse>(
+ channelId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getChannelQr>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getChannelQr>>,
+          TError,
+          Awaited<ReturnType<typeof getChannelQr>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetChannelQr<TData = Awaited<ReturnType<typeof getChannelQr>>, TError = ErrorResponse>(
+ channelId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getChannelQr>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary QR для привязки номера
+ */
+
+export function useGetChannelQr<TData = Awaited<ReturnType<typeof getChannelQr>>, TError = ErrorResponse>(
+ channelId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getChannelQr>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetChannelQrQueryOptions(channelId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getTenantCapabilitiesResponse200 = {
+  data: TenantCapabilitiesDto
+  status: 200
+}
+
+export type getTenantCapabilitiesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getTenantCapabilitiesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getTenantCapabilitiesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getTenantCapabilitiesResponseSuccess = (getTenantCapabilitiesResponse200) & {
+  headers: Headers;
+};
+export type getTenantCapabilitiesResponseError = (getTenantCapabilitiesResponse400 | getTenantCapabilitiesResponse404 | getTenantCapabilitiesResponse500) & {
+  headers: Headers;
+};
+
+export type getTenantCapabilitiesResponse = (getTenantCapabilitiesResponseSuccess | getTenantCapabilitiesResponseError)
+
+export const getGetTenantCapabilitiesUrl = () => {
+
+
+
+
+  return `/api/tenant/capabilities`
+}
+
+/**
+ * Отвечает на вопрос «что здесь бывает», а не «за что заплачено». Доступен любому сотруднику арендатора: отбор по каналу, вкладки и колонки очереди зависят от того, приходят ли сюда заявки из переписки, и менеджер, не знающий этого, ищет их отбором, который ничего не находит. Тем же ответом приходит и то, как кабинет показывает клиенту наличие: рабочему месту это нужно, чтобы предпросмотр карточки товара показывал то же, что увидит клиент, а не то, что знает продавец.
+ *
+ * Состояние платного пакета — другой адрес и другие права: `getWhatsappPackage`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти менеджером (`77010000102`), вызвать метод — у нового арендатора придёт `messengerIntake: false`. Открыть очередь: отбора по каналу и колонки канала нет.
+ * 2. Подключить пакет администратором платформы (`setWhatsappPackage`) и повторить — придёт `true`, отбор и колонка вернулись.
+ * @summary Возможности арендатора
+ */
+export const getTenantCapabilities = async ( options?: RequestInit): Promise<getTenantCapabilitiesResponse> => {
+
+  return apiRequest<getTenantCapabilitiesResponse>(getGetTenantCapabilitiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTenantCapabilitiesQueryKey = () => {
+    return [
+    `/api/tenant/capabilities`
+    ] as const;
+    }
+
+
+export const getGetTenantCapabilitiesQueryOptions = <TData = Awaited<ReturnType<typeof getTenantCapabilities>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantCapabilities>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTenantCapabilitiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTenantCapabilities>>> = ({ signal }) => getTenantCapabilities({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTenantCapabilities>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTenantCapabilitiesQueryResult = NonNullable<Awaited<ReturnType<typeof getTenantCapabilities>>>
+export type GetTenantCapabilitiesQueryError = ErrorResponse
+
+
+export function useGetTenantCapabilities<TData = Awaited<ReturnType<typeof getTenantCapabilities>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantCapabilities>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTenantCapabilities>>,
+          TError,
+          Awaited<ReturnType<typeof getTenantCapabilities>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTenantCapabilities<TData = Awaited<ReturnType<typeof getTenantCapabilities>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantCapabilities>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTenantCapabilities>>,
+          TError,
+          Awaited<ReturnType<typeof getTenantCapabilities>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTenantCapabilities<TData = Awaited<ReturnType<typeof getTenantCapabilities>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantCapabilities>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Возможности арендатора
+ */
+
+export function useGetTenantCapabilities<TData = Awaited<ReturnType<typeof getTenantCapabilities>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTenantCapabilities>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTenantCapabilitiesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getBusinessDayImpactResponse200 = {
   data: BusinessDayImpactDto
   status: 200
@@ -13930,6 +18206,303 @@ export function useGetPortalSuppliers<TData = Awaited<ReturnType<typeof getPorta
 
 
 
+export type getPortalMyReviewsResponse200 = {
+  data: ItemReviewDto[]
+  status: 200
+}
+
+export type getPortalMyReviewsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalMyReviewsResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getPortalMyReviewsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalMyReviewsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalMyReviewsResponseSuccess = (getPortalMyReviewsResponse200) & {
+  headers: Headers;
+};
+export type getPortalMyReviewsResponseError = (getPortalMyReviewsResponse400 | getPortalMyReviewsResponse403 | getPortalMyReviewsResponse404 | getPortalMyReviewsResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalMyReviewsResponse = (getPortalMyReviewsResponseSuccess | getPortalMyReviewsResponseError)
+
+export const getGetPortalMyReviewsUrl = () => {
+
+
+
+
+  return `/api/portal/reviews`
+}
+
+/**
+ * Все отзывы клиента у выбранного поставщика, свежие сверху, в любом состоянии: ожидающие проверки, одобренные и отклонённые.
+ *
+ * Отклонённые приходят намеренно. Автор вправе знать, что стало с его текстом: спрятанный от него отзыв неотличим от неотправленного.
+ *
+ * Наименование позиции пусто, если поставщик снял её с продажи: отзыв о ней при этом остаётся.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти клиентом, который ещё не писал отзывов, — пустой список, а не отказ.
+ * 2. Оставить отзыв о купленной позиции и повторить — он в списке, состояние `PENDING`.
+ * 3. Отклонить его в рабочем месте поставщика и повторить — он на месте, состояние `REJECTED`.
+ * 4. Открыть список входом другого клиента того же поставщика — чужого отзыва в нём нет.
+ * 5. Негативный 403: заголовок поставщика, у которого клиента нет.
+ * @summary Мои отзывы
+ */
+export const getPortalMyReviews = async ( options?: RequestInit): Promise<getPortalMyReviewsResponse> => {
+
+  return apiRequest<getPortalMyReviewsResponse>(getGetPortalMyReviewsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalMyReviewsQueryKey = () => {
+    return [
+    `/api/portal/reviews`
+    ] as const;
+    }
+
+
+export const getGetPortalMyReviewsQueryOptions = <TData = Awaited<ReturnType<typeof getPortalMyReviews>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalMyReviews>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalMyReviewsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalMyReviews>>> = ({ signal }) => getPortalMyReviews({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalMyReviews>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalMyReviewsQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalMyReviews>>>
+export type GetPortalMyReviewsQueryError = ErrorResponse
+
+
+export function useGetPortalMyReviews<TData = Awaited<ReturnType<typeof getPortalMyReviews>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalMyReviews>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalMyReviews>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalMyReviews>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalMyReviews<TData = Awaited<ReturnType<typeof getPortalMyReviews>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalMyReviews>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalMyReviews>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalMyReviews>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalMyReviews<TData = Awaited<ReturnType<typeof getPortalMyReviews>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalMyReviews>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Мои отзывы
+ */
+
+export function useGetPortalMyReviews<TData = Awaited<ReturnType<typeof getPortalMyReviews>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalMyReviews>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalMyReviewsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getPortalItemsAwaitingReviewResponse200 = {
+  data: AwaitingReviewDto[]
+  status: 200
+}
+
+export type getPortalItemsAwaitingReviewResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalItemsAwaitingReviewResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getPortalItemsAwaitingReviewResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalItemsAwaitingReviewResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalItemsAwaitingReviewResponseSuccess = (getPortalItemsAwaitingReviewResponse200) & {
+  headers: Headers;
+};
+export type getPortalItemsAwaitingReviewResponseError = (getPortalItemsAwaitingReviewResponse400 | getPortalItemsAwaitingReviewResponse403 | getPortalItemsAwaitingReviewResponse404 | getPortalItemsAwaitingReviewResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalItemsAwaitingReviewResponse = (getPortalItemsAwaitingReviewResponseSuccess | getPortalItemsAwaitingReviewResponseError)
+
+export const getGetPortalItemsAwaitingReviewUrl = () => {
+
+
+
+
+  return `/api/portal/reviews/awaiting`
+}
+
+/**
+ * Позиции, которые клиент купил и ещё не оценил; свежая покупка сверху.
+ *
+ * Покупкой считается принятая заявка — тем же правилом, которым проверяется право оставить отзыв. Отправленная заявка ещё ждёт ответа, и звать оценить то, чего человек не получил, значило бы собирать оценки несостоявшихся сделок.
+ *
+ * Оценённое не приходит в любом состоянии отзыва, включая отклонённое. Удалённый отзыв возвращает позицию в список. Снятые с продажи позиции не приходят: их карточка не открывается.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти клиентом без принятых заявок — пустой список.
+ * 2. Подтвердить заявку с двумя позициями — обе в списке, свежая сверху.
+ * 3. Оставить отзыв об одной — осталась одна.
+ * 4. Отклонить этот отзыв в рабочем месте поставщика — список не изменился: написанный отзыв остаётся написанным.
+ * 5. Удалить его — позиция вернулась в список.
+ * 6. Негативный 403: заголовок поставщика, у которого клиента нет.
+ * @summary Купленное без оценки
+ */
+export const getPortalItemsAwaitingReview = async ( options?: RequestInit): Promise<getPortalItemsAwaitingReviewResponse> => {
+
+  return apiRequest<getPortalItemsAwaitingReviewResponse>(getGetPortalItemsAwaitingReviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalItemsAwaitingReviewQueryKey = () => {
+    return [
+    `/api/portal/reviews/awaiting`
+    ] as const;
+    }
+
+
+export const getGetPortalItemsAwaitingReviewQueryOptions = <TData = Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalItemsAwaitingReviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>> = ({ signal }) => getPortalItemsAwaitingReview({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalItemsAwaitingReviewQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>>
+export type GetPortalItemsAwaitingReviewQueryError = ErrorResponse
+
+
+export function useGetPortalItemsAwaitingReview<TData = Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalItemsAwaitingReview<TData = Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalItemsAwaitingReview<TData = Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Купленное без оценки
+ */
+
+export function useGetPortalItemsAwaitingReview<TData = Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalItemsAwaitingReview>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalItemsAwaitingReviewQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getMyPortalOrderResponse200 = {
   data: PortalOrderDto
   status: 200
@@ -14062,6 +18635,148 @@ export function useGetMyPortalOrder<TData = Awaited<ReturnType<typeof getMyPorta
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetMyPortalOrderQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type downloadMyInvoiceResponse200 = {
+  data: Blob
+  status: 200
+}
+
+export type downloadMyInvoiceResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type downloadMyInvoiceResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type downloadMyInvoiceResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type downloadMyInvoiceResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type downloadMyInvoiceResponseSuccess = (downloadMyInvoiceResponse200) & {
+  headers: Headers;
+};
+export type downloadMyInvoiceResponseError = (downloadMyInvoiceResponse400 | downloadMyInvoiceResponse403 | downloadMyInvoiceResponse404 | downloadMyInvoiceResponse500) & {
+  headers: Headers;
+};
+
+export type downloadMyInvoiceResponse = (downloadMyInvoiceResponseSuccess | downloadMyInvoiceResponseError)
+
+export const getDownloadMyInvoiceUrl = (id: string,) => {
+
+
+
+
+  return `/api/portal/orders/${id}/invoice.pdf`
+}
+
+/**
+ * Тот же документ, что ушёл в переписку. Появляется, когда поставщик его выписал: до этого в карточке заказа стоит `invoiceAvailable: false`, и скачивать нечего.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Открыть принятый заказ — если счёт выписан, `invoiceAvailable` истинно.
+ * 2. Скачать файл — открывается просмотрщиком, реквизиты и сумма те же, что в заказе.
+ * 3. Негативный 404: счёт ещё не выписан либо заказ чужой — разница снаружи не видна намеренно.
+ * @summary Счёт на оплату файлом
+ */
+export const downloadMyInvoice = async (id: string, options?: RequestInit): Promise<downloadMyInvoiceResponse> => {
+
+  return apiRequest<downloadMyInvoiceResponse>(getDownloadMyInvoiceUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadMyInvoiceQueryKey = (id: string,) => {
+    return [
+    `/api/portal/orders/${id}/invoice.pdf`
+    ] as const;
+    }
+
+
+export const getDownloadMyInvoiceQueryOptions = <TData = Awaited<ReturnType<typeof downloadMyInvoice>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyInvoice>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadMyInvoiceQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadMyInvoice>>> = ({ signal }) => downloadMyInvoice(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadMyInvoice>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadMyInvoiceQueryResult = NonNullable<Awaited<ReturnType<typeof downloadMyInvoice>>>
+export type DownloadMyInvoiceQueryError = ErrorResponse
+
+
+export function useDownloadMyInvoice<TData = Awaited<ReturnType<typeof downloadMyInvoice>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyInvoice>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadMyInvoice>>,
+          TError,
+          Awaited<ReturnType<typeof downloadMyInvoice>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadMyInvoice<TData = Awaited<ReturnType<typeof downloadMyInvoice>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyInvoice>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadMyInvoice>>,
+          TError,
+          Awaited<ReturnType<typeof downloadMyInvoice>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadMyInvoice<TData = Awaited<ReturnType<typeof downloadMyInvoice>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyInvoice>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Счёт на оплату файлом
+ */
+
+export function useDownloadMyInvoice<TData = Awaited<ReturnType<typeof downloadMyInvoice>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyInvoice>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadMyInvoiceQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -14207,6 +18922,155 @@ export function useGetPortalNotifications<TData = Awaited<ReturnType<typeof getP
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetPortalNotificationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getPortalUnreadSummaryResponse200 = {
+  data: PortalUnreadDto[]
+  status: 200
+}
+
+export type getPortalUnreadSummaryResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalUnreadSummaryResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type getPortalUnreadSummaryResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalUnreadSummaryResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalUnreadSummaryResponseSuccess = (getPortalUnreadSummaryResponse200) & {
+  headers: Headers;
+};
+export type getPortalUnreadSummaryResponseError = (getPortalUnreadSummaryResponse400 | getPortalUnreadSummaryResponse401 | getPortalUnreadSummaryResponse404 | getPortalUnreadSummaryResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalUnreadSummaryResponse = (getPortalUnreadSummaryResponseSuccess | getPortalUnreadSummaryResponseError)
+
+export const getGetPortalUnreadSummaryUrl = () => {
+
+
+
+
+  return `/api/portal/notifications/summary`
+}
+
+/**
+ * Отвечает на вопрос, который не помещается внутрь одного поставщика: где у клиента новости. Заголовка поставщика не требует — как и список поставщиков, он задаётся раньше выбора.
+ *
+ * Числа, а не тексты: текст плашки называет заявку и повод, и это данные отношения с конкретным поставщиком. Сводка отдаёт только то, что клиент и так видит в переключателе.
+ *
+ * Строка приходит на каждую действующую учётную запись, включая нули: иначе кабинету пришлось бы отличать «новостей нет» от «поставщик выпал».
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Принять приглашения двух поставщиков одним номером.
+ * 2. У одного из них довести заявку до пересогласования.
+ * 3. Вызвать метод без заголовка поставщика — две строки, у одной `unread` больше нуля, у второй ноль.
+ * 4. Отметить плашку прочитанной — число у своего поставщика падает, у соседа не меняется.
+ * 5. Администратору второго отозвать доступ — его строка исчезает, первая остаётся.
+ * 6. Негативный 401: тот же запрос без токена.
+ * @summary Непрочитанное у всех поставщиков
+ */
+export const getPortalUnreadSummary = async ( options?: RequestInit): Promise<getPortalUnreadSummaryResponse> => {
+
+  return apiRequest<getPortalUnreadSummaryResponse>(getGetPortalUnreadSummaryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalUnreadSummaryQueryKey = () => {
+    return [
+    `/api/portal/notifications/summary`
+    ] as const;
+    }
+
+
+export const getGetPortalUnreadSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalUnreadSummaryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalUnreadSummary>>> = ({ signal }) => getPortalUnreadSummary({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalUnreadSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalUnreadSummary>>>
+export type GetPortalUnreadSummaryQueryError = ErrorResponse
+
+
+export function useGetPortalUnreadSummary<TData = Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalUnreadSummary>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalUnreadSummary>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalUnreadSummary<TData = Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalUnreadSummary>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalUnreadSummary>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalUnreadSummary<TData = Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Непрочитанное у всех поставщиков
+ */
+
+export function useGetPortalUnreadSummary<TData = Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalUnreadSummary>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalUnreadSummaryQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -15516,6 +20380,426 @@ export const useClearPortalCart = <TError = ErrorResponse,
       > => {
       return useMutation(getClearPortalCartMutationOptions(options), queryClient);
     }
+
+export type listOrdersResponse200 = {
+  data: CustomerOrderDto[]
+  status: 200
+}
+
+export type listOrdersResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listOrdersResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listOrdersResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listOrdersResponseSuccess = (listOrdersResponse200) & {
+  headers: Headers;
+};
+export type listOrdersResponseError = (listOrdersResponse400 | listOrdersResponse404 | listOrdersResponse500) & {
+  headers: Headers;
+};
+
+export type listOrdersResponse = (listOrdersResponseSuccess | listOrdersResponseError)
+
+export const getListOrdersUrl = (params?: ListOrdersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/orders?${stringifiedParams}` : `/api/orders`
+}
+
+/**
+ * Список рабочий, а не исторический: его открывают, чтобы узнать, что делать сегодня. Один заказ попадает сразу в несколько списков — неоплаченный и несобранный ждёт и бухгалтера, и склад.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Довести заявку до подтверждения клиентом — появится заказ.
+ * 2. Вызвать без параметров — заказ виден, номер тот же, что у заявки.
+ * 3. Вызвать с `filter=AWAITING_PICKING` — заказ в списке склада.
+ * 4. Отметить сборку и вызвать снова — заказ ушёл из списка и появился в `AWAITING_ISSUE`.
+ * 5. Развернуть заказ и вызвать с `filter=CANCELLED` — он там, и его нет ни в одном рабочем списке.
+ * @summary Заказы по тому, чего они ждут
+ */
+export const listOrders = async (params?: ListOrdersParams, options?: RequestInit): Promise<listOrdersResponse> => {
+
+  return apiRequest<listOrdersResponse>(getListOrdersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOrdersQueryKey = (params?: ListOrdersParams,) => {
+    return [
+    `/api/orders`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listOrders>>, TError = ErrorResponse>(params?: ListOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listOrders>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOrdersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOrders>>> = ({ signal }) => listOrders(params, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOrders>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listOrders>>>
+export type ListOrdersQueryError = ErrorResponse
+
+
+export function useListOrders<TData = Awaited<ReturnType<typeof listOrders>>, TError = ErrorResponse>(
+ params: undefined |  ListOrdersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listOrders>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listOrders>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListOrders<TData = Awaited<ReturnType<typeof listOrders>>, TError = ErrorResponse>(
+ params?: ListOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listOrders>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listOrders>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListOrders<TData = Awaited<ReturnType<typeof listOrders>>, TError = ErrorResponse>(
+ params?: ListOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listOrders>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Заказы по тому, чего они ждут
+ */
+
+export function useListOrders<TData = Awaited<ReturnType<typeof listOrders>>, TError = ErrorResponse>(
+ params?: ListOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listOrders>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListOrdersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getOrderResponse200 = {
+  data: CustomerOrderDto
+  status: 200
+}
+
+export type getOrderResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getOrderResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getOrderResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getOrderResponseSuccess = (getOrderResponse200) & {
+  headers: Headers;
+};
+export type getOrderResponseError = (getOrderResponse400 | getOrderResponse404 | getOrderResponse500) & {
+  headers: Headers;
+};
+
+export type getOrderResponse = (getOrderResponseSuccess | getOrderResponseError)
+
+export const getGetOrderUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}`
+}
+
+/**
+ * Состав приходит только здесь: по нему собирают и по нему выставляют счёт. В списке состава нет намеренно — список читают глазами, и двести составов в нём означали бы двести лишних строк.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Открыть заказ — состав тот же, что клиент подтвердил.
+ * 2. Изменить название позиции в каталоге и открыть заказ снова — в заказе прежнее название. Изменившееся означало бы, что склад собирает не то, о чём договаривались.
+ * 3. Негативный 404: случайный идентификатор в пути.
+ * @summary Заказ целиком
+ */
+export const getOrder = async (id: string, options?: RequestInit): Promise<getOrderResponse> => {
+
+  return apiRequest<getOrderResponse>(getGetOrderUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOrderQueryKey = (id: string,) => {
+    return [
+    `/api/orders/${id}`
+    ] as const;
+    }
+
+
+export const getGetOrderQueryOptions = <TData = Awaited<ReturnType<typeof getOrder>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrder>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOrderQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOrder>>> = ({ signal }) => getOrder(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOrder>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getOrder>>>
+export type GetOrderQueryError = ErrorResponse
+
+
+export function useGetOrder<TData = Awaited<ReturnType<typeof getOrder>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrder>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOrder>>,
+          TError,
+          Awaited<ReturnType<typeof getOrder>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOrder<TData = Awaited<ReturnType<typeof getOrder>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrder>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOrder>>,
+          TError,
+          Awaited<ReturnType<typeof getOrder>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOrder<TData = Awaited<ReturnType<typeof getOrder>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrder>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Заказ целиком
+ */
+
+export function useGetOrder<TData = Awaited<ReturnType<typeof getOrder>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrder>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetOrderQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type downloadInvoiceResponse200 = {
+  data: Blob
+  status: 200
+}
+
+export type downloadInvoiceResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type downloadInvoiceResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type downloadInvoiceResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type downloadInvoiceResponseSuccess = (downloadInvoiceResponse200) & {
+  headers: Headers;
+};
+export type downloadInvoiceResponseError = (downloadInvoiceResponse400 | downloadInvoiceResponse404 | downloadInvoiceResponse500) & {
+  headers: Headers;
+};
+
+export type downloadInvoiceResponse = (downloadInvoiceResponseSuccess | downloadInvoiceResponseError)
+
+export const getDownloadInvoiceUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}/invoice.pdf`
+}
+
+/**
+ * Казахстанская форма: бенефициар с БИН, банк с БИК и Кбе, состав, налог в том числе и сумма прописью. Собирает сервер — документ обязан выглядеть одинаково у бухгалтера, у клиента и в распечатке.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Выписать счёт и скачать файл — открывается любым просмотрщиком, кириллица на месте.
+ * 2. Сверить сумму прописью с цифрой: расхождение делает счёт спорным.
+ * 3. Негативный 404: счёт по заказу ещё не выписан.
+ * @summary Счёт файлом
+ */
+export const downloadInvoice = async (id: string, options?: RequestInit): Promise<downloadInvoiceResponse> => {
+
+  return apiRequest<downloadInvoiceResponse>(getDownloadInvoiceUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadInvoiceQueryKey = (id: string,) => {
+    return [
+    `/api/orders/${id}/invoice.pdf`
+    ] as const;
+    }
+
+
+export const getDownloadInvoiceQueryOptions = <TData = Awaited<ReturnType<typeof downloadInvoice>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadInvoice>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadInvoiceQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadInvoice>>> = ({ signal }) => downloadInvoice(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadInvoice>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadInvoiceQueryResult = NonNullable<Awaited<ReturnType<typeof downloadInvoice>>>
+export type DownloadInvoiceQueryError = ErrorResponse
+
+
+export function useDownloadInvoice<TData = Awaited<ReturnType<typeof downloadInvoice>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadInvoice>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadInvoice>>,
+          TError,
+          Awaited<ReturnType<typeof downloadInvoice>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadInvoice<TData = Awaited<ReturnType<typeof downloadInvoice>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadInvoice>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadInvoice>>,
+          TError,
+          Awaited<ReturnType<typeof downloadInvoice>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadInvoice<TData = Awaited<ReturnType<typeof downloadInvoice>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadInvoice>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Счёт файлом
+ */
+
+export function useDownloadInvoice<TData = Awaited<ReturnType<typeof downloadInvoice>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadInvoice>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadInvoiceQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export type unreadNotificationsResponse200 = {
   data: NotificationDto[]
@@ -17321,6 +22605,117 @@ export function useExportAuditEvents<TData = Awaited<ReturnType<typeof exportAud
 
 
 
+
+export type removeChannelResponse204 = {
+  data: void
+  status: 204
+}
+
+export type removeChannelResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type removeChannelResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type removeChannelResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type removeChannelResponseSuccess = (removeChannelResponse204) & {
+  headers: Headers;
+};
+export type removeChannelResponseError = (removeChannelResponse400 | removeChannelResponse404 | removeChannelResponse500) & {
+  headers: Headers;
+};
+
+export type removeChannelResponse = (removeChannelResponseSuccess | removeChannelResponseError)
+
+export const getRemoveChannelUrl = (channelId: string,) => {
+
+
+
+
+  return `/api/tenant/channels/${channelId}`
+}
+
+/**
+ * Выключает номер и убирает его сессию из шлюза: оставленная продолжает держать соединение и слать вебхуки по каналу, которого у нас больше нет.
+ *
+ * Отказ шлюза отключению не мешает — у нас номер уже выключен, а сессию уберут руками. Строка канала при этом остаётся: на неё ссылаются принятые сообщения и заявки.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отключить номер — он пропадает из `listChannels`.
+ * 2. Прислать вебхук на этот канал: 404 — выключенный канал не принимает.
+ * @summary Отключить номер
+ */
+export const removeChannel = async (channelId: string, options?: RequestInit): Promise<removeChannelResponse> => {
+
+  return apiRequest<removeChannelResponse>(getRemoveChannelUrl(channelId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveChannelMutationKey = () => ['removeChannel'] as const;
+
+export const getRemoveChannelMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeChannel>>, TError,RemoveChannelMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof removeChannel>>, TError,RemoveChannelMutationVariables, TContext> => {
+
+const mutationKey = getRemoveChannelMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeChannel>>, RemoveChannelMutationVariables> = (props) => {
+          const {channelId} = props ?? {};
+
+          return  removeChannel(channelId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveChannelMutationResult = NonNullable<Awaited<ReturnType<typeof removeChannel>>>
+
+    export type RemoveChannelMutationError = ErrorResponse
+    export type RemoveChannelMutationVariables = {channelId: string}
+
+    /**
+ * @summary Отключить номер
+ */
+export const useRemoveChannel = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeChannel>>, TError,RemoveChannelMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof removeChannel>>,
+        TError,
+        RemoveChannelMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRemoveChannelMutationOptions(options), queryClient);
+    }
 
 export type deleteBusinessDayResponse204 = {
   data: void

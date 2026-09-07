@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Shell } from './Shell';
+import { getGetPortalSuppliersQueryKey, getGetPortalUnreadSummaryQueryKey } from '../../api/generated';
 import { renderScreen } from '../../test/render';
 import { get, stubFetch } from '../../test/http';
 
@@ -24,13 +25,26 @@ const filledCart = {
 
 function shellRules(cart: unknown = emptyCart) {
   return [
+    // У текущего (supplier-1) число ненулевое и не совпадает с суммой по
+    // всем: с фильтром «кроме текущего» выходит 4, без фильтра вышло бы 6.
+    // Совпадающие числа не отличили бы «посчитали остальных» от «посчитали
+    // всех».
+    get('/api/portal/notifications/summary', [
+      { supplierId: 'supplier-1', unread: 2 },
+      { supplierId: 'supplier-2', unread: 4 },
+    ]),
     get('/api/portal/notifications', []),
     get('/api/portal/categories', []),
     get('/api/portal/catalog', { page: 0, size: 50, totalElements: 0, items: [] }),
     get('/api/portal/favorites', []),
     get('/api/portal/questions', []),
+    get('/api/portal/reviews/awaiting', []),
+    get('/api/portal/reviews', []),
     get('/api/portal/delivery', { mode: 'PICKUP_ONLY', methods: [], pickupPoints: [] }),
-    get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза Алматы' }]),
+    get('/api/portal/suppliers', [
+      { supplierId: 'supplier-1', name: 'СтройБаза Алматы' },
+      { supplierId: 'supplier-2', name: 'Бумага оптом' },
+    ]),
     get('/api/portal/cart', cart),
   ];
 }
@@ -74,7 +88,7 @@ describe('оболочка кабинета', () => {
     expect(await screen.findByRole('dialog', { name: 'Меню' })).toBeInTheDocument();
   });
 
-  it('избранное, вопросы и доставка открываются как разделы', async () => {
+  it('избранное, вопросы, отзывы и доставка открываются как разделы', async () => {
     stubFetch(shellRules());
 
     renderScreen(<Shell />, { route: '/favorites' });
@@ -83,8 +97,24 @@ describe('оболочка кабинета', () => {
     renderScreen(<Shell />, { route: '/questions' });
     expect(await screen.findByRole('heading', { name: 'Вопросы продавцу' })).toBeInTheDocument();
 
+    renderScreen(<Shell />, { route: '/reviews' });
+    expect(await screen.findByRole('heading', { name: 'Мои отзывы' })).toBeInTheDocument();
+
     renderScreen(<Shell />, { route: '/delivery' });
     expect(await screen.findByRole('heading', { name: 'Доставка и самовывоз' })).toBeInTheDocument();
+  });
+
+  it('раздел «Мои отзывы» стоит в списке разделов', async () => {
+    stubWideScreen();
+    stubFetch(shellRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
+    expect(within(rail).getByRole('link', { name: 'Мои отзывы' })).toHaveAttribute(
+      'href',
+      '/reviews',
+    );
   });
 
   /**
@@ -345,5 +375,97 @@ describe('оболочка кабинета', () => {
     const links = await screen.findAllByRole('link', { name: 'Избранное' });
     // Цвет читает не всякий: состояние обязано быть сказано словами.
     expect(links.some((link) => link.getAttribute('aria-current') === 'page')).toBe(true);
+  });
+});
+
+describe('новости у других поставщиков', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('пункт «Поставщики» считает остальных, а не текущего', async () => {
+    stubWideScreen();
+    stubFetch(shellRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
+    // Список разделов рисуется сразу, без ожидания сети — сводка непрочитанного
+    // приходит отдельным запросом и досчитывается позже. Поэтому дожидаемся
+    // именно числа на пункте, а не только появления самого списка.
+    //
+    // Четыре — это второй поставщик. Текущий сюда не входит: его новости
+    // считает колокольчик, и то же число в двух местах читалось бы
+    // как два разных повода.
+    await waitFor(() => {
+      expect(within(rail).getByRole('link', { name: /Поставщики/ })).toHaveTextContent('4');
+    });
+  });
+
+  it('в шапке стоит точка, а не число', async () => {
+    stubWideScreen();
+    stubFetch(shellRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    expect(await screen.findByLabelText('У других поставщиков есть новости')).toBeInTheDocument();
+  });
+
+  it('без новостей у соседей ни точки, ни бейджа нет', async () => {
+    stubWideScreen();
+    stubFetch([
+      // Заглушка берёт первое подходящее правило: своё стоит впереди общего
+      // набора и перекрывает совпадающее правило `shellRules()` за него,
+      // а не вырезается из набора по индексу.
+      get('/api/portal/notifications/summary', [{ supplierId: 'supplier-1', unread: 7 }]),
+      ...shellRules(),
+    ]);
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
+    expect(screen.queryByLabelText('У других поставщиков есть новости')).not.toBeInTheDocument();
+    // Число у текущего поставщика (7) в бейдж не попадает вовсе: он не входит
+    // в сумму по остальным, а других поставщиков в ответе нет.
+    expect(within(rail).getByRole('link', { name: /Поставщики/ })).not.toHaveTextContent(/\d/);
+  });
+
+  /**
+   * На сервере встречается расхождение: поставщик, у которого не читаются
+   * сведения о продавце, выпадает из списка поставщиков, но остаётся
+   * в сводке со счётом. Список — источник истины о том, к кому клиент
+   * может пойти, и точка с бейджем не должны загораться от того, на кого
+   * переключиться всё равно нельзя.
+   */
+  it('поставщик из сводки, которого нет в списке, не зажигает ни точку, ни бейдж', async () => {
+    stubWideScreen();
+    stubFetch([
+      // Оба переопределения стоят впереди общего набора: заглушка берёт
+      // первое подходящее правило, и стоящие следом правила `shellRules()`
+      // для тех же адресов просто не доходят до дела — без срезов и без
+      // арифметики по индексам, хрупкой к порядку правил внутри неё.
+      get('/api/portal/notifications/summary', [
+        { supplierId: 'supplier-1', unread: 2 },
+        { supplierId: 'supplier-ghost', unread: 5 },
+      ]),
+      get('/api/portal/suppliers', [
+        { supplierId: 'supplier-1', name: 'СтройБаза Алматы' },
+      ]),
+      ...shellRules(),
+    ]);
+
+    const { queryClient } = renderScreen(<Shell />, { route: '/catalog' });
+
+    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
+
+    // Утверждение об отсутствии точки и бейджа истинно и до того, как сводка
+    // с поставщиками дошли с сервера — само по себе оно ничего не доказывает.
+    // Ждём, пока оба запроса действительно завершатся, и только потом
+    // проверяем результат: иначе тест прошёл бы и без сверки со списком.
+    await waitFor(() => {
+      expect(queryClient.getQueryState(getGetPortalUnreadSummaryQueryKey())?.status).toBe('success');
+      expect(queryClient.getQueryState(getGetPortalSuppliersQueryKey())?.status).toBe('success');
+    });
+
+    expect(screen.queryByLabelText('У других поставщиков есть новости')).not.toBeInTheDocument();
+    expect(within(rail).getByRole('link', { name: /Поставщики/ })).not.toHaveTextContent(/\d/);
   });
 });

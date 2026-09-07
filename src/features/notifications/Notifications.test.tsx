@@ -2,8 +2,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { NotificationsBell } from './NotificationsBell';
+import { useGetPortalUnreadSummary } from '../../api/generated';
 import { renderScreen } from '../../test/render';
 import { get, method, stubFetch } from '../../test/http';
+
+/**
+ * Подслушивает сводку непрочитанного тем же способом, что и шапка со
+ * списком поставщиков: чтобы увидеть повторный запрос по инвалидации,
+ * у сводки должен быть хоть один живой подписчик.
+ */
+function SummaryProbe() {
+  const summary = useGetPortalUnreadSummary();
+  const total = summary.data?.status === 200
+    ? summary.data.data.reduce((sum, row) => sum + row.unread, 0)
+    : 0;
+  return <span data-testid="summary-total">{total}</span>;
+}
 
 const RENEGOTIATION = {
   id: 'n1',
@@ -51,6 +65,39 @@ describe('уведомления кабинета', () => {
 
     await waitFor(() => {
       expect(calls.some((call) => call.url.includes('/notifications/n1/read'))).toBe(true);
+    });
+  });
+
+  /**
+   * Отметка прочитанным обязана обновить не только список, но и сводку:
+   * её читают счётчики у поставщиков (шапка, список «Поставщики»), и без
+   * инвалидации погасший колокольчик разошёлся бы с ними в показаниях.
+   */
+  it('прочитанное отправляет сводку непрочитанного за новым ответом', async () => {
+    // Правило сводки стоит выше правила списка: `get` совпадает по вхождению
+    // подстроки, и короткий путь перехватил бы длинный первым.
+    const { calls } = stubFetch([
+      get('/api/portal/notifications/summary', [{ supplierId: 'supplier-1', unread: 1 }]),
+      get('/api/portal/notifications', [RENEGOTIATION]),
+      method('POST', '/api/portal/notifications/n1/read', undefined, 204),
+    ]);
+
+    renderScreen(
+      <>
+        <NotificationsBell />
+        <SummaryProbe />
+      </>,
+    );
+
+    await screen.findByTestId('summary-total');
+    const summaryCallsBefore = calls.filter((call) => call.url.includes('/notifications/summary')).length;
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 1' }));
+    await userEvent.click(await screen.findByRole('link', { name: /продавец изменил заявку/i }));
+
+    await waitFor(() => {
+      const summaryCallsAfter = calls.filter((call) => call.url.includes('/notifications/summary')).length;
+      expect(summaryCallsAfter).toBeGreaterThan(summaryCallsBefore);
     });
   });
 

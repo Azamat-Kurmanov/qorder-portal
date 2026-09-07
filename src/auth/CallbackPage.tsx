@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
+import { Logo } from '../ui/Logo';
 import { completeSigninRedirect, DEFAULT_RETURN_TO } from './oidcConfig';
 import { markSigninCompleted } from './session';
 import { useAuth } from './useAuth';
@@ -34,6 +35,7 @@ export function CallbackPage() {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="flex max-w-[420px] flex-col items-center gap-3 text-center">
+          <Logo height={40} />
           <h3 className="text-lg font-semibold text-ink">Вход не завершился</h3>
           <p className="text-ink-subtle">
             Ссылка возврата уже использована или устарела. Попробуйте войти заново.
@@ -47,6 +49,9 @@ export function CallbackPage() {
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="flex flex-col items-center gap-3">
+        {/* Знак продукта: страница ожидания пуста, и назвать систему на ней
+            больше нечем — а ждут её как раз те, кто попал сюда впервые. */}
+        <Logo height={40} />
         <span
           aria-hidden="true"
           className="size-6 animate-spin rounded-full border-2 border-hairline border-t-accent"

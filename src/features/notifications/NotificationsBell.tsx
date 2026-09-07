@@ -4,6 +4,7 @@ import { Bell } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getGetPortalNotificationsQueryKey,
+  getGetPortalUnreadSummaryQueryKey,
   useGetPortalNotifications,
   useReadPortalNotification,
   type PortalNotificationDto,
@@ -114,7 +115,13 @@ function NotificationRow({
   const read = useReadPortalNotification({
     mutation: {
       onSuccess: () => {
+        // Список уведомлений и сводка непрочитанного обязаны говорить одно
+        // и то же: сводку читают счётчики у поставщиков (в шапке и в списке
+        // «Поставщики»), и без её инвалидации колокольчик гаснет, а те
+        // счётчики остаются прежними — то самое расхождение, которого ради
+        // них и не должно быть.
         void queryClient.invalidateQueries({ queryKey: getGetPortalNotificationsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getGetPortalUnreadSummaryQueryKey() });
       },
     },
   });

@@ -1,5 +1,13 @@
 # Кабинет клиента
 
+> **Документация — в репозитории бэкенда:**
+> [`back/fastorders/docs/plan/design-portal.md`](../back/fastorders/docs/plan/design-portal.md)
+> (как устроено) и
+> [`back/fastorders/docs/release/plan-portal.md`](../back/fastorders/docs/release/plan-portal.md)
+> (что сделано и что предстоит). Карта всех документов —
+> [`back/fastorders/docs/README.md`](../back/fastorders/docs/README.md).
+> Здесь — только то, что нужно, чтобы запустить и собрать.
+
 Отдельное приложение для клиента поставщика: витрина, корзина, свои заявки
 и шаблоны. Собирается в статику (Vite + React) и отдаётся nginx — своим образом
 и своим тегом, независимо от рабочего места менеджера и от бэкенда.
