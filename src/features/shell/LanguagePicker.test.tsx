@@ -48,6 +48,26 @@ describe('переключатель языка', () => {
       .toHaveAttribute('aria-current', 'true');
   });
 
+  /*
+   * Флаги те же, что на странице входа: их показывает переключатель темы
+   * Keycloak (ключи `locale_ru`, `locale_kk`, `locale_en`), и такие же стоят
+   * в кабинете сотрудника. Человек проходит через эти места подряд, и разные
+   * флаги у одного языка читаются как разные языки.
+   */
+  it('показывает те же флаги, что и страница входа', async () => {
+    renderScreen(<LanguagePicker />);
+
+    await userEvent.click(screen.getByRole('button', { name: /Язык интерфейса/ }));
+
+    const flags = Object.fromEntries(
+      [...document.querySelectorAll('[data-flag]')].map((node) => [
+        node.getAttribute('data-flag'),
+        node.textContent,
+      ]),
+    );
+    expect(flags).toEqual({ ru: '🇷🇺', kk: '🇰🇿', en: '🇬🇧' });
+  });
+
   it('смена языка сбрасывает кеш запросов', async () => {
     const { queryClient } = renderScreen(<LanguagePicker />);
     queryClient.setQueryData(['проверка'], 'ответ сервера на прежнем языке');

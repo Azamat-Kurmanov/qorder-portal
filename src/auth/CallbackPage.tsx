@@ -52,8 +52,10 @@ export function CallbackPage() {
     <div className="flex min-h-screen items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         {/* Знак продукта: страница ожидания пуста, и назвать систему на ней
-            больше нечем — а ждут её как раз те, кто попал сюда впервые. */}
-        <Logo height={40} />
+            больше нечем — а ждут её как раз те, кто попал сюда впервые.
+            Ростом он здесь вдвое против карточек отказа: посреди пустого
+            полотна знак в 40px читался случайной иконкой. */}
+        <Logo height={96} />
         <span
           aria-hidden="true"
           className="size-6 animate-spin rounded-full border-2 border-hairline border-t-accent"

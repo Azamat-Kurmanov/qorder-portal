@@ -5,6 +5,12 @@ export interface StubbedResponse {
   match: (url: string, init?: RequestInit) => boolean;
   status?: number;
   body?: unknown;
+  /**
+   * Заголовки ответа. Нужны там, где ответ не JSON: тип содержимого решает,
+   * разбирать тело или отдавать файлом, а имя файла приходит заголовком —
+   * заглушка, отвечающая всегда одинаково, эту развилку не проверила бы вовсе.
+   */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -26,10 +32,17 @@ export function stubFetch(rules: StubbedResponse[]) {
     if (!rule) throw new Error(`Незаявленный запрос: ${init?.method ?? 'GET'} ${url}`);
 
     const status = rule.status ?? 200;
-    return new Response(rule.body === undefined ? null : JSON.stringify(rule.body), {
-      status,
-      headers: { 'content-type': 'application/json' },
-    });
+    const headers = new Headers({ 'content-type': 'application/json', ...rule.headers });
+
+    // Не-JSON отдаётся как есть: обёрнутое в JSON.stringify содержимое файла
+    // перестало бы быть содержимым файла, и проверка скачивания доказывала бы
+    // только то, что заглушка умеет кавычки.
+    const json = headers.get('content-type')?.includes('json') ?? false;
+    const body = rule.body === undefined
+      ? null
+      : json ? JSON.stringify(rule.body) : String(rule.body);
+
+    return new Response(body, { status, headers });
   });
 
   vi.stubGlobal('fetch', fetchMock);
@@ -42,6 +55,19 @@ export function get(path: string, body: unknown, status = 200): StubbedResponse 
     match: (url, init) => url.includes(path) && (init?.method ?? 'GET') === 'GET',
     body,
     status,
+  };
+}
+
+/** Правило: файл по адресу — с типом содержимого и именем, как отдаёт сервер. */
+export function file(path: string, content: string, fileName: string): StubbedResponse {
+  return {
+    match: (url, init) => url.includes(path) && (init?.method ?? 'GET') === 'GET',
+    body: content,
+    status: 200,
+    headers: {
+      'content-type': 'application/pdf',
+      'content-disposition': `attachment; filename="${fileName}"`,
+    },
   };
 }
 

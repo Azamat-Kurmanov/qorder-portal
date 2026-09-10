@@ -32,3 +32,20 @@ export function shortDate(iso: string): string {
     ? iso
     : new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: '2-digit' }).format(date);
 }
+
+/**
+ * Номер в том виде, в каком его читают вслух: «+7 701 000 00 01».
+ *
+ * Хранит и присылает его сервер цифрами подряд, и в таком виде человек
+ * не узнаёт собственного номера — а в шапке номер стоит ровно затем, чтобы
+ * он себя узнал. Форматируется казахстанская одиннадцатизначная запись; всё
+ * остальное возвращается как есть: чужой формат, разбитый по чужим правилам,
+ * читается хуже неразбитого.
+ */
+export function phone(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length !== 11 || !digits.startsWith('7')) return value;
+
+  const [, code, first, second, third] = /^7(\d{3})(\d{3})(\d{2})(\d{2})$/.exec(digits) ?? [];
+  return code ? `+7 ${code} ${first} ${second} ${third}` : value;
+}

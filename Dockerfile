@@ -29,14 +29,14 @@ COPY . .
 # и относительный адрес избавляет от правила источников целиком.
 ARG VITE_API_URL=""
 ARG VITE_KEYCLOAK_URL="http://localhost:8081"
-ARG VITE_KEYCLOAK_REALM="fastorders-customers"
-ARG VITE_KEYCLOAK_CLIENT_ID="fastorders-portal"
+ARG VITE_KEYCLOAK_REALM="q-order-customers"
+ARG VITE_KEYCLOAK_CLIENT_ID="q-order-portal"
 
 # Второй вход — для арендатора, открывающего собственную витрину: realm
 # сотрудников и отдельный публичный клиент с возвратом на адрес кабинета.
 # Пароль при таком переходе не спрашивают: сессия в Keycloak уже открыта.
-ARG VITE_KEYCLOAK_STAFF_REALM="fastorders"
-ARG VITE_KEYCLOAK_STAFF_CLIENT_ID="fastorders-portal-staff"
+ARG VITE_KEYCLOAK_STAFF_REALM="q-order"
+ARG VITE_KEYCLOAK_STAFF_CLIENT_ID="q-order-portal-staff"
 
 # Куда возвращает кнопка «В рабочее место».
 ARG VITE_WEB_URL="http://localhost:3000"

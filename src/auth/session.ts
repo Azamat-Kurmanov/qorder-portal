@@ -15,8 +15,8 @@ let reauthenticate: () => void = () => {};
  */
 const SIGNIN_GRACE_MS = 30_000;
 
-const COMPLETED_AT_KEY = 'fo.portal.signinCompletedAt';
-const REJECTED_KEY = 'fo.portal.sessionRejected';
+const COMPLETED_AT_KEY = 'qo.portal.signinCompletedAt';
+const REJECTED_KEY = 'qo.portal.sessionRejected';
 
 const rejectionListeners = new Set<() => void>();
 

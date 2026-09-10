@@ -52,6 +52,7 @@ describe('поставщик в запросах кабинета', () => {
   it('смена поставщика запоминается и уходит в следующий запрос', async () => {
     setCurrentSupplierId('supplier-1');
     const { calls } = stubFetch([
+      get('/api/portal/consents', []),
       get('/api/portal/suppliers', [
         { supplierId: 'supplier-1', name: 'Стройбаза' },
         { supplierId: 'supplier-2', name: 'Бумага и К' },
@@ -67,7 +68,7 @@ describe('поставщик в запросах кабинета', () => {
     // где уже находишься, — лишнее действие.
     await userEvent.click(screen.getByRole('button', { name: /перейти/i }));
 
-    expect(window.localStorage.getItem('fo.portal.supplier')).toBe('supplier-2');
+    expect(window.localStorage.getItem('qo.portal.supplier')).toBe('supplier-2');
     await waitFor(() => {
       const last = calls[calls.length - 1];
       expect(new Headers(last.init?.headers).get('X-Supplier-Id')).toBe('supplier-2');

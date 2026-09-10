@@ -10,7 +10,7 @@
  * может быть недоступно (приватный режим, запрет данных сайта) — тогда выбор
  * живёт до конца вкладки, и это рабочий режим, а не поломка.
  */
-const STORAGE_KEY = 'fo.portal.supplier';
+const STORAGE_KEY = 'qo.portal.supplier';
 
 let current: string | null = readStored();
 

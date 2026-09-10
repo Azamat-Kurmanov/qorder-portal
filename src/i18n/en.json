@@ -10,7 +10,16 @@
     "label": "Interface language",
     "ru": "РУС",
     "kk": "ҚАЗ",
-    "en": "ENG"
+    "en": "ENG",
+    "full": {
+      "ru": "Русский",
+      "kk": "Қазақша",
+      "en": "English"
+    },
+    "ask": {
+      "title": "Тілді таңдаңыз · Выберите язык · Choose your language",
+      "note": "You can change the language at any time with the picker in the header."
+    }
   },
   "shell": {
     "sections": {
@@ -32,7 +41,7 @@
     "supplierChoose": "choose",
     "search": "Search the catalogue",
     "searchPlaceholder": "What do you need? Cement, for example",
-    "logo": "FastOrders, to the catalogue",
+    "logo": "Q-Order, to the catalogue",
     "cart": "Request",
     "orders": "My requests",
     "profile": "Profile",
@@ -70,7 +79,16 @@
     "switch": "Go to",
     "unread": "Unread: {{count}}",
     "looking": "Checking who you work with…",
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "consents": {
+      "title": "Personal data consents",
+      "empty": "No consents yet: they are given by whoever signs in through a supplier's invitation.",
+      "details": "Version {{version}} · {{language}}",
+      "download": "Download PDF",
+      "downloadAria": "Download the document, version {{version}}",
+      "preparing": "Preparing…",
+      "failed": "Could not get the document. Please try again."
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -93,7 +111,7 @@
     },
     "title": "Sign in to the account",
     "note": "A supplier has invited you: the account holds their catalogue with prices and takes your requests. The invitation is single-use and valid for a limited time.",
-    "signInFirst": "Sign in first — the account will then open right away, both on this device and on the next one.",
+    "signInFirst": "If you already have a cabinet, sign in — the invitation will be accepted from your account.",
     "signIn": "Sign in",
     "signedInAs": "The invitation must be issued for this number.",
     "signedInPrefix": "You are signed in as",
@@ -101,7 +119,13 @@
     "consentTitle": "Notice on personal data processing",
     "consentAccept": "I have read the notice and agree to the processing of my data",
     "opening": "Opening…",
-    "open": "Open the account"
+    "open": "Open the account",
+    "passwordLabel": "Choose a password",
+    "passwordNote": "You will sign in with it. Your phone number is already known — the supplier provided it.",
+    "alreadyHaveAccount": "This link did not open the cabinet. If you already had one, sign in and open the link again.",
+    "passwordRequired": "Choose a password — without it there is no way to sign in.",
+    "tooManyAttempts": "Too many attempts. Please wait and try again later.",
+    "unavailable": "The service is unavailable right now. The link is still valid — try again later."
   },
   "cart": {
     "sheetTitle": "Basket",

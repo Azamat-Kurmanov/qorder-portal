@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { SUPPORTED_LANGUAGES } from '../../i18n';
+import { SUPPORTED_LANGUAGES, currentLanguage } from '../../i18n';
+import { Flag } from '../../ui/Flag';
 import { cn } from '../../ui/cn';
 
 /**
@@ -10,6 +11,11 @@ import { cn } from '../../ui/cn';
  * Языки названы на себе самих: человек, открывший кабинет на чужом языке,
  * ищет своё слово, а не его перевод. По той же причине список короткий
  * и всегда одинаковый — три кода, а не выпадающий список стран.
+ *
+ * Рядом со словом — флаг страны языка: чужую надпись читают, а свой флаг
+ * узнают, и на слово «Қазақша» глазом попадают ещё до того, как его
+ * прочли. Флаг стоит вместе с подписью, а не вместо неё: одним флагом
+ * язык не назван — на русском говорят не только в России.
  *
  * Кнопка названа словами («Язык интерфейса»), а не только показывает код:
  * «РУС» само по себе экранный диктор прочитал бы как обрывок текста.
@@ -22,7 +28,7 @@ export function LanguagePicker() {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [opened, setOpened] = useState(false);
-  const current = i18n.resolvedLanguage ?? 'ru';
+  const current = currentLanguage();
 
   return (
     <div className="relative">
@@ -39,7 +45,10 @@ export function LanguagePicker() {
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
         )}
       >
-        {t(`language.${current}`)}
+        <span className="flex items-center gap-2">
+          <Flag language={current} />
+          {t(`language.${current}`)}
+        </span>
       </button>
 
       {opened && (
@@ -74,6 +83,7 @@ export function LanguagePicker() {
                 lng === current ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-ink/5',
               )}
             >
+              <Flag language={lng} className="mr-2" />
               {t(`language.${lng}`)}
             </button>
           ))}

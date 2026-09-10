@@ -373,13 +373,13 @@ describe('витрина кабинета', () => {
   });
 
   /**
-   * Ступень в две колонки.
+   * Открытый рельс разделов не должен стоить витрине третьей плитки.
    *
    * При открытом рельсе и панели корзины колонка витрины не бывает шире 812
-   * точек — оболочка ограничена 1440, — и три плитки укладывались туда по 170:
-   * название в три строки, цена оторвана от единицы.
+   * точек — оболочка ограничена 1440, — и столбец рубрик забирал там ровно ту
+   * ширину, которой не хватало третьей плитке.
    */
-  it('на неполной ширине плитки встают в две колонки, а не в три', async () => {
+  it('на неполной ширине рубрики уходят в меню, а плитки остаются в три колонки', async () => {
     stubWideScreen();
     stubColumnWidth(812);
     stubFetch([
@@ -389,10 +389,58 @@ describe('витрина кабинета', () => {
     ]);
     renderScreen(<CatalogPage />);
 
-    expect(await screen.findByTestId('item-grid')).toHaveClass('grid-cols-2');
-    // Плитки, а не строки: место под них есть, не хватает только третьей.
+    expect(await screen.findByTestId('item-grid')).toHaveClass('grid-cols-3');
+    // Плитки, а не строки: место под них есть.
     expect(screen.getAllByTestId('item-tile')).toHaveLength(2);
-    expect(screen.getByTestId('category-column')).toBeInTheDocument();
+    expect(screen.queryByTestId('category-column')).not.toBeInTheDocument();
+    expect(screen.getByTestId('category-menu')).toBeInTheDocument();
+  });
+
+  it('меню рубрик закрыто, пока его не открыли, и называет выбранную рубрику', async () => {
+    stubWideScreen();
+    stubColumnWidth(812);
+    stubFetch([
+      get('/api/portal/categories', [{ id: 'cat-1', name: 'Сухие смеси', sortOrder: 1 }]),
+      get('/api/portal/catalog', { page: 0, size: 50, totalElements: 2, items: [CEMENT, SAND] }),
+      get('/api/portal/cart', emptyCart),
+    ]);
+    renderScreen(<CatalogPage />);
+
+    const trigger = await screen.findByRole('button', { name: 'Рубрики: Всё' });
+    // Список закрыт: раскрытый в потоке, он уводил бы витрину вниз.
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    await userEvent.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+    const menu = screen.getByRole('menu', { name: 'Рубрики' });
+    expect(within(menu).getByRole('menuitemradio', { name: 'Всё' })).toHaveAttribute('aria-checked', 'true');
+
+    await userEvent.click(within(menu).getByRole('menuitemradio', { name: 'Сухие смеси' }));
+
+    // Выбор закрывает меню, возвращает фокус на кнопку и называет рубрику.
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Рубрики: Сухие смеси' })).toHaveFocus();
+  });
+
+  it('меню рубрик закрывается по Escape', async () => {
+    stubWideScreen();
+    stubColumnWidth(812);
+    stubFetch([
+      get('/api/portal/categories', [{ id: 'cat-1', name: 'Сухие смеси', sortOrder: 1 }]),
+      get('/api/portal/catalog', { page: 0, size: 50, totalElements: 2, items: [CEMENT, SAND] }),
+      get('/api/portal/cart', emptyCart),
+    ]);
+    renderScreen(<CatalogPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Рубрики: Всё' }));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    // Список лежит поверх товаров: без Escape с клавиатуры к ним не вернуться.
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Рубрики: Всё' })).toHaveFocus();
   });
 
   /**

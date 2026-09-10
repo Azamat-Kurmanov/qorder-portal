@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChevronDown } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -41,20 +42,23 @@ import { useColumnWidth } from '../../ui/useColumnWidth';
 const TILES_FROM = 780;
 
 /**
- * С какой ширины колонки в ряд встаёт третья плитка.
+ * С какой ширины колонки рубрики стоят отдельным столбцом слева.
  *
  * Считано так же: 232 под рубрики, 24 промежутка и три плитки не уже 230
  * с промежутками между ними. Плитка в 230 точек держит название в две строки,
  * цену с единицей в одну и «В корзину» целиком — уже этого она начинает
  * отнимать буквы у самой себя.
  *
- * Ступень в две колонки заведена не ради полноты набора. При открытом рельсе
- * и панели корзины колонка витрины не бывает шире 812 точек — оболочка
- * ограничена 1440, — и три плитки укладывались туда по 170: название в три
- * строки, цена оторвана от единицы. Две по 270 читаются, а третья приходит
- * тогда, когда рельс сложили и место действительно появилось.
+ * Уже этого порога столбца рубрик нет — но не потому, что рубрики стали
+ * не нужны. При открытом рельсе разделов и панели корзины колонка витрины
+ * не бывает шире 812 точек — оболочка ограничена 1440, — и столбец рубрик
+ * забирал там ровно ту ширину, которой не хватало третьей плитке: товары
+ * схлопывались в два ряда, стоило человеку открыть разделы. Поэтому рубрики
+ * уходят в выпадающее меню: список раскрывается ПОВЕРХ витрины и ширины
+ * у неё не отнимает, а рубрику выбирают раз в заход — товары же человек
+ * смотрит всё время, что на витрине стоит.
  */
-const THREE_TILES_FROM = 978;
+const RUBRICS_ASIDE_FROM = 978;
 
 /**
  * Главный экран кабинета: поиск, рубрики и витрина.
@@ -109,8 +113,15 @@ export function CatalogPage() {
   const shellWide = useWideScreen();
   const [columnRef, columnWidth] = useColumnWidth<HTMLDivElement>();
   const roomy = columnWidth >= TILES_FROM;
-  // Сколько плиток в ряду — тот же вопрос о месте, только заданный второй раз.
-  const columns = columnWidth >= THREE_TILES_FROM ? 3 : 2;
+  /*
+   * Где стоят рубрики — тот же вопрос о месте, только заданный второй раз.
+   *
+   * Хватает ширины на столбец рубрик И на три плитки рядом — столбец стоит
+   * слева. Не хватает — рубрики становятся выпадающим меню над витриной,
+   * и три плитки встают на всю ширину колонки: 256 точек, которые забирал
+   * столбец, и есть разница между тремя плитками и двумя.
+   */
+  const rubricsAside = columnWidth >= RUBRICS_ASIDE_FROM;
   const query = shellWide ? address : typed;
 
   const categories = useGetPortalCategories();
@@ -146,14 +157,16 @@ export function CatalogPage() {
     <div
       ref={columnRef}
       className={
-        roomy
+        rubricsAside
           ? 'grid grid-cols-[232px_minmax(0,1fr)] items-start gap-6 pb-8'
-          // Запас снизу — под липкую панель итога: без него последняя строка
-          // витрины остаётся под ней и до неё не долистать.
-          : 'flex flex-col gap-4 pb-28'
+          : roomy
+            ? 'flex flex-col gap-4 pb-8'
+            // Запас снизу — под липкую панель итога: без него последняя строка
+            // витрины остаётся под ней и до неё не долистать.
+            : 'flex flex-col gap-4 pb-28'
       }
     >
-      {roomy && (
+      {rubricsAside && (
         <CategoryColumn
           categories={categoryList}
           selected={categoryId}
@@ -193,27 +206,37 @@ export function CatalogPage() {
 
         <QuickInput />
 
-        {!roomy && categoryList.length > 0 && (
-          // Рубрики одной прокручиваемой строкой: двадцать тысяч позиций
-          // поиском не листаются, а сетка рубрик отняла бы пол-экрана.
-          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <CategoryChip selected={categoryId === undefined} onSelect={() => setCategoryId(undefined)}>
-              {t('catalog.all')}
-            </CategoryChip>
-            {categoryList.map((category) => (
-              <CategoryChip
-                key={category.id}
-                selected={categoryId === category.id}
-                onSelect={() => setCategoryId(category.id)}
-              >
-                {category.name}
+        {!rubricsAside && categoryList.length > 0 && (
+          roomy ? (
+            <CategoryMenu
+              categories={categoryList}
+              selected={categoryId}
+              onSelect={setCategoryId}
+            />
+          ) : (
+            // Рубрики одной прокручиваемой строкой: двадцать тысяч позиций
+            // поиском не листаются, а сетка рубрик отняла бы пол-экрана.
+            // Меню вместо строки телефону не годится: раскрытый список
+            // накрыл бы там весь экран, а строка чипов листается пальцем.
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <CategoryChip selected={categoryId === undefined} onSelect={() => setCategoryId(undefined)}>
+                {t('catalog.all')}
               </CategoryChip>
-            ))}
-          </div>
+              {categoryList.map((category) => (
+                <CategoryChip
+                  key={category.id}
+                  selected={categoryId === category.id}
+                  onSelect={() => setCategoryId(category.id)}
+                >
+                  {category.name}
+                </CategoryChip>
+              ))}
+            </div>
+          )
         )}
 
         {catalog.isPending ? (
-          <Skeletons columns={roomy ? columns : 0} />
+          <Skeletons columns={roomy ? 3 : 0} />
         ) : items.length === 0 ? (
           <p className="py-12 text-center text-ink-subtle">
             {t('catalog.nothingFound')}
@@ -224,7 +247,7 @@ export function CatalogPage() {
           // состояния, а не как разной длины имена.
           <div
             data-testid="item-grid"
-            className={cn('grid content-start gap-4', columns === 3 ? 'grid-cols-3' : 'grid-cols-2')}
+            className="grid grid-cols-3 content-start gap-4"
           >
             {items.map((item, index) => (
               <Reveal key={item.id} delay={Math.min(index, 3) * 0.04}>
@@ -498,6 +521,156 @@ function CategoryColumn({
   );
 }
 
+/**
+ * Рубрики выпадающим меню — там, где столбцу для них места нет.
+ *
+ * Тот же список и тот же выбор, что в столбце, но список лежит закрытым
+ * и раскрывается ПОВЕРХ витрины: разложи его в потоке — витрина съедет вниз
+ * на пол-экрана, а стой он столбцом — отнимет у плиток ширину, ради которой
+ * меню и заведено.
+ *
+ * Кнопка называет не только слово «Рубрики», но и выбранную рубрику: список
+ * закрыт, и без этого человек не знает, почему витрина показывает не всё.
+ * По той же причине выбранная рубрика названа выбранной внутри меню
+ * (`aria-checked`), а не только подкрашена.
+ *
+ * Меню закрывается тремя способами — выбором, Escape и нажатием мимо.
+ * Escape обязателен: список поверх содержимого, у которого не осталось
+ * другого способа вернуться к товарам с клавиатуры. Фокус после закрытия
+ * возвращается на кнопку — иначе он уезжает на страницу целиком, и следующий
+ * таб начинает обход кабинета заново.
+ */
+function CategoryMenu({
+  categories,
+  selected,
+  onSelect,
+}: {
+  categories: ItemCategoryDto[];
+  selected?: string;
+  onSelect: (categoryId?: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [opened, setOpened] = useState(false);
+  const holder = useRef<HTMLDivElement | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+
+  const chosen = categories.find((category) => category.id === selected);
+  const title = `${t('catalog.rubrics')}: ${chosen?.name ?? t('catalog.all')}`;
+
+  useEffect(() => {
+    if (!opened) return;
+
+    // Нажатие мимо считается по `mousedown`, а не по `click`: закрытие
+    // на отпускании кнопки съело бы первое нажатие по товару под меню.
+    const away = (event: MouseEvent) => {
+      if (!holder.current?.contains(event.target as Node)) setOpened(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpened(false);
+      trigger.current?.focus();
+    };
+
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [opened]);
+
+  const choose = (categoryId?: string) => {
+    onSelect(categoryId);
+    setOpened(false);
+    trigger.current?.focus();
+  };
+
+  return (
+    <div ref={holder} data-testid="category-menu" className="relative self-start">
+      <button
+        ref={trigger}
+        type="button"
+        aria-expanded={opened}
+        aria-haspopup="menu"
+        onClick={() => setOpened((open) => !open)}
+        className={cn(
+          'inline-flex h-11 items-center gap-2 rounded-[var(--radius-control)]',
+          'border border-hairline bg-surface px-4 text-sm font-medium text-ink',
+          'transition-all duration-300 hover:border-ink/20 active:scale-95',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+        )}
+      >
+        {title}
+        <ChevronDown
+          aria-hidden="true"
+          className={cn('size-4 text-ink-faint transition-transform duration-300', opened && 'rotate-180')}
+        />
+      </button>
+
+      {opened && (
+        // Ширина у списка своя, а не по кнопке: имя рубрики длиннее слова
+        // «Рубрики», и список по кнопке рвал бы названия переносами.
+        // Высота ограничена окном — рубрик у поставщика бывает три десятка.
+        <div
+          role="menu"
+          aria-label={t('catalog.rubrics')}
+          className={cn(
+            'absolute left-0 top-full z-30 mt-1 flex max-h-[60vh] w-72 flex-col overflow-y-auto',
+            'rounded-[var(--radius-tile)] border border-hairline bg-surface p-1 shadow-lg',
+          )}
+        >
+          <CategoryOption selected={selected === undefined} onSelect={() => choose(undefined)}>
+            {t('catalog.all')}
+          </CategoryOption>
+          {categories.map((category) => (
+            <CategoryOption
+              key={category.id}
+              selected={selected === category.id}
+              onSelect={() => choose(category.id)}
+            >
+              {category.name}
+            </CategoryOption>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Рубрика в выпадающем меню.
+ *
+ * `menuitemradio`, а не кнопка с `aria-pressed`: в меню выбрана ровно одна
+ * рубрика из списка, и «нажата/не нажата» сказало бы о каждой строке
+ * отдельно, будто их можно включить несколько.
+ */
+function CategoryOption({
+  selected,
+  onSelect,
+  children,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        'flex h-11 shrink-0 items-center rounded-[var(--radius-control)] px-3 text-left text-sm',
+        'transition-all duration-300',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+        selected ? 'bg-accent-soft font-medium text-accent' : 'text-ink-muted hover:bg-ink/5',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 /** Рубрика в колонке: выбранная — заливкой акцента, как выбранный раздел кабинета. */
 function CategoryLink({
   selected,
@@ -566,17 +739,11 @@ function CategoryChip({
  * витриной в две — это прыжок, ради предотвращения которого её и рисуют.
  * Ноль означает строки.
  */
-function Skeletons({ columns }: { columns: 0 | 2 | 3 }) {
+function Skeletons({ columns }: { columns: 0 | 3 }) {
   const tiles = columns > 0;
 
   return (
-    <div
-      className={cn(
-        tiles ? 'grid gap-4' : 'flex flex-col gap-3',
-        columns === 3 && 'grid-cols-3',
-        columns === 2 && 'grid-cols-2',
-      )}
-    >
+    <div className={cn(tiles ? 'grid grid-cols-3 gap-4' : 'flex flex-col gap-3')}>
       {(tiles ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3]).map((cell) => (
         <div
           key={cell}

@@ -21,6 +21,9 @@ function profileRules(summary: unknown) {
   return [
     get('/api/portal/notifications/summary', summary),
     get('/api/portal/suppliers', suppliers),
+    // Согласия проверяются своим файлом, но запрашивает их тот же экран,
+    // и незаявленный запрос обвязка считает ошибкой набора, а не пустотой.
+    get('/api/portal/consents', []),
   ];
 }
 

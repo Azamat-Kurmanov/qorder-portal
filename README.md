@@ -1,11 +1,11 @@
 # Кабинет клиента
 
 > **Документация — в репозитории бэкенда:**
-> [`back/fastorders/docs/plan/design-portal.md`](../back/fastorders/docs/plan/design-portal.md)
+> [`back/qorder/docs/plan/design-portal.md`](../back/qorder/docs/plan/design-portal.md)
 > (как устроено) и
-> [`back/fastorders/docs/release/plan-portal.md`](../back/fastorders/docs/release/plan-portal.md)
+> [`back/qorder/docs/release/plan-portal.md`](../back/qorder/docs/release/plan-portal.md)
 > (что сделано и что предстоит). Карта всех документов —
-> [`back/fastorders/docs/README.md`](../back/fastorders/docs/README.md).
+> [`back/qorder/docs/README.md`](../back/qorder/docs/README.md).
 > Здесь — только то, что нужно, чтобы запустить и собрать.
 
 Отдельное приложение для клиента поставщика: витрина, корзина, свои заявки
@@ -35,11 +35,11 @@ Dev-сервер сам проксирует `/api` и `/actuator` на бэке
 Поэтому разные стенды означают разные сборки.
 
 ```bash
-docker build -t fastorders/portal:latest \
+docker build -t q-order/portal:latest \
   --build-arg VITE_API_URL= \
   --build-arg VITE_KEYCLOAK_URL=http://localhost:8081 \
-  --build-arg VITE_KEYCLOAK_REALM=fastorders-customers \
-  --build-arg VITE_KEYCLOAK_CLIENT_ID=fastorders-portal \
+  --build-arg VITE_KEYCLOAK_REALM=q-order-customers \
+  --build-arg VITE_KEYCLOAK_CLIENT_ID=q-order-portal \
   .
 ```
 
@@ -58,13 +58,13 @@ docker compose --profile app up -d portal-web   # http://localhost:5174
 
 Порт на хосте задаёт `PORTAL_PORT` и он обязан совпадать с адресом
 из `PORTAL_BASE_URL` (из него собирается ссылка приглашения) и с адресами
-возврата клиента `fastorders-portal` в realm `fastorders-customers`.
+возврата клиента `q-order-portal` в realm `q-order-customers`.
 
 ## Маршруты внутри контейнера
 
 | Адрес | Куда идёт |
 |---|---|
-| `/api/…` | прокси на `fastorders-api:5000` |
+| `/api/…` | прокси на `q-order-api:5000` |
 | `/actuator/info`, `/actuator/health` | туда же: по ним кабинет отличает недоступный бэкенд от своей ошибки |
 | `/actuator/…` прочее | 404: метрики читает Prometheus внутри сети, в браузере им делать нечего |
 | `/assets/…` | файлы сборки с хэшем в имени, кэш на год |

@@ -1,6 +1,20 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, Heart, Menu, Search, ShoppingBag, User } from 'lucide-react';
+import {
+  Building2,
+  ChevronDown,
+  ClipboardList,
+  Heart,
+  LayoutGrid,
+  LayoutTemplate,
+  Menu,
+  MessageCircleQuestion,
+  Search,
+  ShoppingBag,
+  Star,
+  Truck,
+  type LucideIcon,
+} from 'lucide-react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { CatalogPage } from '../catalog/CatalogPage';
 import { ItemCardPage } from '../catalog/ItemCardPage';
@@ -8,6 +22,7 @@ import { CartPanel } from '../cart/CartPanel';
 import { CheckoutPage } from '../cart/CheckoutPage';
 import { DeliveryInfoPage } from '../delivery/DeliveryInfoPage';
 import { FavoritesPage } from '../favorites/FavoritesPage';
+import { LanguageAsk } from '../language/LanguageAsk';
 import { MyOrdersPage } from '../orders/MyOrdersPage';
 import { OrderPage } from '../orders/OrderPage';
 import { NotificationsBell } from '../notifications/NotificationsBell';
@@ -21,6 +36,7 @@ import { currentViewer } from '../../auth/oidcConfig';
 import { ActivationBanner } from './ActivationBanner';
 import { LanguagePicker } from './LanguagePicker';
 import { StaffBanner } from './StaffBanner';
+import { ViewerBadge } from './ViewerBadge';
 import { useSupplier } from '../../supplier/useSupplier';
 import { useSupplierAccess } from '../../supplier/useSupplierAccess';
 import { Button } from '../../ui/Button';
@@ -40,17 +56,24 @@ import { cn } from '../../ui/cn';
  * Хранится ключ, а не подпись: подпись зависит от языка, а список считается
  * один раз на модуле — посчитанная здесь, она осталась бы прежней до
  * перезагрузки страницы.
+ *
+ * Значок же от языка не зависит и потому лежит рядом с путём. Он нужен
+ * не для красоты: девять одинаковых строк текста читаются как список, в
+ * котором нужную строку каждый раз ищут заново, а по значку раздел узнают
+ * с одного взгляда. Значки взяты те же, что уже стоят в шапке за то же
+ * самое, — сердце у избранного и сумка у заявки, — иначе один и тот же
+ * раздел выглядел бы в шапке и в колонке двумя разными.
  */
-const SECTIONS = [
-  { key: 'catalog', path: '/catalog' },
-  { key: 'favorites', path: '/favorites' },
-  { key: 'checkout', path: '/checkout' },
-  { key: 'orders', path: '/orders' },
-  { key: 'templates', path: '/templates' },
-  { key: 'questions', path: '/questions' },
-  { key: 'reviews', path: '/reviews' },
-  { key: 'delivery', path: '/delivery' },
-  { key: 'profile', path: '/profile' },
+const SECTIONS: { key: string; path: string; icon: LucideIcon }[] = [
+  { key: 'catalog', path: '/catalog', icon: LayoutGrid },
+  { key: 'favorites', path: '/favorites', icon: Heart },
+  { key: 'checkout', path: '/checkout', icon: ShoppingBag },
+  { key: 'orders', path: '/orders', icon: ClipboardList },
+  { key: 'templates', path: '/templates', icon: LayoutTemplate },
+  { key: 'questions', path: '/questions', icon: MessageCircleQuestion },
+  { key: 'reviews', path: '/reviews', icon: Star },
+  { key: 'delivery', path: '/delivery', icon: Truck },
+  { key: 'profile', path: '/profile', icon: Building2 },
 ];
 
 /**
@@ -127,6 +150,14 @@ export function Shell() {
   return (
     <div className="min-h-screen bg-canvas">
       {/*
+        Вопрос о языке — поверх всего и до всего: кабинет, открывшийся не на
+        том языке, человек не читает, а разглядывает. Спрашивается он один
+        раз за браузер, и ответивший на странице приглашения второй раз
+        не спрашивается — ключ у них общий.
+      */}
+      <LanguageAsk />
+
+      {/*
         Одна кнопка на обе ширины: на мониторе она складывает постоянную
         колонку, на телефоне открывает лист. Названа она «Меню» в обоих
         случаях — человек нажимает её за одним и тем же.
@@ -173,6 +204,31 @@ export function Shell() {
             />
           ))}
         </nav>
+
+        {/*
+          Знак системы — подвалом под разделами.
+
+          В шапке телефона его нет: ширину там оспаривает имя поставщика, и
+          знак у имени выигрывать не должен — кому принадлежит кабинет, важнее
+          того, чья это система. Но вопрос «чья это система» человек всё-таки
+          задаёт: с телефона он попал сюда по присланной ссылке и продукта
+          до этого не видел. Меню — верное для него место: открывают его
+          не в спешке, а внизу, после разделов, знак не отнимает у них
+          ни строки.
+
+          Не ссылка: «Каталог» стоит первым разделом двумя пальцами выше, и
+          вторая дорога туда же читалась бы другим разделом. Знак `decorative`
+          при подписи — имя системы диктор произносит один раз.
+        */}
+        <div
+          data-testid="menu-logo"
+          className="mt-6 flex items-center justify-center gap-2 border-t border-hairline pt-4"
+        >
+          <Logo decorative className="h-6" />
+          <span className="text-[13px] font-medium tracking-[-0.01em] text-ink-subtle">
+            Q-Order
+          </span>
+        </div>
       </Sheet>
 
       <div
@@ -216,6 +272,26 @@ export function Shell() {
               badge={section.path === '/profile' ? others : undefined}
             />
           ))}
+
+          {/*
+            Тот же знак, что и в подвале выдвижного листа, и по той же причине:
+            колонка и лист показывают один список разделов, а заканчиваться
+            по-разному не должны — знак, стоящий только в одном из двух,
+            читается как разница между кабинетами, а не между ширинами экрана.
+
+            Прижат книзу (`mt-auto`), а не приклеен к последнему разделу:
+            колонка выше своего содержимого, и знак посреди пустоты выглядел бы
+            оборванным списком.
+          */}
+          <div
+            data-testid="rail-logo"
+            className="mt-auto flex items-center justify-center gap-2 border-t border-hairline pt-4"
+          >
+            <Logo decorative className="h-6" />
+            <span className="text-[13px] font-medium tracking-[-0.01em] text-ink-subtle">
+              Q-Order
+            </span>
+          </div>
         </nav>
         )}
 
@@ -316,7 +392,7 @@ function Header({
         >
           <Logo decorative className="h-8" />
           <span className="text-base font-semibold tracking-[-0.01em] text-ink">
-            FastOrders
+            Q-Order
           </span>
         </Link>
 
@@ -357,15 +433,16 @@ function Header({
             <ShoppingBag className="size-5" aria-hidden="true" />
           </HeaderAction>
 
-          <Link
-            to="/orders"
-            className={cn(
-              'hidden h-11 items-center rounded-[var(--radius-tile)] px-3.5 text-sm text-ink-muted lg:flex',
-              'transition-all duration-300 hover:bg-ink/5 active:scale-95',
-            )}
-          >
-            {t('shell.orders')}
-          </Link>
+          {/*
+            У «Моих заявок» тот же значок, что у раздела в колонке: подпись
+            в шапке и строка в списке ведут в одно место, и два разных рисунка
+            читались бы двумя разными разделами. Ссылка по-прежнему только на
+            мониторе — на телефоне заявки открывают из списка разделов, а
+            четвёртый значок отнял бы ширину у имени поставщика.
+          */}
+          <HeaderAction to="/orders" label={t('shell.orders')} className="hidden lg:flex">
+            <ClipboardList className="size-5" aria-hidden="true" />
+          </HeaderAction>
 
           {/*
             В неоткрытом кабинете колокольчика нет: новостям взяться неоткуда,
@@ -375,9 +452,9 @@ function Header({
           {activated && <NotificationsBell active={ready} />}
 
           {/*
-            Переключатель языка — рядом с профилем и только на мониторе.
-            На телефоне шапка занята именем поставщика и значками, и четвёртая
-            цель отняла бы ширину у имени, ради которого шапку и переделывали;
+            Переключатель языка — рядом с плашкой вошедшего и только
+            на мониторе. На телефоне шапка занята именем поставщика и значками,
+            и он отнял бы ширину у имени, ради которого шапку и переделывали;
             там тот же переключатель стоит первой строкой выдвижного меню.
           */}
           <div className="hidden lg:block">
@@ -385,20 +462,14 @@ function Header({
           </div>
 
           {/*
-            Кружок профиля вместо инициалов: имени вошедшего кабинет не знает —
-            ни AuthContext, ни портальное API его не отдают. Две выдуманные
-            буквы были бы чужими инициалами на экране человека.
+            Кто вошёл — именем, а не безликим кружком. Имя приходит
+            с `GET /api/portal/me`, и плашка стоит справа симметрично имени
+            поставщика слева: слева «у кого покупаю», справа «кем вошёл».
+
+            На телефоне от плашки остаётся один кружок с инициалами: она там
+            третья цель в правом углу и ширины под текст не берёт.
           */}
-          <Link
-            to="/profile"
-            aria-label={t('shell.profile')}
-            className={cn(
-              'hidden size-10 shrink-0 items-center justify-center rounded-full lg:flex',
-              'bg-accent-soft text-accent transition-all duration-300 active:scale-95',
-            )}
-          >
-            <User className="size-[18px]" aria-hidden="true" />
-          </Link>
+          <ViewerBadge active={ready} />
         </div>
       </div>
     </header>
@@ -536,12 +607,13 @@ function SectionLink({
   badge,
   onFollow,
 }: {
-  section: { key: string; path: string };
+  section: { key: string; path: string; icon: LucideIcon };
   current: string;
   badge?: number;
   onFollow?: () => void;
 }) {
   const { t } = useTranslation();
+  const Icon = section.icon;
   const active = current === section.path
     || (section.path !== '/catalog' && current.startsWith(`${section.path}/`))
     || (section.path === '/orders' && current.startsWith('/orders'));
@@ -552,11 +624,23 @@ function SectionLink({
       onClick={onFollow}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex h-11 items-center rounded-[var(--radius-control)] px-3 text-left text-sm font-medium',
+        // Высота задана снизу, а не намертво: со значком на подпись остаётся
+        // около ста сорока точек, и «Доставка и самовывоз» переносится второй
+        // строкой. Жёсткие 44 точки выпустили бы её за края строки, а обрезка
+        // многоточием скрыла бы половину названия раздела.
+        'flex min-h-11 items-center gap-2.5 rounded-[var(--radius-control)] px-3 py-2 text-left text-sm font-medium',
         'transition-all duration-300 active:scale-95',
         active ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-ink/5',
       )}
     >
+      {/*
+        Значок — картинка при подписи, а не вместо неё: он спрятан от диктора
+        (`aria-hidden`), потому что раздел уже назван словом рядом, и второе
+        имя тому же самому диктор прочитал бы дважды. Он же не сжимается:
+        в перенесённой на две строки подписи `flex` иначе отнял бы ширину
+        у картинки, и грузовик стал бы овалом.
+      */}
+      <Icon aria-hidden="true" className="size-[18px] shrink-0" />
       {t(`shell.sections.${section.key}`)}
       {badge !== undefined && badge > 0 && (
         // Тот же приём, что у пилюли в списке поставщиков и у точки в шапке:

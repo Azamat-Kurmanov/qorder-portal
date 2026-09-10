@@ -53,7 +53,7 @@ export type Viewer = 'customer' | 'staff';
  * и на всех следующих экранах. Вкладку он не переживает намеренно: открыв
  * кабинет заново, человек снова становится клиентом, если сам не сказал иного.
  */
-const VIEWER_KEY = 'fo.portal.viewer';
+const VIEWER_KEY = 'qo.portal.viewer';
 
 const managers = new Map<Viewer, UserManager>();
 

@@ -46,6 +46,15 @@ function shellRules(cart: unknown = emptyCart) {
       { supplierId: 'supplier-2', name: 'Бумага оптом' },
     ]),
     get('/api/portal/cart', cart),
+    get('/api/portal/me', {
+      id: 'a1',
+      supplierId: 'supplier-1',
+      customerId: 'c1',
+      phone: '77010000001',
+      status: 'ACTIVE',
+      service: false,
+      customerName: 'Асхат Каримов',
+    }),
   ];
 }
 
@@ -289,6 +298,75 @@ describe('оболочка кабинета', () => {
     expect(await within(header).findByText('СтройБаза Алматы')).toBeInTheDocument();
   });
 
+  /**
+   * Шапка называет и вошедшего.
+   *
+   * Слева «у кого покупаю», справа «кем вошёл» — вопросы разные, и второй
+   * не праздный: на складе один браузер на смену, и заявка, отправленная
+   * из-под чужой учётной записи, уходит с чужим адресом доставки.
+   */
+  it('шапка называет вошедшего по имени, а не безликим кружком', async () => {
+    stubFetch(shellRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    const header = screen.getByRole('banner');
+    expect(await within(header).findByRole('link', { name: /Асхат Каримов/ }))
+      .toHaveAttribute('href', '/profile');
+  });
+
+  /**
+   * Знак системы — в подвале выдвижного меню.
+   *
+   * В шапке телефона его нет намеренно: ширину там оспаривает имя
+   * поставщика. Но «чья это система» человек спрашивает — с телефона он
+   * попал сюда по присланной ссылке и продукта до этого не видел. Меню
+   * и есть место для такого вопроса: открывают его не в спешке, и внизу,
+   * после разделов, знак никому не мешает.
+   */
+  it('в самом низу выдвижного меню стоит знак системы', async () => {
+    stubFetch(shellRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Меню' }));
+    const menu = await screen.findByRole('dialog', { name: 'Меню' });
+
+    const mark = within(menu).getByTestId('menu-logo');
+    const nav = within(menu).getByRole('navigation', { name: 'Разделы' });
+    // Именно ниже разделов: знак — подпись под списком, а не десятый его пункт.
+    expect(nav.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+
+    // Имя системы названо один раз: знак при подписи стоит `decorative`,
+    // иначе диктор прочёл бы «Q-Order» дважды подряд.
+    expect(within(menu).getAllByText('Q-Order')).toHaveLength(1);
+  });
+
+  /**
+   * Тот же знак — и в постоянной колонке.
+   *
+   * Колонка на мониторе и лист на телефоне показывают один и тот же список
+   * разделов, и заканчиваться они обязаны одинаково: знак, стоящий только
+   * в одном из двух, читается как разница между кабинетами, а не между
+   * ширинами экрана.
+   */
+  it('в самом низу колонки разделов стоит знак системы', async () => {
+    stubWideScreen();
+    stubFetch(shellRules());
+
+    renderScreen(<Shell />, { route: '/catalog' });
+
+    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
+    const mark = within(rail).getByTestId('rail-logo');
+    // Ниже разделов, а не десятым пунктом среди них.
+    const last = within(rail).getByRole('link', { name: 'Поставщики' });
+    expect(last.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+
+    expect(within(rail).getAllByText('Q-Order')).toHaveLength(1);
+  });
+
   it('на мониторе кабинет разложен в три колонки: разделы, витрина, заявка', async () => {
     stubFetch(shellRules());
 
@@ -367,12 +445,11 @@ describe('оболочка кабинета', () => {
   });
 
   /**
-   * Переключатель языка стоит в шапке рядом с профилем — на мониторе.
-   * На телефоне кружка профиля в шапке нет вовсе, а сама шапка занята именем
-   * поставщика и тремя значками: четвёртый отнял бы ширину у имени, ради
-   * которого шапку и переделывали. Там тот же переключатель стоит первой
-   * строкой выдвижного меню — язык меняют один раз, ради него разумно
-   * открыть меню.
+   * Переключатель языка стоит в шапке рядом с плашкой вошедшего — на
+   * мониторе. На телефоне от плашки остаётся один кружок с инициалами, а сама
+   * шапка занята именем поставщика и значками: переключатель отнял бы ширину
+   * у имени, ради которого шапку и переделывали. Там он стоит первой строкой
+   * выдвижного меню — язык меняют один раз, ради него разумно открыть меню.
    */
   it('переключатель языка стоит в шапке и в выдвижном меню', async () => {
     stubFetch(shellRules());

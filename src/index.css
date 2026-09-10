@@ -70,19 +70,32 @@ body {
  * не изменилось. Настройку «меньше движения» гасит правило ниже: оно
  * укорачивает и эти анимации.
  */
-@keyframes fo-sheet-in-bottom  { from { transform: translateY(100%); }  to { transform: none; } }
-@keyframes fo-sheet-out-bottom { from { transform: none; } to { transform: translateY(100%); } }
-@keyframes fo-sheet-in-left    { from { transform: translateX(-100%); } to { transform: none; } }
-@keyframes fo-sheet-out-left   { from { transform: none; } to { transform: translateX(-100%); } }
-@keyframes fo-scrim-in  { from { opacity: 0; } to { opacity: 1; } }
-@keyframes fo-scrim-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes qo-sheet-in-bottom  { from { transform: translateY(100%); }  to { transform: none; } }
+@keyframes qo-sheet-out-bottom { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes qo-sheet-in-left    { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes qo-sheet-out-left   { from { transform: none; } to { transform: translateX(-100%); } }
+@keyframes qo-scrim-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes qo-scrim-out { from { opacity: 1; } to { opacity: 0; } }
 
-.fo-sheet[data-side='bottom'][data-state='open']   { animation: fo-sheet-in-bottom  300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
-.fo-sheet[data-side='bottom'][data-state='closed'] { animation: fo-sheet-out-bottom 300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
-.fo-sheet[data-side='left'][data-state='open']     { animation: fo-sheet-in-left    300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
-.fo-sheet[data-side='left'][data-state='closed']   { animation: fo-sheet-out-left   300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
-.fo-scrim[data-state='open']   { animation: fo-scrim-in  200ms ease-out; }
-.fo-scrim[data-state='closed'] { animation: fo-scrim-out 200ms ease-out; }
+/*
+ * Окно посреди экрана приходит на месте, а не съезжает откуда-то: у него
+ * нет края, из-за которого оно выезжало бы, — оно про весь экран сразу.
+ * Сдвиг оставлен крошечным (четыре процента высоты) и живёт только внутри
+ * анимации: положение покоя задано разметкой, и не начавшееся движение
+ * оставляет окно ровно посередине, а не в паре сантиметров выше.
+ */
+@keyframes qo-dialog-in {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.98); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.qo-sheet[data-side='bottom'][data-state='open']   { animation: qo-sheet-in-bottom  300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.qo-sheet[data-side='bottom'][data-state='closed'] { animation: qo-sheet-out-bottom 300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.qo-sheet[data-side='left'][data-state='open']     { animation: qo-sheet-in-left    300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.qo-sheet[data-side='left'][data-state='closed']   { animation: qo-sheet-out-left   300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.qo-scrim[data-state='open']   { animation: qo-scrim-in  200ms ease-out; }
+.qo-scrim[data-state='closed'] { animation: qo-scrim-out 200ms ease-out; }
+.qo-dialog[data-state='open']  { animation: qo-dialog-in 200ms cubic-bezier(0.22, 0.61, 0.36, 1); }
 
 /*
  * Движение уважает настройку системы: этого требуют от всех
@@ -96,27 +109,3 @@ body {
   }
 }
 
-/*
- * Какой из двух знаков виден.
- *
- * Своей тёмной темы у кабинета нет, поэтому выбирает настройка браузера,
- * а не полотно: человек, у которого система стоит на тёмное, открывает
- * кабинет с тёмным знаком. Переключает CSS, а не React: знак стоит и на
- * экранах входа, которые рисуются вне провайдеров.
- *
- * Скрытый вариант убран `display: none`, а не прозрачностью: так он выпадает
- * и из дерева доступности, и подпись не читается экранным читателем дважды.
- */
-[data-fo-logo='dark'] {
-  display: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  [data-fo-logo='light'] {
-    display: none;
-  }
-
-  [data-fo-logo='dark'] {
-    display: inline;
-  }
-}

@@ -12,7 +12,7 @@
  *
  * **Токен.** Все адреса `/api/**`, кроме вебхуков и обмена с учётной системой, требуют токена, и не любого: в нём обязан быть арендатор. Токен без `tenant_id` отклоняется с кодом `TENANT_CONTEXT_MISSING` — это отказ доступа, а не ошибка входа.
  *
- * Получить токен паролем из командной строки нельзя: у клиентов realm выключен прямой доступ по паролю. Рабочий путь один — войти в веб-интерфейс и взять оттуда `access_token` (в браузере: инструменты разработчика, вкладка сети, любой запрос к `/api`, заголовок `Authorization`). Полученное значение вставляется в Swagger UI кнопкой **Authorize** и живёт до истечения срока токена. Кому нужен `curl`, тот включает прямой доступ по паролю клиенту `fastorders-web` в консоли Keycloak — на стенде это допустимо, на сервере нет.
+ * Получить токен паролем из командной строки нельзя: у клиентов realm выключен прямой доступ по паролю. Рабочий путь один — войти в веб-интерфейс и взять оттуда `access_token` (в браузере: инструменты разработчика, вкладка сети, любой запрос к `/api`, заголовок `Authorization`). Полученное значение вставляется в Swagger UI кнопкой **Authorize** и живёт до истечения срока токена. Кому нужен `curl`, тот включает прямой доступ по паролю клиенту `q-order-web` в консоли Keycloak — на стенде это допустимо, на сервере нет.
  *
  * **Учётные записи стенда.** Заводятся, когда `KC_DEV_USERS=true`; пароли лежат в `.env` и в контракт не выносятся.
  *
@@ -217,6 +217,33 @@ export interface SellerDetailsDto {
   bankBic?: string;
   bankAccount?: string;
   bankKbe?: string;
+}
+
+/**
+ * Название и БИН либо ИИН арендатора
+ */
+export interface TenantDetailsRequest {
+  /**
+     * Название, каким арендатор виден платформе
+     * @minLength 1
+     */
+  name: string;
+  /**
+     * БИН организации или ИИН предпринимателя: двенадцать цифр либо пусто. У предпринимателя БИН не выдаётся вовсе, и поле
+     * принимает его ИИН
+     * @pattern \d{12}|
+     */
+  binIin?: string;
+}
+
+export interface PlatformTenantDto {
+  id?: string;
+  name?: string;
+  binIin?: string;
+  status?: string;
+  messengerIntake?: boolean;
+  /** Знак компании так, как его поставил себе сам арендатор. Пусто у того, кто его не ставил: список работает по одному наименованию, поэтому пустое поле — обычное состояние, а не неполадка */
+  logoUrl?: string;
 }
 
 export interface UpdatePlatformSettingsRequest {
@@ -1214,6 +1241,28 @@ export interface StaffCreatedDto {
   temporaryPassword: string;
 }
 
+/**
+ * Учётная запись арендатора
+ */
+export interface CreateTenantAccountRequest {
+  /**
+     * Номер телефона: он же имя пользователя при входе
+     * @minLength 1
+     * @pattern 7\d{10}
+     */
+  phone: string;
+  /**
+     * Имя и фамилия
+     * @minLength 1
+     */
+  name: string;
+  /**
+     * Почта: нужна, чтобы восстановить пароль
+     * @minLength 1
+     */
+  email: string;
+}
+
 export interface IssueServiceInvoiceRequest {
   /** @minimum 0.01 */
   amount: number;
@@ -1644,6 +1693,12 @@ export interface ActivateInvitationRequest {
   code: string;
   /** Редакция уведомления об обработке данных, с которой согласился человек. Присылается та, что была ему показана: через год отвечать придётся за неё, а не за сегодняшнюю */
   consentVersion: string;
+  /**
+     * Пароль, который клиент придумал себе для входа. Нужен только в запросе без токена по приглашению записи, у которой пароля ещё нет: у клиента, уже задавшего себе пароль, он свой, и менять его активацией нельзя ни по чьей ссылке
+     * @minLength 0
+     * @maxLength 128
+     */
+  password?: string;
 }
 
 /**
@@ -1945,6 +2000,8 @@ export interface InvitationDto {
   expiresAt: string;
   /** Ушло ли письмо. Ложь — приглашение выписано, но доставить его не удалось: выписать повторно */
   delivered: boolean;
+  /** Ссылка активации целиком: её менеджер передаёт клиенту, если письмо не дошло */
+  activationLink: string;
 }
 
 /**
@@ -2075,14 +2132,6 @@ export interface ExchangeAckDto {
   rejections: RejectedRowDto[];
   /** Арендатор заказал полную выгрузку: пришлите всё заново, а не изменения. Признак держится, пока выгрузка не придёт */
   fullExportRequested: boolean;
-}
-
-export interface PlatformTenantDto {
-  id?: string;
-  name?: string;
-  binIin?: string;
-  status?: string;
-  messengerIntake?: boolean;
 }
 
 export type PlatformServiceRequestDtoServicePackage = typeof PlatformServiceRequestDtoServicePackage[keyof typeof PlatformServiceRequestDtoServicePackage];
@@ -2336,6 +2385,18 @@ export interface DeliveryOptionsDto {
   methods: Method[];
   /** Точки самовывоза. Пусто, если поставщик их не завёл */
   pickupPoints: PickupPoint[];
+}
+
+/**
+ * Согласие на обработку персональных данных
+ */
+export interface ConsentRecordDto {
+  id: string;
+  /** Редакция уведомления, с которой человек согласился */
+  version: string;
+  /** Язык, на котором он его читал: редакции на разных языках это разные тексты */
+  language: string;
+  acceptedAt: string;
 }
 
 /**
@@ -2673,6 +2734,18 @@ export interface CatalogReplyDto {
 }
 
 /**
+ * Действующая ссылка активации
+ */
+export interface InvitationLinkDto {
+  /** Ссылка активации целиком */
+  link: string;
+  /** До какого момента ссылка работает */
+  expiresAt: string;
+  /** Адрес, на который ушло письмо этой выдачи */
+  sentTo?: string;
+}
+
+/**
  * Чего не хватает позиции для витрины
  */
 export type CatalogItemRowDtoMissingItem = typeof CatalogItemRowDtoMissingItem[keyof typeof CatalogItemRowDtoMissingItem];
@@ -2800,6 +2873,7 @@ export const AuditEventDtoAction = {
   PII_SETTING_CHANGED: 'PII_SETTING_CHANGED',
   PORTAL_INVITATION_ISSUED: 'PORTAL_INVITATION_ISSUED',
   PORTAL_INVITATION_REVOKED: 'PORTAL_INVITATION_REVOKED',
+  PORTAL_INVITATION_LINK_SHOWN: 'PORTAL_INVITATION_LINK_SHOWN',
   PORTAL_ACCOUNT_BLOCKED: 'PORTAL_ACCOUNT_BLOCKED',
   PORTAL_ACCOUNT_UNBLOCKED: 'PORTAL_ACCOUNT_UNBLOCKED',
   PORTAL_REVIEW_PUBLISHED: 'PORTAL_REVIEW_PUBLISHED',
@@ -2868,8 +2942,6 @@ export type CommitCatalogImportBody = {
   request: CommitImportRequest;
 };
 
-export type Probe200 = {[key: string]: string};
-
 export type GetStockRequestQueueParams = {
 status?: GetStockRequestQueueStatus;
 };
@@ -2900,8 +2972,6 @@ export const GetReviewModerationQueueStatus = {
   PUBLISHED: 'PUBLISHED',
   REJECTED: 'REJECTED',
 } as const;
-
-export type Context200 = {[key: string]: unknown};
 
 export type GetPortalCatalogParams = {
 query?: string;
@@ -3466,6 +3536,127 @@ export const useUpdateSellerDetails = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getUpdateSellerDetailsMutationOptions(options), queryClient);
+    }
+
+export type updatePlatformTenantResponse200 = {
+  data: PlatformTenantDto
+  status: 200
+}
+
+export type updatePlatformTenantResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updatePlatformTenantResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updatePlatformTenantResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updatePlatformTenantResponseSuccess = (updatePlatformTenantResponse200) & {
+  headers: Headers;
+};
+export type updatePlatformTenantResponseError = (updatePlatformTenantResponse400 | updatePlatformTenantResponse404 | updatePlatformTenantResponse500) & {
+  headers: Headers;
+};
+
+export type updatePlatformTenantResponse = (updatePlatformTenantResponseSuccess | updatePlatformTenantResponseError)
+
+export const getUpdatePlatformTenantUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/platform/tenants/${id}`
+}
+
+/**
+ * Правит название и БИН либо ИИН — то, что платформа сама и вводила при подключении.
+ *
+ * Присылается целиком: непереданное поле считается стёртым. Частичной правки нет намеренно — пустое поле означает «этого у меня нет», и отличить его от «я про него не говорил» при частичной присылке нечем.
+ *
+ * Реквизиты для счетов сюда не входят: их арендатор ведёт сам.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Завести арендатора, затем отправить сюда другое название — список показывает новое.
+ * 2. Отправить только `name` — БИН/ИИН становится пустым.
+ * 3. Негативный 404: любой другой идентификатор.
+ * @summary Изменить арендатора
+ */
+export const updatePlatformTenant = async (id: string,
+    tenantDetailsRequest: TenantDetailsRequest, options?: RequestInit): Promise<updatePlatformTenantResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<updatePlatformTenantResponse>(getUpdatePlatformTenantUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(tenantDetailsRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePlatformTenantMutationKey = () => ['updatePlatformTenant'] as const;
+
+export const getUpdatePlatformTenantMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformTenant>>, TError,UpdatePlatformTenantMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof updatePlatformTenant>>, TError,UpdatePlatformTenantMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePlatformTenantMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePlatformTenant>>, UpdatePlatformTenantMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePlatformTenant(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePlatformTenantMutationResult = NonNullable<Awaited<ReturnType<typeof updatePlatformTenant>>>
+    export type UpdatePlatformTenantMutationBody = TenantDetailsRequest
+    export type UpdatePlatformTenantMutationError = ErrorResponse
+    export type UpdatePlatformTenantMutationVariables = {id: string;data: TenantDetailsRequest}
+
+    /**
+ * @summary Изменить арендатора
+ */
+export const useUpdatePlatformTenant = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformTenant>>, TError,UpdatePlatformTenantMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePlatformTenant>>,
+        TError,
+        UpdatePlatformTenantMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePlatformTenantMutationOptions(options), queryClient);
     }
 
 export type getPlatformSettingsResponse200 = {
@@ -5956,7 +6147,7 @@ export const getUpdateCatalogCategoryUrl = (id: string,) => {
  * 4. Негативный 404: подставить в путь случайный идентификатор.
  * 5. Негативный 409: переименовать в название соседней категории.
  * 6. Повторить под менеджером (`77010000102`) — тоже 200.
- * 7. Негативный 403: тот же запрос под `fo-viewer`.
+ * 7. Негативный 403: тот же запрос под `qo-viewer`.
  * @summary Переименовать категорию
  */
 export const updateCatalogCategory = async (id: string,
@@ -6206,7 +6397,7 @@ export const getReceiveInboundMessageUrl = (channelId: string,) => {
  * SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -r | cut -d' ' -f1)
  * curl -X POST "http://localhost:5000/api/webhooks/$CHANNEL" \
  *   -H 'Content-Type: application/json' \
- *   -H "X-FO-Signature: sha256=$SIG" \
+ *   -H "X-QO-Signature: sha256=$SIG" \
  *   -d "$BODY"
  * ```
  *
@@ -6956,6 +7147,532 @@ export const useBlockStaffMember = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getBlockStaffMemberMutationOptions(options), queryClient);
+    }
+
+export type listPlatformTenantsResponse200 = {
+  data: PlatformTenantDto[]
+  status: 200
+}
+
+export type listPlatformTenantsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPlatformTenantsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPlatformTenantsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPlatformTenantsResponseSuccess = (listPlatformTenantsResponse200) & {
+  headers: Headers;
+};
+export type listPlatformTenantsResponseError = (listPlatformTenantsResponse400 | listPlatformTenantsResponse404 | listPlatformTenantsResponse500) & {
+  headers: Headers;
+};
+
+export type listPlatformTenantsResponse = (listPlatformTenantsResponseSuccess | listPlatformTenantsResponseError)
+
+export const getListPlatformTenantsUrl = () => {
+
+
+
+
+  return `/api/tenant/platform/tenants`
+}
+
+/**
+ * Список, по которому платформа выбирает, с кем работать. Дальше выбранный арендатор передаётся заголовком `X-QO-Tenant`, и все остальные адреса ведут себя так, будто запрос пришёл от него.
+ *
+ * Единственное чтение, намеренно обходящее изоляцию: платформа стоит над арендаторами, и список из одного ей бесполезен. Обход ограничен четырьмя полями — имя, БИН либо ИИН, состояние и признак пакета: список нужен, чтобы найти нужного, а не читать чужие дела.
+ *
+ * Заголовок значит что-либо только у этой роли. У остальных он молча не читается — не отвергается: чужой заголовок не должен ни давать чужих данных, ни ломать работу того, кто ни в чём не виноват.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти сотрудником платформы (`superadmin` в realm `q-order-platform`), вызвать метод — придут все арендаторы с признаком подключённого пакета.
+ * 2. Вызвать `getWhatsappPackage` с заголовком `X-QO-Tenant` чужого арендатора — придёт его состояние, а не своё.
+ * 3. Негативный 400: тот же заголовок со значением «abc».
+ * 4. Негативный 403: список под администратором арендатора.
+ * @summary Арендаторы платформы
+ */
+export const listPlatformTenants = async ( options?: RequestInit): Promise<listPlatformTenantsResponse> => {
+
+  return apiRequest<listPlatformTenantsResponse>(getListPlatformTenantsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformTenantsQueryKey = () => {
+    return [
+    `/api/tenant/platform/tenants`
+    ] as const;
+    }
+
+
+export const getListPlatformTenantsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformTenantsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformTenants>>> = ({ signal }) => listPlatformTenants({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPlatformTenantsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformTenants>>>
+export type ListPlatformTenantsQueryError = ErrorResponse
+
+
+export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenants>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenants>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenants>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenants>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Арендаторы платформы
+ */
+
+export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPlatformTenantsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createPlatformTenantResponse200 = {
+  data: PlatformTenantDto
+  status: 200
+}
+
+export type createPlatformTenantResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createPlatformTenantResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createPlatformTenantResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createPlatformTenantResponseSuccess = (createPlatformTenantResponse200) & {
+  headers: Headers;
+};
+export type createPlatformTenantResponseError = (createPlatformTenantResponse400 | createPlatformTenantResponse404 | createPlatformTenantResponse500) & {
+  headers: Headers;
+};
+
+export type createPlatformTenantResponse = (createPlatformTenantResponseSuccess | createPlatformTenantResponseError)
+
+export const getCreatePlatformTenantUrl = () => {
+
+
+
+
+  return `/api/tenant/platform/tenants`
+}
+
+/**
+ * Заводит арендатора: название и БИН либо ИИН. Учётной записи при этом не появляется — её заводит отдельное действие.
+ *
+ * Разделение не ради шагов: у базы и Keycloak нет общей транзакции, и одно действие на оба не смогло бы отработать отказ на середине. Этот запрос ходит только в базу, поэтому падать ему негде.
+ *
+ * Пакет приёма из мессенджера у нового арендатора выключен: он платный и включается заявкой.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отправить `{"name": "ТОО Поставщик", "binIin": "210840005678"}` — придёт арендатор с состоянием `ACTIVE` и выключенным пакетом.
+ * 2. Вызвать список — новый арендатор в нём есть.
+ * 3. Негативный 400: пустое название.
+ * 4. Негативный 403: тот же запрос администратором арендатора.
+ * @summary Подключить арендатора
+ */
+export const createPlatformTenant = async (tenantDetailsRequest: TenantDetailsRequest, options?: RequestInit): Promise<createPlatformTenantResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<createPlatformTenantResponse>(getCreatePlatformTenantUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(tenantDetailsRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePlatformTenantMutationKey = () => ['createPlatformTenant'] as const;
+
+export const getCreatePlatformTenantMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformTenant>>, TError,CreatePlatformTenantMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createPlatformTenant>>, TError,CreatePlatformTenantMutationVariables, TContext> => {
+
+const mutationKey = getCreatePlatformTenantMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPlatformTenant>>, CreatePlatformTenantMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPlatformTenant(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePlatformTenantMutationResult = NonNullable<Awaited<ReturnType<typeof createPlatformTenant>>>
+    export type CreatePlatformTenantMutationBody = TenantDetailsRequest
+    export type CreatePlatformTenantMutationError = ErrorResponse
+    export type CreatePlatformTenantMutationVariables = {data: TenantDetailsRequest}
+
+    /**
+ * @summary Подключить арендатора
+ */
+export const useCreatePlatformTenant = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformTenant>>, TError,CreatePlatformTenantMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPlatformTenant>>,
+        TError,
+        CreatePlatformTenantMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreatePlatformTenantMutationOptions(options), queryClient);
+    }
+
+export type listPlatformTenantAccountsResponse200 = {
+  data: StaffMemberDto[]
+  status: 200
+}
+
+export type listPlatformTenantAccountsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPlatformTenantAccountsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPlatformTenantAccountsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPlatformTenantAccountsResponseSuccess = (listPlatformTenantAccountsResponse200) & {
+  headers: Headers;
+};
+export type listPlatformTenantAccountsResponseError = (listPlatformTenantAccountsResponse400 | listPlatformTenantAccountsResponse404 | listPlatformTenantAccountsResponse500) & {
+  headers: Headers;
+};
+
+export type listPlatformTenantAccountsResponse = (listPlatformTenantAccountsResponseSuccess | listPlatformTenantAccountsResponseError)
+
+export const getListPlatformTenantAccountsUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/platform/tenants/${id}/accounts`
+}
+
+/**
+ * Кто у арендатора заведён и в каком состоянии его вход. Только чтение: этого хватает, чтобы разобрать обращение «не могу войти», а менять состав людей внутри чужой фирмы платформе незачем.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Завести арендатора и его учётную запись, вызвать метод — придёт одна запись с ролью `TENANT_ADMIN`.
+ * 2. Негативный 404: любой другой идентификатор арендатора.
+ * @summary Учётные записи арендатора
+ */
+export const listPlatformTenantAccounts = async (id: string, options?: RequestInit): Promise<listPlatformTenantAccountsResponse> => {
+
+  return apiRequest<listPlatformTenantAccountsResponse>(getListPlatformTenantAccountsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformTenantAccountsQueryKey = (id: string,) => {
+    return [
+    `/api/tenant/platform/tenants/${id}/accounts`
+    ] as const;
+    }
+
+
+export const getListPlatformTenantAccountsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformTenantAccountsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformTenantAccounts>>> = ({ signal }) => listPlatformTenantAccounts(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPlatformTenantAccountsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformTenantAccounts>>>
+export type ListPlatformTenantAccountsQueryError = ErrorResponse
+
+
+export function useListPlatformTenantAccounts<TData = Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenantAccounts>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenantAccounts>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformTenantAccounts<TData = Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenantAccounts>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenantAccounts>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformTenantAccounts<TData = Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Учётные записи арендатора
+ */
+
+export function useListPlatformTenantAccounts<TData = Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantAccounts>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPlatformTenantAccountsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createPlatformTenantAccountResponse200 = {
+  data: StaffCreatedDto
+  status: 200
+}
+
+export type createPlatformTenantAccountResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createPlatformTenantAccountResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createPlatformTenantAccountResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type createPlatformTenantAccountResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createPlatformTenantAccountResponseSuccess = (createPlatformTenantAccountResponse200) & {
+  headers: Headers;
+};
+export type createPlatformTenantAccountResponseError = (createPlatformTenantAccountResponse400 | createPlatformTenantAccountResponse404 | createPlatformTenantAccountResponse409 | createPlatformTenantAccountResponse500) & {
+  headers: Headers;
+};
+
+export type createPlatformTenantAccountResponse = (createPlatformTenantAccountResponseSuccess | createPlatformTenantAccountResponseError)
+
+export const getCreatePlatformTenantAccountUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/platform/tenants/${id}/accounts`
+}
+
+/**
+ * Заводит первую учётную запись арендатора с ролью `TENANT_ADMIN` и отдаёт временный пароль — **один раз**. Пароль временный: при первом входе Keycloak потребует свой.
+ *
+ * Вторую учётную запись платформа завести не может: отказ `409`. Иначе сотрудник платформы в любой момент выписывал бы себе вход к любому поставщику. Дальше администраторов и остальных заводит сам арендатор.
+ *
+ * Закрытый вход действующим не считается: арендатор, у которого единственную учётную запись отключили, иначе остался бы без входа навсегда.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Завести арендатора, затем отправить сюда `{"phone": "77010000201", "name": "Айгуль Сериковна", "email": "aigul@example.kz"}` — придёт запись и пароль.
+ * 2. Войти этим номером и паролем — Keycloak потребует сменить пароль.
+ * 3. Негативный 409: повторить тот же запрос.
+ * 4. Негативный 409: тот же номер у другого арендатора — номер занят.
+ * @summary Завести учётную запись арендатора
+ */
+export const createPlatformTenantAccount = async (id: string,
+    createTenantAccountRequest: CreateTenantAccountRequest, options?: RequestInit): Promise<createPlatformTenantAccountResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<createPlatformTenantAccountResponse>(getCreatePlatformTenantAccountUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createTenantAccountRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePlatformTenantAccountMutationKey = () => ['createPlatformTenantAccount'] as const;
+
+export const getCreatePlatformTenantAccountMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformTenantAccount>>, TError,CreatePlatformTenantAccountMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createPlatformTenantAccount>>, TError,CreatePlatformTenantAccountMutationVariables, TContext> => {
+
+const mutationKey = getCreatePlatformTenantAccountMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPlatformTenantAccount>>, CreatePlatformTenantAccountMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createPlatformTenantAccount(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePlatformTenantAccountMutationResult = NonNullable<Awaited<ReturnType<typeof createPlatformTenantAccount>>>
+    export type CreatePlatformTenantAccountMutationBody = CreateTenantAccountRequest
+    export type CreatePlatformTenantAccountMutationError = ErrorResponse
+    export type CreatePlatformTenantAccountMutationVariables = {id: string;data: CreateTenantAccountRequest}
+
+    /**
+ * @summary Завести учётную запись арендатора
+ */
+export const useCreatePlatformTenantAccount = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformTenantAccount>>, TError,CreatePlatformTenantAccountMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPlatformTenantAccount>>,
+        TError,
+        CreatePlatformTenantAccountMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreatePlatformTenantAccountMutationOptions(options), queryClient);
     }
 
 export type requestWhatsappPackageResponse200 = {
@@ -10324,10 +11041,15 @@ export type activatePortalInvitationResponse500 = {
   status: 500
 }
 
+export type activatePortalInvitationResponse503 = {
+  data: ErrorResponse
+  status: 503
+}
+
 export type activatePortalInvitationResponseSuccess = (activatePortalInvitationResponse200) & {
   headers: Headers;
 };
-export type activatePortalInvitationResponseError = (activatePortalInvitationResponse400 | activatePortalInvitationResponse401 | activatePortalInvitationResponse404 | activatePortalInvitationResponse500) & {
+export type activatePortalInvitationResponseError = (activatePortalInvitationResponse400 | activatePortalInvitationResponse401 | activatePortalInvitationResponse404 | activatePortalInvitationResponse500 | activatePortalInvitationResponse503) & {
   headers: Headers;
 };
 
@@ -10342,27 +11064,36 @@ export const getActivatePortalInvitationUrl = () => {
 }
 
 /**
- * Связывает учётную запись у поставщика с человеком, который вошёл в кабинет. Токен обязателен: без него неизвестно, кого связывать.
+ * Открывает клиенту кабинет у поставщика. Способов активации два, и выбирает между ними не форма, а состояние учётной записи клиента в realm: есть у неё пароль или ещё нет.
  *
- * Телефон в теле запроса не передаётся. Он берётся из имени пользователя — в realm клиентов человек регистрируется номером и им же входит — и сверяется с номером, на который выписано приглашение. Приняв номер из формы, кабинет позволил бы назвать чужой: ссылку пересылают, и переславший открыл бы третьему лицу чужую историю заказов.
+ * Пароля нет — токен не нужен: войти клиенту пока нечем. Он придумывает пароль прямо здесь, в поле `password`, и владение кодом из ссылки служит единственным доказательством личности. Пустой пароль в запросе без токена — отказ 400: запись стала бы действующей, а войти по ней было бы некому. Вошедшего это не касается: пароль у него по определению есть, и придумывать второй, чтобы его выбросили, никто не просит.
  *
- * Остальная защита прежняя: одноразовый код на 128 бит, ограниченный срок, отпечаток вместо кода в базе и ограничение частоты попыток.
+ * Пароль есть — приглашение его не меняет никогда, кем бы оно ни было выписано. Такое приглашение активируется только из-под входа, а поле `password` не читается вовсе и не требуется: иначе посторонний с пересланной ссылкой забрал бы кабинеты клиента у всех его поставщиков разом. Состояние записи спрашивается у Keycloak в момент активации, а не в момент выписки: у человека бывает по приглашению от нескольких поставщиков, и пароль, заданный по первой ссылке, делает вторую ссылкой на вход.
  *
- * Отказ одинаков на все причины: просроченный, использованный, отозванный и несуществующий код, а также чужой номер отвечают одним кодом и одним текстом. Разница в ответах превратила бы форму в способ узнать, кто чей поставщик.
+ * Телефон в теле запроса не передаётся никогда. При активации из-под входа он берётся из имени пользователя — в realm клиентов человек регистрируется номером и им же входит — и сверяется с номером, на который выписано приглашение. Приняв номер из формы, кабинет позволил бы назвать чужой.
+ *
+ * Остальная защита прежняя: одноразовый код на 128 бит, ограниченный срок, поиск приглашения только по отпечатку и ограничение частоты попыток.
+ *
+ * Отказ 401 одинаков на все причины: просроченный, использованный, отозванный и несуществующий код, чужой номер и приглашение, требующее входа, отвечают одним кодом и одним текстом. Разница в ответах превратила бы форму в способ узнать, кто чей поставщик.
+ *
+ * От 401 отличается только 400 с кодом `PORTAL_PASSWORD_REQUIRED` на годный код без пароля, и это различие принято сознательно: держатель ссылки и без того владеет верным кодом, а законному клиенту надо ответить внятно, иначе он не поймёт, что от него хотят.
+ *
+ * Форме активации из этого следует правило: получив 401, она обязана предложить вход. Причину ответ не называет намеренно, и «войдите — учётная запись у вас уже есть» — единственное объяснение, которое человеку по силам проверить самому.
+ *
+ * Отдельно стоит 503 `PORTAL_REALM_UNAVAILABLE`: пароль ставится в Keycloak, и его недоступность — наша авария, а не ошибка человека. Попытка при таком ответе не засчитывается, и повторить запрос можно сразу.
  *
  * **Как проверить вручную**
  *
- * 1. Зарегистрироваться в кабинете номером `77010000001` и войти; взять `access_token` из инструментов разработчика.
- * 2. Взять код из ссылки, выданной приглашением на тот же номер.
- * 3. Отправить код с этим токеном — ответ 200, статус `ACTIVE`.
- * 4. Повторить тот же запрос — 401: код гасится использованием.
- * 5. Негативный 401: новый код, но токен человека с другим номером. Ответ обязан совпадать с ответом из пункта 4 дословно; разные тексты — это утечка.
- * 6. Негативный 401: тот же запрос без токена вовсе.
+ * 1. Выписать приглашение на новый номер `77010000001` и взять код из ссылки в письме.
+ * 2. Отправить код с придуманным паролем и без токена — ответ 200, статус `ACTIVE`.
+ * 3. Войти в кабинет этим номером и этим паролем — вход проходит, и смены пароля Keycloak не требует.
+ * 4. Повторить запрос из пункта 2 — 401: код гасится использованием.
+ * 5. Негативный 400: новое приглашение на новый номер, тот же запрос без поля `password`.
+ * 6. Негативный 401: приглашение тому же человеку от второго поставщика после того, как он задал пароль по первой ссылке, — запрос без токена отказывается, и пароль остаётся прежним. С токеном этого человека тот же код проходит, пароль по-прежнему не трогают.
  * ```
  * curl -s -X POST http://localhost:8080/api/portal/invitation/activate \
  *   -H 'Content-Type: application/json' \
- *   -H 'Authorization: Bearer <токен клиента>' \
- *   -d '{"code":"<код из ссылки>","consentVersion":"2026-09-05"}'
+ *   -d '{"code":"<код из ссылки>","consentVersion":"2026-09-05","password":"<придуманный пароль>"}'
  * ```
  * @summary Активировать приглашение
  */
@@ -14710,16 +15441,16 @@ export const getIssuePortalInvitationUrl = () => {
 }
 
 /**
- * Заводит клиенту учётную запись в realm клиентов и отправляет ссылку активации письмом на введённый адрес — самой ссылки в ответе больше нет: администратору незачем видеть секрет, который уже ушёл получателю. Ответ говорит только, куда письмо отправлено и доставилось ли оно.
+ * Заводит клиенту учётную запись в realm клиентов, отправляет ссылку активации письмом на введённый адрес и отдаёт ту же ссылку в ответе: письмо доходит не всегда, и менеджер должен иметь возможность передать её сам. Каждый показ ссылки попадает в журнал доступа.
  *
- * Клиент ищется по телефону и заводится, если его ещё нет: заявки из переписки и заявки из кабинета обязаны сходиться на одном человеке. Повторное приглашение того же клиента гасит прежний код, выдаёт новый и пересылает письмо заново — это и есть способ вернуть доступ клиенту, забывшему пароль или не получившему письмо с первого раза. Учётной записи, уже заведённой другим поставщиком, новый пароль не выдаётся: она работает в его кабинете, и сброс пароля выкинул бы её оттуда.
+ * Клиент ищется по телефону и заводится, если его ещё нет: заявки из переписки и заявки из кабинета обязаны сходиться на одном человеке. Повторное приглашение того же клиента гасит прежний код, выдаёт новый и пересылает письмо заново — так поступают, когда письмо потерялось. Пароль клиента приглашением не меняется никогда: у кого пароль уже есть, тот активирует ссылку из-под своего входа.
  *
  * **Как проверить вручную**
  *
  * 1. Войти администратором (`77010000101`), пригласить телефон `77010000001` с почтой.
- * 2. В ответе адрес почты, срок действия и признак доставки — ссылки и кода в нём нет.
+ * 2. В ответе адрес почты, срок действия, признак доставки и ссылка активации — та же, что ушла письмом.
  * 3. Запросить учётные записи — появилась запись со статусом `INVITED`: приглашение выписано, но доступа ещё нет.
- * 4. Пригласить тот же телефон снова — запись та же, письмо ушло повторно. Вторая запись означала бы вторую историю заявок.
+ * 4. Пригласить тот же телефон снова — запись та же, ссылка новая, прежняя больше не работает. Вторая запись означала бы вторую историю заявок.
  * 5. Негативный 400: телефон с плюсом и пробелами — телефон записывается цифрами.
  * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * 7. Негативный 503: управление учётными записями клиентов не настроено.
@@ -14961,7 +15692,7 @@ export const getRevokePortalInvitationUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Выписать приглашение — ссылка и код уходят клиенту письмом, в ответе на выписку их нет.
+ * 1. Выписать приглашение — ссылка уходит клиенту письмом и приходит в ответе на выписку.
  * 2. Вызвать этот метод для той же учётной записи — 200.
  * 3. Попробовать активировать по коду из письма — отказ: приглашение недействительно.
  * 4. Проверить журнал доступа: там `PORTAL_INVITATION_REVOKED` с вашим именем.
@@ -15076,6 +15807,8 @@ export const getBlockPortalAccountUrl = (id: string,) => {
 
 /**
  * Учётная запись остаётся: к ней привязана история заявок, и вернуть доступ дешевле, чем приглашать заново. Отзыв действует немедленно — состояние проверяется на каждом запросе кабинета, а не только при входе.
+ *
+ * Приглашение при этом не отзывается: возврат доступа обещает вернуть запись в прежнее состояние, а погашенное приглашение вернуть нечем. Открыть кабинет старая ссылка всё равно не может — активация проверяет состояние записи. Кому доступ закрыт насовсем, тому приглашение отзывают отдельно.
  *
  * **Как проверить вручную**
  *
@@ -15363,7 +16096,7 @@ export const getCreateCatalogItemUrl = () => {
  * 7. Отправить те же свойства и следом «модель» = «М-500» — в ответе «Модель» одна, со значением «М-400».
  * 8. Негативный 400 с кодом `CATALOG_ATTRIBUTES_TOO_MANY`: отправить двадцать одно свойство. Успех здесь означал бы, что часть свойств пропала молча.
  * 9. Повторить под менеджером (`77010000102`) и `77010000103` — тоже 201: каталог наполняют руками те, кто работает с товаром, а не только администратор.
- * 10. Негативный 403: тот же запрос под `fo-viewer` — наблюдателю каталог доступен только на чтение.
+ * 10. Негативный 403: тот же запрос под `qo-viewer` — наблюдателю каталог доступен только на чтение.
  * @summary Завести позицию каталога
  */
 export const createCatalogItem = async (saveCatalogItemRequest: SaveCatalogItemRequest, options?: RequestInit): Promise<createCatalogItemResponse> => {
@@ -16435,103 +17168,6 @@ export const useAcceptStockExchange = <TError = ErrorResponse | void,
       return useMutation(getAcceptStockExchangeMutationOptions(options), queryClient);
     }
 
-export type probeResponse200 = {
-  data: Probe200
-  status: 200
-}
-
-export type probeResponse400 = {
-  data: ErrorResponse
-  status: 400
-}
-
-export type probeResponse404 = {
-  data: ErrorResponse
-  status: 404
-}
-
-export type probeResponse500 = {
-  data: ErrorResponse
-  status: 500
-}
-
-export type probeResponseSuccess = (probeResponse200) & {
-  headers: Headers;
-};
-export type probeResponseError = (probeResponse400 | probeResponse404 | probeResponse500) & {
-  headers: Headers;
-};
-
-export type probeResponse = (probeResponseSuccess | probeResponseError)
-
-export const getProbeUrl = () => {
-
-
-
-
-  return `/api/1c/probe`
-}
-
-export const probe = async ( options?: RequestInit): Promise<probeResponse> => {
-
-  return apiRequest<probeResponse>(getProbeUrl(),
-  {
-    ...options,
-    method: 'POST'
-
-
-  }
-);}
-
-
-
-
-
-export const getProbeMutationKey = () => ['probe'] as const;
-
-export const getProbeMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof probe>>, TError,void, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof probe>>, TError,void, TContext> => {
-
-const mutationKey = getProbeMutationKey();
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof probe>>, void> = () => {
-
-
-          return  probe()
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type ProbeMutationResult = NonNullable<Awaited<ReturnType<typeof probe>>>
-
-    export type ProbeMutationError = ErrorResponse
-
-
-    export const useProbe = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof probe>>, TError,void, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof probe>>,
-        TError,
-        void,
-        TContext
-      > => {
-      return useMutation(getProbeMutationOptions(options), queryClient);
-    }
-
 export type acceptCatalogExchangeResponse200 = {
   data: ExchangeAckDto
   status: 200
@@ -16746,148 +17382,6 @@ export const useAcceptCatalogExchange = <TError = ErrorResponse | void,
       return useMutation(getAcceptCatalogExchangeMutationOptions(options), queryClient);
     }
 
-export type listPlatformTenantsResponse200 = {
-  data: PlatformTenantDto[]
-  status: 200
-}
-
-export type listPlatformTenantsResponse400 = {
-  data: ErrorResponse
-  status: 400
-}
-
-export type listPlatformTenantsResponse404 = {
-  data: ErrorResponse
-  status: 404
-}
-
-export type listPlatformTenantsResponse500 = {
-  data: ErrorResponse
-  status: 500
-}
-
-export type listPlatformTenantsResponseSuccess = (listPlatformTenantsResponse200) & {
-  headers: Headers;
-};
-export type listPlatformTenantsResponseError = (listPlatformTenantsResponse400 | listPlatformTenantsResponse404 | listPlatformTenantsResponse500) & {
-  headers: Headers;
-};
-
-export type listPlatformTenantsResponse = (listPlatformTenantsResponseSuccess | listPlatformTenantsResponseError)
-
-export const getListPlatformTenantsUrl = () => {
-
-
-
-
-  return `/api/tenant/platform/tenants`
-}
-
-/**
- * Список, по которому платформа выбирает, с кем работать. Дальше выбранный арендатор передаётся заголовком `X-FO-Tenant`, и все остальные адреса ведут себя так, будто запрос пришёл от него.
- *
- * Единственное чтение, намеренно обходящее изоляцию: платформа стоит над арендаторами, и список из одного ей бесполезен. Обход ограничен четырьмя полями — имя, БИН, состояние и признак пакета: список нужен, чтобы найти нужного, а не читать чужие дела.
- *
- * Заголовок значит что-либо только у этой роли. У остальных он молча не читается — не отвергается: чужой заголовок не должен ни давать чужих данных, ни ломать работу того, кто ни в чём не виноват.
- *
- * **Как проверить вручную**
- *
- * 1. Войти сотрудником платформы (`superadmin` в realm `fastorders-platform`), вызвать метод — придут все арендаторы с признаком подключённого пакета.
- * 2. Вызвать `getWhatsappPackage` с заголовком `X-FO-Tenant` чужого арендатора — придёт его состояние, а не своё.
- * 3. Негативный 400: тот же заголовок со значением «abc».
- * 4. Негативный 403: список под администратором арендатора.
- * @summary Арендаторы платформы
- */
-export const listPlatformTenants = async ( options?: RequestInit): Promise<listPlatformTenantsResponse> => {
-
-  return apiRequest<listPlatformTenantsResponse>(getListPlatformTenantsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getListPlatformTenantsQueryKey = () => {
-    return [
-    `/api/tenant/platform/tenants`
-    ] as const;
-    }
-
-
-export const getListPlatformTenantsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>>, }
-) => {
-
-const {query: queryOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getListPlatformTenantsQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformTenants>>> = ({ signal }) => listPlatformTenants({ signal });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListPlatformTenantsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformTenants>>>
-export type ListPlatformTenantsQueryError = ErrorResponse
-
-
-export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlatformTenants>>,
-          TError,
-          Awaited<ReturnType<typeof listPlatformTenants>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listPlatformTenants>>,
-          TError,
-          Awaited<ReturnType<typeof listPlatformTenants>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Арендаторы платформы
- */
-
-export function useListPlatformTenants<TData = Awaited<ReturnType<typeof listPlatformTenants>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenants>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getListPlatformTenantsQueryOptions(options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
 export type listPlatformServiceRequestsResponse200 = {
   data: PlatformServiceRequestDto[]
   status: 200
@@ -16928,13 +17422,13 @@ export const getListPlatformServiceRequestsUrl = () => {
 /**
  * Заявки всех арендаторов одним списком. Наверху те, что ждут хода платформы: поданная заявка (назвать цену) и выставленный счёт (проверить поступление). Ниже — оплаченные и закрытые, между собой по времени подачи.
  *
- * Действия над заявкой живут по адресам пакета и требуют заголовка `X-FO-Tenant`: сам список отвечает на вопрос «с кем работать», а работа идёт уже в кабинете названного арендатора.
+ * Действия над заявкой живут по адресам пакета и требуют заголовка `X-QO-Tenant`: сам список отвечает на вопрос «с кем работать», а работа идёт уже в кабинете названного арендатора.
  *
  * Второе чтение, намеренно обходящее изоляцию, — по той же причине, что и список арендаторов: заявки одного арендатора не отвечают на вопрос платформы. Обход ограничен полями строки списка: реквизитов продавца и того, кто подал заявку, здесь нет.
  *
  * **Как проверить вручную**
  *
- * 1. Войти сотрудником платформы (`superadmin` в realm `fastorders-platform`), вызвать метод — придут заявки всех арендаторов, поданные и со счётом сверху.
+ * 1. Войти сотрудником платформы (`superadmin` в realm `q-order-platform`), вызвать метод — придут заявки всех арендаторов, поданные и со счётом сверху.
  * 2. Подать заявку вторым арендатором — она встанет в начало списка.
  * 3. Выставить по ней счёт и снова открыть список: номер счёта и сумма на месте, строка осталась выше оплаченных.
  * 4. Негативный 403: тот же запрос администратором арендатора.
@@ -18165,130 +18659,6 @@ export function useGetReviewModerationQueue<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetReviewModerationQueueQueryOptions(params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
-
-export type contextResponse200 = {
-  data: Context200
-  status: 200
-}
-
-export type contextResponse400 = {
-  data: ErrorResponse
-  status: 400
-}
-
-export type contextResponse404 = {
-  data: ErrorResponse
-  status: 404
-}
-
-export type contextResponse500 = {
-  data: ErrorResponse
-  status: 500
-}
-
-export type contextResponseSuccess = (contextResponse200) & {
-  headers: Headers;
-};
-export type contextResponseError = (contextResponse400 | contextResponse404 | contextResponse500) & {
-  headers: Headers;
-};
-
-export type contextResponse = (contextResponseSuccess | contextResponseError)
-
-export const getContextUrl = () => {
-
-
-
-
-  return `/api/probe/context`
-}
-
-export const context = async ( options?: RequestInit): Promise<contextResponse> => {
-
-  return apiRequest<contextResponse>(getContextUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getContextQueryKey = () => {
-    return [
-    `/api/probe/context`
-    ] as const;
-    }
-
-
-export const getContextQueryOptions = <TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>>, }
-) => {
-
-const {query: queryOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getContextQueryKey();
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof context>>> = ({ signal }) => context({ signal });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ContextQueryResult = NonNullable<Awaited<ReturnType<typeof context>>>
-export type ContextQueryError = ErrorResponse
-
-
-export function useContext<TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof context>>,
-          TError,
-          Awaited<ReturnType<typeof context>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useContext<TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof context>>,
-          TError,
-          Awaited<ReturnType<typeof context>>
-        > , 'initialData'
-      >, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useContext<TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>>, }
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-export function useContext<TData = Awaited<ReturnType<typeof context>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof context>>, TError, TData>>, }
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getContextQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -19765,6 +20135,296 @@ export function useGetPortalDeliveryOptions<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetPortalDeliveryOptionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getMyPortalConsentsResponse200 = {
+  data: ConsentRecordDto[]
+  status: 200
+}
+
+export type getMyPortalConsentsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getMyPortalConsentsResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getMyPortalConsentsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getMyPortalConsentsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getMyPortalConsentsResponseSuccess = (getMyPortalConsentsResponse200) & {
+  headers: Headers;
+};
+export type getMyPortalConsentsResponseError = (getMyPortalConsentsResponse400 | getMyPortalConsentsResponse403 | getMyPortalConsentsResponse404 | getMyPortalConsentsResponse500) & {
+  headers: Headers;
+};
+
+export type getMyPortalConsentsResponse = (getMyPortalConsentsResponseSuccess | getMyPortalConsentsResponseError)
+
+export const getGetMyPortalConsentsUrl = () => {
+
+
+
+
+  return `/api/portal/consents`
+}
+
+/**
+ * Согласия у выбранного поставщика, свежие первыми. Строки не переписываются: новая редакция уведомления — новое согласие, и в списке их столько, сколько человек их давал.
+ *
+ * Язык записан рядом с редакцией намеренно: редакции на разных языках это разные тексты, и согласие с одним не является согласием с другим.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Активировать приглашение и вызвать список — придёт одна запись с редакцией, языком и датой согласия.
+ * 2. Сменить заголовок поставщика на другого, у которого клиент тоже заведён, — согласия первого в списке нет: они у каждого поставщика свои.
+ * 3. Негативный 403: заголовок поставщика, у которого клиента нет.
+ * @summary Мои согласия
+ */
+export const getMyPortalConsents = async ( options?: RequestInit): Promise<getMyPortalConsentsResponse> => {
+
+  return apiRequest<getMyPortalConsentsResponse>(getGetMyPortalConsentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyPortalConsentsQueryKey = () => {
+    return [
+    `/api/portal/consents`
+    ] as const;
+    }
+
+
+export const getGetMyPortalConsentsQueryOptions = <TData = Awaited<ReturnType<typeof getMyPortalConsents>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPortalConsents>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyPortalConsentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyPortalConsents>>> = ({ signal }) => getMyPortalConsents({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyPortalConsents>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyPortalConsentsQueryResult = NonNullable<Awaited<ReturnType<typeof getMyPortalConsents>>>
+export type GetMyPortalConsentsQueryError = ErrorResponse
+
+
+export function useGetMyPortalConsents<TData = Awaited<ReturnType<typeof getMyPortalConsents>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPortalConsents>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPortalConsents>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPortalConsents>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPortalConsents<TData = Awaited<ReturnType<typeof getMyPortalConsents>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPortalConsents>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPortalConsents>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPortalConsents>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPortalConsents<TData = Awaited<ReturnType<typeof getMyPortalConsents>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPortalConsents>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Мои согласия
+ */
+
+export function useGetMyPortalConsents<TData = Awaited<ReturnType<typeof getMyPortalConsents>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPortalConsents>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyPortalConsentsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type downloadMyConsentResponse200 = {
+  data: Blob
+  status: 200
+}
+
+export type downloadMyConsentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type downloadMyConsentResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type downloadMyConsentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type downloadMyConsentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type downloadMyConsentResponseSuccess = (downloadMyConsentResponse200) & {
+  headers: Headers;
+};
+export type downloadMyConsentResponseError = (downloadMyConsentResponse400 | downloadMyConsentResponse403 | downloadMyConsentResponse404 | downloadMyConsentResponse500) & {
+  headers: Headers;
+};
+
+export type downloadMyConsentResponse = (downloadMyConsentResponseSuccess | downloadMyConsentResponseError)
+
+export const getDownloadMyConsentUrl = (id: string,) => {
+
+
+
+
+  return `/api/portal/consents/${id}/pdf`
+}
+
+/**
+ * Документ с отметкой о согласии: кто, кому, с какой редакцией и когда согласился, а ниже — текст той редакции, которую человек читал. Действующая сегодня редакция в документ не попадает: она была бы не копией согласия, а подделкой, и заметить подмену человеку нечем.
+ *
+ * Дата сборки файла стоит в конце и названа своими словами: файл собирается при каждом скачивании, а согласие дано однажды.
+ *
+ * Имя файла называет редакцию: в загрузках их окажется несколько.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Взять идентификатор из списка согласий и скачать файл — открывается просмотрщиком, сверху отметка с телефоном клиента и БИН поставщика.
+ * 2. Сверить редакцию в отметке с той, что в списке, и текст — с уведомлением этой редакции, а не сегодняшним.
+ * 3. Негативный 404: чужой либо несуществующий идентификатор — разница снаружи не видна намеренно.
+ * @summary Согласие файлом
+ */
+export const downloadMyConsent = async (id: string, options?: RequestInit): Promise<downloadMyConsentResponse> => {
+
+  return apiRequest<downloadMyConsentResponse>(getDownloadMyConsentUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadMyConsentQueryKey = (id: string,) => {
+    return [
+    `/api/portal/consents/${id}/pdf`
+    ] as const;
+    }
+
+
+export const getDownloadMyConsentQueryOptions = <TData = Awaited<ReturnType<typeof downloadMyConsent>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyConsent>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadMyConsentQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadMyConsent>>> = ({ signal }) => downloadMyConsent(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadMyConsent>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadMyConsentQueryResult = NonNullable<Awaited<ReturnType<typeof downloadMyConsent>>>
+export type DownloadMyConsentQueryError = ErrorResponse
+
+
+export function useDownloadMyConsent<TData = Awaited<ReturnType<typeof downloadMyConsent>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyConsent>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadMyConsent>>,
+          TError,
+          Awaited<ReturnType<typeof downloadMyConsent>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadMyConsent<TData = Awaited<ReturnType<typeof downloadMyConsent>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyConsent>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadMyConsent>>,
+          TError,
+          Awaited<ReturnType<typeof downloadMyConsent>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadMyConsent<TData = Awaited<ReturnType<typeof downloadMyConsent>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyConsent>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Согласие файлом
+ */
+
+export function useDownloadMyConsent<TData = Awaited<ReturnType<typeof downloadMyConsent>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyConsent>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadMyConsentQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -22217,6 +22877,145 @@ export function useGetPortalAccounts<TData = Awaited<ReturnType<typeof getPortal
 
 
 
+export type getPortalInvitationLinkResponse200 = {
+  data: InvitationLinkDto
+  status: 200
+}
+
+export type getPortalInvitationLinkResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalInvitationLinkResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalInvitationLinkResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalInvitationLinkResponseSuccess = (getPortalInvitationLinkResponse200) & {
+  headers: Headers;
+};
+export type getPortalInvitationLinkResponseError = (getPortalInvitationLinkResponse400 | getPortalInvitationLinkResponse404 | getPortalInvitationLinkResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalInvitationLinkResponse = (getPortalInvitationLinkResponseSuccess | getPortalInvitationLinkResponseError)
+
+export const getGetPortalInvitationLinkUrl = (id: string,) => {
+
+
+
+
+  return `/api/customers/accounts/${id}/invitation`
+}
+
+/**
+ * Ссылка, по которой клиент откроет кабинет. Нужна, когда письмо не дошло: менеджер передаёт её сам. Каждый показ попадает в журнал доступа.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), пригласить телефон `77010000001` с почтой.
+ * 2. Вызвать этот метод для той же учётной записи — 200, поле `link` совпадает со ссылкой из письма, `sentTo` — с указанной почтой.
+ * 3. Отозвать приглашение и вызвать метод снова — 404 с кодом `PORTAL_INVITATION_NOT_FOUND`.
+ * 4. Негативный 404: случайный идентификатор в пути.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Действующая ссылка активации
+ */
+export const getPortalInvitationLink = async (id: string, options?: RequestInit): Promise<getPortalInvitationLinkResponse> => {
+
+  return apiRequest<getPortalInvitationLinkResponse>(getGetPortalInvitationLinkUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalInvitationLinkQueryKey = (id: string,) => {
+    return [
+    `/api/customers/accounts/${id}/invitation`
+    ] as const;
+    }
+
+
+export const getGetPortalInvitationLinkQueryOptions = <TData = Awaited<ReturnType<typeof getPortalInvitationLink>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalInvitationLink>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalInvitationLinkQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalInvitationLink>>> = ({ signal }) => getPortalInvitationLink(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalInvitationLink>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalInvitationLinkQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalInvitationLink>>>
+export type GetPortalInvitationLinkQueryError = ErrorResponse
+
+
+export function useGetPortalInvitationLink<TData = Awaited<ReturnType<typeof getPortalInvitationLink>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalInvitationLink>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalInvitationLink>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalInvitationLink>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalInvitationLink<TData = Awaited<ReturnType<typeof getPortalInvitationLink>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalInvitationLink>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalInvitationLink>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalInvitationLink>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalInvitationLink<TData = Awaited<ReturnType<typeof getPortalInvitationLink>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalInvitationLink>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Действующая ссылка активации
+ */
+
+export function useGetPortalInvitationLink<TData = Awaited<ReturnType<typeof getPortalInvitationLink>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalInvitationLink>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalInvitationLinkQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type downloadCatalogImportTemplateResponse400 = {
   data: ErrorResponse
   status: 400
@@ -22261,12 +23060,12 @@ export const getDownloadCatalogImportTemplateUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти менеджером (`77010000102`), вызвать метод — придёт файл `fastorders-catalog-template.xlsx`.
+ * 1. Войти менеджером (`77010000102`), вызвать метод — придёт файл `q-order-catalog-template.xlsx`.
  * 2. Открыть его: лист «Каталог» с шапкой и серой строкой-примером, лист «Как заполнять» с правилами.
  * 3. Удалить пример, вписать две свои позиции, сохранить.
  * 4. Отправить этот же файл в предпросмотр загрузки — все колонки распознаны, ни одна не осталась нераспознанной.
  * 5. Подтвердить загрузку под администратором (`77010000101`) — позиции появились в каталоге.
- * 6. Негативный 403: тот же запрос под `fo-viewer`.
+ * 6. Негативный 403: тот же запрос под `qo-viewer`.
  * @summary Скачать шаблон прайса
  */
 export const downloadCatalogImportTemplate = async ( options?: RequestInit): Promise<downloadCatalogImportTemplateResponse> => {

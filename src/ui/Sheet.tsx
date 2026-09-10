@@ -60,13 +60,13 @@ export function Sheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fo-scrim fixed inset-0 z-40 bg-ink/40" />
+        <Dialog.Overlay className="qo-scrim fixed inset-0 z-40 bg-ink/40" />
 
         <Dialog.Content
           aria-describedby={undefined}
           data-side={side}
           className={cn(
-            'fo-sheet fixed z-50 overflow-y-auto border-hairline bg-surface',
+            'qo-sheet fixed z-50 overflow-y-auto border-hairline bg-surface',
             SIDES[side],
           )}
         >

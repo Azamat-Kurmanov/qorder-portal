@@ -1,24 +1,26 @@
 import { cn } from './cn';
-import logoLight from '../assets/logo.png';
-import logoDark from '../assets/logo-dark.png';
+import logo from '../assets/logo.png';
 
 /** Имя системы — оно же подпись знака для экранного читателя; не переводится. */
-export const PRODUCT_NAME = 'FastOrders';
+export const PRODUCT_NAME = 'Q-Order';
 
 /**
  * Знак продукта: отвечает на вопрос «чья это система» в углу каждого экрана.
  *
- * Изображений два: у знака светлая заливка, и на тёмном полотне она светится
- * пятном. Своей тёмной темы у кабинета нет, поэтому вариант выбирает не она,
- * а настройка браузера — `prefers-color-scheme` в src/index.css. Переключает
- * CSS, а не React-состояние: знак стоит и на экранах входа, которые рисуются
- * вне провайдеров, и хук темы там упал бы на отсутствующем контексте.
+ * Знак один — светлый, и по настройке системы он не меняется.
  *
- * Скрытый вариант убран `display: none`, а не прозрачностью: так он выпадает
- * и из дерева доступности — одинаковая подпись обоих изображений не читается
- * экранным читателем дважды.
+ * Тёмный вариант тут был и оказался ошибкой: выбирала его настройка браузера
+ * (`prefers-color-scheme`), а полотно кабинета от неё не зависит — тёмной
+ * темы у кабинета нет вовсе. У человека с тёмной системой тёмная плашка
+ * знака ложилась на светлую бумагу карточки: единственное место кабинета,
+ * которое слушало настройку системы, было и единственным, которое из-за неё
+ * ломалось.
  *
- * Рядом с надписью «FastOrders» знак ставится как `decorative`: имя системы
+ * Правило простое: знак совпадает с фоном, на котором стоит, а не с тем,
+ * что стоит у человека в системе. Появится у кабинета тёмная тема — вариант
+ * выберет она; файл `assets/logo-dark.png` до тех пор лежит рядом.
+ *
+ * Рядом с надписью «Q-Order» знак ставится как `decorative`: имя системы
  * экранный читатель обязан услышать один раз, а не дважды подряд.
  */
 export function Logo({
@@ -36,17 +38,13 @@ export function Logo({
   decorative?: boolean;
   className?: string;
 }) {
-  const common = {
-    alt: decorative ? '' : PRODUCT_NAME,
-    'aria-hidden': decorative || undefined,
-    style: height === undefined ? undefined : { height, width: 'auto' },
-    className: cn('w-auto shrink-0', height === undefined && 'h-6', className),
-  };
-
   return (
-    <>
-      <img data-fo-logo="light" src={logoLight} {...common} />
-      <img data-fo-logo="dark" src={logoDark} {...common} />
-    </>
+    <img
+      src={logo}
+      alt={decorative ? '' : PRODUCT_NAME}
+      aria-hidden={decorative || undefined}
+      style={height === undefined ? undefined : { height, width: 'auto' }}
+      className={cn('w-auto shrink-0', height === undefined && 'h-6', className)}
+    />
   );
 }

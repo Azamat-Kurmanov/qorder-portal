@@ -45,8 +45,10 @@ export function RequireAuth({ children }: RequireAuthProps) {
       <div className="flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           {/* Тот же знак, что и на возврате с Keycloak: экран ожидания —
-              единственное, что человек видит до формы входа. */}
-          <Logo height={40} />
+              единственное, что человек видит до формы входа, и знак тут
+              не подпись при содержимом, а само содержимое — отсюда рост
+              вдвое против карточек отказа. */}
+          <Logo height={96} />
           <span
             aria-hidden="true"
             className="size-6 animate-spin rounded-full border-2 border-hairline border-t-accent"

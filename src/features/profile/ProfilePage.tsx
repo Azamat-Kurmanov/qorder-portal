@@ -4,6 +4,7 @@ import { Card } from '../../ui/Card';
 import { useGetPortalSuppliers, useGetPortalUnreadSummary } from '../../api/generated';
 import { useSupplier } from '../../supplier/useSupplier';
 import { useAuth } from '../../auth/useAuth';
+import { ConsentsBlock } from './ConsentsBlock';
 
 /**
  * Профиль: с кем клиент работает и как переключиться.
@@ -73,6 +74,13 @@ export function ProfilePage() {
           </Card>
         );
       })}
+
+      {/*
+        Согласия здесь, а не отдельным разделом в рельсе: это справка о себе,
+        за которой приходят раз в год, и место в постоянной навигации она
+        занимала бы у экранов, которыми пользуются каждый день.
+      */}
+      <ConsentsBlock />
 
       <Button variant="ghost" onClick={logout}>{t('profile.logout')}</Button>
     </div>

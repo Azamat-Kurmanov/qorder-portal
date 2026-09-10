@@ -56,6 +56,18 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
     throw new ReauthenticationRequiredError(url);
   }
 
+  // Документ приходит документом. Разобранный как JSON, PDF падает на первом
+  // же байте, и человек видит поломку кабинета там, где сервер ответил как
+  // надо. Отказы при этом остаются разбираемыми: их сервер отдаёт
+  // как problem+json при любом типе успешного ответа. Пустой тип содержимого
+  // ведёт себя как раньше — ответ без тела не файл.
+  const contentType = response.headers.get('content-type') ?? '';
+  const isFile = response.ok && contentType !== '' && !contentType.includes('json');
+
+  if (isFile && !NO_BODY_STATUSES.has(response.status)) {
+    return { data: await response.blob(), status: response.status, headers: response.headers } as T;
+  }
+
   const body = NO_BODY_STATUSES.has(response.status) ? null : await response.text();
   const data = body ? JSON.parse(body) : undefined;
 

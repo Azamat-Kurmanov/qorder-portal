@@ -19,20 +19,145 @@ describe('активация приглашения', () => {
     window.localStorage.clear();
   });
 
-  it('до входа предлагает войти, а не отправлять код', async () => {
+  /**
+   * Основной путь: приглашённого впервые никто не просит войти, потому что
+   * входить ему нечем — пароля у него нет и взяться ему неоткуда. Он
+   * придумывает пароль прямо здесь, и владение кодом из ссылки служит
+   * единственным доказательством личности.
+   */
+  it('без входа спрашивает пароль и открывает кабинет', async () => {
+    const { calls } = stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      method('POST', '/api/portal/invitation/activate', {
+        id: 'account-1',
+        supplierId: 'supplier-7',
+        customerId: 'customer-1',
+        phone: '77010000001',
+        status: 'ACTIVE',
+      }),
+    ]);
+
+    renderScreen(<ActivationPage />, {
+      route: '/activate?code=abc123',
+      auth: { authenticated: false, token: null },
+    });
+
+    await userEvent.click(await screen.findByRole('checkbox'));
+    await userEvent.type(screen.getByLabelText(/пароль/i), 'Строитель-2026!');
+    await userEvent.click(screen.getByRole('button', { name: /открыть кабинет/i }));
+
+    await waitFor(() => {
+      const activation = calls.find((call) => call.init?.method === 'POST');
+      expect(activation).toBeDefined();
+      // Номера в теле нет и здесь: сервер знает его из самого приглашения,
+      // а названный формой номер открывал бы переславшему ссылку чужой кабинет.
+      expect(JSON.parse(String(activation?.init?.body))).toEqual({
+        code: 'abc123',
+        consentVersion: '2026-09-05',
+        password: 'Строитель-2026!',
+      });
+    });
+    expect(window.localStorage.getItem('qo.portal.supplier')).toBe('supplier-7');
+  });
+
+  /**
+   * У кого пароль уже есть — а так бывает, когда пригласил и второй
+   * поставщик, — тому приглашение пароля не меняет. Сервер отвечает тем же
+   * отказом, что и на негодный код, и объяснить причину экран не вправе:
+   * он предлагает вход как возможный выход, а не утверждает, что код верен.
+   */
+  it('на отказ без входа предлагает войти', async () => {
     const login = vi.fn();
-    stubFetch([]);
+    stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      method('POST', '/api/portal/invitation/activate',
+        { code: 'INVITATION_INVALID', detail: 'Приглашение недействительно' }, 401),
+    ]);
 
     renderScreen(<ActivationPage />, {
       route: '/activate?code=abc123',
       auth: { authenticated: false, token: null, login },
     });
 
-    // Активация без входа делает запись действующей, но войти по ней будет
-    // некому: связывать её не с кем.
-    await userEvent.click(screen.getByRole('button', { name: /войти/i }));
+    await userEvent.click(await screen.findByRole('checkbox'));
+    await userEvent.type(screen.getByLabelText(/пароль/i), 'Строитель-2026!');
+    await userEvent.click(screen.getByRole('button', { name: /открыть кабинет/i }));
+
+    await userEvent.click(await screen.findByRole('button', { name: /войти/i }));
     expect(login).toHaveBeenCalled();
-    expect(screen.queryByLabelText(/телефон/i)).not.toBeInTheDocument();
+  });
+
+  /** Вошедшему пароль не нужен: он его уже задал, и второй никто не просит. */
+  it('вошедшему поля пароля не показывает', async () => {
+    stubFetch([get('/api/portal/consent-notice', NOTICE)]);
+
+    renderScreen(<ActivationPage />, { route: '/activate?code=abc123' });
+
+    await screen.findByRole('checkbox');
+    expect(screen.queryByLabelText(/пароль/i)).not.toBeInTheDocument();
+  });
+
+  /**
+   * Пустой пароль без входа — свой отказ, а не общий: человеку есть что
+   * исправить, и одинаковый текст оставил бы его гадать.
+   */
+  it('пустой пароль называет причину', async () => {
+    stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      method('POST', '/api/portal/invitation/activate',
+        { code: 'PORTAL_PASSWORD_REQUIRED', detail: 'Придумайте пароль' }, 400),
+    ]);
+
+    renderScreen(<ActivationPage />, {
+      route: '/activate?code=abc123',
+      auth: { authenticated: false, token: null },
+    });
+
+    await userEvent.click(await screen.findByRole('checkbox'));
+    await userEvent.type(screen.getByLabelText(/пароль/i), 'x');
+    await userEvent.click(screen.getByRole('button', { name: /открыть кабинет/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/пароль/i);
+  });
+
+  /** Отказ по частоте — не «код негоден»: повторять надо позже, а не искать новый. */
+  it('слишком частые попытки называет частотой', async () => {
+    stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      method('POST', '/api/portal/invitation/activate',
+        { code: 'PORTAL_TOO_MANY_ATTEMPTS', detail: 'Слишком много попыток' }, 429),
+    ]);
+
+    renderScreen(<ActivationPage />, {
+      route: '/activate?code=abc123',
+      auth: { authenticated: false, token: null },
+    });
+
+    await userEvent.click(await screen.findByRole('checkbox'));
+    await userEvent.type(screen.getByLabelText(/пароль/i), 'Строитель-2026!');
+    await userEvent.click(screen.getByRole('button', { name: /открыть кабинет/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/попыт/i);
+  });
+
+  /** Наша авария — не вина человека: ссылка жива, повторить стоит. */
+  it('недоступность сервиса не выдаёт за негодный код', async () => {
+    stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      method('POST', '/api/portal/invitation/activate',
+        { code: 'PORTAL_REALM_UNAVAILABLE', detail: 'Сервис недоступен' }, 503),
+    ]);
+
+    renderScreen(<ActivationPage />, {
+      route: '/activate?code=abc123',
+      auth: { authenticated: false, token: null },
+    });
+
+    await userEvent.click(await screen.findByRole('checkbox'));
+    await userEvent.type(screen.getByLabelText(/пароль/i), 'Строитель-2026!');
+    await userEvent.click(screen.getByRole('button', { name: /открыть кабинет/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/позже|недоступ/i);
   });
 
   it('после входа отправляет код, согласие и запоминает поставщика', async () => {
@@ -74,7 +199,7 @@ describe('активация приглашения', () => {
       });
     });
     // Поставщик из ответа: с этого момента кабинету есть что ставить в заголовок.
-    expect(window.localStorage.getItem('fo.portal.supplier')).toBe('supplier-7');
+    expect(window.localStorage.getItem('qo.portal.supplier')).toBe('supplier-7');
   });
 
   it('отказ не объясняет причину', async () => {

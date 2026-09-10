@@ -61,7 +61,7 @@ export function MediaLightbox({
       <Dialog.Portal>
         {/* Сцена глубже чернил кабинета: на #17181B светлый снимок теряет
             край, а кадр обязан читаться отдельно от того, на чём лежит. */}
-        <Dialog.Overlay className="fo-scrim fixed inset-0 z-50 bg-[#0E0F12]" />
+        <Dialog.Overlay className="qo-scrim fixed inset-0 z-50 bg-[#0E0F12]" />
 
         <Dialog.Content
           aria-describedby={undefined}
