@@ -32,6 +32,21 @@ describe('Logo', () => {
     expect(document.querySelector('img')).toHaveAttribute('aria-hidden', 'true');
   });
 
+  it('по умолчанию знак целиком: он стоит там, где стоит один', () => {
+    render(<Logo />);
+
+    expect(screen.getByAltText(PRODUCT_NAME)).toHaveAttribute('data-qo-logo-variant', 'framed');
+  });
+
+  it('рядом с надписью знак берёт другой файл, а не тот же с обрезанным словом', () => {
+    // Иначе слово «Order» читалось бы дважды подряд — картинкой и подписью.
+    const framed = render(<Logo />).container.querySelector('img');
+    const mark = render(<Logo variant="mark" />).container.querySelector('img');
+
+    expect(mark).toHaveAttribute('data-qo-logo-variant', 'mark');
+    expect(mark?.getAttribute('src')).not.toBe(framed?.getAttribute('src'));
+  });
+
   it('высота задаётся вызывающим, ширина считается по ней', () => {
     render(<Logo height={40} />);
 

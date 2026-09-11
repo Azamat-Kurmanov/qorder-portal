@@ -1,4 +1,7 @@
 {
+  "brand": {
+    "tagline": "Smart order intake system"
+  },
   "common": {
     "retry": "Try again",
     "loading": "Loading",
@@ -59,6 +62,7 @@
     "activationBanner": "The account is not open yet. Ask your supplier for an activation link and open it — the catalogue and requests will appear right after that."
   },
   "auth": {
+    "appName": "Customer account",
     "noAccess": {
       "title": "Access is not open",
       "note": "You are signed in, but the supplier has not opened the account for you yet. If you have an invitation link, activate it; if you already did — write to the supplier."

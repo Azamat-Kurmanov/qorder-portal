@@ -23,9 +23,9 @@ import { Reveal } from '../../ui/Reveal';
  * читаются как один текст, и через день человек уже не помнит, что сказал он,
  * а что — продавец. Сторона и фон отвечают на это без единого слова.
  *
- * Над каждым разговором стоит позиция и дата: переписка о трёх товарах идёт
- * одной лентой, и без заголовка ответ про доставку читается как ответ
- * про цемент.
+ * Над разговором стоят дата и номер, а позиция — у того сообщения, к которому
+ * её прикрепили: переписка о трёх товарах идёт одной лентой, и общий заголовок
+ * с позицией превратил бы ответ про доставку в ответ про цемент.
  */
 export function QuestionsPage() {
   const { t } = useTranslation();
@@ -67,50 +67,80 @@ export function QuestionsPage() {
 
 function Thread({ thread }: { thread: QuestionThreadDto }) {
   const { t } = useTranslation();
+  const messages = thread.messages ?? [];
+  /*
+    Позиция под лентой — та, о которой говорили последней: разговор
+    возвращается к решению «беру», а решают по цене того товара, про который
+    только что спросили, а не первого за всю переписку.
+  */
+  const withItem = messages.filter((message) => message.itemId);
+  const discussed = withItem[withItem.length - 1];
+
   return (
     <article data-testid={`thread-${thread.id}`} className="flex flex-col gap-2">
-      <div data-testid={`thread-subject-${thread.id}`} className="flex flex-col items-center gap-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-ink-subtle">
-          <span>{shortDate(thread.askedAt)}</span>
-          <span aria-hidden="true">·</span>
-          {/* Номер обращения — то, чем клиент назовёт разговор по телефону. */}
-          <span className="text-ink-faint">{thread.number}</span>
-        </div>
-        {thread.itemName && (
-          <span className="max-w-full truncate rounded-full bg-sunk px-2.5 py-1 text-[12px] text-ink-muted">
-            {thread.itemName}
-          </span>
-        )}
+      <div
+        data-testid={`thread-subject-${thread.id}`}
+        className="flex items-center justify-center gap-1.5 text-[11px] text-ink-subtle"
+      >
+        <span>{shortDate(messages[0]?.createdAt)}</span>
+        <span aria-hidden="true">·</span>
+        {/* Номер обращения — то, чем клиент назовёт разговор по телефону. */}
+        <span className="text-ink-faint">{thread.number}</span>
       </div>
 
-      <div className="flex max-w-[82%] flex-col items-end gap-1 self-end">
-        <p className="rounded-[16px_16px_4px_16px] bg-ink px-3.5 py-2.5 text-[14px] leading-[1.45] text-white">
-          {thread.question}
-        </p>
-        <span className="text-[11px] text-ink-subtle">{atTime(thread.askedAt)}</span>
-      </div>
+      {messages.map((message) => {
+        const mine = message.author === 'CUSTOMER';
+        return (
+          <div
+            key={message.id}
+            data-testid={`message-${message.id}`}
+            className={
+              mine
+                ? 'flex max-w-[82%] flex-col items-end gap-1 self-end'
+                : 'flex max-w-[86%] flex-col items-start gap-1 self-start'
+            }
+          >
+            {/*
+              Позиция висит на своём сообщении, а не общей плашкой сверху:
+              переписка о трёх товарах идёт одной лентой, и общий заголовок
+              превратил бы ответ про доставку в ответ про цемент.
+            */}
+            {message.itemName && (
+              <span className="max-w-full truncate rounded-full bg-sunk px-2.5 py-1 text-[12px] text-ink-muted">
+                {message.itemName}
+              </span>
+            )}
+            <p
+              className={
+                mine
+                  ? 'rounded-[16px_16px_4px_16px] bg-ink px-3.5 py-2.5 text-[14px] leading-[1.45] text-white'
+                  : 'rounded-[16px_16px_16px_4px] border border-hairline bg-surface px-3.5 py-2.5 text-[14px] leading-[1.45] text-ink'
+              }
+            >
+              {message.text}
+            </p>
+            {/*
+              Подпись говорит ровно то, что известно: имени менеджера в ответе
+              сервера нет, и придуманное имя однажды окажется чужим.
+            */}
+            <span className="text-[11px] text-ink-subtle">
+              {mine
+                ? atTime(message.createdAt)
+                : `${t('questions.sellerAnswer')} · ${atTime(message.createdAt)}`}
+            </span>
+          </div>
+        );
+      })}
 
-      {thread.answered && thread.answer ? (
-        <div className="flex max-w-[86%] flex-col items-start gap-1 self-start">
-          <p className="rounded-[16px_16px_16px_4px] border border-hairline bg-surface px-3.5 py-2.5 text-[14px] leading-[1.45] text-ink">
-            {thread.answer}
-          </p>
-          {/*
-            Подпись говорит ровно то, что известно: имени менеджера в ответе
-            сервера нет, и придуманное имя однажды окажется чужим.
-          */}
-          <span className="text-[11px] text-ink-subtle">
-            {t('questions.sellerAnswer')}
-            {thread.answeredAt ? ` · ${atTime(thread.answeredAt)}` : ''}
-          </span>
-        </div>
-      ) : (
-        // «Ждёт ответа» — не украшение: без него человек не знает, дошёл ли
-        // вопрос вообще, и спрашивает второй раз.
+      {/*
+        «Ждёт ответа» — не украшение: без него человек не знает, дошло ли
+        сообщение вообще, и пишет второй раз.
+      */}
+      {thread.awaitingAnswer && (
         <p className="self-start text-sm text-unclear">{t('questions.waiting')}</p>
       )}
 
-      {thread.itemId && <DiscussedItem itemId={thread.itemId} />}
+      {discussed?.itemId && <DiscussedItem itemId={discussed.itemId} />}
     </article>
   );
 }

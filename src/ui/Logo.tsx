@@ -1,13 +1,31 @@
 import { cn } from './cn';
-import logo from '../assets/logo.png';
+import framed from '../assets/logo-framed-light.webp';
+import mark from '../assets/logo-mark-light.webp';
 
 /** Имя системы — оно же подпись знака для экранного читателя; не переводится. */
 export const PRODUCT_NAME = 'Q-Order';
 
 /**
+ * Начертание знака: полное и одна «Q».
+ *
+ * `framed` — знак целиком, со словом «Order» и подложкой-пилюлей. Нужен там,
+ * где знак стоит один и лежит прямо на бумаге кабинета: экраны входа и
+ * ожидания пусты, назвать систему на них больше нечем, и подложка отделяет
+ * знак от полотна.
+ *
+ * `mark` — одна «Q» без слова. Нужна там, где имя системы уже написано рядом
+ * словами: в шапке, в рельсе разделов, в выдвижном меню и на экране активации.
+ * Полный знак дал бы «Order» дважды подряд — картинкой и подписью, — а прежний
+ * знак и был при надписи картинкой без слова.
+ */
+export type LogoVariant = 'framed' | 'mark';
+
+const MARKS: Record<LogoVariant, string> = { framed, mark };
+
+/**
  * Знак продукта: отвечает на вопрос «чья это система» в углу каждого экрана.
  *
- * Знак один — светлый, и по настройке системы он не меняется.
+ * Знак светлый, и по настройке системы он не меняется.
  *
  * Тёмный вариант тут был и оказался ошибкой: выбирала его настройка браузера
  * (`prefers-color-scheme`), а полотно кабинета от неё не зависит — тёмной
@@ -18,7 +36,9 @@ export const PRODUCT_NAME = 'Q-Order';
  *
  * Правило простое: знак совпадает с фоном, на котором стоит, а не с тем,
  * что стоит у человека в системе. Появится у кабинета тёмная тема — вариант
- * выберет она; файл `assets/logo-dark.png` до тех пор лежит рядом.
+ * выберет она; файлы для тёмного полотна в наборе знака нарисованы, но здесь
+ * не лежат: файл без применения однажды подставляют туда, где он не нужен, —
+ * ровно так тёмный знак сюда и попал в прошлый раз.
  *
  * Рядом с надписью «Q-Order» знак ставится как `decorative`: имя системы
  * экранный читатель обязан услышать один раз, а не дважды подряд.
@@ -26,6 +46,7 @@ export const PRODUCT_NAME = 'Q-Order';
 export function Logo({
   height,
   decorative = false,
+  variant = 'framed',
   className,
 }: {
   /**
@@ -36,11 +57,14 @@ export function Logo({
    */
   height?: number;
   decorative?: boolean;
+  /** См. `LogoVariant`. По умолчанию знак целиком — он нужен там, где стоит один. */
+  variant?: LogoVariant;
   className?: string;
 }) {
   return (
     <img
-      src={logo}
+      src={MARKS[variant]}
+      data-qo-logo-variant={variant}
       alt={decorative ? '' : PRODUCT_NAME}
       aria-hidden={decorative || undefined}
       style={height === undefined ? undefined : { height, width: 'auto' }}

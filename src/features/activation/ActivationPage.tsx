@@ -137,8 +137,14 @@ export function ActivationPage() {
         с казахским — значит выбрать язык он обязан до того, как согласится.
       */}
       <div className="flex items-center gap-2">
-        <Logo height={22} decorative />
-        <span className="text-sm font-semibold text-ink">Q-Order</span>
+        <Logo variant="mark" height={22} decorative />
+        {/* Имя и лозунг в две строки, а не в одну: строка эта делится
+            с переключателем языка, и в один ряд втроём они не помещаются
+            на телефоне — имя усекалось бы первым. */}
+        <div>
+          <div className="text-sm font-semibold leading-tight text-ink">Q-Order</div>
+          <div className="text-[11px] leading-4 text-ink-faint">{t('brand.tagline')}</div>
+        </div>
         <div className="ml-auto">
           <LanguagePicker />
         </div>

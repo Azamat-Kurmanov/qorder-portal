@@ -6,24 +6,45 @@ import { QuestionsPage } from './QuestionsPage';
 import { renderScreen } from '../../test/render';
 import { get, method, stubFetch } from '../../test/http';
 
+/**
+ * Ветка — разговор, а не пара «вопрос-ответ»: клиент дописывает в неё
+ * сколько угодно раз, и позиция висит на том сообщении, к которому её
+ * прикрепили.
+ */
 const ANSWERED = {
   id: 'q1',
   number: 'ОБР-12',
-  itemId: 'item-1',
-  itemName: 'Цемент М400',
-  question: 'Есть ли доставка до Талгара?',
-  askedAt: '2026-09-01T10:00:00Z',
-  answer: 'Возим, 4000 ₸ за рейс.',
-  answeredAt: '2026-09-01T12:00:00Z',
-  answered: true,
+  awaitingAnswer: false,
+  messages: [
+    {
+      id: 'm1',
+      author: 'CUSTOMER',
+      text: 'Есть ли доставка до Талгара?',
+      itemId: 'item-1',
+      itemName: 'Цемент М400',
+      createdAt: '2026-09-01T10:00:00Z',
+    },
+    {
+      id: 'm2',
+      author: 'MANAGER',
+      text: 'Возим, 4000 ₸ за рейс.',
+      createdAt: '2026-09-01T12:00:00Z',
+    },
+  ],
 };
 
 const WAITING = {
   id: 'q2',
   number: 'ОБР-13',
-  question: 'Когда будет М500?',
-  askedAt: '2026-09-02T10:00:00Z',
-  answered: false,
+  awaitingAnswer: true,
+  messages: [
+    {
+      id: 'm3',
+      author: 'CUSTOMER',
+      text: 'Когда будет М500?',
+      createdAt: '2026-09-02T10:00:00Z',
+    },
+  ],
 };
 
 const CARD = {
@@ -86,7 +107,7 @@ describe('вопросы продавцу', () => {
     expect(screen.getByText('ОБР-12')).toBeInTheDocument();
   });
 
-  it('над перепиской стоит обсуждаемая позиция и дата вопроса', async () => {
+  it('позиция стоит у того сообщения, к которому её прикрепили', async () => {
     stubFetch([
       get('/api/portal/catalog/item-1', CARD),
       get('/api/portal/questions', [ANSWERED]),
@@ -94,10 +115,25 @@ describe('вопросы продавцу', () => {
 
     renderScreen(<QuestionsPage />);
 
-    // Без позиции и даты три разговора о трёх товарах читаются как один.
-    const subject = await screen.findByTestId('thread-subject-q1');
-    expect(subject).toHaveTextContent('Цемент М400');
-    expect(subject).toHaveTextContent('01.09');
+    // В разговоре о трёх товарах общая плашка сверху лгала бы: спросили
+    // про цемент, потом про песок — и ответ про песок читался бы как ответ
+    // про цемент.
+    const message = await screen.findByTestId('message-m1');
+    expect(message).toHaveTextContent('Цемент М400');
+    expect(message).toHaveTextContent('Есть ли доставка до Талгара?');
+  });
+
+  it('вся переписка идёт одной веткой, а не тремя обращениями подряд', async () => {
+    stubFetch([
+      get('/api/portal/catalog/item-1', CARD),
+      get('/api/portal/questions', [ANSWERED]),
+    ]);
+
+    renderScreen(<QuestionsPage />);
+
+    expect(await screen.findByText('Есть ли доставка до Талгара?')).toBeInTheDocument();
+    expect(screen.getByText('Возим, 4000 ₸ за рейс.')).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^thread-q/)).toHaveLength(1);
   });
 
   it('обсуждаемая позиция кладётся в заявку прямо из переписки', async () => {

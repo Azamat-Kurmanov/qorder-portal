@@ -222,12 +222,17 @@ export function Shell() {
         */}
         <div
           data-testid="menu-logo"
-          className="mt-6 flex items-center justify-center gap-2 border-t border-hairline pt-4"
+          className="mt-6 flex flex-col items-center gap-1 border-t border-hairline pt-4"
         >
-          <Logo decorative className="h-6" />
-          <span className="text-[13px] font-medium tracking-[-0.01em] text-ink-subtle">
-            Q-Order
-          </span>
+          <div className="flex items-center gap-2">
+            <Logo variant="mark" decorative className="h-6" />
+            <span className="text-[13px] font-medium tracking-[-0.01em] text-ink-subtle">
+              Q-Order
+            </span>
+          </div>
+          {/* Лозунг тоном ниже имени: имя отвечает «чья система», лозунг —
+              «что она делает», и второй вопрос человек задаёт после первого. */}
+          <p className="text-center text-[11px] leading-4 text-ink-faint">{t('brand.tagline')}</p>
         </div>
       </Sheet>
 
@@ -285,12 +290,19 @@ export function Shell() {
           */}
           <div
             data-testid="rail-logo"
-            className="mt-auto flex items-center justify-center gap-2 border-t border-hairline pt-4"
+            className="mt-auto flex flex-col items-center gap-1 border-t border-hairline pt-4"
           >
-            <Logo decorative className="h-6" />
-            <span className="text-[13px] font-medium tracking-[-0.01em] text-ink-subtle">
-              Q-Order
-            </span>
+            <div className="flex items-center gap-2">
+              <Logo variant="mark" decorative className="h-6" />
+              <span className="text-[13px] font-medium tracking-[-0.01em] text-ink-subtle">
+                Q-Order
+              </span>
+            </div>
+            {/* Лозунг тоном ниже имени: имя отвечает «чья система», лозунг —
+                «что она делает», и второй вопрос человек задаёт после первого. */}
+            <p className="text-center text-[11px] leading-4 text-ink-faint">
+              {t('brand.tagline')}
+            </p>
           </div>
         </nav>
         )}
@@ -390,7 +402,7 @@ function Header({
           aria-label={t('shell.logo')}
           className="hidden shrink-0 items-center gap-2.5 lg:flex"
         >
-          <Logo decorative className="h-8" />
+          <Logo variant="mark" decorative className="h-8" />
           <span className="text-base font-semibold tracking-[-0.01em] text-ink">
             Q-Order
           </span>
