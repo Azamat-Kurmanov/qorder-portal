@@ -51,7 +51,7 @@ export function ConsentsBlock() {
         setFailed(true);
         return;
       }
-      saveFile(
+      await saveFile(
         response.data,
         fileNameFrom(response.headers, `consent-${consent.version}.pdf`),
       );

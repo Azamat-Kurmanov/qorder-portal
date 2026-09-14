@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { rules } from '../../api/rules.generated';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetPortalQuestionsQueryKey, useAskPortalQuestion } from '../../api/generated';
 import { cn } from '../../ui/cn';
@@ -70,7 +71,7 @@ export function MessageComposer() {
           ref={field}
           rows={1}
           value={text}
-          maxLength={2000}
+          maxLength={rules.AskQuestionRequest.text.maxLength}
           aria-label={t('questions.message')}
           placeholder={t('questions.writeMessage')}
           onChange={(event) => {

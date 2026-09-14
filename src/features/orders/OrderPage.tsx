@@ -5,6 +5,7 @@ import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  downloadMyInvoice,
   getGetMyPortalOrderQueryKey,
   getGetMyPortalOrdersQueryKey,
   useCancelMyPortalOrder,
@@ -16,6 +17,7 @@ import {
 } from '../../api/generated';
 import { OrderStateBadge } from './OrderStateBadge';
 import { RevisionDiff } from './RevisionDiff';
+import { fileNameFrom, saveFile } from '../../shared/download';
 import { money, tenge } from '../../shared/format';
 import { orderDay } from './orderText';
 
@@ -32,6 +34,8 @@ export function OrderPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [answered, setAnswered] = useState(false);
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const [invoiceFailed, setInvoiceFailed] = useState(false);
 
   const response = useGetMyPortalOrder(id);
   const order: PortalOrderDto | undefined =
@@ -47,6 +51,32 @@ export function OrderPage() {
   const confirm = useConfirmMyPortalOrder({ mutation: refresh });
   const decline = useDeclineMyPortalOrder({ mutation: refresh });
   const cancel = useCancelMyPortalOrder({ mutation: refresh });
+
+  /*
+   * Счёт скачивается вызовом, а не ссылкой на его адрес: переход по адресу
+   * не несёт ни токена, ни выбранного поставщика — вместо документа человек
+   * получил бы отказ. Отдаёт файл общий `shared/download.ts`, тот же, что
+   * отдаёт PDF согласия: второй способ разошёлся бы с первым в имени файла
+   * или в освобождении ссылки.
+   */
+  async function downloadInvoice() {
+    setInvoiceBusy(true);
+    setInvoiceFailed(false);
+    try {
+      const invoice = await downloadMyInvoice(id);
+      if (invoice.status !== 200) {
+        setInvoiceFailed(true);
+        return;
+      }
+      await saveFile(invoice.data, fileNameFrom(invoice.headers, `invoice-${id}.pdf`));
+    } catch {
+      // Молчаливая кнопка хуже отказа: человек нажимает второй раз и решает,
+      // что кабинет сломан.
+      setInvoiceFailed(true);
+    } finally {
+      setInvoiceBusy(false);
+    }
+  }
 
   if (response.isPending) {
     return (
@@ -150,6 +180,30 @@ export function OrderPage() {
             {decline.isPending ? t('orders.sending') : t('orders.decline')}
           </Button>
         </div>
+      )}
+
+      {/*
+        Счёт — только когда он выписан. Кнопка, ведущая в пустоту, хуже её
+        отсутствия: сервер ответил бы отказом, а человек решил бы, что счёт
+        потерялся. Стоит она ниже состава и выше отмены: документ относится
+        ко всей заявке, а не к одной её редакции.
+      */}
+      {order.invoiceAvailable && (
+        <Button
+          variant="outline"
+          data-testid="order-invoice"
+          aria-label={t('orders.invoiceAria', { day: orderDay(order.createdAt) })}
+          disabled={invoiceBusy}
+          onClick={() => void downloadInvoice()}
+        >
+          {invoiceBusy ? t('orders.invoicePreparing') : t('orders.invoice')}
+        </Button>
+      )}
+
+      {invoiceFailed && (
+        <p role="alert" className="text-sm text-gone">
+          {t('orders.invoiceFailed')}
+        </p>
       )}
 
       {order.cancellable && !order.needsAnswer && (

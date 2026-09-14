@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { rules } from '../../api/rules.generated';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -145,6 +146,7 @@ export function CheckoutPage() {
               <textarea
                 rows={2}
                 value={note}
+                maxLength={rules.SubmitOrderRequest.note.maxLength}
                 onChange={(event) => setNote(event.currentTarget.value)}
                 placeholder={t('checkout.commentPlaceholder')}
                 className={cn(

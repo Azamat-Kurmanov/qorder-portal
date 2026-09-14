@@ -7,6 +7,7 @@ import {
   useTogglePortalFavorite,
   type ShowcaseItemDto,
 } from '../../api/generated';
+import { Bump } from '../../ui/Bump';
 import { cn } from '../../ui/cn';
 
 /**
@@ -90,20 +91,31 @@ export function FavoriteButton({
       )}
     >
       {/*
-        Отметка держится на заливке, а не на цвете: цвет здесь означал бы
-        состояние товара, как везде в системе, а речь о выборе человека.
+        Сердечко отвечает упругим толчком на смену состояния.
+
+        Состояние приходит с СЕРВЕРА, а не переворачивается на месте, — и
+        между нажатием и ответом проходит доля секунды, за которую не меняется
+        ничего. Толчок в момент ответа говорит, что отметка дошла; без него
+        на мобильной сети нажатие выглядит не сработавшим, и по сердечку
+        стучат второй раз, снимая только что поставленную отметку.
       */}
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className="size-5"
-        fill={favorite ? 'currentColor' : 'none'}
-        stroke={favorite ? 'none' : 'currentColor'}
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      >
-        <path d="M12 20.5s-7.5-4.6-7.5-9.6A4.4 4.4 0 0 1 12 8.4a4.4 4.4 0 0 1 7.5 2.5c0 5-7.5 9.6-7.5 9.6Z" />
-      </svg>
+      <Bump value={favorite}>
+        {/*
+          Отметка держится на заливке, а не на цвете: цвет здесь означал бы
+          состояние товара, как везде в системе, а речь о выборе человека.
+        */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="size-5"
+          fill={favorite ? 'currentColor' : 'none'}
+          stroke={favorite ? 'none' : 'currentColor'}
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        >
+          <path d="M12 20.5s-7.5-4.6-7.5-9.6A4.4 4.4 0 0 1 12 8.4a4.4 4.4 0 0 1 7.5 2.5c0 5-7.5 9.6-7.5 9.6Z" />
+        </svg>
+      </Bump>
     </button>
   );
 }

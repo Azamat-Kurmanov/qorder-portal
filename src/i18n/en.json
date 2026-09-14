@@ -24,6 +24,12 @@
       "note": "You can change the language at any time with the picker in the header."
     }
   },
+  "fontScale": {
+    "label": "Text size",
+    "normal": "Normal",
+    "large": "Large",
+    "huge": "Extra large"
+  },
   "shell": {
     "sections": {
       "catalog": "Catalogue",
@@ -253,7 +259,11 @@
     "frameNumbered": "Frame {{number}}",
     "mediaTitle": "Photos and videos: {{name}}",
     "vat": "including VAT {{rate}}%",
-    "asOf": "price as of {{date}}"
+    "asOf": "price as of {{date}}",
+    "field": {
+      "yes": "Yes",
+      "no": "No"
+    }
   },
   "orders": {
     "title": "My requests",
@@ -289,7 +299,11 @@
     "orderFrom": "Request of {{day}}",
     "sellerAnswer": "The seller's reply",
     "agreeAria": "I agree with the changes in the request of {{day}}",
-    "cancelAria": "Cancel the request of {{day}}"
+    "cancelAria": "Cancel the request of {{day}}",
+    "invoice": "Download the invoice",
+    "invoiceAria": "Download the invoice for the request of {{day}}",
+    "invoicePreparing": "Preparing…",
+    "invoiceFailed": "Could not get the invoice. Please try again."
   },
   "templates": {
     "title": "Templates",
@@ -376,5 +390,14 @@
     "freeFrom": "free from {{amount}}",
     "slots": "windows {{list}}",
     "willAsk": "at checkout you will need {{list}}"
+  },
+  "validation": {
+    "required": "The field is required",
+    "email": "Check the email address",
+    "maxLength": "No longer than {{max}} characters",
+    "minLength": "No shorter than {{min}} characters",
+    "pattern": {
+      "default": "The value is written in a different form"
+    }
   }
 }

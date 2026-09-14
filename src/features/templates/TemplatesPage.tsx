@@ -1,5 +1,7 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { rules } from '../../api/rules.generated';
+import { FieldFaultText } from '../../ui/Field';
+import { useFormRules } from '../../ui/forms/useFormRules';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -32,7 +34,12 @@ export function TemplatesPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [name, setName] = useState('');
+  /*
+   * Название — на правилах контракта: обязательно и не длиннее 255. Прежде
+   * форма держала только «не пусто», а длинное имя узнавала отказом сервера
+   * уже после нажатия.
+   */
+  const form = useFormRules({ schema: rules.SaveTemplateRequest, initial: { name: '' } });
 
   const response = useGetPortalTemplates();
   const templates: OrderTemplateDto[] = response.data?.status === 200 ? response.data.data : [];
@@ -43,7 +50,7 @@ export function TemplatesPage() {
   const save = useSavePortalTemplate({
     mutation: {
       onSuccess: () => {
-        setName('');
+        form.reset();
         void reload();
       },
     },
@@ -67,14 +74,27 @@ export function TemplatesPage() {
 
       <Card className="flex flex-col gap-3 p-4">
         <p className="font-semibold text-ink">{t('templates.saveCurrent')}</p>
+        {/*
+          Причина отказа стоит вне подписи: подпись здесь оборачивает поле
+          целиком, и вложенная в неё причина вошла бы в доступное имя —
+          диктор читал бы «Название Не длиннее 255 символов».
+        */}
+        <FieldFaultText fault={form.faults.name} name="name" />
+
         <div className="flex items-end gap-2">
           <label className="flex min-w-0 flex-1 flex-col gap-1.5">
             <span className="text-sm font-medium text-ink">{t('templates.name')}</span>
             <input
               type="text"
               placeholder={t('templates.namePlaceholder')}
-              value={name}
-              onChange={(event) => setName(event.currentTarget.value)}
+              value={form.values.name}
+              // Потолок приезжает из контракта, а не набирается здесь: своего
+              // мнения о длине названия у формы нет, и разойтись с сервером
+              // ей нечем.
+              maxLength={rules.SaveTemplateRequest.name.maxLength}
+              aria-invalid={form.faults.name ? 'true' : 'false'}
+              onChange={(event) => form.field('name').onChange(event.currentTarget.value)}
+              onBlur={form.field('name').onBlur}
               className={cn(
                 'h-11 w-full rounded-[var(--radius-control)] border border-hairline bg-surface px-3',
                 'text-[15px] text-ink placeholder:text-ink-faint',
@@ -83,8 +103,11 @@ export function TemplatesPage() {
             />
           </label>
           <Button
-            disabled={name.trim().length === 0 || save.isPending}
-            onClick={() => save.mutate({ data: { name: name.trim() } })}
+            disabled={!form.isValid || save.isPending}
+            onClick={() => {
+              if (!form.validate()) return;
+              save.mutate({ data: { name: form.values.name.trim() } });
+            }}
           >
             {save.isPending ? t('templates.saving') : t('templates.save')}
           </Button>

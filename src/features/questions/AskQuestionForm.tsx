@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { rules } from '../../api/rules.generated';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetPortalQuestionsQueryKey, useAskPortalQuestion } from '../../api/generated';
 import { Button } from '../../ui/Button';
@@ -71,7 +72,7 @@ export function AskQuestionForm({ itemId, itemName }: { itemId?: string; itemNam
           autoFocus
           value={text}
           rows={3}
-          maxLength={2000}
+          maxLength={rules.AskQuestionRequest.text.maxLength}
           onChange={(event) => setText(event.currentTarget.value)}
           placeholder={itemName ? t('questions.aboutItem', { name: itemName }) : t('questions.questionPlaceholder')}
           className={cn(

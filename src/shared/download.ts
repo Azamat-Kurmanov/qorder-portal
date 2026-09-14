@@ -7,6 +7,8 @@
  * это заметно не на экране, а в папке загрузок через полгода.
  */
 
+import * as bridge from './webview/bridge';
+
 /**
  * Имя файла из `Content-Disposition`.
  *
@@ -40,6 +42,52 @@ export function fileNameFrom(headers: Headers, fallback: string): string {
 /**
  * Сохранить содержимое под именем.
  *
+ * Путей два, и выбирает между ними не экран, а это место: внутри мобильного
+ * приложения браузерная ссылка на содержимое не скачивает ничего — там файл
+ * обязан уйти в нативную часть. В браузере моста нет, и это нормальный режим,
+ * а не деградация.
+ *
+ * Развилка смотрит на метод моста, а не на сам мост: приложение бывает старше
+ * кабинета, и объявленный мост без нужного метода оставил бы человека без
+ * файла молча. Не принял мост — отдаём браузером.
+ */
+export async function saveFile(content: Blob, fileName: string): Promise<void> {
+  // Мосту содержимое уходит строкой: канал в нативную часть двоичных данных
+  // не несёт. Считается она до всего прочего — не приняв её, мост оставит
+  // работу браузеру, и создавать временную ссылку заранее незачем.
+  if (bridge.isAvailable()) {
+    if (bridge.saveFile(fileName, await asBase64(content))) return;
+  }
+
+  saveThroughBrowser(content, fileName);
+}
+
+/**
+ * Содержимое строкой base64 — в том виде, в каком его принимает мост.
+ *
+ * Собирается частями по 32 КиБ: `String.fromCharCode` принимает байты
+ * аргументами, и весь файл разом упёрся бы в предел их числа. Падало бы это
+ * на файле, который больше обычного, — то есть у того, у кого документ
+ * длиннее остальных, и только у него.
+ *
+ * Через `arrayBuffer`, а не `FileReader`: содержимое приходит из ответа сети,
+ * и его `Blob` не всегда тот, которого ждёт `readAsDataURL`.
+ */
+async function asBase64(content: Blob): Promise<string> {
+  const bytes = new Uint8Array(await content.arrayBuffer());
+  const CHUNK = 0x8000;
+
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + CHUNK));
+  }
+
+  return btoa(binary);
+}
+
+/**
+ * Отдача файла браузером.
+ *
  * Через временную ссылку, а не переходом по адресу документа: запрос к нему
  * несёт токен и поставщика заголовками, а переход по адресу их не несёт —
  * человек получил бы отказ вместо файла.
@@ -48,7 +96,7 @@ export function fileNameFrom(headers: Headers, fallback: string): string {
  * обработано синхронно, браузер содержимое уже забрал, а оставленная ссылка
  * держит файл в памяти вкладки до её закрытия.
  */
-export function saveFile(content: Blob, fileName: string): void {
+function saveThroughBrowser(content: Blob, fileName: string): void {
   const href = URL.createObjectURL(content);
   const link = document.createElement('a');
 

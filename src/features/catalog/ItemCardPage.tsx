@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 import { useGetPortalCatalogItem } from '../../api/generated';
+import { fieldText } from './fieldText';
 import { CartBar } from '../cart/CartBar';
 import { QuantityField } from '../cart/QuantityField';
 import { cartOf, useCart, useSetCartLine } from '../cart/useCart';
@@ -13,6 +14,8 @@ import { MediaGallery } from './MediaGallery';
 import { StockNote } from './StockNote';
 import { money, shortDate, tenge } from '../../shared/format';
 import { Button } from '../../ui/Button';
+import { Skeleton } from '../../ui/Skeleton';
+import { flyToCart } from '../../ui/flyToCart';
 import { cn } from '../../ui/cn';
 
 /**
@@ -56,10 +59,10 @@ export function ItemCardPage() {
 
   if (card.isPending) {
     return (
-      <div
-        data-testid="card-skeleton"
-        className="h-64 animate-pulse rounded-[var(--radius-card)] border border-hairline bg-sunk"
-      />
+      // Бегущий свет, а не мигание: мигающий прямоугольник читается как
+      // поломка, а карточку товара открывают по присланной ссылке — то есть
+      // на самой медленной связи, какая бывает у клиента.
+      <Skeleton data-testid="card-skeleton" className="h-64" />
     );
   }
 
@@ -81,6 +84,25 @@ export function ItemCardPage() {
   }
 
   const item = card.data.data;
+
+  /*
+    Характеристики рубрики и прочие свойства показываются одним списком,
+    характеристики — выше. Клиенту разница между ними ничего не объясняет:
+    первые продавец завёл шаблоном отрасли и заполняет у каждой позиции,
+    вторые — разовое, чему поля не завели. Порядок и есть всё объяснение.
+
+    Характеристика без значения выпадает: строка с подписью и пустотой
+    занимает место сообщением ни о чём. Внутренних здесь не бывает вовсе —
+    сервер их не отдаёт ни кодом, ни подписью.
+  */
+  const properties = [
+    ...(item.fields ?? []).map((field) => (
+      { key: `field:${field.code}`, name: field.name, value: fieldText(field) }
+    )),
+    ...item.attributes.map((attribute) => (
+      { key: `attribute:${attribute.name}`, name: attribute.name, value: attribute.value }
+    )),
+  ].filter((property) => property.value.trim() !== '');
 
   // Условия, при которых цена верна, — отдельной мелкой строкой под ценой.
   // Требование о полноте торговой информации от размера шрифта не зависит:
@@ -233,11 +255,32 @@ export function ItemCardPage() {
           <div className="flex items-center gap-2">
             <QuantityField itemId={item.id} unit={item.unit} />
             <Button
-              size="lg"
+              /*
+                Терракота и самый крупный размер: на карточке это единственное
+                действие и то, ради чего её открыли. Здесь она не спорит ни
+                с чем — на витрине ту же роль играет мягкая кнопка, потому что
+                там она повторяется полсотни раз.
+              */
+              variant="accent"
+              size="xl"
               // Поля кнопки на телефоне уже обычных: рядом стоит счётчик,
               // и сумма в шесть цифр иначе выезжает за край экрана.
-              className="min-w-0 flex-1 px-4 text-[15px] md:flex-none md:px-7"
-              onClick={() => setLine.mutate({ itemId: item.id, data: { quantity: wanted } })}
+              className="min-w-0 flex-1 px-4 text-base md:flex-none md:px-7"
+              onClick={(event) => {
+                /*
+                  Снимок улетает в заявку — тот же отклик, что на витрине,
+                  и по той же причине: заявка живёт наверху экрана или справа,
+                  и молча нажатая кнопка заставляет класть позицию второй раз.
+                  Летит текущий кадр галереи, найденный по всей странице:
+                  карточка — это одна позиция на экране, второй галереи здесь
+                  не бывает. Кадра может не быть вовсе (позиция без снимков) —
+                  тогда летит сама кнопка, и полёт всё равно показывает,
+                  куда позиция уехала.
+                */
+                const shot = document.querySelector('[data-testid="gallery-photo"]');
+                flyToCart(shot ?? event.currentTarget);
+                setLine.mutate({ itemId: item.id, data: { quantity: wanted } });
+              }}
             >
               {/*
                 Сумма прямо на кнопке: человек видит, во что обойдётся набранное,
@@ -254,7 +297,7 @@ export function ItemCardPage() {
             </p>
           )}
 
-          {item.attributes.length > 0 && (
+          {properties.length > 0 && (
             <section aria-labelledby="attributes-heading" className="flex flex-col gap-2">
               <h2 id="attributes-heading" className="text-base font-semibold text-ink">
                 {t('catalog.attributes')}
@@ -264,10 +307,10 @@ export function ItemCardPage() {
                 до двадцати, и таблица из двух строк выглядит поломкой вёрстки.
               */}
               <dl className="divide-y divide-hairline overflow-hidden rounded-[var(--radius-card)] border border-hairline bg-surface">
-                {item.attributes.map((attribute) => (
-                  <div key={attribute.name} className="flex gap-4 px-4 py-2.5">
-                    <dt className="w-2/5 shrink-0 text-sm text-ink-subtle">{attribute.name}</dt>
-                    <dd className="text-sm text-ink">{attribute.value}</dd>
+                {properties.map((property) => (
+                  <div key={property.key} data-testid="item-property" className="flex gap-4 px-4 py-2.5">
+                    <dt className="w-2/5 shrink-0 text-sm text-ink-subtle">{property.name}</dt>
+                    <dd className="text-sm text-ink">{property.value}</dd>
                   </div>
                 ))}
               </dl>

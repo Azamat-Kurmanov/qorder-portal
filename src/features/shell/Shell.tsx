@@ -34,6 +34,7 @@ import { TemplatesPage } from '../templates/TemplatesPage';
 import { useGetPortalSuppliers, useGetPortalUnreadSummary } from '../../api/generated';
 import { currentViewer } from '../../auth/oidcConfig';
 import { ActivationBanner } from './ActivationBanner';
+import { FontScalePicker } from './FontScale';
 import { LanguagePicker } from './LanguagePicker';
 import { StaffBanner } from './StaffBanner';
 import { ViewerBadge } from './ViewerBadge';
@@ -42,6 +43,7 @@ import { useSupplierAccess } from '../../supplier/useSupplierAccess';
 import { Button } from '../../ui/Button';
 import { Logo } from '../../ui/Logo';
 import { Sheet } from '../../ui/Sheet';
+import { CART_TARGET } from '../../ui/flyToCart';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { cn } from '../../ui/cn';
 
@@ -186,11 +188,17 @@ export function Shell() {
 
       <Sheet open={opened && !wide} onOpenChange={setOpened} title={t('shell.menu')} side="left">
         {/*
-          Язык — первой строкой: на телефоне кружка профиля в шапке нет,
-          и другого места для переключателя там не остаётся.
+          Язык и размер шрифта — первой строкой: на телефоне кружка профиля
+          в шапке нет, и другого места для переключателей там не остаётся.
+
+          Стоят они парой, потому что отвечают на один и тот же вопрос —
+          как кабинет читается, — и человек, который ищет один, находит
+          второй. Разнеси их по разным местам, и «где сделать покрупнее»
+          придётся объяснять по телефону.
         */}
         <div className="flex items-center justify-between gap-2 pb-2">
           <LanguagePicker />
+          <FontScalePicker />
         </div>
 
         <nav aria-label={t('shell.sectionsNav')} className="flex flex-col gap-1">
@@ -263,7 +271,7 @@ export function Shell() {
           aria-label={t('shell.sectionsRail')}
           className={cn(
             'hidden flex-col gap-[3px] border-r border-hairline bg-sunk px-4 py-6 lg:flex',
-            'lg:sticky lg:top-[68px] lg:h-[calc(100dvh-68px)] lg:overflow-y-auto',
+            'lg:sticky lg:top-[var(--header-h)] lg:h-[calc(100dvh-var(--header-h))] lg:overflow-y-auto',
           )}
         >
           <span className="px-3 pb-2.5 text-[11px] uppercase tracking-[0.1em] text-ink-subtle">
@@ -308,6 +316,19 @@ export function Shell() {
         )}
 
         <main className="min-w-0 flex-1 px-4 py-4 lg:px-7 lg:py-6">
+          {/*
+            Смена экрана видна движением: четверть секунды, проявление и
+            полсантиметра снизу. Смысл ровно один — сказать, что страница
+            СМЕНИЛАСЬ, а не дорисовалась; на медленной сети эти два случая
+            иначе неразличимы, и человек нажимает раздел второй раз.
+
+            Ключом служит адрес: React собирает узел заново, и анимация
+            начинается сначала. Без ключа она отыграла бы один раз за всё
+            время работы кабинета.
+
+            Настройку «меньше движения» гасит правило в index.css.
+          */}
+          <div key={location.pathname} className="animate-page">
           <Routes>
             <Route path="/catalog" element={<RequireSupplier><CatalogPage /></RequireSupplier>} />
             <Route path="/catalog/:itemId" element={<RequireSupplier><ItemCardPage /></RequireSupplier>} />
@@ -322,6 +343,7 @@ export function Shell() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="*" element={<Navigate to="/catalog" replace />} />
           </Routes>
+          </div>
         </main>
 
         {/*
@@ -371,8 +393,23 @@ function Header({
   }
 
   return (
-    <header className="sticky top-0 z-20 bg-canvas lg:border-b lg:border-hairline lg:bg-surface">
-      <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-4 py-3 lg:h-[68px] lg:gap-6 lg:px-7 lg:py-0">
+    /*
+      Полупрозрачная и с размытием: витрина, уезжающая под шапку, видна
+      сквозь неё размытым пятном — так полоса читается как стекло НАД
+      содержимым, а не как второй слой страницы, начинающийся ниже. Сплошная
+      заливка на прокрутке выглядела обрывом списка.
+
+      Запас непрозрачности (85 процентов) взят такой, чтобы имя поставщика
+      и значки не теряли контраста над самым пёстрым, что может проехать
+      снизу, — над снимками витрины.
+    */
+    <header
+      className={cn(
+        'sticky top-0 z-20 bg-canvas/85 backdrop-blur-md',
+        'lg:border-b lg:border-hairline lg:bg-surface/85',
+      )}
+    >
+      <div className="mx-auto flex w-full max-w-[1440px] items-center gap-3 px-4 py-3 lg:h-[var(--header-h)] lg:gap-6 lg:px-7 lg:py-0">
         <Button
           variant="ghost"
           size="icon"
@@ -441,7 +478,7 @@ function Header({
             стоят колонкой справа, и значок был бы третьим местом с той же
             суммой.
           */}
-          <HeaderAction to="/checkout" label={t('shell.cart')} className="lg:hidden">
+          <HeaderAction to="/checkout" label={t('shell.cart')} className="lg:hidden" cartTarget>
             <ShoppingBag className="size-5" aria-hidden="true" />
           </HeaderAction>
 
@@ -469,6 +506,16 @@ function Header({
             и он отнял бы ширину у имени, ради которого шапку и переделывали;
             там тот же переключатель стоит первой строкой выдвижного меню.
           */}
+          {/*
+            Размер шрифта — рядом с языком и по той же причине: обе настройки
+            про то, как кабинет читается. Только на мониторе; на телефоне обе
+            стоят первой строкой выдвижного меню, где ширину у них не
+            оспаривает имя поставщика.
+          */}
+          <div className="hidden lg:block">
+            <FontScalePicker />
+          </div>
+
           <div className="hidden lg:block">
             <LanguagePicker />
           </div>
@@ -580,17 +627,27 @@ function HeaderAction({
   to,
   label,
   className,
+  cartTarget = false,
   children,
 }: {
   to: string;
   label: string;
   className?: string;
+  /**
+   * Сюда улетает позиция, положенная в заявку.
+   *
+   * Признак ставится снаружи, а не внутри значка: на мониторе тем же местом
+   * назначения служит заголовок колонки заявки, и знать, какое из двух мест
+   * сейчас на экране, должен полёт, а не шапка.
+   */
+  cartTarget?: boolean;
   children: ReactNode;
 }) {
   return (
     <Link
       to={to}
       aria-label={label}
+      {...(cartTarget ? { [CART_TARGET]: '' } : {})}
       className={cn(
         'flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-tile)]',
         'border border-hairline bg-surface text-ink',

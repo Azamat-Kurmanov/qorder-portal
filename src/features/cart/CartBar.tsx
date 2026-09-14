@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { cartOf, useCart } from './useCart';
 import { CartLines } from './CartLines';
 import { tenge } from '../../shared/format';
+import { Bump } from '../../ui/Bump';
 import { Button } from '../../ui/Button';
 import { Sheet } from '../../ui/Sheet';
 
@@ -37,6 +38,9 @@ export function CartBar() {
         data-testid="cart-bar"
         className={[
           'fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-surface/95 backdrop-blur',
+          // Тень вверх: полоса лежит ПОВЕРХ витрины, и без тени её верхняя
+          // граница читается как конец списка, под которым ничего нет.
+          'shadow-[0_-8px_24px_-12px_rgb(74_58_36/0.35)]',
           // На мониторе заявка стоит колонкой справа: два итога сразу — это
           // вопрос «какой из них настоящий», а не подстраховка.
           'lg:hidden',
@@ -58,12 +62,18 @@ export function CartBar() {
             <span className="text-xs text-ink-subtle">
               {positions} {t('common.positions', { count: positions })}
             </span>
-            <span className="text-[17px] font-semibold tabular-nums text-ink">
+            {/* Итог отвечает толчком на каждое добавление: полоса стоит
+                внизу экрана, а кладут позицию в середине списка, и молча
+                меняющаяся сумма проходит мимо взгляда. */}
+            <Bump value={cart?.total ?? 0} className="text-[1.0625rem] font-semibold tabular-nums text-ink">
               {tenge(cart?.total ?? 0)}
-            </span>
+            </Bump>
           </button>
 
-          <Button size="lg" onClick={() => navigate('/checkout')}>
+          {/* Терракота: это то действие, ради которого заявку собирали,
+              и единственное на полосе. «В корзину» у позиций витрины —
+              мягкие, и за первый взгляд с этой не спорят. */}
+          <Button variant="accent" size="lg" onClick={() => navigate('/checkout')}>
             {t('cart.checkout')}
           </Button>
         </div>
@@ -76,7 +86,8 @@ export function CartBar() {
             Итого: {tenge(cart?.total ?? 0)}
           </p>
           <Button
-            size="lg"
+            variant="accent"
+            size="xl"
             className="w-full"
             onClick={() => {
               setOpened(false);

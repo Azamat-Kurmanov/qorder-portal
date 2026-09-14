@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { cartOf, useCart } from './useCart';
 import { CartLines } from './CartLines';
 import { tenge } from '../../shared/format';
+import { Bump } from '../../ui/Bump';
 import { Button } from '../../ui/Button';
+import { CART_TARGET } from '../../ui/flyToCart';
 import { cn } from '../../ui/cn';
 
 /**
@@ -38,15 +40,26 @@ export function CartPanel({ active = true }: { active?: boolean }) {
         'hidden flex-col gap-4 border-l border-hairline bg-surface px-5 py-6 lg:flex',
         // Липкая и со своей прокруткой: итог нужен виден в тот момент, когда
         // человек добирает позиции внизу длинной витрины.
-        'lg:sticky lg:top-[68px] lg:h-[calc(100dvh-68px)]',
+        'lg:sticky lg:top-[var(--header-h)] lg:h-[calc(100dvh-var(--header-h))]',
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold text-ink">{t('cart.panelTitle')}</h2>
+        {/*
+          Заголовок колонки — то место, куда на мониторе улетает положенная
+          позиция. Именно заголовок, а не список: список бывает пуст, и
+          лететь тогда было бы некуда, а заголовок стоит всегда.
+        */}
+        <h2 {...{ [CART_TARGET]: '' }} className="text-base font-semibold text-ink">
+          {t('cart.panelTitle')}
+        </h2>
         {lines.length > 0 && (
-          <span className="text-xs text-ink-subtle">
+          // Число позиций отвечает толчком на добавление: колонка стоит
+          // справа, а кладут позицию слева, и без толчка прибавление
+          // проходит незамеченным — ровно тот случай, когда закупщик кладёт
+          // то же самое второй раз.
+          <Bump value={lines.length} className="text-xs text-ink-subtle">
             {t('common.positions', { count: lines.length })}
-          </span>
+          </Bump>
         )}
       </div>
 
@@ -61,9 +74,20 @@ export function CartPanel({ active = true }: { active?: boolean }) {
           <div className="mt-auto flex flex-col gap-3 border-t border-hairline pt-4">
             <div className="flex items-baseline justify-between gap-2 text-xl font-bold tracking-[-0.01em] text-ink">
               <span>{t('cart.total')}</span>
-              <span className="tabular-nums">{tenge(cart?.total ?? 0)}</span>
+              {/* Итог тоже отвечает толчком: сумма меняется от каждого
+                  «плюса» внизу витрины, и молча меняющиеся деньги — это
+                  повод пересчитывать заявку вручную. */}
+              <Bump value={cart?.total ?? 0} className="tabular-nums">
+                {tenge(cart?.total ?? 0)}
+              </Bump>
             </div>
-            <Button size="lg" className="w-full" onClick={() => navigate('/checkout')}>
+            {/*
+              Терракота и крупный размер: это единственное действие колонки
+              и то, ради чего заявку собирали. Остальные кнопки экрана —
+              «В корзину» у позиций — мягкие, и спорить с этой за первый
+              взгляд не должны.
+            */}
+            <Button variant="accent" size="xl" className="w-full" onClick={() => navigate('/checkout')}>
               {t('cart.checkoutFull')}
             </Button>
           </div>

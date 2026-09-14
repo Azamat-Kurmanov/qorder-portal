@@ -20,6 +20,8 @@ import { money, shortDate, tenge } from '../../shared/format';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Reveal } from '../../ui/Reveal';
+import { Skeleton } from '../../ui/Skeleton';
+import { flyToCart } from '../../ui/flyToCart';
 import { cn } from '../../ui/cn';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { useColumnWidth } from '../../ui/useColumnWidth';
@@ -195,10 +197,14 @@ export function CatalogPage() {
             value={typed}
             onChange={(event) => setTyped(event.currentTarget.value)}
             className={cn(
-              'h-12 w-full rounded-[var(--radius-tile)] border border-hairline bg-surface',
-              'pl-11 pr-4 text-[15px] text-ink placeholder:text-ink-faint',
-              'transition-all duration-300 focus:border-ink/30 focus:outline-none',
-              'focus:ring-2 focus:ring-brand/30',
+              // Тринадцать с половиной сотен точки роста — поле поиска
+              // на телефоне открывают первым, и промахиваться по нему
+              // не должен никто. В `rem`, чтобы расти вместе с крупным
+              // шрифтом, а не оставлять его набитым в прежнюю рамку.
+              'h-13 w-full rounded-[var(--radius-card)] border border-hairline bg-surface shadow-soft',
+              'pl-11 pr-4 text-base text-ink placeholder:text-ink-faint',
+              'transition-all duration-300 ease-out focus:border-ink/30 focus:outline-none',
+              'focus:ring-2 focus:ring-brand/30 focus:shadow-lift',
             )}
           />
         </div>
@@ -250,7 +256,7 @@ export function CatalogPage() {
             className="grid grid-cols-3 content-start gap-4"
           >
             {items.map((item, index) => (
-              <Reveal key={item.id} delay={Math.min(index, 3) * 0.04}>
+              <Reveal key={item.id} index={index}>
                 <ItemTile item={item} taken={taken.has(item.id)} />
               </Reveal>
             ))}
@@ -261,7 +267,7 @@ export function CatalogPage() {
           // читаются медленнее, чем один список.
           <Card className="divide-y divide-hairline overflow-hidden">
             {items.map((item, index) => (
-              <Reveal key={item.id} delay={Math.min(index, 3) * 0.04}>
+              <Reveal key={item.id} index={index}>
                 <ItemRow item={item} taken={taken.has(item.id)} />
               </Reveal>
             ))}
@@ -324,8 +330,12 @@ function ItemRow({ item, taken }: { item: ShowcaseItemDto; taken: boolean }) {
   const openCard = useOpenCard(item.id);
 
   return (
-    <div data-testid="item-row" onClick={openCard} className="flex cursor-pointer gap-3 p-4">
-      <ItemThumb itemId={item.id} src={item.thumbnailUrl} className="size-16 rounded-[var(--radius-tile)]" />
+    <div
+      data-testid="item-row"
+      onClick={openCard}
+      className="group/tile flex cursor-pointer gap-3 p-4 transition-colors duration-300 hover:bg-sunk"
+    >
+      <ItemThumb itemId={item.id} src={item.thumbnailUrl} className="size-18 rounded-[var(--radius-tile)]" />
 
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
@@ -381,14 +391,24 @@ function ItemTile({ item, taken }: { item: ShowcaseItemDto; taken: boolean }) {
       interactive
       data-testid="item-tile"
       onClick={openCard}
-      className="flex h-full cursor-pointer flex-col overflow-hidden"
+      /*
+        `group/tile` — имя для наведения: снимок внутри наезжает на зрителя,
+        когда курсор попал в ЛЮБОЕ место плитки. Имя, а не безымянная группа:
+        внутри плитки у сердечка и кнопки есть своё наведение, и безымянная
+        группа спутала бы их между собой.
+      */
+      className="group/tile flex h-full cursor-pointer flex-col overflow-hidden"
     >
       <div className="relative">
-        <ItemThumb itemId={item.id} src={item.thumbnailUrl} className="h-[168px] w-full" />
+        {/* Высота снимка в `rem`: при крупном шрифте плитка растёт целиком,
+            иначе крупное имя под прежним снимком выглядело бы приклеенным. */}
+        <ItemThumb itemId={item.id} src={item.thumbnailUrl} className="h-[10.5rem] w-full" />
         <FavoriteButton
           itemId={item.id}
           favorite={item.favorite}
-          className="absolute right-2 top-2 border-transparent bg-surface/80"
+          // Размытие под сердечком: на пёстром снимке полупрозрачная белая
+          // подложка без него сливается с кадром, и сердечко пропадает.
+          className="absolute right-2 top-2 border-transparent bg-surface/80 shadow-soft backdrop-blur-sm"
         />
       </div>
 
@@ -401,7 +421,7 @@ function ItemTile({ item, taken }: { item: ShowcaseItemDto; taken: boolean }) {
         </Link>
 
         <div className="flex items-baseline gap-2">
-          <span className="text-[19px] font-semibold tracking-[-0.01em] tabular-nums text-ink">
+          <span className="text-[1.3125rem] font-semibold tracking-[-0.01em] tabular-nums text-ink">
             {tenge(item.price)}
           </span>
           <span className="min-w-0 text-xs text-ink-subtle">{priceNote(item, t)}</span>
@@ -439,15 +459,42 @@ function CartAction({
 
   if (taken) return <QuantityField itemId={item.id} unit={item.unit} />;
 
+  /**
+   * Положить позицию — и показать, КУДА она легла.
+   *
+   * Между нажатием и ответом сервера не происходит ничего, а заявка живёт
+   * наверху экрана или справа. Добросовестный закупщик, не увидев отклика,
+   * кладёт ту же позицию второй раз. Поэтому снимок позиции улетает в заявку
+   * в тот же кадр, когда палец отпустил кнопку, — до всякого ответа сервера.
+   *
+   * Летит снимок из ЭТОЙ строки, а не абстрактная точка: на витрине строки
+   * похожи друг на друга, и «что-то произошло» отвечает не на тот вопрос,
+   * который задан. Ищется он от кнопки вверх по дереву — так действие
+   * не обязано получать ссылку на снимок отдельным свойством через два
+   * компонента, а строка и плитка остаются каждая собой.
+   */
+  function add(event: React.MouseEvent<HTMLButtonElement>) {
+    const holder = event.currentTarget.closest('[data-testid="item-tile"], [data-testid="item-row"]');
+    flyToCart(holder?.querySelector('[data-testid="item-thumb"]') ?? event.currentTarget);
+    setLine.mutate({ itemId: item.id, data: { quantity: 1 } });
+  }
+
   return (
     <Button
-      variant="outline"
+      /*
+        Мягкий вариант, а не обводка и не терракота. Обводка читалась
+        второстепенным действием — «В корзину» на витрине как раз главное.
+        Терракота же на витрине повторилась бы полсотни раз, и главным
+        оказался бы весь экран сразу; она достаётся одной кнопке —
+        «Оформить заявку».
+      */
+      variant="soft"
       // Кладётся единица, а не ноль: кнопка называется «В корзину», и нажавший
       // ждёт, что позиция там окажется. Дальше её набирают счётчиком, который
       // встанет на это же место.
-      onClick={() => setLine.mutate({ itemId: item.id, data: { quantity: 1 } })}
+      onClick={add}
       disabled={setLine.isPending}
-      className={cn('rounded-[var(--radius-tile)]', full && 'w-full')}
+      className={cn('rounded-[var(--radius-tile)] font-semibold', full && 'w-full')}
     >
       <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4">
         <path d="M8 4v8M4 8h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -745,13 +792,12 @@ function Skeletons({ columns }: { columns: 0 | 3 }) {
   return (
     <div className={cn(tiles ? 'grid grid-cols-3 gap-4' : 'flex flex-col gap-3')}>
       {(tiles ? [0, 1, 2, 3, 4, 5] : [0, 1, 2, 3]).map((cell) => (
-        <div
+        <Skeleton
           key={cell}
           data-testid="item-skeleton"
-          className={cn(
-            'animate-pulse rounded-[var(--radius-card)] border border-hairline bg-sunk',
-            tiles ? 'h-[320px]' : 'h-[92px]',
-          )}
+          // Высоты в `rem`: заглушка обязана совпасть с тем, что придёт
+          // на её место, а плитка при крупном шрифте выше обычной.
+          className={tiles ? 'h-[21rem]' : 'h-[6rem]'}
         />
       ))}
     </div>

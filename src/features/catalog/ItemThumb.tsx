@@ -1,4 +1,5 @@
 import { cn } from '../../ui/cn';
+import { Img } from '../../ui/Img';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -43,6 +44,20 @@ function placeholderOf(itemId: string): readonly [string, string] {
  * настоящий адрес, когда сервер заведёт поле, и остальной витрине про эту
  * замену знать не придётся.
  *
+ * Заполнитель не стоит мёртвым пятном: по градиенту раз в семь секунд
+ * проходит медленная волна света. Полсотни одинаковых застывших прямоугольников
+ * читаются как брак вёрстки, а движущийся свет — как материал: камень, мешок,
+ * металл. Медленно намеренно — быстрый блик на полусотне плиток сразу
+ * превратил бы витрину в мигающую вывеску. Настройку «меньше движения»
+ * волну гасит правилом в index.css.
+ *
+ * Настоящий снимок проявляется, а не выскакивает (`Img`), и при наведении
+ * на плитку чуть наезжает на зрителя. Наезд — не украшение: он подтверждает,
+ * что плитка целиком нажимается, а не только имя под снимком. Привязан он
+ * к плитке (`group/tile`), а не к самому снимку: цель — вся плитка, и увеличение
+ * только при попадании курсором в картинку обещало бы, что нажимать надо
+ * именно её.
+ *
  * Сам снимок для экранного диктора пуст: он ничего не сообщает сверх имени,
  * которое стоит рядом, а озвученное «изображение» на каждой из пятидесяти
  * строк только удлиняет путь к цене. Метка ролика — сообщает, и потому
@@ -65,10 +80,39 @@ export function ItemThumb({
   return (
     <div
       data-testid="item-thumb"
+      /*
+        Градиент остаётся заливкой самого слота, а не уходит во вложенный
+        слой: он и есть заполнитель, и вложенный слой ради наезда при
+        наведении здесь ничего не дал бы — растянутая линейная заливка
+        от увеличения на шесть процентов неотличима от себя самой.
+        Наезжает поэтому только настоящий снимок.
+      */
       style={src ? undefined : { backgroundImage: `linear-gradient(150deg, ${from} 0%, ${to} 100%)` }}
       className={cn('relative shrink-0 overflow-hidden bg-sunk', className)}
     >
-      {src && <img src={src} alt="" className="size-full object-cover" />}
+      {src ? (
+        <Img
+          src={src}
+          alt=""
+          className={cn(
+            'size-full object-cover',
+            'transition-transform duration-500 ease-out group-hover/tile:scale-105',
+          )}
+        />
+      ) : (
+        /*
+          Волна света поверх градиента: узкая светлая полоса, наклонённая
+          и уезжающая слева направо. Отдельным слоем, а не в самом градиенте, —
+          иначе её нельзя было бы двигать, не перерисовывая заполнитель.
+        */
+        <span
+          aria-hidden="true"
+          className={cn(
+            'animate-sheen pointer-events-none absolute -inset-y-1/4 left-0 w-1/2',
+            'bg-[linear-gradient(100deg,transparent,rgb(255_255_255/0.7),transparent)]',
+          )}
+        />
+      )}
 
       {/*
         Метка ролика: видео в карточке смотрят до заказа, и знать о нём с
@@ -79,10 +123,10 @@ export function ItemThumb({
         <span
           className={cn(
             'absolute bottom-2 left-2 inline-flex h-6 items-center gap-1.5 rounded-full',
-            'bg-ink/70 px-2 text-[11px] text-white',
+            'bg-ink/70 px-2 text-[0.6875rem] text-white backdrop-blur-sm',
           )}
         >
-          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="size-[11px]">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="size-[0.6875rem]">
             <path d="M2.5 4.5h7v7h-7z" stroke="currentColor" strokeWidth="1.4" />
             <path d="m9.5 8 4-2.2v4.4L9.5 8Z" fill="currentColor" />
           </svg>

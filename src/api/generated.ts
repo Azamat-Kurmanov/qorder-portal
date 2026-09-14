@@ -1085,6 +1085,26 @@ export interface ItemMediaDto {
 }
 
 /**
+ * Значение поля категории на позиции; заполнены только части, которые читает тип поля, пусто всё — поле очищено
+ */
+export interface FieldValueDto {
+  /** Код поля. При записи главнее ключ словаря значений */
+  code?: string;
+  /** Код варианта у списка с одним вариантом либо текст у текстового поля */
+  value?: string;
+  /** Коды вариантов у списка с несколькими вариантами, в порядке выбора */
+  values?: string[];
+  /** Число, либо начало диапазона */
+  number?: number;
+  /** Конец диапазона; не меньше начала */
+  numberTo?: number;
+  /** Да или нет */
+  flag?: boolean;
+  /** Дата */
+  date?: string;
+}
+
+/**
  * Свойство позиции каталога: имя и значение
  */
 export interface ItemAttributeDto {
@@ -1101,6 +1121,16 @@ export interface ItemAttributeDto {
      */
   value: string;
 }
+
+/**
+ * Значения полей категории: код поля → значение. В отличие от прочей позиции пишутся поверх сохранённых: отсутствие словаря означает «значения не трогать», код, которого в словаре нет, остаётся как был, код с пустым значением — поле очищено. Значение поля, которого нет у категории позиции (и не поле всего каталога), — отказ
+ */
+export type SaveCatalogItemRequestFieldValues = {[key: string]: FieldValueDto};
+
+/**
+ * Исключения видимости полей у этой позиции: код поля → видно ли клиенту. Пишутся поверх сохранённых: отсутствие словаря означает «не трогать», пустое значение у кода возвращает поле к умолчанию шаблона
+ */
+export type SaveCatalogItemRequestFieldVisibility = {[key: string]: boolean};
 
 /**
  * Заведение или правка позиции каталога
@@ -1152,6 +1182,10 @@ export interface SaveCatalogItemRequest {
   stockQuantity?: number;
   /** Свойства позиции в порядке показа: модель, цвет, вес, гарантия. Присылаются целиком, как и вся позиция: отсутствие поля означает «свойств нет», а не «оставить прежние» — иначе снятое свойство нечем было бы убрать. Пустые и повторяющиеся имена не сохраняются, свойств больше двадцати — отказ */
   attributes?: ItemAttributeDto[];
+  /** Значения полей категории: код поля → значение. В отличие от прочей позиции пишутся поверх сохранённых: отсутствие словаря означает «значения не трогать», код, которого в словаре нет, остаётся как был, код с пустым значением — поле очищено. Значение поля, которого нет у категории позиции (и не поле всего каталога), — отказ */
+  fieldValues?: SaveCatalogItemRequestFieldValues;
+  /** Исключения видимости полей у этой позиции: код поля → видно ли клиенту. Пишутся поверх сохранённых: отсутствие словаря означает «не трогать», пустое значение у кода возвращает поле к умолчанию шаблона */
+  fieldVisibility?: SaveCatalogItemRequestFieldVisibility;
 }
 
 /**
@@ -1213,11 +1247,90 @@ export interface CatalogItemDto {
 }
 
 /**
- * Показывать ли позицию в кабинете клиента
+ * Исключения видимости полей у этой позиции: код поля → видно ли клиенту. Пишутся поверх сохранённых: отсутствие словаря и кода — «не трогать», пустое значение у кода возвращает поле к настройке поля
+ */
+export type SetItemVisibilityRequestFieldVisibility = {[key: string]: boolean};
+
+/**
+ * Показывать ли клиенту позицию и её поля
  */
 export interface SetItemVisibilityRequest {
-  /** Истина — позиция в витрине, ложь — убрана из неё */
-  visible: boolean;
+  /** Истина — позиция в витрине, ложь — убрана из неё. Отсутствует — не меняется */
+  visible?: boolean;
+  /** Исключения видимости полей у этой позиции: код поля → видно ли клиенту. Пишутся поверх сохранённых: отсутствие словаря и кода — «не трогать», пустое значение у кода возвращает поле к настройке поля */
+  fieldVisibility?: SetItemVisibilityRequestFieldVisibility;
+}
+
+/**
+ * Значения полей по их кодам; только поля из списка полей. Значения полей прежней категории лежат в позиции, но здесь не показываются
+ */
+export type CatalogItemCardDtoFieldValues = {[key: string]: FieldValueDto};
+
+/**
+ * Исключения видимости у этой позиции: код поля → видно ли клиенту. Кода нет — поле видно так, как задано в его настройке
+ */
+export type CatalogItemCardDtoFieldVisibility = {[key: string]: boolean};
+
+/**
+ * Тип поля: определяет вид значения и элемент ввода
+ */
+export type FieldDefinitionDtoType = typeof FieldDefinitionDtoType[keyof typeof FieldDefinitionDtoType];
+
+
+export const FieldDefinitionDtoType = {
+  OPTION: 'OPTION',
+  OPTION_MULTI: 'OPTION_MULTI',
+  NUMBER: 'NUMBER',
+  BOOLEAN: 'BOOLEAN',
+  DATE: 'DATE',
+  RANGE: 'RANGE',
+  TEXT: 'TEXT',
+} as const;
+
+/**
+ * Вариант справочника поля: код хранится в позиции, подпись видит человек
+ */
+export interface FieldOptionDto {
+  /** Идентификатор варианта */
+  id: string;
+  /** Код варианта: латиница, цифры и подчёркивание */
+  code: string;
+  /** Подпись варианта так, как её завёл арендатор */
+  name: string;
+  /** Порядок в выпадающем списке: меньшее значение выше */
+  sortOrder: number;
+}
+
+/**
+ * Поле категории: свои и унаследованные от предков и всего каталога
+ */
+export interface FieldDefinitionDto {
+  /** Идентификатор поля */
+  id: string;
+  /** Ветка, для которой собран список; пуст у списка полей всего каталога */
+  categoryId?: string;
+  /** Код поля: ключ значения в позиции, после создания не меняется */
+  code: string;
+  /** Подпись поля так, как её завёл арендатор */
+  name: string;
+  /** Тип поля: определяет вид значения и элемент ввода */
+  type: FieldDefinitionDtoType;
+  /** Единица числа или диапазона из перечня каталога; у прочих типов пуста */
+  unit?: string;
+  /** Обязательно ли поле. Незаполненное не мешает сохранить позицию, а отмечает её неполной */
+  required: boolean;
+  /** Видит ли поле клиент по умолчанию; позиция может это переопределить */
+  customerVisible: boolean;
+  /** Можно ли по полю отбирать позиции */
+  filterable: boolean;
+  /** Порядок поля внутри своей ветки: меньшее значение выше */
+  sortOrder: number;
+  /** Поле заведено не в этой ветке, а у предка или на весь каталог */
+  inherited: boolean;
+  /** Ветка, где поле заведено и где его правят; пуста у поля всего каталога */
+  ownerCategoryId?: string;
+  /** Варианты справочника в порядке показа; пуст у несписочных типов */
+  options: FieldOptionDto[];
 }
 
 /**
@@ -1230,10 +1343,90 @@ export interface CatalogItemCardDto {
   visible: boolean;
   /** Фото и видео в порядке показа; пустой список — обычное состояние позиции, которую ещё не снимали */
   media: ItemMediaDto[];
+  /** Поля категории позиции — свои, унаследованные и поля всего каталога — в порядке показа. Пустой список у позиции, для которой полей не завели */
+  fields: FieldDefinitionDto[];
+  /** Значения полей по их кодам; только поля из списка полей. Значения полей прежней категории лежат в позиции, но здесь не показываются */
+  fieldValues: CatalogItemCardDtoFieldValues;
+  /** Исключения видимости у этой позиции: код поля → видно ли клиенту. Кода нет — поле видно так, как задано в его настройке */
+  fieldVisibility: CatalogItemCardDtoFieldVisibility;
 }
 
 /**
- * Категория номенклатуры: название и место в витрине
+ * Вариант справочника поля
+ */
+export interface FieldOptionRequest {
+  /**
+     * Код варианта: латинские буквы, цифры и подчёркивание, первой — буква. Регистр не важен, хранится заглавными
+     * @minLength 0
+     * @maxLength 64
+     * @pattern ^[A-Za-z][A-Za-z0-9_]{0,63}$
+     */
+  code: string;
+  /**
+     * Подпись варианта для человека
+     * @minLength 0
+     * @maxLength 120
+     */
+  name: string;
+  /**
+     * Порядок в выпадающем списке: меньшее значение выше. Отсутствует — место варианта в присланном списке
+     * @minimum 0
+     */
+  sortOrder?: number;
+}
+
+/**
+ * Тип поля. Только прежний: другой отклоняется
+ */
+export type UpdateFieldRequestType = typeof UpdateFieldRequestType[keyof typeof UpdateFieldRequestType];
+
+
+export const UpdateFieldRequestType = {
+  OPTION: 'OPTION',
+  OPTION_MULTI: 'OPTION_MULTI',
+  NUMBER: 'NUMBER',
+  BOOLEAN: 'BOOLEAN',
+  DATE: 'DATE',
+  RANGE: 'RANGE',
+  TEXT: 'TEXT',
+} as const;
+
+/**
+ * Правка поля: не присланное не меняется. Код не меняется никогда, тип — тоже
+ */
+export interface UpdateFieldRequest {
+  /**
+     * Новая подпись поля
+     * @minLength 0
+     * @maxLength 120
+     * @pattern .*\S.*
+     */
+  name?: string;
+  /** Тип поля. Только прежний: другой отклоняется */
+  type?: UpdateFieldRequestType;
+  /**
+     * Единица числа или диапазона из перечня каталога. Пустая строка снимает единицу
+     * @minLength 0
+     * @maxLength 16
+     */
+  unit?: string;
+  /** Обязательное поле */
+  required?: boolean;
+  /** Видит ли поле клиент по умолчанию */
+  customerVisible?: boolean;
+  /** Можно ли по полю отбирать позиции */
+  filterable?: boolean;
+  /**
+     * Порядок поля в своей ветке: меньшее значение выше
+     * @minimum 0
+     */
+  sortOrder?: number;
+  /** Полный новый состав вариантов, до ста. Отсутствует — варианты не меняются; вариант, которого нет в списке, снимается мягко */
+  options?: FieldOptionRequest[];
+}
+
+/**
+ * Категория номенклатуры: название, родительская ветка и место в витрине
  */
 export interface SaveItemCategoryRequest {
   /**
@@ -1242,6 +1435,8 @@ export interface SaveItemCategoryRequest {
      * @maxLength 255
      */
   name: string;
+  /** Родительская ветка. Отсутствует — категория корневая. Дерево до трёх уровней считая корень */
+  parentId?: string;
   /**
      * Порядок в витрине: меньшее значение выше. Ноль означает «без предпочтения» и оставляет категорию в общем порядке по названию
      * @minimum 0
@@ -1250,13 +1445,17 @@ export interface SaveItemCategoryRequest {
 }
 
 /**
- * Категория номенклатуры. Уровень один: вложенных категорий нет
+ * Категория номенклатуры. Дерево до трёх уровней считая корень
  */
 export interface ItemCategoryDto {
   /** Идентификатор категории */
   id: string;
   /** Название так, как его завёл арендатор */
   name: string;
+  /** Родительская ветка; отсутствует у корневой категории */
+  parentId?: string;
+  /** Материализованный путь от корня: идентификаторы через косую черту */
+  path: string;
   /** Порядок в витрине: меньшее значение выше. При равных значениях порядок задаёт название */
   sortOrder: number;
 }
@@ -2103,6 +2302,58 @@ export interface AddItemMediaRequest {
 }
 
 /**
+ * Ветки пресета, которые не заводить
+ */
+export interface ApplyIndustryRequest {
+  /**
+     * Коды веток пресета; снятая ветка снимает и всех своих потомков
+     * @minItems 0
+     * @maxItems 200
+     */
+  skip?: string[];
+}
+
+/**
+ * Ветка дерева категорий с числом своих полей
+ */
+export interface CategoryNodeDto {
+  /** Идентификатор категории */
+  id: string;
+  /** Название так, как его завёл арендатор */
+  name: string;
+  /** Родительская ветка; отсутствует у корня */
+  parentId?: string;
+  /** Материализованный путь от корня: идентификаторы через косую черту */
+  path: string;
+  /** Порядок среди соседей: меньшее значение выше */
+  sortOrder: number;
+  /** Сколько полей заведено на самой ветке, без унаследованных */
+  fieldCount: number;
+  /** Строка отраслевого пресета, из которой выросла ветка; отсутствует у заведённой руками. По ней мастер отличает ветки только что применённой отрасли от уже бывших в каталоге */
+  presetCode?: string;
+}
+
+/**
+ * Ветка арендатора, в которую легла строка пресета
+ */
+export interface PlantedBranchDto {
+  /** Код ветки пресета */
+  presetCode: string;
+  /** Ветка арендатора: заведённая сейчас, выросшая из этой строки раньше или своя одноимённая у того же родителя */
+  categoryId: string;
+}
+
+/**
+ * Итог применения пресета: дерево арендатора и ветки этой сферы
+ */
+export interface AppliedIndustryDto {
+  /** Живые ветки арендатора после применения, в порядке витрины */
+  tree: CategoryNodeDto[];
+  /** Ветка арендатора для каждой посаженной строки пресета, в порядке пресета: родитель раньше потомков; снятых здесь нет */
+  branches: PlantedBranchDto[];
+}
+
+/**
  * Индекс колонки в файле, считая с нуля, для каждого распознанного поля. Отсутствующий ключ означает, что поле не сопоставлено ни с одной колонкой и в каталог не попадёт; без наименования импорт не подтверждается
  */
 export type ColumnMappingColumns = {[key: string]: number};
@@ -2114,6 +2365,11 @@ export interface ColumnMapping {
   /** Индекс колонки в файле, считая с нуля, для каждого распознанного поля. Отсутствующий ключ означает, что поле не сопоставлено ни с одной колонкой и в каталог не попадёт; без наименования импорт не подтверждается */
   columns: ColumnMappingColumns;
 }
+
+/**
+ * Значения полей категории по коду поля — только из непустых ячеек: пустая ячейка значит «про поле ничего не сказано» и прежнее значение позиции не стирает. Вариант списка уже переведён из подписи в код
+ */
+export type ImportRowFieldValues = {[key: string]: FieldValueDto};
 
 /**
  * Строка файла, разобранная в поля каталога. Заполнены только те поля, колонки которых сопоставлены; у строки с причиной не заполнено ничего, кроме номера и причины
@@ -2139,6 +2395,12 @@ export interface ImportRow {
   category?: string;
   /** Почему строка не пойдёт в каталог, человеческим языком. Пусто у годной строки. Непригодная строка не исчезает молча, а показывается с причиной: иначе пропажа позиции обнаружится уже в заявке */
   problem?: string;
+  /** Лист книги, с которого строка. Есть только у шаблона по структуре каталога: там листов несколько, и номер строки без листа ничего не называет */
+  sheet?: string;
+  /** Ветка каталога, для которой выгружен лист шаблона. Пусто у прайса без листов веток: рубрику тогда называет колонка категории */
+  categoryId?: string;
+  /** Значения полей категории по коду поля — только из непустых ячеек: пустая ячейка значит «про поле ничего не сказано» и прежнее значение позиции не стирает. Вариант списка уже переведён из подписи в код */
+  fieldValues?: ImportRowFieldValues;
 }
 
 /**
@@ -2155,6 +2417,8 @@ export interface ImportPreview {
   totalRows: number;
   /** Сколько строк не попадёт в каталог. Считается по всему файлу, а не по показанному куску, иначе счётчик врал бы на больших прайсах */
   problemRows: number;
+  /** Файл — наш шаблон по структуре каталога. Колонки у него сопоставлены скрытой строкой кодов, а не догадкой, и правка сопоставления на подтверждении ничего не меняет — экрану её незачем предлагать */
+  structureTemplate: boolean;
 }
 
 /**
@@ -2176,12 +2440,155 @@ export interface ImportResultDto {
 }
 
 /**
+ * Тип поля. После создания не меняется
+ */
+export type SaveFieldRequestType = typeof SaveFieldRequestType[keyof typeof SaveFieldRequestType];
+
+
+export const SaveFieldRequestType = {
+  OPTION: 'OPTION',
+  OPTION_MULTI: 'OPTION_MULTI',
+  NUMBER: 'NUMBER',
+  BOOLEAN: 'BOOLEAN',
+  DATE: 'DATE',
+  RANGE: 'RANGE',
+  TEXT: 'TEXT',
+} as const;
+
+/**
+ * Новое поле: код, подпись, тип и, для списков, варианты
+ */
+export interface SaveFieldRequest {
+  /**
+     * Код поля: латинские буквы, цифры и подчёркивание, первой — буква. Регистр не важен, хранится заглавными. После создания не меняется
+     * @minLength 0
+     * @maxLength 64
+     * @pattern ^[A-Za-z][A-Za-z0-9_]{0,63}$
+     */
+  code: string;
+  /**
+     * Подпись поля для человека
+     * @minLength 0
+     * @maxLength 120
+     */
+  name: string;
+  /** Тип поля. После создания не меняется */
+  type: SaveFieldRequestType;
+  /**
+     * Единица числа или диапазона из перечня каталога (`getCatalogUnits`). У прочих типов не сохраняется
+     * @minLength 0
+     * @maxLength 16
+     */
+  unit?: string;
+  /** Обязательное поле. Отсутствует — необязательное */
+  required?: boolean;
+  /** Видит ли поле клиент по умолчанию. Отсутствует — видит */
+  customerVisible?: boolean;
+  /** Можно ли по полю отбирать позиции. Отсутствует — нельзя */
+  filterable?: boolean;
+  /**
+     * Порядок поля в своей ветке: меньшее значение выше
+     * @minimum 0
+     */
+  sortOrder?: number;
+  /** Варианты справочника, до ста. Нужны типам OPTION и OPTION_MULTI, у прочих не сохраняются */
+  options?: FieldOptionRequest[];
+}
+
+/**
+ * Куда класть свойство из учётной системы
+ */
+export interface ExchangeMappingRequest {
+  /**
+     * Идентификатор свойства в учётной системе
+     * @minLength 0
+     * @maxLength 128
+     */
+  externalCode: string;
+  /** Поле каталога, куда класть значение. Пусто — никуда: значение уходит в прочие свойства позиции */
+  fieldId?: string;
+}
+
+/**
+ * Решения по свойствам из учётной системы
+ */
+export interface SaveExchangeMappingsRequest {
+  /**
+     * Решения; свойство, названное дважды, получает последнее из них
+     * @minItems 0
+     * @maxItems 500
+     */
+  mappings: ExchangeMappingRequest[];
+}
+
+/**
+ * Свойство из учётной системы, которое ещё не сопоставлено с полем каталога
+ */
+export interface ExchangePropertyDto {
+  /** Идентификатор свойства в учётной системе */
+  externalCode: string;
+  /** Имя свойства из классификатора выгрузки; пусто, если выгрузка его не назвала */
+  name?: string;
+  /** Пример значения из последней выгрузки */
+  sample?: string;
+  /** Когда свойство приходило последний раз */
+  lastSeenAt: string;
+}
+
+/**
+ * Тип нового поля. У списков варианты собираются из встреченных значений
+ */
+export type PromoteAttributeRequestType = typeof PromoteAttributeRequestType[keyof typeof PromoteAttributeRequestType];
+
+
+export const PromoteAttributeRequestType = {
+  OPTION: 'OPTION',
+  OPTION_MULTI: 'OPTION_MULTI',
+  NUMBER: 'NUMBER',
+  BOOLEAN: 'BOOLEAN',
+  DATE: 'DATE',
+  RANGE: 'RANGE',
+  TEXT: 'TEXT',
+} as const;
+
+/**
+ * Прочее свойство, которое сделать полем категории
+ */
+export interface PromoteAttributeRequest {
+  /**
+     * Имя свойства так, как оно записано в прочих свойствах позиций; регистр и пробелы по краям не важны. Оно же станет подписью поля
+     * @minLength 0
+     * @maxLength 60
+     */
+  attributeName: string;
+  /**
+     * Код нового поля: латинские буквы, цифры и подчёркивание, первой — буква
+     * @minLength 0
+     * @maxLength 64
+     * @pattern ^[A-Za-z][A-Za-z0-9_]{0,63}$
+     */
+  code: string;
+  /** Тип нового поля. У списков варианты собираются из встреченных значений */
+  type: PromoteAttributeRequestType;
+}
+
+/**
  * Отклонённая строка сообщения с причиной
  */
 export interface RejectedRowDto {
   /** Идентификатор позиции в учётной системе. Пусто, если идентификатора в строке не было */
   externalId?: string;
   /** Почему строка не принята, человеческим языком */
+  reason: string;
+}
+
+/**
+ * Принятая строка сообщения с предупреждением: строка в каталоге, но что-то из неё легло не так, как пришло
+ */
+export interface WarningRowDto {
+  /** Идентификатор позиции в учётной системе */
+  externalId: string;
+  /** Что легло не так, человеческим языком */
   reason: string;
 }
 
@@ -2197,6 +2604,8 @@ export interface ExchangeAckDto {
   rejected: number;
   /** Отклонённые строки с причинами: строки не исчезают молча */
   rejections: RejectedRowDto[];
+  /** Принятые строки, у которых что-то легло не так, как пришло: значение свойства не подошло полю и ушло в прочие свойства, прочим свойствам не хватило места. Строка при этом принята и в числе принятых */
+  warnings: WarningRowDto[];
   /** Арендатор заказал полную выгрузку: пришлите всё заново, а не изменения. Признак держится, пока выгрузка не придёт */
   fullExportRequested: boolean;
 }
@@ -2530,6 +2939,42 @@ export interface PageResponseShowcaseItemDto {
 }
 
 /**
+ * Тип поля: по нему фронт выбирает элемент показа и способ локализации значения
+ */
+export type CustomerFieldDtoType = typeof CustomerFieldDtoType[keyof typeof CustomerFieldDtoType];
+
+
+export const CustomerFieldDtoType = {
+  OPTION: 'OPTION',
+  OPTION_MULTI: 'OPTION_MULTI',
+  NUMBER: 'NUMBER',
+  BOOLEAN: 'BOOLEAN',
+  DATE: 'DATE',
+  RANGE: 'RANGE',
+  TEXT: 'TEXT',
+} as const;
+
+/**
+ * Поле позиции для кабинета клиента: подпись, тип и готовое для показа значение, без справочника вариантов и без формы ввода
+ */
+export interface CustomerFieldDto {
+  /** Код поля; нужен фронту только для группировки и порядка, не для смысла значения */
+  code: string;
+  /** Подпись поля, как её завёл арендатор */
+  name: string;
+  /** Тип поля: по нему фронт выбирает элемент показа и способ локализации значения */
+  type: CustomerFieldDtoType;
+  /** Значение для показа: TEXT — как есть; OPTION — подпись выбранного варианта, а не его код; NUMBER — число с точкой без хвостовых нулей; RANGE — начало диапазона, конец — в valueTo; BOOLEAN — "true" или "false" без перевода; DATE — дата в ISO-8601. У OPTION_MULTI пусто: подписи выбранных вариантов едут в values */
+  value?: string;
+  /** Конец диапазона у RANGE, тем же форматом, что и value. У прочих типов пусто */
+  valueTo?: string;
+  /** Подписи выбранных вариантов у OPTION_MULTI, в порядке выбора клиентом — список, а не строка через запятую, чтобы фронту не пришлось резать текст обратно на подписи. У прочих типов пусто */
+  values?: string[];
+  /** Единица числа или диапазона из перечня каталога; у прочих типов пусто */
+  unit?: string;
+}
+
+/**
  * Наличие в том виде, который выбрал поставщик. Пусто, когда он решил наличие не показывать
  */
 export type ShowcaseCardDtoStock = typeof ShowcaseCardDtoStock[keyof typeof ShowcaseCardDtoStock];
@@ -2568,6 +3013,8 @@ export interface ShowcaseCardDto {
   media: ItemMediaDto[];
   /** Свойства позиции в порядке, заданном поставщиком: модель, цвет, вес — то, по чему клиент сравнивает две похожие позиции */
   attributes: ItemAttributeDto[];
+  /** Поля отраслевого шаблона категории, которые продавец решил показать клиенту: состав, сезон, объём. Поле, помеченное внутренним — на всём каталоге или у этой позиции отдельно — сюда не попадает ни в каком виде: ни кодом, ни подписью, ни значением. Пустой список — обычный случай у позиции без единого видимого поля; у позиции без рубрики список не обязательно пуст — на неё всё равно действуют поля, заведённые на весь каталог */
+  fields: CustomerFieldDto[];
   /** Отмечена ли позиция клиентом */
   favorite: boolean;
   /** Средняя оценка позиции. Пусто, пока отзывов нет */
@@ -2825,6 +3272,7 @@ export const CatalogItemRowDtoMissingItem = {
   PHOTO: 'PHOTO',
   DESCRIPTION: 'DESCRIPTION',
   CATEGORY: 'CATEGORY',
+  REQUIRED_FIELD: 'REQUIRED_FIELD',
 } as const;
 
 /**
@@ -2875,6 +3323,48 @@ export interface PageResponseCatalogItemRowDto {
   totalElements?: number;
   /** Элементы страницы */
   items?: CatalogItemRowDto[];
+}
+
+/**
+ * Отрасль из справочника: по ней арендатор получает готовое дерево категорий с полями
+ */
+export interface IndustryDto {
+  /** Код отрасли: по нему пресет применяют */
+  code: string;
+  /** Название отрасли */
+  name: string;
+  /** Слова, по которым отрасль находится помимо названия, в том числе по-казахски */
+  keywords: string[];
+  /** Что за поля приедут с отраслью */
+  hint?: string;
+}
+
+/**
+ * Ветка отраслевого пресета
+ */
+export interface IndustryBranchDto {
+  /** Код ветки пресета: его присылают в `skip`, чтобы ветку не заводить */
+  code: string;
+  /** Название ветки */
+  name: string;
+  /** Код родительской ветки пресета; отсутствует у корня */
+  parentCode?: string;
+  /** Подписи полей, заведённых на самой ветке, без унаследованных */
+  fieldNames: string[];
+}
+
+/**
+ * Дерево отраслевого пресета до применения: ветки с подписями полей
+ */
+export interface IndustryPresetDto {
+  /** Код отрасли: по нему пресет применяют */
+  code: string;
+  /** Название отрасли */
+  name: string;
+  /** Что за поля приедут с отраслью */
+  hint?: string;
+  /** Ветки пресета в порядке обхода: родитель раньше своих потомков */
+  branches: IndustryBranchDto[];
 }
 
 /**
@@ -3142,6 +3632,24 @@ export const GetDraftQueueSource = {
   WHATSAPP: 'WHATSAPP',
   PORTAL: 'PORTAL',
 } as const;
+
+export type SearchIndustriesParams = {
+/**
+ * Набранное: часть названия или ключевого слова
+ */
+query?: string;
+/**
+ * Сколько отраслей отдать, от 1 до 50
+ */
+limit?: number;
+};
+
+export type DownloadCatalogImportTemplateParams = {
+/**
+ * Ветки, которые положить в файл; ветка с потомками кладёт свои конечные. Отсутствует — все конечные ветки
+ */
+categoryIds?: string[];
+};
 
 export type GetCatalogAliasesParams = {
 itemId?: string;
@@ -3646,6 +4154,8 @@ export const getUpdateSellerDetailsUrl = () => {
  *
  * Знак задаётся адресом http или https. Адрес иной схемы кабинет всё равно не покажет, а `javascript:` в поле, которое подставляется в страницу, — не опечатка, а способ выполнить чужой код у клиента в браузере.
  *
+ * Ссылка «поделиться» с Google Диска, Dropbox или OneDrive приводится к адресу картинки тем же разбором, что и кадры каталога: продавец копирует то, что дала кнопка, и про разницу между страницей просмотра и файлом знать не обязан. Ответ несёт уже переписанный адрес. Google Фото, Яндекс.Диск и Облако Mail.ru отклоняются: постоянного адреса картинки они не дают, и знак пропал бы из кабинета клиента после того, как продавец увидел его на месте.
+ *
  * **Как проверить вручную**
  *
  * 1. Войти администратором (`77010000101`). Отправить:
@@ -3656,9 +4166,11 @@ export const getUpdateSellerDetailsUrl = () => {
  *
  * Ответ — сохранённое состояние. Открыть кабинет клиента этого поставщика: знак стоит в шапке рядом с наименованием.
  * 2. Отправить то же тело без `logoUrl` — знак пропал из кабинета: непереданное поле стёрто, а не сохранено прежним.
- * 3. Негативный 400: `"logoUrl": "javascript:alert(1)"` — принимается только http и https.
- * 4. Негативный 400: пустое `name` — им подписано каждое сообщение клиенту.
- * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * 3. Отправить `"logoUrl": "https://drive.google.com/file/d/1AbC_dEfG-42/view?usp=sharing"` — в ответе `logoUrl` стал `https://drive.google.com/thumbnail?id=1AbC_dEfG-42&sz=w1600`.
+ * 4. Негативный 400 `SELLER_LOGO_LINK_UNSUPPORTED`: `"logoUrl": "https://disk.yandex.ru/i/zzzzzzzzzzzzzZ"`.
+ * 5. Негативный 400: `"logoUrl": "javascript:alert(1)"` — принимается только http и https.
+ * 6. Негативный 400: пустое `name` — им подписано каждое сообщение клиенту.
+ * 7. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Изменить представление продавца
  */
 export const updateSellerDetails = async (updateSellerDetailsRequest: UpdateSellerDetailsRequest, options?: RequestInit): Promise<updateSellerDetailsResponse> => {
@@ -6288,7 +6800,7 @@ export const getGetCatalogItemUrl = (id: string,) => {
 }
 
 /**
- * Позиция, её фото и видео в порядке показа и признак того, показывается ли она клиенту. Одним ответом: карточку открывают по прямой ссылке, и собирать её из страницы списка значило бы листать каталог, пока позиция не попадётся. Позиция другого арендатора отвечает так же, как несуществующая.
+ * Позиция, её фото и видео в порядке показа, признак того, показывается ли она клиенту, поля её категории (свои, унаследованные и всего каталога), их значения и исключения видимости у этой позиции. Значения полей прежней категории в позиции хранятся, но здесь не показываются. Одним ответом: карточку открывают по прямой ссылке, и собирать её из страницы списка значило бы листать каталог, пока позиция не попадётся. Позиция другого арендатора отвечает так же, как несуществующая.
  *
  * **Как проверить вручную**
  *
@@ -6440,6 +6952,10 @@ export const getUpdateCatalogItemUrl = (id: string,) => {
  *
  * Свойства присылаются целиком, как и вся позиция: их отсутствие в запросе означает «свойств нет», а не «оставить прежние», иначе снятое свойство нечем было бы убрать. Выгрузка из учётной системы свойств не касается — их заводят руками, и обмен не вправе стереть эту работу.
  *
+ * Значения полей категории (`fieldValues`) и исключения их видимости (`fieldVisibility`) — исключение из правила «целиком»: отсутствие словаря означает «не трогать», код, которого в словаре нет, остаётся как был, код с пустым значением очищает поле. Правка прямо в строке каталога шлёт позицию без них и не должна стирать набитое в карточке. Значения проверяются по полям категории, которую позиция получает этим сохранением.
+ *
+ * Исключения видимости полей — часть структуры каталога: непустой `fieldVisibility` принимается только от того, кто ведёт структуру (право «Структура каталога»), иначе 403 на весь запрос. Внутреннее поле, открытое клиенту, — закупочная цена у всех на виду. Задать их, не присылая позицию целиком, можно операцией `setCatalogItemVisibility`.
+ *
  * **Как проверить вручную**
  *
  * 1. Войти администратором (`77010000101`), взять идентификатор заведённой позиции из списка позиций.
@@ -6450,6 +6966,12 @@ export const getUpdateCatalogItemUrl = (id: string,) => {
  * 6. Завести свойство позиции, которой владеет обмен, и провести выгрузку номенклатуры — название пришло из учётной системы, а свойство осталось на месте.
  * 7. Негативный 404: подставить в путь случайный идентификатор.
  * 8. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * 9. Завести категории «Напитки» с полем `TARE` (список: `GLASS`, `PET`) и «Одежда». Сохранить позицию в «Напитках» с `fieldValues: {"TARE": {"value": "GLASS"}}` — в карточке значение GLASS.
+ * 10. Сохранить её же без `fieldValues` — значение на месте.
+ * 11. Перенести в «Одежду» без `fieldValues` — в карточке поля нет; вернуть в «Напитки» — GLASS снова виден.
+ * 12. Негативный 400 `CATALOG_FIELD_NOT_IN_CATEGORY`: в «Одежде» прислать `TARE`.
+ * 13. Негативный 400 `CATALOG_FIELD_VALUE_UNKNOWN_OPTION`: в «Напитках» прислать `TARE` = `WOOD`.
+ * 14. Негативный 403: под менеджером (`77010000102`) прислать `fieldVisibility: {"TARE": true}` — отказ; без `fieldVisibility` — 200.
  * @summary Поправить позицию каталога
  */
 export const updateCatalogItem = async (id: string,
@@ -6565,7 +7087,7 @@ export const getSetCatalogItemVisibilityUrl = (id: string,) => {
 }
 
 /**
- * Убирает позицию из витрины кабинета и возвращает обратно. Отдельным адресом от сохранения позиции: менять видимость вправе администратор, а править позицию — все, кто работает с товаром. Спрятанная позиция остаётся в каталоге со своей ценой: убирать товар стиранием цены значит ломать счёт и сопоставление строк заявки.
+ * Убирает позицию из витрины кабинета и возвращает обратно; задаёт исключения видимости полей у этой позиции. Отдельным адресом от сохранения позиции: менять видимость вправе тот, кто ведёт структуру каталога (право «Структура каталога», встроенный администратор — всегда) и администратор платформы, вошедший в арендатора, а править позицию — все, кто работает с товаром. Обе части необязательны и не трогают друг друга: отсутствующая не меняется. Исключения пишутся поверх сохранённых, пустое значение у кода возвращает поле к его настройке. Спрятанная позиция остаётся в каталоге со своей ценой: убирать товар стиранием цены значит ломать счёт и сопоставление строк заявки.
  *
  * **Как проверить вручную**
  *
@@ -6573,7 +7095,9 @@ export const getSetCatalogItemVisibilityUrl = (id: string,) => {
  * 2. Вызвать метод с `visible: false` — позиция пропадает из витрины кабинета, но остаётся на экране каталога.
  * 3. Вызвать с `visible: true` — возвращается в витрину.
  * 4. Негативный: тот же вызов под менеджером — 403.
- * @summary Показывать ли позицию клиенту
+ * 5. Завести у категории позиции поле `STORAGE`, скрытое от клиента; прислать `{"fieldVisibility": {"STORAGE": true}}` — в ответе исключение стоит, `visible` прежний; `{"fieldVisibility": {"STORAGE": null}}` — снято.
+ * 6. Негативный 400 `CATALOG_FIELD_NOT_IN_CATEGORY`: код поля не из категории позиции.
+ * @summary Показывать ли клиенту позицию и её поля
  */
 export const setCatalogItemVisibility = async (id: string,
     setItemVisibilityRequest: SetItemVisibilityRequest, options?: RequestInit): Promise<setCatalogItemVisibilityResponse> => {
@@ -6632,7 +7156,7 @@ const {mutation: mutationOptions} = options ?
     export type SetCatalogItemVisibilityMutationVariables = {id: string;data: SetItemVisibilityRequest}
 
     /**
- * @summary Показывать ли позицию клиенту
+ * @summary Показывать ли клиенту позицию и её поля
  */
 export const useSetCatalogItemVisibility = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCatalogItemVisibility>>, TError,SetCatalogItemVisibilityMutationVariables, TContext>, }
@@ -6643,6 +7167,248 @@ export const useSetCatalogItemVisibility = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSetCatalogItemVisibilityMutationOptions(options), queryClient);
+    }
+
+export type updateCatalogFieldResponse200 = {
+  data: FieldDefinitionDto
+  status: 200
+}
+
+export type updateCatalogFieldResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updateCatalogFieldResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type updateCatalogFieldResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updateCatalogFieldResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updateCatalogFieldResponseSuccess = (updateCatalogFieldResponse200) & {
+  headers: Headers;
+};
+export type updateCatalogFieldResponseError = (updateCatalogFieldResponse400 | updateCatalogFieldResponse403 | updateCatalogFieldResponse404 | updateCatalogFieldResponse500) & {
+  headers: Headers;
+};
+
+export type updateCatalogFieldResponse = (updateCatalogFieldResponseSuccess | updateCatalogFieldResponseError)
+
+export const getUpdateCatalogFieldUrl = (id: string,) => {
+
+
+
+
+  return `/api/catalog/fields/${id}`
+}
+
+/**
+ * Поле правится там, где заведено, — одним адресом и для поля ветки, и для поля всего каталога. Правка частичная: не присланное не меняется. Кода в теле нет — под ним значения лежат в позициях; тип можно прислать только прежний. Присланный список вариантов — полный новый состав: вариант, которого в нём нет, снимается мягко, у оставшегося меняются подпись и порядок, код тот же. Пустая строка в `unit` снимает единицу.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести на ветке поле `SEASON` «Сезон» типа `OPTION` с вариантами `WINTER` «Зима» и `SUMMER` «Лето».
+ * 2. Прислать только `{"name":"Время года"}` — ответ 200, подпись новая, код и оба варианта на месте.
+ * 3. Прислать `options` с одним `WINTER` «Зимний» — в ответе один вариант с новой подписью; `SUMMER` снят, но позиции со значением `SUMMER` его код сохраняют.
+ * 4. Негативный 400 `CATALOG_FIELD_TYPE_LOCKED`: прислать `{"type":"TEXT"}`.
+ * 5. Негативный 404: случайный идентификатор поля в пути.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Поправить поле
+ */
+export const updateCatalogField = async (id: string,
+    updateFieldRequest: UpdateFieldRequest, options?: RequestInit): Promise<updateCatalogFieldResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<updateCatalogFieldResponse>(getUpdateCatalogFieldUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateFieldRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateCatalogFieldMutationKey = () => ['updateCatalogField'] as const;
+
+export const getUpdateCatalogFieldMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCatalogField>>, TError,UpdateCatalogFieldMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof updateCatalogField>>, TError,UpdateCatalogFieldMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCatalogFieldMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCatalogField>>, UpdateCatalogFieldMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCatalogField(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCatalogFieldMutationResult = NonNullable<Awaited<ReturnType<typeof updateCatalogField>>>
+    export type UpdateCatalogFieldMutationBody = UpdateFieldRequest
+    export type UpdateCatalogFieldMutationError = ErrorResponse
+    export type UpdateCatalogFieldMutationVariables = {id: string;data: UpdateFieldRequest}
+
+    /**
+ * @summary Поправить поле
+ */
+export const useUpdateCatalogField = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCatalogField>>, TError,UpdateCatalogFieldMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateCatalogField>>,
+        TError,
+        UpdateCatalogFieldMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCatalogFieldMutationOptions(options), queryClient);
+    }
+
+export type deleteCatalogFieldResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteCatalogFieldResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deleteCatalogFieldResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type deleteCatalogFieldResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deleteCatalogFieldResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deleteCatalogFieldResponseSuccess = (deleteCatalogFieldResponse204) & {
+  headers: Headers;
+};
+export type deleteCatalogFieldResponseError = (deleteCatalogFieldResponse400 | deleteCatalogFieldResponse403 | deleteCatalogFieldResponse404 | deleteCatalogFieldResponse500) & {
+  headers: Headers;
+};
+
+export type deleteCatalogFieldResponse = (deleteCatalogFieldResponseSuccess | deleteCatalogFieldResponseError)
+
+export const getDeleteCatalogFieldUrl = (id: string,) => {
+
+
+
+
+  return `/api/catalog/fields/${id}`
+}
+
+/**
+ * Удаление мягкое: поле пропадает из карточек и списков, код освобождается, а значения на позициях не трогаются — заведённое заново поле с тем же кодом их снова покажет. Повторное удаление ошибкой не считается.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести на ветке поле `SEASON`.
+ * 2. Удалить — 204; в полях ветки его больше нет.
+ * 3. Повторить удаление — снова 204, а не 404.
+ * 4. Завести на той же ветке `SEASON` заново — 201: код освободился.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Убрать поле
+ */
+export const deleteCatalogField = async (id: string, options?: RequestInit): Promise<deleteCatalogFieldResponse> => {
+
+  return apiRequest<deleteCatalogFieldResponse>(getDeleteCatalogFieldUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCatalogFieldMutationKey = () => ['deleteCatalogField'] as const;
+
+export const getDeleteCatalogFieldMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCatalogField>>, TError,DeleteCatalogFieldMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCatalogField>>, TError,DeleteCatalogFieldMutationVariables, TContext> => {
+
+const mutationKey = getDeleteCatalogFieldMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCatalogField>>, DeleteCatalogFieldMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteCatalogField(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCatalogFieldMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCatalogField>>>
+
+    export type DeleteCatalogFieldMutationError = ErrorResponse
+    export type DeleteCatalogFieldMutationVariables = {id: string}
+
+    /**
+ * @summary Убрать поле
+ */
+export const useDeleteCatalogField = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCatalogField>>, TError,DeleteCatalogFieldMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCatalogField>>,
+        TError,
+        DeleteCatalogFieldMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteCatalogFieldMutationOptions(options), queryClient);
     }
 
 export type updateCatalogCategoryResponse200 = {
@@ -17013,7 +17779,9 @@ export const getGetCatalogItemsUrl = (params?: GetCatalogItemsParams,) => {
  *
  * Строка несёт обложку, число кадров и перечень того, чего позиции не хватает для витрины: без этого поставщик не видит, у каких позиций карточка в кабинете пустая. Описания и свойств в строке нет — их отдаёт карточка.
  *
- * `incompleteOnly` оставляет только позиции, которым чего-то не хватает для витрины: без цены, без снимка, без описания либо без рубрики. Отбирает сервер — отбор по уже полученной странице врал бы о числе найденного.
+ * `incompleteOnly` оставляет только позиции, которым чего-то не хватает для витрины: без цены, без снимка, без описания, без рубрики либо с незаполненным обязательным полем своей ветки, её предков или всего каталога. Отбирает сервер — отбор по уже полученной странице врал бы о числе найденного.
+ *
+ * Проверка обязательного поля: завести на категории поле с `required: true`, поставить в категорию позицию с ценой, описанием и снимком, но без значения поля, — с `incompleteOnly=true` она в ответе, в `missing` — `REQUIRED_FIELD`; проставить значение — позиция из выборки уходит. Сохранение позиции с пустым обязательным полем не отказывает.
  * @summary Страница позиций каталога
  */
 export const getCatalogItems = async (params?: GetCatalogItemsParams, options?: RequestInit): Promise<getCatalogItemsResponse> => {
@@ -17417,7 +18185,7 @@ export const getAddItemMediaUrl = (itemId: string,) => {
 }
 
 /**
- * Ссылка проверяется при сохранении и приводится к прямому адресу: адрес «поделиться» с Google Диска превращается в адрес файла, а вставленное возвращается в `originalUrl`. Google Фото отклоняется отдельным кодом — оно не показывает снимки на чужих страницах, и принятая ссылка сломалась бы у клиента. Новое медиа встаёт в конец карточки: место в запросе не присылается.
+ * Ссылка проверяется при сохранении и приводится к прямому адресу: адрес «поделиться» с Google Диска, Dropbox или OneDrive превращается в адрес файла, а вставленное возвращается в `originalUrl`. У Диска адрес зависит от `kind`: снимок адресуется уменьшенной копией, ролик — проигрывателем Диска. Google Фото, Яндекс.Диск и Облако Mail.ru отклоняются отдельным кодом: первое не показывает снимки на чужих страницах, вторые отдают только временный адрес, и принятая ссылка сломалась бы у клиента уже после того, как продавец увидел её рабочей. Новое медиа встаёт в конец карточки: место в запросе не присылается.
  *
  * **Как проверить вручную**
  *
@@ -17428,9 +18196,9 @@ export const getAddItemMediaUrl = (itemId: string,) => {
  * {"kind": "PHOTO", "url": "https://drive.google.com/file/d/1AbC_dEfG-42/view?usp=sharing"}
  * ```
  *
- * Ответ 201, `url` стал `https://drive.google.com/uc?export=view&id=1AbC_dEfG-42`, `originalUrl` хранит вставленное, `source` равен `LINK`.
+ * Ответ 201, `url` стал `https://drive.google.com/thumbnail?id=1AbC_dEfG-42&sz=w1600`, `originalUrl` хранит вставленное, `source` равен `LINK`.
  * 3. Добавить второй снимок — у него `sortOrder` на единицу больше.
- * 4. Негативный 400 `CATALOG_MEDIA_LINK_UNSUPPORTED`: тот же запрос со ссылкой `https://photos.app.goo.gl/abcdef123456`.
+ * 4. Негативный 400 `CATALOG_MEDIA_LINK_UNSUPPORTED`: тот же запрос со ссылкой `https://photos.app.goo.gl/abcdef123456` и со ссылкой `https://disk.yandex.ru/i/zzzzzzzzzzzzzZ`.
  * 5. Негативный 400 `CATALOG_MEDIA_LINK_INVALID`: ссылка `C:\Фото\цемент.jpg` и ссылка на папку Диска `https://drive.google.com/drive/folders/1AbC_dEfG`.
  * 6. Негативный 404: случайный идентификатор позиции в пути.
  * @summary Добавить фото или видео ссылкой
@@ -17505,6 +18273,137 @@ export const useAddItemMedia = <TError = ErrorResponse,
       return useMutation(getAddItemMediaMutationOptions(options), queryClient);
     }
 
+export type applyIndustryResponse200 = {
+  data: AppliedIndustryDto
+  status: 200
+}
+
+export type applyIndustryResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type applyIndustryResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type applyIndustryResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type applyIndustryResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type applyIndustryResponseSuccess = (applyIndustryResponse200) & {
+  headers: Headers;
+};
+export type applyIndustryResponseError = (applyIndustryResponse400 | applyIndustryResponse403 | applyIndustryResponse404 | applyIndustryResponse500) & {
+  headers: Headers;
+};
+
+export type applyIndustryResponse = (applyIndustryResponseSuccess | applyIndustryResponseError)
+
+export const getApplyIndustryUrl = (code: string,) => {
+
+
+
+
+  return `/api/catalog/industries/${code}/apply`
+}
+
+/**
+ * Копирует арендатору дерево категорий отрасли с полями и справочниками вариантов и запоминает, какая редакция пресета применена. Это копия, а не ссылка: дальше дерево принадлежит арендатору, и правка пресета в новом релизе его не меняет. Вторая отрасль подсаживается рядом с первой.
+ *
+ * Тело необязательно: `skip` — коды веток пресета, которые не заводить; снятая ветка снимает и всех своих потомков. Уже посаженная ветка снятием не удаляется. Неизвестный код ничего не снимает.
+ *
+ * Повторное применение безвредно: ветка, выросшая из пресета раньше, берётся как есть; своя ветка с тем же названием у того же родителя — тоже, и без отметки происхождения получает отметку пресета. Поле, чей код уже занят на линии ветки — полем всего каталога, предком, самой веткой или её потомком, — пропускается и не перезаписывается; при занятости потомком у самой ветки и прочих её потомков этого поля не будет. Предел полей не обходится: если на линии какой-то ветки полей стало бы больше 30, применение отказывает целиком и ничего не сажает. Ответ — дерево арендатора после применения (`tree`) и то, куда легла каждая посаженная строка пресета (`branches`): по `presetCode` дерева этого не узнать, если своя одноимённая ветка несла отметку другого пресета.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`) арендатора с пустым каталогом, применить `CLOTHING` без тела — в `tree` «Одежда», «Верхняя одежда», «Нижняя одежда», у каждой `presetCode`; в `branches` три кода пресета с их ветками.
+ * 2. Запросить поля «Верхней одежды» — `SIZE`, `COMPOSITION`, `STORAGE` унаследованы, `SEASON` и `INSULATION` свои; `STORAGE` не видно клиенту.
+ * 3. Переименовать поле `SIZE` и применить `CLOTHING` ещё раз — дерево не задвоилось, подпись осталась поправленной.
+ * 4. Другим арендатором применить `CLOTHING` с телом `{"skip":["CLOTHING_INNER"]}` — «Нижней одежды» нет.
+ * 5. Применить `BEVERAGES` — корней стало два.
+ * 6. Негативный 404 `CATALOG_INDUSTRY_UNKNOWN`: код `SPACESHIPS`.
+ * 7. Негативный 400 `CATALOG_FIELDS_TOO_MANY`: завести 27 полей всего каталога и применить `CLOTHING` — отказ, категорий не прибавилось.
+ * 8. Негативный 403: тот же запрос под менеджером (`77010000102`) — структуру каталога ведёт администратор.
+ * @summary Применить отраслевой пресет
+ */
+export const applyIndustry = async (code: string,
+    applyIndustryRequest?: ApplyIndustryRequest, options?: RequestInit): Promise<applyIndustryResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<applyIndustryResponse>(getApplyIndustryUrl(code),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(applyIndustryRequest)
+  }
+);}
+
+
+
+
+
+export const getApplyIndustryMutationKey = () => ['applyIndustry'] as const;
+
+export const getApplyIndustryMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyIndustry>>, TError,ApplyIndustryMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof applyIndustry>>, TError,ApplyIndustryMutationVariables, TContext> => {
+
+const mutationKey = getApplyIndustryMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyIndustry>>, ApplyIndustryMutationVariables> = (props) => {
+          const {code,data} = props ?? {};
+
+          return  applyIndustry(code,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyIndustryMutationResult = NonNullable<Awaited<ReturnType<typeof applyIndustry>>>
+    export type ApplyIndustryMutationBody = ApplyIndustryRequest | undefined
+    export type ApplyIndustryMutationError = ErrorResponse
+    export type ApplyIndustryMutationVariables = {code: string;data?: ApplyIndustryRequest}
+
+    /**
+ * @summary Применить отраслевой пресет
+ */
+export const useApplyIndustry = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applyIndustry>>, TError,ApplyIndustryMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof applyIndustry>>,
+        TError,
+        ApplyIndustryMutationVariables,
+        TContext
+      > => {
+      return useMutation(getApplyIndustryMutationOptions(options), queryClient);
+    }
+
 export type previewCatalogImportResponse200 = {
   data: ImportPreview
   status: 200
@@ -17550,6 +18449,8 @@ export const getPreviewCatalogImportUrl = () => {
 /**
  * Разбирает файл и показывает, что получится: угаданное сопоставление колонок, первые строки результата и число строк, которые в каталог не попадут. Каталог при этом не меняется — ошибку в колонках нужно увидеть до записи, а не после неё.
  *
+ * Шаблон по структуре каталога узнаётся по скрытой строке кодов и читается по ней, а не догадкой: все листы с данными, колонки — по кодам, категория — по ветке, для которой выгружен лист (у строки заполнены `sheet` и `categoryId`), варианты списков — из подписи в код (`fieldValues`). Пустая ячейка поля значит «про поле ничего не сказано». Непонятное значение поля и лист, ветку которого не опознать, — причина строки, а не догадка.
+ *
  * **Как проверить вручную**
  *
  * 1. Войти администратором (`77010000101`). Подготовить файл `price.csv`:
@@ -17564,8 +18465,10 @@ export const getPreviewCatalogImportUrl = () => {
  * 2. Загрузить файл — в ответе угаданное сопоставление колонок (`SKU`, `NAME`, `UNIT`, `PRICE`), первые строки результата и число негодных строк.
  * 3. Запросить список позиций каталога — он не изменился. Появившиеся позиции означают, что предпросмотр пишет в базу, чего делать не должен.
  * 4. Переименовать в файле заголовок «Цена» в «Стоимость» и загрузить снова — цена не угадалась, её колонку придётся указать руками при подтверждении.
- * 5. Негативный 400: загрузить произвольный текстовый файл под именем `price.csv`.
- * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * 5. Применить отрасль `CLOTHING`, скачать шаблон, на листе «Верхняя одежда» вписать позицию с сезоном «Зима» и загрузить — у строки `fieldValues.SEASON.value = WINTER` и `categoryId` ветки.
+ * 6. Вписать «Зимняя» вместо «Зима» — у строки причина с названием поля.
+ * 7. Негативный 400: загрузить произвольный текстовый файл под именем `price.csv`.
+ * 8. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * @summary Предпросмотр импорта прайса
  */
 export const previewCatalogImport = async (previewCatalogImportBody?: PreviewCatalogImportBody, options?: RequestInit): Promise<previewCatalogImportResponse> => {
@@ -17680,6 +18583,8 @@ export const getCommitCatalogImportUrl = () => {
 /**
  * Записывает годные строки: существующая позиция обновляется, а не заводится заново. Файл присылается второй раз вместе с сопоставлением колонок — между шагами система его не хранит, и подтверждение относится к тому файлу, который прислали сейчас.
  *
+ * У шаблона по структуре каталога колонки сопоставлены его строкой кодов, и присланное сопоставление не используется. Значения полей ложатся поверх прежних, а поля, которые импорт поменял, отмечаются правленными человеком: обмен с учётной системой их не перетрёт.
+ *
  * **Как проверить вручную**
  *
  * 1. Войти администратором (`77010000101`). Взять файл из предыдущего шага и сопоставление, которое вернул предпросмотр.
@@ -17764,6 +18669,527 @@ export const useCommitCatalogImport = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getCommitCatalogImportMutationOptions(options), queryClient);
+    }
+
+export type getCatalogFieldsResponse200 = {
+  data: FieldDefinitionDto[]
+  status: 200
+}
+
+export type getCatalogFieldsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getCatalogFieldsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getCatalogFieldsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getCatalogFieldsResponseSuccess = (getCatalogFieldsResponse200) & {
+  headers: Headers;
+};
+export type getCatalogFieldsResponseError = (getCatalogFieldsResponse400 | getCatalogFieldsResponse404 | getCatalogFieldsResponse500) & {
+  headers: Headers;
+};
+
+export type getCatalogFieldsResponse = (getCatalogFieldsResponseSuccess | getCatalogFieldsResponseError)
+
+export const getGetCatalogFieldsUrl = () => {
+
+
+
+
+  return `/api/catalog/fields`
+}
+
+/**
+ * Поля, заведённые не на ветке, а на весь каталог: «Склад», «Поставщик». Они действуют в каждой ветке и у позиции без категории. Здесь они свои — `inherited` ложно, `ownerCategoryId` и `categoryId` пусты.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести поле всего каталога `SUPPLIER` «Поставщик» типа `TEXT`.
+ * 2. Вызвать список — `SUPPLIER` в нём.
+ * 3. Запросить поля любой ветки — `SUPPLIER` там первым, с `inherited = true`.
+ * 4. Войти администратором другого арендатора — список пуст.
+ * @summary Поля всего каталога
+ */
+export const getCatalogFields = async ( options?: RequestInit): Promise<getCatalogFieldsResponse> => {
+
+  return apiRequest<getCatalogFieldsResponse>(getGetCatalogFieldsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCatalogFieldsQueryKey = () => {
+    return [
+    `/api/catalog/fields`
+    ] as const;
+    }
+
+
+export const getGetCatalogFieldsQueryOptions = <TData = Awaited<ReturnType<typeof getCatalogFields>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogFields>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCatalogFieldsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogFields>>> = ({ signal }) => getCatalogFields({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCatalogFields>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCatalogFieldsQueryResult = NonNullable<Awaited<ReturnType<typeof getCatalogFields>>>
+export type GetCatalogFieldsQueryError = ErrorResponse
+
+
+export function useGetCatalogFields<TData = Awaited<ReturnType<typeof getCatalogFields>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogFields>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogFields>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogFields>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCatalogFields<TData = Awaited<ReturnType<typeof getCatalogFields>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogFields>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogFields>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogFields>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCatalogFields<TData = Awaited<ReturnType<typeof getCatalogFields>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogFields>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Поля всего каталога
+ */
+
+export function useGetCatalogFields<TData = Awaited<ReturnType<typeof getCatalogFields>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogFields>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCatalogFieldsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createCatalogFieldResponse201 = {
+  data: FieldDefinitionDto
+  status: 201
+}
+
+export type createCatalogFieldResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createCatalogFieldResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type createCatalogFieldResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createCatalogFieldResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createCatalogFieldResponseSuccess = (createCatalogFieldResponse201) & {
+  headers: Headers;
+};
+export type createCatalogFieldResponseError = (createCatalogFieldResponse400 | createCatalogFieldResponse403 | createCatalogFieldResponse404 | createCatalogFieldResponse500) & {
+  headers: Headers;
+};
+
+export type createCatalogFieldResponse = (createCatalogFieldResponseSuccess | createCatalogFieldResponseError)
+
+export const getCreateCatalogFieldUrl = () => {
+
+
+
+
+  return `/api/catalog/fields`
+}
+
+/**
+ * Поле стоит на линии каждой ветки, поэтому его код сверяется со всеми полями арендатора, а предел в 30 полей — у каждой ветки. Прочие правила те же, что у поля категории.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести поле `SUPPLIER` «Поставщик» типа `TEXT` — ответ 201.
+ * 2. Негативный 400 `CATALOG_FIELD_CODE_TAKEN`: завести на любой ветке поле `SEASON`, затем поле всего каталога `SEASON`.
+ * 3. Негативный 400 `CATALOG_FIELDS_TOO_MANY`: завести в ветке 30 полей и затем поле всего каталога.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Завести поле всего каталога
+ */
+export const createCatalogField = async (saveFieldRequest: SaveFieldRequest, options?: RequestInit): Promise<createCatalogFieldResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<createCatalogFieldResponse>(getCreateCatalogFieldUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveFieldRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateCatalogFieldMutationKey = () => ['createCatalogField'] as const;
+
+export const getCreateCatalogFieldMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCatalogField>>, TError,CreateCatalogFieldMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createCatalogField>>, TError,CreateCatalogFieldMutationVariables, TContext> => {
+
+const mutationKey = getCreateCatalogFieldMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCatalogField>>, CreateCatalogFieldMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCatalogField(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCatalogFieldMutationResult = NonNullable<Awaited<ReturnType<typeof createCatalogField>>>
+    export type CreateCatalogFieldMutationBody = SaveFieldRequest
+    export type CreateCatalogFieldMutationError = ErrorResponse
+    export type CreateCatalogFieldMutationVariables = {data: SaveFieldRequest}
+
+    /**
+ * @summary Завести поле всего каталога
+ */
+export const useCreateCatalogField = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCatalogField>>, TError,CreateCatalogFieldMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCatalogField>>,
+        TError,
+        CreateCatalogFieldMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCatalogFieldMutationOptions(options), queryClient);
+    }
+
+export type getExchangeFieldsResponse200 = {
+  data: ExchangePropertyDto[]
+  status: 200
+}
+
+export type getExchangeFieldsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getExchangeFieldsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getExchangeFieldsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getExchangeFieldsResponseSuccess = (getExchangeFieldsResponse200) & {
+  headers: Headers;
+};
+export type getExchangeFieldsResponseError = (getExchangeFieldsResponse400 | getExchangeFieldsResponse404 | getExchangeFieldsResponse500) & {
+  headers: Headers;
+};
+
+export type getExchangeFieldsResponse = (getExchangeFieldsResponseSuccess | getExchangeFieldsResponseError)
+
+export const getGetExchangeFieldsUrl = () => {
+
+
+
+
+  return `/api/catalog/exchange/fields`
+}
+
+/**
+ * Свойства товаров, которые учётная система присылала в выгрузке номенклатуры и по которым человек ещё не решил, куда их класть, — с именем из классификатора выгрузки и примером значения из последнего обмена. Пока решения нет, значения таких свойств ложатся в прочие свойства позиций и не теряются. Решённые — и в поле, и «никуда» — в списке не показываются.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Выпустить ключ обмена и прислать в `/api/1c/catalog` сообщение, где у позиции есть `properties` (например, свойство `a3b4-size` «Размер» со значением `M`).
+ * 2. Войти администратором (`77010000101`), вызвать метод — в ответе `a3b4-size` с именем «Размер» и примером `M`.
+ * 3. Сохранить по нему решение — свойство из списка пропало.
+ * 4. Войти администратором другого арендатора — список пуст.
+ * @summary Свойства из 1С, ждущие решения
+ */
+export const getExchangeFields = async ( options?: RequestInit): Promise<getExchangeFieldsResponse> => {
+
+  return apiRequest<getExchangeFieldsResponse>(getGetExchangeFieldsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetExchangeFieldsQueryKey = () => {
+    return [
+    `/api/catalog/exchange/fields`
+    ] as const;
+    }
+
+
+export const getGetExchangeFieldsQueryOptions = <TData = Awaited<ReturnType<typeof getExchangeFields>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExchangeFields>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetExchangeFieldsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getExchangeFields>>> = ({ signal }) => getExchangeFields({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getExchangeFields>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetExchangeFieldsQueryResult = NonNullable<Awaited<ReturnType<typeof getExchangeFields>>>
+export type GetExchangeFieldsQueryError = ErrorResponse
+
+
+export function useGetExchangeFields<TData = Awaited<ReturnType<typeof getExchangeFields>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExchangeFields>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getExchangeFields>>,
+          TError,
+          Awaited<ReturnType<typeof getExchangeFields>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetExchangeFields<TData = Awaited<ReturnType<typeof getExchangeFields>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExchangeFields>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getExchangeFields>>,
+          TError,
+          Awaited<ReturnType<typeof getExchangeFields>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetExchangeFields<TData = Awaited<ReturnType<typeof getExchangeFields>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExchangeFields>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Свойства из 1С, ждущие решения
+ */
+
+export function useGetExchangeFields<TData = Awaited<ReturnType<typeof getExchangeFields>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExchangeFields>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetExchangeFieldsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type saveExchangeFieldsResponse200 = {
+  data: ExchangePropertyDto[]
+  status: 200
+}
+
+export type saveExchangeFieldsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type saveExchangeFieldsResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type saveExchangeFieldsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type saveExchangeFieldsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type saveExchangeFieldsResponseSuccess = (saveExchangeFieldsResponse200) & {
+  headers: Headers;
+};
+export type saveExchangeFieldsResponseError = (saveExchangeFieldsResponse400 | saveExchangeFieldsResponse403 | saveExchangeFieldsResponse404 | saveExchangeFieldsResponse500) & {
+  headers: Headers;
+};
+
+export type saveExchangeFieldsResponse = (saveExchangeFieldsResponseSuccess | saveExchangeFieldsResponseError)
+
+export const getSaveExchangeFieldsUrl = () => {
+
+
+
+
+  return `/api/catalog/exchange/fields`
+}
+
+/**
+ * Для каждого свойства — поле каталога, куда класть его значение, либо пустое `fieldId` — «никуда не класть»: значение уходит в прочие свойства позиции, а свойство больше не показывается на экране. Повторное решение заменяет прежнее. Значение ложится в поле со следующего обмена и только у позиций, на линии ветки которых это поле стоит; поле, которое человек правил у позиции руками, обмен не перетирает. Два свойства можно сопоставить с одним полем — тогда у позиции побеждает то, чей идентификатор дальше по алфавиту. Ответ — свойства, которые всё ещё ждут решения.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести поле всего каталога `SIZE` типа `TEXT`.
+ * 2. Прислать `{"mappings":[{"externalCode":"a3b4-size","fieldId":"<id поля SIZE>"}]}` — в ответе свойства `a3b4-size` уже нет.
+ * 3. Повторить обмен из рецепта `getExchangeFields` — у позиции значение `M` в поле `SIZE`, а не в прочих свойствах.
+ * 4. Негативный 404 `CATALOG_FIELD_NOT_FOUND`: случайный `fieldId`.
+ * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Сохранить решения по свойствам из 1С
+ */
+export const saveExchangeFields = async (saveExchangeMappingsRequest: SaveExchangeMappingsRequest, options?: RequestInit): Promise<saveExchangeFieldsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<saveExchangeFieldsResponse>(getSaveExchangeFieldsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveExchangeMappingsRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveExchangeFieldsMutationKey = () => ['saveExchangeFields'] as const;
+
+export const getSaveExchangeFieldsMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveExchangeFields>>, TError,SaveExchangeFieldsMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof saveExchangeFields>>, TError,SaveExchangeFieldsMutationVariables, TContext> => {
+
+const mutationKey = getSaveExchangeFieldsMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveExchangeFields>>, SaveExchangeFieldsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveExchangeFields(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveExchangeFieldsMutationResult = NonNullable<Awaited<ReturnType<typeof saveExchangeFields>>>
+    export type SaveExchangeFieldsMutationBody = SaveExchangeMappingsRequest
+    export type SaveExchangeFieldsMutationError = ErrorResponse
+    export type SaveExchangeFieldsMutationVariables = {data: SaveExchangeMappingsRequest}
+
+    /**
+ * @summary Сохранить решения по свойствам из 1С
+ */
+export const useSaveExchangeFields = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveExchangeFields>>, TError,SaveExchangeFieldsMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveExchangeFields>>,
+        TError,
+        SaveExchangeFieldsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveExchangeFieldsMutationOptions(options), queryClient);
     }
 
 export type getCatalogCategoriesResponse200 = {
@@ -18030,6 +19456,396 @@ export const useCreateCatalogCategory = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getCreateCatalogCategoryMutationOptions(options), queryClient);
+    }
+
+export type getCategoryFieldsResponse200 = {
+  data: FieldDefinitionDto[]
+  status: 200
+}
+
+export type getCategoryFieldsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getCategoryFieldsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getCategoryFieldsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getCategoryFieldsResponseSuccess = (getCategoryFieldsResponse200) & {
+  headers: Headers;
+};
+export type getCategoryFieldsResponseError = (getCategoryFieldsResponse400 | getCategoryFieldsResponse404 | getCategoryFieldsResponse500) & {
+  headers: Headers;
+};
+
+export type getCategoryFieldsResponse = (getCategoryFieldsResponseSuccess | getCategoryFieldsResponseError)
+
+export const getGetCategoryFieldsUrl = (id: string,) => {
+
+
+
+
+  return `/api/catalog/categories/${id}/fields`
+}
+
+/**
+ * Свои поля ветки и унаследованные: сначала поля всего каталога, затем поля предков от корня вниз, внутри ветки — по заданному порядку. У унаследованного поля `inherited` истинно, а `ownerCategoryId` называет ветку, где поле заведено и где его правят; у поля всего каталога `ownerCategoryId` пуст. Категория другого арендатора отвечает так же, как несуществующая.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести корень «Одежда» и в нём «Верхняя одежда».
+ * 2. На «Одежде» завести поле `STORAGE` «Склад» типа `TEXT`.
+ * 3. Запросить поля «Верхней одежды» — в ответе `STORAGE` с `inherited = true` и `ownerCategoryId` «Одежды».
+ * 4. На «Верхней одежде» завести `INSULATION`, запросить поля «Одежды» — `INSULATION` там нет: поле ветки не течёт вверх.
+ * 5. Тот же запрос под менеджером (`77010000102`) — 200: поля он видит на карточке позиции.
+ * 6. Негативный 404: случайный идентификатор категории в пути.
+ * @summary Поля категории
+ */
+export const getCategoryFields = async (id: string, options?: RequestInit): Promise<getCategoryFieldsResponse> => {
+
+  return apiRequest<getCategoryFieldsResponse>(getGetCategoryFieldsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCategoryFieldsQueryKey = (id: string,) => {
+    return [
+    `/api/catalog/categories/${id}/fields`
+    ] as const;
+    }
+
+
+export const getGetCategoryFieldsQueryOptions = <TData = Awaited<ReturnType<typeof getCategoryFields>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCategoryFields>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCategoryFieldsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCategoryFields>>> = ({ signal }) => getCategoryFields(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCategoryFields>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCategoryFieldsQueryResult = NonNullable<Awaited<ReturnType<typeof getCategoryFields>>>
+export type GetCategoryFieldsQueryError = ErrorResponse
+
+
+export function useGetCategoryFields<TData = Awaited<ReturnType<typeof getCategoryFields>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCategoryFields>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCategoryFields>>,
+          TError,
+          Awaited<ReturnType<typeof getCategoryFields>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCategoryFields<TData = Awaited<ReturnType<typeof getCategoryFields>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCategoryFields>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCategoryFields>>,
+          TError,
+          Awaited<ReturnType<typeof getCategoryFields>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCategoryFields<TData = Awaited<ReturnType<typeof getCategoryFields>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCategoryFields>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Поля категории
+ */
+
+export function useGetCategoryFields<TData = Awaited<ReturnType<typeof getCategoryFields>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCategoryFields>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCategoryFieldsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createCategoryFieldResponse201 = {
+  data: FieldDefinitionDto
+  status: 201
+}
+
+export type createCategoryFieldResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createCategoryFieldResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type createCategoryFieldResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createCategoryFieldResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createCategoryFieldResponseSuccess = (createCategoryFieldResponse201) & {
+  headers: Headers;
+};
+export type createCategoryFieldResponseError = (createCategoryFieldResponse400 | createCategoryFieldResponse403 | createCategoryFieldResponse404 | createCategoryFieldResponse500) & {
+  headers: Headers;
+};
+
+export type createCategoryFieldResponse = (createCategoryFieldResponseSuccess | createCategoryFieldResponseError)
+
+export const getCreateCategoryFieldUrl = (id: string,) => {
+
+
+
+
+  return `/api/catalog/categories/${id}/fields`
+}
+
+/**
+ * Поле достаётся ветке и всем её потомкам. Код приводится к заглавным и после создания не меняется: под ним значения лежат в позициях. Код уникален по линии ветки — у поля всего каталога, предков, самой ветки и потомков, — но у соседних веток может совпадать. Полей у ветки вместе с унаследованными не больше 30, и предел проверяется у каждого потомка. Единица — только у числа и диапазона и только из перечня каталога. Варианты — у списочных типов, не больше 100, коды не повторяются.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести корень «Одежда» и в нём «Верхняя одежда».
+ * 2. На «Верхней одежде» завести `SEASON` «Сезон» типа `OPTION` с вариантами `WINTER` «Зима» и `SUMMER` «Лето» — ответ 201, варианты в ответе.
+ * 3. Негативный 400 `CATALOG_FIELD_CODE_TAKEN`: завести `SEASON` на «Одежде» — код занят потомком.
+ * 4. Негативный 400 `CATALOG_FIELD_UNIT_UNKNOWN`: поле `VOLUME` типа `NUMBER` с единицей «баррель».
+ * 5. Негативный 400 `CATALOG_OPTION_CODE_TAKEN`: два варианта `GLASS` в одном списке.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`) — структуру каталога ведёт администратор.
+ * @summary Завести поле категории
+ */
+export const createCategoryField = async (id: string,
+    saveFieldRequest: SaveFieldRequest, options?: RequestInit): Promise<createCategoryFieldResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<createCategoryFieldResponse>(getCreateCategoryFieldUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveFieldRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateCategoryFieldMutationKey = () => ['createCategoryField'] as const;
+
+export const getCreateCategoryFieldMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCategoryField>>, TError,CreateCategoryFieldMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createCategoryField>>, TError,CreateCategoryFieldMutationVariables, TContext> => {
+
+const mutationKey = getCreateCategoryFieldMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCategoryField>>, CreateCategoryFieldMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createCategoryField(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCategoryFieldMutationResult = NonNullable<Awaited<ReturnType<typeof createCategoryField>>>
+    export type CreateCategoryFieldMutationBody = SaveFieldRequest
+    export type CreateCategoryFieldMutationError = ErrorResponse
+    export type CreateCategoryFieldMutationVariables = {id: string;data: SaveFieldRequest}
+
+    /**
+ * @summary Завести поле категории
+ */
+export const useCreateCategoryField = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCategoryField>>, TError,CreateCategoryFieldMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCategoryField>>,
+        TError,
+        CreateCategoryFieldMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCategoryFieldMutationOptions(options), queryClient);
+    }
+
+export type promoteCatalogAttributeResponse201 = {
+  data: FieldDefinitionDto
+  status: 201
+}
+
+export type promoteCatalogAttributeResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type promoteCatalogAttributeResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type promoteCatalogAttributeResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type promoteCatalogAttributeResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type promoteCatalogAttributeResponseSuccess = (promoteCatalogAttributeResponse201) & {
+  headers: Headers;
+};
+export type promoteCatalogAttributeResponseError = (promoteCatalogAttributeResponse400 | promoteCatalogAttributeResponse403 | promoteCatalogAttributeResponse404 | promoteCatalogAttributeResponse500) & {
+  headers: Headers;
+};
+
+export type promoteCatalogAttributeResponse = (promoteCatalogAttributeResponseSuccess | promoteCatalogAttributeResponseError)
+
+export const getPromoteCatalogAttributeUrl = (id: string,) => {
+
+
+
+
+  return `/api/catalog/categories/${id}/fields/promote`
+}
+
+/**
+ * Заводит на ветке поле с подписью, равной имени свойства, и переносит в него значения этого свойства со всех позиций ветки и её поддерева — одной транзакцией. Имя свойства сравнивается без учёта регистра и пробелов по краям. У списков варианты собираются из встреченных значений: повторы без учёта регистра — один вариант, подпись — первое написание, код — транслитерация («Синий» → `SINIY`); у списка с несколькими вариантами значения делятся по запятой и точке с запятой. Больше 100 разных значений — отказ, ничего не переносится. Значение переносится, только если у позиции этого поля ещё нет и если оно разбирается в тип поля; перенесённая пара убирается из прочих свойств, неперенесённая остаётся. Перенесённое отмечается правленым человеком — обмен с учётной системой его не перетрёт.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести ветку «Куртки» и три позиции в ней с прочим свойством «Цвет»: «Синий», «синий », «Красный».
+ * 2. Прислать `{"attributeName":"Цвет","code":"COLOR","type":"OPTION"}` — ответ 201, у поля варианты `SINIY` «Синий» и `KRASNYY` «Красный».
+ * 3. Открыть карточки позиций — у каждой значение в поле «Цвет», а в прочих свойствах «Цвета» больше нет.
+ * 4. Негативный 400 `CATALOG_FIELD_CODE_TAKEN`: повторить то же — код занят.
+ * 5. Негативный 404: случайный идентификатор ветки в пути.
+ * 6. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Сделать прочее свойство полем категории
+ */
+export const promoteCatalogAttribute = async (id: string,
+    promoteAttributeRequest: PromoteAttributeRequest, options?: RequestInit): Promise<promoteCatalogAttributeResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<promoteCatalogAttributeResponse>(getPromoteCatalogAttributeUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(promoteAttributeRequest)
+  }
+);}
+
+
+
+
+
+export const getPromoteCatalogAttributeMutationKey = () => ['promoteCatalogAttribute'] as const;
+
+export const getPromoteCatalogAttributeMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof promoteCatalogAttribute>>, TError,PromoteCatalogAttributeMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof promoteCatalogAttribute>>, TError,PromoteCatalogAttributeMutationVariables, TContext> => {
+
+const mutationKey = getPromoteCatalogAttributeMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof promoteCatalogAttribute>>, PromoteCatalogAttributeMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  promoteCatalogAttribute(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PromoteCatalogAttributeMutationResult = NonNullable<Awaited<ReturnType<typeof promoteCatalogAttribute>>>
+    export type PromoteCatalogAttributeMutationBody = PromoteAttributeRequest
+    export type PromoteCatalogAttributeMutationError = ErrorResponse
+    export type PromoteCatalogAttributeMutationVariables = {id: string;data: PromoteAttributeRequest}
+
+    /**
+ * @summary Сделать прочее свойство полем категории
+ */
+export const usePromoteCatalogAttribute = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof promoteCatalogAttribute>>, TError,PromoteCatalogAttributeMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof promoteCatalogAttribute>>,
+        TError,
+        PromoteCatalogAttributeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPromoteCatalogAttributeMutationOptions(options), queryClient);
     }
 
 export type acceptStockExchangeResponse200 = {
@@ -18299,6 +20115,14 @@ export const getAcceptCatalogExchangeUrl = () => {
  * ```json
  * {
  *   "messageNo": "42",
+ *   "properties": [
+ *     {
+ *       "id": "f1e2-color",
+ *       "name": "Цвет",
+ *       "values": [{"id": "v-01", "value": "Серый"}]
+ *     },
+ *     {"id": "a3b4-weight", "name": "Вес мешка"}
+ *   ],
  *   "items": [
  *     {
  *       "externalId": "00-000012345",
@@ -18306,11 +20130,27 @@ export const getAcceptCatalogExchangeUrl = () => {
  *       "name": "Цемент М-400",
  *       "unit": "меш",
  *       "vatRate": 12,
- *       "deletionMark": false
+ *       "deletionMark": false,
+ *       "properties": [
+ *         {"id": "f1e2-color", "value": "v-01"},
+ *         {"id": "a3b4-weight", "value": "50 кг"}
+ *       ]
  *     }
  *   ]
  * }
  * ```
+ *
+ * Свойства товаров необязательны и приходят двумя частями, как
+ * в CommerceML. `properties` сообщения — классификатор: у
+ * свойства идентификатор, имя и, у справочного, варианты
+ * значений. `properties` позиции — значения: у справочного
+ * свойства значением служит идентификатор варианта, в каталог
+ * уходит его текст. Свойство, которое администратор сопоставил
+ * с полем каталога, ложится в поле — если поле у позиции не
+ * правили руками; остальное ложится в прочие свойства позиции
+ * под своим именем. Свойства строку не отвергают: что легло не
+ * так, как пришло, — в `warnings` ответа, а строка остаётся
+ * в числе принятых.
  *
  * Номер сообщения обязателен: подтверждение, которое учётная
  * система не может отнести к своему сообщению, её очередь
@@ -18364,6 +20204,10 @@ export const getAcceptCatalogExchangeUrl = () => {
  * 3. В ответе принято 1, отклонено 0. Позиция появилась
  *    в каталоге, хотя идентификатора арендатора в сообщении
  *    не было: его назвал ключ.
+ * 3а. Прислать сообщение-образец со свойствами — у позиции
+ *    в прочих свойствах «Цвет: Серый» (текст варианта, а не
+ *    `v-01`) и «Вес мешка: 50 кг»; оба свойства видны на
+ *    экране сопоставления (`getExchangeFields`).
  * 4. Повторить ту же команду — снова принято 1, но второй
  *    позиции в каталоге нет. Появившийся дубликат означает,
  *    что не дошедший до учётной системы ответ будет плодить
@@ -24368,6 +26212,565 @@ export function useGetPortalInvitationLink<TData = Awaited<ReturnType<typeof get
 
 
 
+export type getCatalogUnitsResponse200 = {
+  data: string[]
+  status: 200
+}
+
+export type getCatalogUnitsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getCatalogUnitsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getCatalogUnitsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getCatalogUnitsResponseSuccess = (getCatalogUnitsResponse200) & {
+  headers: Headers;
+};
+export type getCatalogUnitsResponseError = (getCatalogUnitsResponse400 | getCatalogUnitsResponse404 | getCatalogUnitsResponse500) & {
+  headers: Headers;
+};
+
+export type getCatalogUnitsResponse = (getCatalogUnitsResponseSuccess | getCatalogUnitsResponseError)
+
+export const getGetCatalogUnitsUrl = () => {
+
+
+
+
+  return `/api/catalog/units`
+}
+
+/**
+ * Перечень единиц, которые принимает поле типа `NUMBER` или `RANGE`, в порядке показа: объём, масса, длина, штуки, доля, время. Экран строит из него выпадающий список, а не держит свою копию: единица сверяется точно, и «Л» вместо «л» будет отклонена. Перечень общий для всех арендаторов.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти менеджером (`77010000102`), вызвать — `л`, `мл`, `кг`, `г`, `м`, `см`, `мм`, `шт`, `%`, `сут`, `ч`.
+ * 2. Завести поле `NUMBER` с единицей из списка — 201; с единицей `литр` — 400 `CATALOG_FIELD_UNIT_UNKNOWN`.
+ * @summary Единицы числовых полей
+ */
+export const getCatalogUnits = async ( options?: RequestInit): Promise<getCatalogUnitsResponse> => {
+
+  return apiRequest<getCatalogUnitsResponse>(getGetCatalogUnitsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCatalogUnitsQueryKey = () => {
+    return [
+    `/api/catalog/units`
+    ] as const;
+    }
+
+
+export const getGetCatalogUnitsQueryOptions = <TData = Awaited<ReturnType<typeof getCatalogUnits>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogUnits>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCatalogUnitsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogUnits>>> = ({ signal }) => getCatalogUnits({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCatalogUnits>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCatalogUnitsQueryResult = NonNullable<Awaited<ReturnType<typeof getCatalogUnits>>>
+export type GetCatalogUnitsQueryError = ErrorResponse
+
+
+export function useGetCatalogUnits<TData = Awaited<ReturnType<typeof getCatalogUnits>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogUnits>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogUnits>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogUnits>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCatalogUnits<TData = Awaited<ReturnType<typeof getCatalogUnits>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogUnits>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogUnits>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogUnits>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCatalogUnits<TData = Awaited<ReturnType<typeof getCatalogUnits>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogUnits>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Единицы числовых полей
+ */
+
+export function useGetCatalogUnits<TData = Awaited<ReturnType<typeof getCatalogUnits>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogUnits>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCatalogUnitsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getCatalogStructureResponse200 = {
+  data: CategoryNodeDto[]
+  status: 200
+}
+
+export type getCatalogStructureResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getCatalogStructureResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getCatalogStructureResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getCatalogStructureResponseSuccess = (getCatalogStructureResponse200) & {
+  headers: Headers;
+};
+export type getCatalogStructureResponseError = (getCatalogStructureResponse400 | getCatalogStructureResponse404 | getCatalogStructureResponse500) & {
+  headers: Headers;
+};
+
+export type getCatalogStructureResponse = (getCatalogStructureResponseSuccess | getCatalogStructureResponseError)
+
+export const getGetCatalogStructureUrl = () => {
+
+
+
+
+  return `/api/catalog/structure`
+}
+
+/**
+ * Живые ветки арендатора плоским списком в порядке витрины; дерево собирается по `parentId` и `path`, как из справочника категорий. У каждой ветки — число полей, заведённых на ней самой, без унаследованных: по нему видно, какие ветки уже описаны. `presetCode` называет строку пресета, из которой выросла ветка; у заведённой руками его нет. Поля всего каталога здесь не считаются — их отдаёт `getCatalogFields`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`) арендатора с пустым каталогом — пустой список: экран открывает мастер выбора отрасли.
+ * 2. Применить `CLOTHING` и вызвать снова — у «Одежды» `fieldCount = 3`, у «Верхней одежды» 2, у «Нижней одежды» 0.
+ * 3. Тот же запрос под менеджером (`77010000102`) — 200: дерево ему видно.
+ * 4. Войти администратором другого арендатора — его дерево чужих веток не показывает.
+ * @summary Дерево каталога с числом полей
+ */
+export const getCatalogStructure = async ( options?: RequestInit): Promise<getCatalogStructureResponse> => {
+
+  return apiRequest<getCatalogStructureResponse>(getGetCatalogStructureUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCatalogStructureQueryKey = () => {
+    return [
+    `/api/catalog/structure`
+    ] as const;
+    }
+
+
+export const getGetCatalogStructureQueryOptions = <TData = Awaited<ReturnType<typeof getCatalogStructure>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogStructure>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCatalogStructureQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogStructure>>> = ({ signal }) => getCatalogStructure({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCatalogStructure>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCatalogStructureQueryResult = NonNullable<Awaited<ReturnType<typeof getCatalogStructure>>>
+export type GetCatalogStructureQueryError = ErrorResponse
+
+
+export function useGetCatalogStructure<TData = Awaited<ReturnType<typeof getCatalogStructure>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogStructure>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogStructure>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogStructure>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCatalogStructure<TData = Awaited<ReturnType<typeof getCatalogStructure>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogStructure>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCatalogStructure>>,
+          TError,
+          Awaited<ReturnType<typeof getCatalogStructure>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCatalogStructure<TData = Awaited<ReturnType<typeof getCatalogStructure>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogStructure>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Дерево каталога с числом полей
+ */
+
+export function useGetCatalogStructure<TData = Awaited<ReturnType<typeof getCatalogStructure>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCatalogStructure>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCatalogStructureQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type searchIndustriesResponse200 = {
+  data: IndustryDto[]
+  status: 200
+}
+
+export type searchIndustriesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type searchIndustriesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type searchIndustriesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type searchIndustriesResponseSuccess = (searchIndustriesResponse200) & {
+  headers: Headers;
+};
+export type searchIndustriesResponseError = (searchIndustriesResponse400 | searchIndustriesResponse404 | searchIndustriesResponse500) & {
+  headers: Headers;
+};
+
+export type searchIndustriesResponse = (searchIndustriesResponseSuccess | searchIndustriesResponseError)
+
+export const getSearchIndustriesUrl = (params?: SearchIndustriesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/catalog/industries?${stringifiedParams}` : `/api/catalog/industries`
+}
+
+/**
+ * Отрасли, в названии или ключевых словах которых есть набранное. Без учёта регистра и без различия «ё» и «е»; совпадения с начала названия идут первыми, дальше — порядок справочника. Пустой запрос отдаёт отрасли по порядку, без отбора. `limit` приводится к промежутку от 1 до 50. Дерева и полей в ответе нет: что приедет, видно по подсказке `hint`, а целиком — в `getIndustry`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), вызвать без параметров — первой идёт «Одежда».
+ * 2. `query=напит` — в ответе «Напитки».
+ * 3. `query=ШМОТ` — «Одежда»: поиск идёт и по ключевым словам, регистр не важен.
+ * 4. `query=свёкла` — «Овощи, фрукты и ягоды»: «ё» и «е» не различаются.
+ * 5. `query=ракеты` — пустой список: мастер предлагает завести свою сферу.
+ * @summary Поиск по справочнику отраслей
+ */
+export const searchIndustries = async (params?: SearchIndustriesParams, options?: RequestInit): Promise<searchIndustriesResponse> => {
+
+  return apiRequest<searchIndustriesResponse>(getSearchIndustriesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getSearchIndustriesQueryKey = (params?: SearchIndustriesParams,) => {
+    return [
+    `/api/catalog/industries`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getSearchIndustriesQueryOptions = <TData = Awaited<ReturnType<typeof searchIndustries>>, TError = ErrorResponse>(params?: SearchIndustriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchIndustries>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getSearchIndustriesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchIndustries>>> = ({ signal }) => searchIndustries(params, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchIndustries>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type SearchIndustriesQueryResult = NonNullable<Awaited<ReturnType<typeof searchIndustries>>>
+export type SearchIndustriesQueryError = ErrorResponse
+
+
+export function useSearchIndustries<TData = Awaited<ReturnType<typeof searchIndustries>>, TError = ErrorResponse>(
+ params: undefined |  SearchIndustriesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchIndustries>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchIndustries>>,
+          TError,
+          Awaited<ReturnType<typeof searchIndustries>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchIndustries<TData = Awaited<ReturnType<typeof searchIndustries>>, TError = ErrorResponse>(
+ params?: SearchIndustriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchIndustries>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof searchIndustries>>,
+          TError,
+          Awaited<ReturnType<typeof searchIndustries>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useSearchIndustries<TData = Awaited<ReturnType<typeof searchIndustries>>, TError = ErrorResponse>(
+ params?: SearchIndustriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchIndustries>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Поиск по справочнику отраслей
+ */
+
+export function useSearchIndustries<TData = Awaited<ReturnType<typeof searchIndustries>>, TError = ErrorResponse>(
+ params?: SearchIndustriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof searchIndustries>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getSearchIndustriesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getIndustryResponse200 = {
+  data: IndustryPresetDto
+  status: 200
+}
+
+export type getIndustryResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getIndustryResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getIndustryResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getIndustryResponseSuccess = (getIndustryResponse200) & {
+  headers: Headers;
+};
+export type getIndustryResponseError = (getIndustryResponse400 | getIndustryResponse404 | getIndustryResponse500) & {
+  headers: Headers;
+};
+
+export type getIndustryResponse = (getIndustryResponseSuccess | getIndustryResponseError)
+
+export const getGetIndustryUrl = (code: string,) => {
+
+
+
+
+  return `/api/catalog/industries/${code}`
+}
+
+/**
+ * Ветки пресета в порядке обхода — родитель раньше своих потомков — с кодами для `skip` применения и подписями полей, заведённых на самой ветке. По нему мастер показывает, что приедет, и снимает лишнее галочками до применения, а не удаляет заведённое после. Ничего не сажает и данных арендатора не читает. Регистр кода не важен.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), запросить `CLOTHING` — ветки `CLOTHING_ROOT`, `CLOTHING_OUTER`, `CLOTHING_INNER`; у «Верхней одежды» `parentCode` = `CLOTHING_ROOT`, поля «Сезон» и «Утеплитель».
+ * 2. Запросить дерево каталога (`getCatalogStructure`) — оно не изменилось.
+ * 3. Запросить `beverages` строчными — 200, код `BEVERAGES`.
+ * 4. Повторить под менеджером (`77010000102`) — тоже 200: смотреть может всякий, кто читает каталог.
+ * 5. Негативный 404 `CATALOG_INDUSTRY_UNKNOWN`: код `SPACESHIPS`.
+ * @summary Дерево отраслевого пресета до применения
+ */
+export const getIndustry = async (code: string, options?: RequestInit): Promise<getIndustryResponse> => {
+
+  return apiRequest<getIndustryResponse>(getGetIndustryUrl(code),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetIndustryQueryKey = (code: string,) => {
+    return [
+    `/api/catalog/industries/${code}`
+    ] as const;
+    }
+
+
+export const getGetIndustryQueryOptions = <TData = Awaited<ReturnType<typeof getIndustry>>, TError = ErrorResponse>(code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getIndustry>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetIndustryQueryKey(code);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getIndustry>>> = ({ signal }) => getIndustry(code, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getIndustry>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetIndustryQueryResult = NonNullable<Awaited<ReturnType<typeof getIndustry>>>
+export type GetIndustryQueryError = ErrorResponse
+
+
+export function useGetIndustry<TData = Awaited<ReturnType<typeof getIndustry>>, TError = ErrorResponse>(
+ code: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getIndustry>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getIndustry>>,
+          TError,
+          Awaited<ReturnType<typeof getIndustry>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetIndustry<TData = Awaited<ReturnType<typeof getIndustry>>, TError = ErrorResponse>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getIndustry>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getIndustry>>,
+          TError,
+          Awaited<ReturnType<typeof getIndustry>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetIndustry<TData = Awaited<ReturnType<typeof getIndustry>>, TError = ErrorResponse>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getIndustry>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Дерево отраслевого пресета до применения
+ */
+
+export function useGetIndustry<TData = Awaited<ReturnType<typeof getIndustry>>, TError = ErrorResponse>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getIndustry>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetIndustryQueryOptions(code,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type downloadCatalogImportTemplateResponse400 = {
   data: ErrorResponse
   status: 400
@@ -24395,16 +26798,31 @@ export type downloadCatalogImportTemplateResponseError = (downloadCatalogImportT
 
 export type downloadCatalogImportTemplateResponse = (downloadCatalogImportTemplateResponseError)
 
-export const getDownloadCatalogImportTemplateUrl = () => {
+export const getDownloadCatalogImportTemplateUrl = (params?: DownloadCatalogImportTemplateParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["categoryIds"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
 
 
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/catalog/import/template`
+  return stringifiedParams.length > 0 ? `/api/catalog/import/template?${stringifiedParams}` : `/api/catalog/import/template`
 }
 
 /**
- * Пустая книга Excel с нашей шапкой, строкой-примером и правилами заполнения на втором листе.
+ * Пустая книга Excel по нашей форме с правилами заполнения.
+ *
+ * Арендатор без полей категорий, не выбравший ветки, получает прежнюю книгу: лист «Каталог» с шапкой и строкой-примером и лист «Как заполнять». Арендатор с полями либо выбравший ветки в `categoryIds` получает книгу по структуре каталога: лист на каждую конечную ветку (выбранная ветка с потомками кладёт свои конечные; пусто — все), колонки — базовые поля позиции без категории плюс поля ветки, свои и унаследованные; у полей-списков и да/нет — выпадающий список. Скрытая вторая строка листа несёт коды колонок и метку ветки, для которой выгружен лист: по ним загрузка читает файл, даже если поле или лист переименовали. Скрытый лист «Справочники» держит варианты выпадающих списков.
  *
  * Нужен потому, что чужой прайс приходит в любом виде, а угадывание колонок работает не всегда: «Цена с НДС», «Отпускная» и «Розница» — три названия одного поля, и на четвёртом угадывание ошибётся молча. Заполненный по этой форме файл читается без догадок.
  *
@@ -24412,17 +26830,20 @@ export const getDownloadCatalogImportTemplateUrl = () => {
  *
  * **Как проверить вручную**
  *
- * 1. Войти менеджером (`77010000102`), вызвать метод — придёт файл `q-order-catalog-template.xlsx`.
+ * 1. Войти менеджером (`77010000102`) арендатора без полей, вызвать метод — придёт файл `q-order-catalog-template.xlsx`.
  * 2. Открыть его: лист «Каталог» с шапкой и серой строкой-примером, лист «Как заполнять» с правилами.
  * 3. Удалить пример, вписать две свои позиции, сохранить.
  * 4. Отправить этот же файл в предпросмотр загрузки — все колонки распознаны, ни одна не осталась нераспознанной.
  * 5. Подтвердить загрузку под администратором (`77010000101`) — позиции появились в каталоге.
- * 6. Негативный 403: тот же запрос под `qo-viewer`.
+ * 6. Применить отрасль `CLOTHING` и вызвать снова — листы «Верхняя одежда» и «Нижняя одежда», у колонки «Сезон» выпадающий список «Зима / Демисезон / Лето».
+ * 7. Вызвать с `categoryIds` = идентификатор «Верхней одежды» — в книге один лист.
+ * 8. Негативный 404 `CATALOG_CATEGORY_NOT_FOUND`: случайный идентификатор в `categoryIds`.
+ * 9. Негативный 403: тот же запрос под `qo-viewer`.
  * @summary Скачать шаблон прайса
  */
-export const downloadCatalogImportTemplate = async ( options?: RequestInit): Promise<downloadCatalogImportTemplateResponse> => {
+export const downloadCatalogImportTemplate = async (params?: DownloadCatalogImportTemplateParams, options?: RequestInit): Promise<downloadCatalogImportTemplateResponse> => {
 
-  return apiRequest<downloadCatalogImportTemplateResponse>(getDownloadCatalogImportTemplateUrl(),
+  return apiRequest<downloadCatalogImportTemplateResponse>(getDownloadCatalogImportTemplateUrl(params),
   {
     ...options,
     method: 'GET'
@@ -24435,23 +26856,23 @@ export const downloadCatalogImportTemplate = async ( options?: RequestInit): Pro
 
 
 
-export const getDownloadCatalogImportTemplateQueryKey = () => {
+export const getDownloadCatalogImportTemplateQueryKey = (params?: DownloadCatalogImportTemplateParams,) => {
     return [
-    `/api/catalog/import/template`
+    `/api/catalog/import/template`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getDownloadCatalogImportTemplateQueryOptions = <TData = Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>>, }
+export const getDownloadCatalogImportTemplateQueryOptions = <TData = Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError = ErrorResponse>(params?: DownloadCatalogImportTemplateParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>>, }
 ) => {
 
 const {query: queryOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getDownloadCatalogImportTemplateQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getDownloadCatalogImportTemplateQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>> = ({ signal }) => downloadCatalogImportTemplate({ signal });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>> = ({ signal }) => downloadCatalogImportTemplate(params, { signal });
 
 
 
@@ -24465,7 +26886,7 @@ export type DownloadCatalogImportTemplateQueryError = ErrorResponse
 
 
 export function useDownloadCatalogImportTemplate<TData = Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError = ErrorResponse>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>> & Pick<
+ params: undefined |  DownloadCatalogImportTemplateParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof downloadCatalogImportTemplate>>,
           TError,
@@ -24475,7 +26896,7 @@ export function useDownloadCatalogImportTemplate<TData = Awaited<ReturnType<type
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useDownloadCatalogImportTemplate<TData = Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>> & Pick<
+ params?: DownloadCatalogImportTemplateParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof downloadCatalogImportTemplate>>,
           TError,
@@ -24485,7 +26906,7 @@ export function useDownloadCatalogImportTemplate<TData = Awaited<ReturnType<type
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useDownloadCatalogImportTemplate<TData = Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>>, }
+ params?: DownloadCatalogImportTemplateParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>>, }
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -24493,11 +26914,11 @@ export function useDownloadCatalogImportTemplate<TData = Awaited<ReturnType<type
  */
 
 export function useDownloadCatalogImportTemplate<TData = Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError = ErrorResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>>, }
+ params?: DownloadCatalogImportTemplateParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogImportTemplate>>, TError, TData>>, }
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getDownloadCatalogImportTemplateQueryOptions(options)
+  const queryOptions = getDownloadCatalogImportTemplateQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

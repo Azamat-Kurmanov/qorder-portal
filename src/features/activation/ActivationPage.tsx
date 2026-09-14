@@ -6,6 +6,9 @@ import { Button } from '../../ui/Button';
 import { Logo } from '../../ui/Logo';
 import { Card } from '../../ui/Card';
 import { cn } from '../../ui/cn';
+import { FieldFaultText } from '../../ui/Field';
+import { useFormRules } from '../../ui/forms/useFormRules';
+import { rules } from '../../api/rules.generated';
 import {
   useActivatePortalInvitation,
   useGetPortalConsentNotice,
@@ -87,7 +90,16 @@ export function ActivationPage() {
    */
   const [refusal, setRefusal] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
-  const [password, setPassword] = useState('');
+  /*
+   * Пароль — на правиле контракта: потолок в 128 знаков объявлен там, и своё
+   * число здесь стало бы второй записью того же правила. Обязательным поле
+   * не объявлено намеренно: вошедший активирует приглашение без него.
+   */
+  const form = useFormRules({
+    schema: rules.ActivateInvitationRequest,
+    initial: { password: '' },
+  });
+  const password = form.values.password;
   const code = params.get('code') ?? '';
 
   // Уведомление читается до входа и без токена: учётной записи ещё нет,
@@ -258,19 +270,22 @@ export function ActivationPage() {
                 type="password"
                 autoComplete="new-password"
                 value={password}
-                onChange={(event) => setPassword(event.currentTarget.value)}
+                aria-invalid={form.faults.password ? 'true' : 'false'}
+                onChange={(event) => form.field('password').onChange(event.currentTarget.value)}
+                onBlur={form.field('password').onBlur}
                 className={cn(
                   'h-11 rounded-[var(--radius-control)] border border-hairline bg-surface px-3',
                   'text-sm text-ink outline-none focus:border-[var(--color-brand)]',
                 )}
               />
+              <FieldFaultText fault={form.faults.password} name="password" />
               <p className="text-xs text-ink-muted">{t('activation.passwordNote')}</p>
             </div>
           )}
 
           <Button
             size="lg"
-            disabled={!accepted || !notice || activate.isPending}
+            disabled={!accepted || !notice || !form.isValid || activate.isPending}
             onClick={() =>
               notice
               && activate.mutate({

@@ -63,6 +63,43 @@ function renderCard() {
 describe('карточка товара', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  /**
+   * Характеристики рубрики идут выше прочих свойств: их продавец заводил
+   * шаблоном отрасли и заполняет у каждой позиции, а прочие свойства —
+   * то разовое, чему поля не завели. Клиенту разница не объясняется, поэтому
+   * список один, а порядок в нём и есть объяснение.
+   *
+   * Внутренних характеристик здесь нет ни в каком виде: сервер их не отдаёт,
+   * и проверять их отсутствие на экране нечем — это закреплено на сервере.
+   */
+  it('показывает характеристики рубрики выше прочих свойств', async () => {
+    stubFetch(cardRules({
+      ...CARD,
+      fields: [
+        { code: 'SIZE', name: 'Размер', type: 'OPTION', value: 'M' },
+        { code: 'COMPOSITION', name: 'Состав', type: 'TEXT', value: 'Полиэстер 100%' },
+        { code: 'VOLUME', name: 'Объём', type: 'NUMBER', value: '1.5', unit: 'л' },
+        { code: 'EMPTY', name: 'Незаполненная', type: 'TEXT', value: '' },
+      ],
+    }));
+
+    renderCard();
+
+    expect(await screen.findByRole('heading', { name: 'Цемент М400' })).toBeInTheDocument();
+
+    const rows = screen.getAllByTestId('item-property');
+    expect(rows.map((row) => row.textContent)).toEqual([
+      'РазмерM',
+      'СоставПолиэстер 100%',
+      'Объём1.5 л',
+      'МаркаМ400',
+      'Вес50 кг',
+    ]);
+
+    // Характеристика без значения заняла бы строку сообщением ни о чём.
+    expect(screen.queryByText('Незаполненная')).not.toBeInTheDocument();
+  });
+
   it('показывает снимки, свойства и оценку, а количество вводится не выходя из карточки', async () => {
     const { calls } = stubFetch([
       ...cardRules(),

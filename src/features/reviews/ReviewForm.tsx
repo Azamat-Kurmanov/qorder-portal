@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { rules } from '../../api/rules.generated';
 import { useSubmitPortalReview, type ItemReviewDto } from '../../api/generated';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -67,7 +68,7 @@ export function ReviewForm({
         {t('reviews.review')}
         <textarea
           value={text}
-          maxLength={2000}
+          maxLength={rules.SubmitReviewRequest.text.maxLength}
           rows={3}
           onChange={(event) => setText(event.currentTarget.value)}
           placeholder={t('reviews.textPlaceholder')}

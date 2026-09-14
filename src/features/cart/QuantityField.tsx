@@ -77,8 +77,12 @@ export function QuantityField({ itemId, unit, className }: QuantityFieldProps) {
         value={value}
         onChange={(event) => schedule(event.currentTarget.value === '' ? '' : Number(event.currentTarget.value))}
         className={cn(
-          'w-14 border-y border-hairline bg-surface text-center',
-          'text-[15px] font-medium tabular-nums text-ink',
+          // Шире и крупнее прежнего: в поле стоят числа до пяти цифр —
+          // «1 250» мешков, — и набранное количество человек перечитывает
+          // перед оформлением чаще, чем что-либо ещё на витрине. Размеры
+          // в `rem`: при крупном шрифте поле растёт вместе с цифрами.
+          'w-16 border-y border-hairline bg-surface text-center',
+          'text-base font-semibold tabular-nums text-ink',
           'transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-brand/40',
           '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none',
         )}
