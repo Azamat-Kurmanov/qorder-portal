@@ -200,6 +200,10 @@
       "priceNegotiable": " — cost by arrangement",
       "priceFree": " — free",
       "freeFrom": "{{amount}} short of free delivery"
+    },
+    "closed": {
+      "title": "The supplier is temporarily not accepting orders",
+      "note": "Your cart is saved — send it once the supplier resumes taking orders."
     }
   },
   "favorites": {

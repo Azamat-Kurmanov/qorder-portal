@@ -49,6 +49,8 @@ export function CheckoutPage() {
   const [delivery, setDelivery] = useState<Delivery>({});
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [stale, setStale] = useState<CartStaleResponse | null>(null);
+  // Поставщик приостановлен платформой: заявку не примут, корзина остаётся.
+  const [closed, setClosed] = useState(false);
   // Условия доставки спрашиваются до всякого ветвления экрана: хук, стоящий
   // после раннего возврата, вызывается не на каждый отрисовке, и React такое
   // дерево не собирает.
@@ -60,11 +62,13 @@ export function CheckoutPage() {
       onSuccess: (response) => {
         if (response.status !== 200) return;
         setStale(null);
+        setClosed(false);
         setSubmitted((response.data as PortalDraftCreated).draftId);
         void queryClient.invalidateQueries({ queryKey: getGetPortalCartQueryKey() });
       },
       onError: (error) => {
         const info = (error as { info?: CartStaleResponse }).info;
+        setClosed(info?.code === 'TENANT_INTAKE_CLOSED');
         if (info?.code === 'CART_STALE') {
           setStale(info);
           // Корзина в теле отказа — уже пересчитанная: кладём её в кеш,
@@ -119,6 +123,16 @@ export function CheckoutPage() {
         className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-6"
       >
         <div className="flex min-w-0 flex-col gap-3">
+          {closed && (
+            <div
+              role="alert"
+              className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-unclear/30 bg-unclear/8 p-4"
+            >
+              <p className="font-medium text-ink">{t('checkout.closed.title')}</p>
+              <p className="text-sm text-ink-muted">{t('checkout.closed.note')}</p>
+            </div>
+          )}
+
           {stale && (
             <div
               role="alert"

@@ -84,6 +84,26 @@ describe('оформление заявки', () => {
     expect(screen.queryByText(/заявка отправлена/i)).not.toBeInTheDocument();
   });
 
+  /** Приостановленный поставщик: причина названа, корзина не пропадает. */
+  it('поставщик на паузе — причина названа, заявка не создаётся', async () => {
+    stubFetch([
+      get('/api/portal/cart', cartWith()),
+      get('/api/portal/delivery', pickupOnly),
+      method('POST', '/api/portal/orders', {
+        code: 'TENANT_INTAKE_CLOSED',
+        detail: 'Поставщик временно не принимает заявки.',
+      }, 409),
+    ]);
+
+    renderScreen(<CheckoutPage />);
+    await waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('12 500'));
+    await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
+
+    expect(await screen.findByText(/временно не принимает заявки/i)).toBeInTheDocument();
+    expect(screen.getByText(/корзина сохранена/i)).toBeInTheDocument();
+    expect(screen.queryByText(/заявка отправлена/i)).not.toBeInTheDocument();
+  });
+
   it('позиция, снятая с продажи, названа отдельным списком', async () => {
     stubFetch([
       get('/api/portal/cart', cartWith({
