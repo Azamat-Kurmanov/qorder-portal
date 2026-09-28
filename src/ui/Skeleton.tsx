@@ -26,7 +26,7 @@ export function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
         // Полоса света шириной в четверть — в градиенте, растянутом вдвое
         // шире блока: двигается не элемент, а положение фона, и заглушка
         // не перерисовывает раскладку соседей.
-        'bg-[linear-gradient(100deg,var(--color-sunk)_38%,#FFFFFF_52%,var(--color-sunk)_66%)]',
+        'bg-[linear-gradient(100deg,var(--color-sunk)_38%,var(--color-surface)_52%,var(--color-sunk)_66%)]',
         'bg-[length:220%_100%]',
         className,
       )}

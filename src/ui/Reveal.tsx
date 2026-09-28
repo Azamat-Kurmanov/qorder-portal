@@ -1,5 +1,5 @@
-import { motion, useReducedMotion } from 'motion/react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { cn } from './cn';
 
 /**
  * Появление при скролле.
@@ -13,16 +13,19 @@ import type { ReactNode } from 'react';
  * на стол». Больше брать нельзя — карточка начнёт выглядеть надвигающейся
  * на читателя.
  *
- * `useReducedMotion` — не украшение: требования велят уважать настройку
- * системы, и у человека, которого движение укачивает, карточки обязаны
- * просто появиться.
+ * Настройка «меньше движения» — не украшение: требования велят уважать
+ * настройку системы, и у человека, которого движение укачивает, карточки
+ * обязаны просто появиться. Это делает правило `.qo-reveal` в index.css.
  */
 export function Reveal({
   children,
   delay = 0,
   index,
+  className,
 }: {
   children: ReactNode;
+  /** Класс обёртки — место в сетке (`col-span-2`), которое иначе некому нести. */
+  className?: string;
   delay?: number;
   /**
    * Место в списке — вместо задержки, посчитанной на каждом экране заново.
@@ -38,20 +41,39 @@ export function Reveal({
    */
   index?: number;
 }) {
-  const reduced = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
 
-  if (reduced) return <>{children}</>;
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setShown(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShown(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '-40px' },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   const start = index === undefined ? delay : Math.min(index, 5) * 0.04;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: '-40px' }}
-      transition={{ duration: 0.34, ease: [0.22, 0.61, 0.36, 1], delay: start }}
+    <div
+      ref={ref}
+      className={cn('qo-reveal', className)}
+      data-shown={shown || undefined}
+      style={start ? { transitionDelay: `${start}s` } : undefined}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }

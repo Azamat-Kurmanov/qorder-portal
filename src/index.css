@@ -1,6 +1,17 @@
 @import "tailwindcss";
 
 /*
+ * `dark:` — по признаку темы на корне, а не по настройке системы.
+ *
+ * Тему выбирает покупатель переключателем, а по умолчанию — продавец
+ * в «Дизайне кабинета клиента» (src/ui/theme.ts). Системная настройка
+ * тут ни при чём: магазин «Ночь» тёмный и у того, у кого система светлая.
+ * Почти всё перекрашивается токенами ниже; `dark:` — для редких мест,
+ * где нужен не другой цвет, а другое решение (приглушить заглушку снимка).
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
  * Токены кабинета — направление A «тёплая бумага» из дизайн-канвы.
  *
  * Объявлены переменными, а не вписаны в утилиты: смена палитры (например,
@@ -10,29 +21,154 @@
  * значения в квадратных скобках.
  */
 @theme {
-  --color-canvas: #F2EFE9;
+  /*
+   * Нейтрали — из макета «Кабинет клиента — новый дизайн»: тёплая бумага,
+   * почти чёрные чернила и две линии. `hairline` отделяет карточку от бумаги,
+   * `line` — обводка поля и кнопки: у элемента, в который нажимают, граница
+   * обязана читаться увереннее, чем у листа, который просто лежит.
+   */
+  --color-canvas: #F5F2EC;
   --color-surface: #FFFFFF;
-  --color-sunk: #FAF8F5;
-  --color-hairline: #E3DFD7;
-  --color-ink: #17181B;
-  --color-ink-muted: #5B6069;
-  --color-ink-subtle: #7A7F88;
-  --color-ink-faint: #9A9EA6;
+  --color-sunk: #FAF8F4;
+  --color-hairline: #ECE6DC;
+  --color-line: #E2DBD0;
+  --color-ink: #1A1917;
+  --color-ink-muted: #5C5A55;
+  --color-ink-subtle: #6F6B64;
+  /* Не светлее 4,5:1 на бумаге: этим цветом набраны подсказки полей и даты. */
+  --color-ink-faint: #736E65;
+  /*
+   * Акцент — фирменный цвет поставщика. Здесь стоит цвет платформы; выбравший
+   * свой поставщик перекрывает всю семью (src/supplier/supplierTheme.ts).
+   * `ink` — тот же цвет, притемнённый для текста на мягкой подложке,
+   * `hover` — заливка кнопки под курсором.
+   */
   --color-accent: #A8450A;
-  --color-accent-soft: #FCEFE3;
+  /* Верх заливки главной кнопки: тот же акцент, чуть светлее. */
+  --color-accent-top: #B25B27;
+  --color-accent-soft: #F3E5DD;
+  --color-accent-ink: #833608;
+  --color-accent-hover: #8A3908;
+  /*
+   * Надпись на заливке акцентом и чернилами. Своими токенами, а не `white`:
+   * в тёмной теме акцент и чернила светлые, и белая надпись на них пропала бы.
+   */
+  --color-on-accent: #FFFFFF;
+  --color-on-ink: #FFFFFF;
+  /*
+   * Надпись на фирменной полосе, баннере (`on-brand`) и на фирменном цвете
+   * шаблона (`on-shop`). Белая по умолчанию; для светлого фирменного цвета
+   * (жёлтый, мятный) src/supplier/supplierTheme.ts ставит тёмную.
+   */
+  --color-on-brand: #FFFFFF;
+  --color-on-shop: #FFFFFF;
+  /*
+   * Фирменная полоса шапки. В светлой теме это сам акцент, в тёмной — цвет,
+   * притушенный панелью: акцент там светлый, а подписи на полосе белые.
+   */
+  --color-strip: var(--color-accent);
+  /*
+   * Фирменная заливка баннеров и распродажи. Днём — сам фирменный цвет,
+   * ночью — он же, притушенный панелью (формула макета:
+   * banner = light ? brand : mix(brand, #1B1C1F, .35)): светлый акцент
+   * тёмной темы под белыми буквами баннера не читается.
+   */
+  --color-banner: var(--color-accent);
+  /*
+   * Цвета характера шаблона (src/supplier/supplierTheme.ts, `styleTokens`):
+   * фирменный цвет как есть (`shop`), второй цвет шаблона и текст на нём,
+   * фирменный, уведённый в глубину, и он же, почти растворённый в подложке.
+   * Здесь — значения от цвета платформы и «Классики», на случай экранов
+   * без опубликованного дизайна.
+   */
+  --color-shop: #A8450A;
+  --color-accent2: #D5963A;
+  --color-accent2-ink: #16171A;
+  --color-brand-deep: #763007;
+  --color-glow: #EDDCD0;
   --color-in-stock: #2E7D4F;
   --color-unclear: #C2820A;
+  /* Текст «уточняется» — тот же янтарь, притемнённый до 4,5:1: сам `unclear` годится только для заливок и значков. */
+  --color-unclear-ink: #8A5A00;
   --color-gone: #A32219;
+  /*
+   * Скидка — свой тёплый оранжевый, а не акцент: акцент — цвет магазина,
+   * и у магазина в оранжевых тонах цена со скидкой слилась бы с кнопкой.
+   * `ink` — текст выгоды, `soft` и `line` — подложка «Оптом дешевле».
+   */
+  --color-sale: #C2410C;
+  --color-sale-ink: #9A3412;
+  --color-sale-soft: #FCEBDD;
+  --color-sale-line: #F4DCC8;
+  --color-sale-text: #5C3A22;
+  /*
+   * Товары 21+: винный, а не цвет скидки или ошибки — это ограничение,
+   * а не выгода и не поломка. Тёмный, чтобы белое «21+» читалось.
+   */
+  --color-adult: #8A2433;
+  /* Главная распродажа — тёмная плита с тёплым светлым текстом, как в макете. */
+  --color-night: #1A1917;
+  --color-night-sub: #D9D2C6;
+  --color-ok-soft: #E4F3E8;
+  --color-ok-ink: #166534;
+  --color-sage-soft: #E4ECE3;
   --color-brand: #4C5DD4;
 
   --color-brand-soft: #EDEFFB;
 
-  --font-sans: 'Golos Text', 'Inter Variable', system-ui, sans-serif;
+  /*
+   * Полоса под фирменной строкой шапки: фирменный цвет, почти растворённый
+   * в белом, и линия под ней. Своими токенами, а не бумагой и поверхностью
+   * напрямую: поставщик тонирует шапку фирменным цветом
+   * (src/supplier/supplierTheme.ts), и перекрашивать ради этого всю бумагу
+   * и все карточки нельзя. Здесь — те же формулы от цвета платформы.
+   */
+  --color-bar: #F9F2EE;
+  --color-bar-wide: #F9F2EE;
+  --color-bar-line: #ECD6C9;
 
-  --radius-control: 10px;
-  --radius-tile: 12px;
-  --radius-card: 16px;
-  --radius-gallery: 18px;
+  /*
+   * Шкала текста — пять ступеней, которыми набрано почти всё в кабинете.
+   * В rem, а не в точках: переключатель «Aa» меняет размер корня, и текст,
+   * набранный точками, оставался мелким у того, кто просил крупный.
+   * `2xs` — метки и счётчики, `caption` — подписи и даты, `body` — основной
+   * текст строк и карточек, `lead` — крупный текст, `title` — заголовок блока.
+   */
+  --text-2xs: 0.6875rem;
+  --text-caption: 0.8125rem;
+  --text-body: 0.9375rem;
+  --text-lead: 1.0625rem;
+  --text-title: 1.375rem;
+
+  --font-sans: 'Onest Variable', 'Inter Variable', system-ui, sans-serif;
+  /*
+   * Заголовки и артикулы — своими шрифтами: шаблон кабинета может поставить
+   * заголовкам засечки («Бутик», «Журнал»), а артикулам — моноширинный,
+   * чтобы коды в таблице стояли ровным столбцом. Без шаблона заголовки
+   * набраны тем же шрифтом, что и текст.
+   */
+  --font-heading: var(--font-sans);
+  /*
+   * Моноширинный — системный стек. IBM Plex Mono ставит только шаблон,
+   * у которого моноширинный указан шрифтом («Техно», src/supplier/supplierTheme.ts):
+   * у остальных артикулы набраны тем же системным шрифтом, что и раньше.
+   */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-control: 14px;
+  --radius-tile: 16px;
+  --radius-card: 22px;
+  --radius-gallery: 24px;
+  /*
+   * Малое скругление шаблона (знак магазина, поле поиска и кнопки шапки
+   * в макете) и скругление «пилюль» — чипов, бейджей, счётчиков.
+   * Без шаблона и у шаблонов с крупным радиусом пилюля остаётся пилюлей;
+   * у «Минимала», «Бутика», «Склада» она следует шаблону — прямые углы
+   * среди круглых чипов выглядели бы чужими (формула макета:
+   * pill = radius >= 12 ? 18px : rs).
+   */
+  --radius-small: 7px;
+  --radius-pill: 9999px;
 
   /*
    * Тени — токенами, а не числами по месту.
@@ -94,15 +230,82 @@
  * прилипших колонок.
  */
 :root {
-  --header-h: 4.25rem;
+  --header-h: 8.75rem;
+  /*
+   * Множитель размера интерфейса от шаблона продавца («Крупный» — 1,18).
+   * Умножает ступени покупателя, а не заменяет их: крупный шрифт, выбранный
+   * человеком, остаётся крупнее шаблонного.
+   */
+  --ui-scale: 1;
+  /*
+   * Край и тень карточек. Шаблон выбирает одно из трёх — линия, тень или
+   * ничего (src/supplier/supplierTheme.ts); без шаблона карточка, как
+   * и раньше, лежит на бумаге с линией и мягкой тенью.
+   */
+  --card-border: var(--color-hairline);
+  --card-border-hover: var(--color-line);
+  --card-shadow: var(--shadow-soft);
+  --card-shadow-hover: var(--shadow-lift);
 }
 
-@font-face {
-  font-family: 'Golos Text';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: local('Golos Text');
+/*
+ * Тёмная тема — те же токены, другие значения.
+ *
+ * Панель, линии и текст — из макета «Дизайн кабинета клиента»: панель
+ * #1B1C1F, линия #2C2E33, текст #ECEAE4, приглушённый #A3A7AE. Акцентная
+ * семья посчитана по тем же формулам, что и у поставщика
+ * (`darkTokens` в src/supplier/supplierTheme.ts), от цвета платформы:
+ * кнопка — цвет, разбавленный белым наполовину, с тёмной надписью.
+ * Выбравший свой цвет поставщик перекрывает семью своей таблицей стилей.
+ *
+ * Цвета состояний (скидка, наличие, ошибка) светлее своих дневных версий:
+ * тёмно-оранжевая цена на почти чёрном фоне не читается.
+ */
+html[data-theme='dark'] {
+  color-scheme: dark;
+  --color-canvas: #0F1012;
+  --color-surface: #1B1C1F;
+  --color-sunk: #16171A;
+  --color-hairline: #2C2E33;
+  --color-line: #3A3C42;
+  --color-ink: #ECEAE4;
+  --color-ink-muted: #A3A7AE;
+  --color-ink-subtle: #8F949B;
+  --color-ink-faint: #8A8F96;
+  --color-accent: #D4A285;
+  --color-accent-top: #D9AD94;
+  --color-accent-soft: #512C17;
+  --color-accent-ink: #E5C7B6;
+  --color-accent-hover: #DCB39B;
+  --color-on-accent: #141414;
+  --color-on-ink: #141414;
+  --color-strip: #773711;
+  --color-banner: #773711;
+  --color-in-stock: #5DBB82;
+  --color-unclear: #E0A04A;
+  --color-unclear-ink: #E0A04A;
+  --color-gone: #F0776C;
+  --color-sale: #E8692A;
+  --color-sale-ink: #F5A574;
+  --color-sale-soft: #3A2217;
+  --color-sale-line: #5A3321;
+  --color-sale-text: #F2CBAE;
+  --color-adult: #A8364A;
+  --color-night: #26272C;
+  --color-night-sub: #D9D2C6;
+  --color-ok-soft: #173323;
+  --color-ok-ink: #86D6A0;
+  --color-sage-soft: #1F2A22;
+  --color-brand: #8C98F0;
+  --color-brand-soft: #262A4D;
+  --color-bar: #29201D;
+  --color-bar-wide: #29201D;
+  --color-bar-line: #45332B;
+  /* Тени на чёрной бумаге — чёрные и гуще: тёплая коричневая там не видна. */
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 3px 10px -6px rgb(0 0 0 / 0.5);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.3), 0 14px 30px -16px rgb(0 0 0 / 0.7);
+  --shadow-float: 0 6px 16px -6px rgb(0 0 0 / 0.45), 0 28px 56px -28px rgb(0 0 0 / 0.8);
+  --shadow-accent: 0 4px 10px -4px rgb(0 0 0 / 0.5), 0 14px 28px -14px rgb(168 69 10 / 0.45);
 }
 
 html, body, #root { height: 100%; }
@@ -123,9 +326,126 @@ html, body, #root { height: 100%; }
  * Шаги не круглые проценты, а точки: 16 → 18 → 20,5. Круглые давали дробные
  * высоты у всего разом, и волосяные линии разъезжались на полпикселя.
  */
-html { font-size: 16px; }
-html[data-font-scale='large'] { font-size: 18px; }
-html[data-font-scale='huge'] { font-size: 20.5px; }
+html { font-size: calc(16px * var(--ui-scale)); }
+html[data-font-scale='large'] { font-size: calc(18px * var(--ui-scale)); }
+html[data-font-scale='huge'] { font-size: calc(20.5px * var(--ui-scale)); }
+
+/*
+ * Поле на телефоне — не мельче 16 точек: iOS Safari увеличивает страницу,
+ * когда фокус попадает в поле с кеглем меньше, и закупщик остаётся
+ * с экраном, съехавшим вбок. Правило вне слоёв — перекрывает утилиты
+ * `text-sm`/`text-[13px]` у полей, не трогая их на мониторе.
+ */
+@media (max-width: 1023.98px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']), textarea, select {
+    font-size: max(16px, 1rem);
+  }
+}
+
+/*
+ * Заголовки экранов — шрифтом заголовков шаблона. Правилом основы, а не
+ * классом на каждом `h1`: заголовков в кабинете три десятка, и забытый
+ * один выбивался бы из шаблона «Бутик» прямым шрифтом среди засечек.
+ */
+@layer base {
+  h1, h2 { font-family: var(--font-heading); }
+
+  /*
+   * Курсор на кнопках — общим правилом: Tailwind 4 снял `cursor: pointer`
+   * с кнопок, и «рука» была только там, где её не забыли. Отключённая
+   * кнопка — запрет: нажатие ничего не сделает, и это видно заранее.
+   * В слое base — утилиты на месте (`cursor-zoom-in`) его перекрывают.
+   */
+  button:not(:disabled), [role='button']:not([aria-disabled='true']), summary, select:not(:disabled) { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+}
+
+/*
+ * Карточка и плитка товара — краем и тенью из токенов шаблона.
+ *
+ * Классом в слое компонентов, а не утилитами: две тени (своя и линия-край)
+ * складываются в одно значение, и утилитами его не собрать без длинного
+ * произвольного значения. Слой — чтобы утилиты на месте (`shadow-none`)
+ * по-прежнему могли его перекрыть.
+ */
+@layer components {
+  .qo-card {
+    border: 1px solid var(--card-border);
+    box-shadow: var(--card-shadow);
+  }
+  .qo-card-hover:hover {
+    border-color: var(--card-border-hover);
+    box-shadow: var(--card-shadow-hover);
+  }
+  .qo-tile {
+    box-shadow: var(--card-shadow), 0 0 0 1px var(--card-border);
+    transition: box-shadow 300ms;
+  }
+  .qo-tile:hover {
+    box-shadow: var(--card-shadow-hover), 0 0 0 1px var(--card-border-hover);
+  }
+  /*
+   * Подложка кабинета с фактурой шаблона — точки, сетка, штрих или
+   * подсветка (`--canvas-bg`, src/supplier/supplierTheme.ts). Без шаблона
+   * токена нет, и остаётся ровная бумага.
+   */
+  .qo-canvas {
+    background: var(--canvas-bg, var(--color-canvas));
+  }
+  /*
+   * Заголовок в манере шаблона: гарнитура, насыщенность, разрядка и
+   * регистр. Для крупных надписей вне `h1–h3` — баннеров, колонки магазина.
+   */
+  .qo-heading {
+    font-family: var(--font-heading);
+    font-weight: var(--heading-weight, 800);
+    letter-spacing: var(--heading-tracking, -0.02em);
+    text-transform: var(--heading-case, none);
+  }
+  /* Матовое стекло макета: светлое днём, едва заметное ночью. */
+  .qo-glass {
+    background: rgb(255 255 255 / 0.62);
+    border: 1px solid rgb(255 255 255 / 0.85);
+    backdrop-filter: blur(16px);
+  }
+  html[data-theme='dark'] .qo-glass {
+    background: rgb(255 255 255 / 0.07);
+    border-color: rgb(255 255 255 / 0.14);
+  }
+  /*
+   * Стекло без размытия — для плиток на ровной бумаге: размывать под ними
+   * нечего, а сорок восемь размытий на витрине тормозят прокрутку телефона.
+   */
+  .qo-glass-still { backdrop-filter: none; }
+
+  /*
+   * Цель под палец не меньше 44 точек при прежнем виде: мелкая по макету
+   * кнопка (сердечко 30 точек, круглый «+» 36) получает невидимую площадку
+   * вокруг себя. В слое компонентов — `absolute` из утилит перекрывает
+   * `relative`, и кнопке на снимке место не сбивается.
+   */
+  /* Заголовок экрана — один на все разделы, а не копия классов в каждом. */
+  .qo-page-title {
+    font-size: 1.625rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+  }
+  @media (min-width: 64rem) {
+    .qo-page-title { font-size: 2.125rem; }
+  }
+
+  .qo-hit { position: relative; }
+  .qo-hit::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
 
 body {
   margin: 0;
@@ -164,6 +484,13 @@ body::before {
   animation: var(--animate-glow);
 }
 
+/* Ночью тёплый свет не нужен: едва заметные холодные пятна, чтобы чёрное не было плоским. */
+html[data-theme='dark'] body::before {
+  background:
+    radial-gradient(72rem 40rem at 8% -10%, rgb(255 255 255 / 0.035), transparent 60%),
+    radial-gradient(48rem 32rem at 50% 108%, rgb(140 152 240 / 0.04), transparent 60%);
+}
+
 /*
  * Движение выдвижных листов.
  *
@@ -195,9 +522,19 @@ body::before {
  * анимации: положение покоя задано разметкой, и не начавшееся движение
  * оставляет окно ровно посередине, а не в паре сантиметров выше.
  */
+/*
+ * Только сдвиг вниз и масштаб, без центрирующих −50 %: центрирует окно
+ * разметка свойством `translate` (так его пишет Tailwind 4), а `transform`
+ * складывается с ним — прежние −50 % в кадрах уводили окно на полэкрана
+ * влево-вверх, и 200 мс оно стояло не на месте.
+ */
 @keyframes qo-dialog-in {
-  from { opacity: 0; transform: translate(-50%, -46%) scale(0.98); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  from { opacity: 0; transform: translateY(4%) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes qo-dialog-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateY(2%) scale(0.98); }
 }
 
 .qo-sheet[data-side='bottom'][data-state='open']   { animation: qo-sheet-in-bottom  300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
@@ -207,6 +544,24 @@ body::before {
 .qo-scrim[data-state='open']   { animation: qo-scrim-in  200ms ease-out; }
 .qo-scrim[data-state='closed'] { animation: qo-scrim-out 200ms ease-out; }
 .qo-dialog[data-state='open']  { animation: qo-dialog-in 200ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+/* Уход — быстрее прихода и вместе с затемнением: окно, пропавшее мгновенно
+   при ещё гаснущем фоне, выглядело сбоем. */
+.qo-dialog[data-state='closed'] { animation: qo-dialog-out 150ms ease-in; }
+
+/* Выдвижная корзина: въезжает справа на ширину своего отступа, а не на весь экран. */
+/* Полоска времени слайда карусели: растёт масштабом, а не шириной — без пересчёта раскладки. */
+@keyframes qo-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.qo-progress { transform-origin: left; animation: qo-progress linear forwards; }
+
+@keyframes qo-drawer-in { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+@keyframes qo-drawer-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(40px); } }
+.qo-drawer[data-state='open'] { animation: qo-drawer-in 300ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.qo-drawer[data-state='closed'] { animation: qo-drawer-out 200ms ease-in; }
+/* На телефоне корзина — нижний лист: и въезжает, и уходит снизу. */
+@media (max-width: 639.98px) {
+  .qo-drawer[data-state='open'] { animation: qo-sheet-in-bottom 300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+  .qo-drawer[data-state='closed'] { animation: qo-sheet-out-bottom 250ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+}
 
 /*
  * Ожидание в форме будущего содержимого.
@@ -317,6 +672,17 @@ body::before {
 }
 
 /*
+ * Появление при скролле (`ui/Reveal.tsx`): снизу, проявляясь и дорастая
+ * до своего размера. Кривая и длительность — те же, что были у библиотеки.
+ */
+.qo-reveal {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+  transition: opacity 340ms cubic-bezier(0.22, 0.61, 0.36, 1), transform 340ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.qo-reveal[data-shown] { opacity: 1; transform: none; }
+
+/*
  * Движение уважает настройку системы: этого требуют от всех
  * экранов продукта, и появление карточек при скролле — не исключение.
  */
@@ -339,8 +705,14 @@ body::before {
     animation: none !important;
   }
 
+  /* Блик заглушки без движения стоял бы светлой полосой на половине снимка. */
+  .animate-sheen { display: none; }
+
   /* Блик по кнопке при наведении — движение ради красоты, и в первую
      очередь убирается именно оно. */
   .qo-shine::after { display: none; }
+
+  /* Карточке незачем ждать скролла: она просто стоит на месте. */
+  .qo-reveal { opacity: 1; transform: none; transition: none; }
 }
 

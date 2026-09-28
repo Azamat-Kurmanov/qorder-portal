@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../ui/Button';
 import { cn } from '../../ui/cn';
-import { useGetPortalCatalog } from '../../api/generated';
-import { useSetCartLine } from '../cart/useCart';
+import { useGetPortalCatalog, type ItemSaleTerms } from '../../api/generated';
+import { useAddToCart } from '../cart/ageGate';
+import { fitQuantity } from '../cart/saleTerms';
 
 /**
  * Быстрый ввод: одно поле с автоподбором.
@@ -19,9 +20,11 @@ import { useSetCartLine } from '../cart/useCart';
 export function QuickInput() {
   const { t } = useTranslation();
   const [text, setText] = useState('');
-  const [chosen, setChosen] = useState<{ id: string; name: string } | null>(null);
-  const [quantity, setQuantity] = useState<number | string>('');
-  const setLine = useSetCartLine();
+  const [chosen, setChosen] = useState<{ id: string; name: string; terms?: ItemSaleTerms } | null>(null);
+  // Одна — по умолчанию, как в макете: чаще всего берут штуку, и пустое
+  // поле заставляло бы набирать «1» перед каждым «Добавить».
+  const [quantity, setQuantity] = useState<number | string>(1);
+  const { add: addToCart } = useAddToCart();
 
   const suggestions = useGetPortalCatalog(
     { query: text.trim(), page: 0, size: 10 },
@@ -35,10 +38,12 @@ export function QuickInput() {
   const add = () => {
     const amount = typeof quantity === 'number' ? quantity : Number(quantity);
     if (!chosen || !Number.isFinite(amount) || amount <= 0) return;
-    setLine.mutate({ itemId: chosen.id, data: { quantity: amount } });
+    // Те же условия, что у кнопки на витрине: 21+ — после вопроса о возрасте,
+    // количество — поднятым до минимума и кратности продавца.
+    void addToCart(chosen, fitQuantity(amount, chosen.terms));
     setText('');
     setChosen(null);
-    setQuantity('');
+    setQuantity(1);
   };
 
   return (
@@ -60,7 +65,7 @@ export function QuickInput() {
             const value = event.currentTarget.value;
             setText(value);
             const found = items.find((item) => item.name === value);
-            setChosen(found ? { id: found.id, name: found.name } : null);
+            setChosen(found ? { id: found.id, name: found.name, terms: found.terms } : null);
           }}
           className={FIELD}
         />
@@ -92,7 +97,7 @@ export function QuickInput() {
 
 const FIELD = cn(
   'h-11 w-full rounded-[var(--radius-control)] border border-hairline bg-surface px-3',
-  'text-[15px] text-ink placeholder:text-ink-faint',
-  'transition-all duration-300 focus:border-ink/30 focus:outline-none focus:ring-2 focus:ring-brand/30',
+  'text-body text-ink placeholder:text-ink-faint',
+  'transition-[border-color,box-shadow] duration-150 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent',
   '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none',
 );

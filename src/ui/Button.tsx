@@ -39,42 +39,34 @@ const button = cva(
         /* Чернила: главное действие экрана, у которого нет денежного веса, —
            «Оформить», «Сохранить», «Отправить». */
         primary:
-          'qo-shine bg-ink text-white shadow-soft hover:bg-ink/90 hover:shadow-lift hover:-translate-y-0.5',
+          'qo-shine bg-ink text-on-ink shadow-soft hover:bg-ink/90 hover:shadow-lift hover:-translate-y-0.5',
         /*
-         * Терракота: действие, которым дело заканчивается, — «Оформить
-         * заявку» и «В корзину» на карточке товара.
+         * Цвет магазина: действие, ради которого человек пришёл, —
+         * «В корзину», «Оформить заявку», «Отправить продавцу».
          *
-         * Заливка градиентом, а не плоским цветом: плоская терракота на
-         * кремовой бумаге выглядит наклейкой, а градиент от светлого к
-         * тёмному сверху вниз читается как выпуклая клавиша. Тень под ней
-         * своего цвета (`shadow-accent`): серая тень под тёплой заливкой —
-         * это грязь, а не тень.
-         *
-         * Достаётся ОДНОМУ действию на экране, и это не вкусовое ограничение.
-         * На витрине «В корзину» повторяется полсотни раз — залей их
-         * терракотой, и главным окажется весь экран сразу, то есть ничто.
-         * Там у той же кнопки мягкий вариант (`soft`): он из той же тёплой
-         * семьи, но не спорит с ценой за первый взгляд.
+         * Сплошной заливкой, как в макете кабинета клиента: цвет выбирает
+         * поставщик, и градиент поверх чужого цвета то темнил бы светлые
+         * тона, то размазывал тёмные. Под курсором заливка темнеет
+         * (`accent-hover`), тень — своего цвета, а не серая.
          */
         accent:
-          'qo-shine bg-[linear-gradient(180deg,#C05411_0%,#A8450A_100%)] text-white ' +
-          'shadow-accent hover:-translate-y-0.5 hover:brightness-110',
-        outline: 'border border-ink bg-transparent text-ink hover:bg-ink/5 hover:border-ink',
-        soft: 'bg-accent-soft text-accent hover:bg-accent-soft/70 hover:shadow-soft',
+          'qo-shine bg-accent font-bold text-on-accent hover:bg-accent-hover hover:shadow-accent',
+        outline: 'border-[1.5px] border-line bg-surface font-semibold text-ink hover:border-ink',
+        soft: 'bg-accent-soft font-semibold text-accent-ink hover:brightness-[0.97] hover:shadow-soft',
         ghost: 'text-ink-muted hover:bg-ink/5',
       },
       size: {
         md: 'h-11 rounded-[var(--radius-control)] px-5 text-sm',
-        lg: 'h-13 rounded-[var(--radius-card)] px-6 text-base',
+        lg: 'h-13 rounded-[var(--radius-tile)] px-6 text-base',
         /*
          * Размер для действия, которое ищут глазами, а не читают: «В корзину»
          * на карточке товара, «Оформить заявку» в панели итога. Пятьдесят
          * шесть точек — это не «крупнее ради красоты», а цель, в которую
          * попадают не глядя, на ходу и одной рукой.
          */
-        xl: 'h-14 rounded-[var(--radius-card)] px-7 text-[1.0625rem]',
+        xl: 'h-14 rounded-[var(--radius-tile)] px-7 text-[1.0625rem]',
         icon: 'size-11 rounded-[var(--radius-control)]',
-        chip: 'h-9 rounded-full px-4 text-[0.8125rem]',
+        chip: 'h-9 rounded-[var(--radius-pill)] px-4 text-[0.8125rem]',
       },
     },
     defaultVariants: { variant: 'primary', size: 'md' },

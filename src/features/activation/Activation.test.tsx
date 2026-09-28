@@ -253,7 +253,7 @@ describe('активация приглашения', () => {
     const before = calls.filter((call) => call.url.includes('/consent-notice')).length;
 
     await userEvent.click(screen.getByRole('button', { name: /Язык интерфейса/ }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'ҚАЗ' }));
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: 'Қазақша' }));
 
     // Уведомление приходит на языке заголовка, и вместе с согласием на сервер
     // уходит редакция документа: показать казахский экран с русским текстом

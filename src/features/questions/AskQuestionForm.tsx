@@ -6,6 +6,7 @@ import { getGetPortalQuestionsQueryKey, useAskPortalQuestion } from '../../api/g
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { cn } from '../../ui/cn';
+import { sendOnEnter } from '../../ui/sendOnEnter';
 
 /**
  * Вопрос продавцу — прямо из карточки товара.
@@ -18,10 +19,22 @@ import { cn } from '../../ui/cn';
  * в отдельную вкладку переписки — здесь остаётся только подтверждение: разговор
  * ведут там, где он весь целиком, а не в карточке одной позиции.
  */
-export function AskQuestionForm({ itemId, itemName }: { itemId?: string; itemName?: string }) {
+export function AskQuestionForm({
+  itemId,
+  itemName,
+  startOpened = false,
+  onClose,
+}: {
+  itemId?: string;
+  itemName?: string;
+  /** Открыть поле сразу: кнопку вопроса держит вызывающий (карточка товара). */
+  startOpened?: boolean;
+  /** Закрыть форму отменой — вызывающий убирает её сам. */
+  onClose?: () => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [opened, setOpened] = useState(false);
+  const [opened, setOpened] = useState(startOpened);
   const [text, setText] = useState('');
   const [sent, setSent] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -45,10 +58,16 @@ export function AskQuestionForm({ itemId, itemName }: { itemId?: string; itemNam
     },
   });
 
+  const send = () => {
+    const question = text.trim();
+    if (question.length === 0 || ask.isPending) return;
+    ask.mutate({ data: { itemId, text: question } });
+  };
+
   if (sent) {
     return (
-      <Card className="flex flex-col gap-1 p-4">
-        <p className="text-[15px] text-ink">{t('questions.sent')}</p>
+      <Card role="status" className="flex flex-col gap-1 p-4">
+        <p className="text-body text-ink">{t('questions.sent')}</p>
         <p className="text-sm text-ink-subtle">
           {t('questions.answerWhere')}
         </p>
@@ -57,6 +76,7 @@ export function AskQuestionForm({ itemId, itemName }: { itemId?: string; itemNam
   }
 
   if (!opened) {
+    if (onClose) return null;
     return (
       <Button type="button" variant="outline" className="self-start" onClick={() => setOpened(true)}>
         {t('questions.ask')}
@@ -74,11 +94,12 @@ export function AskQuestionForm({ itemId, itemName }: { itemId?: string; itemNam
           rows={3}
           maxLength={rules.AskQuestionRequest.text.maxLength}
           onChange={(event) => setText(event.currentTarget.value)}
+          onKeyDown={sendOnEnter(send)}
           placeholder={itemName ? t('questions.aboutItem', { name: itemName }) : t('questions.questionPlaceholder')}
           className={cn(
             'w-full resize-y rounded-[var(--radius-control)] border border-hairline bg-surface',
-            'p-3 text-[15px] text-ink placeholder:text-ink-faint',
-            'transition-all duration-300 focus:border-ink/30 focus:outline-none focus:ring-2 focus:ring-brand/30',
+            'p-3 text-body text-ink placeholder:text-ink-faint',
+            'transition-[border-color,box-shadow] duration-150 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent',
           )}
         />
       </label>
@@ -93,11 +114,11 @@ export function AskQuestionForm({ itemId, itemName }: { itemId?: string; itemNam
         <Button
           type="button"
           disabled={text.trim().length === 0 || ask.isPending}
-          onClick={() => ask.mutate({ data: { itemId, text: text.trim() } })}
+          onClick={send}
         >
           {t('questions.send')}
         </Button>
-        <Button type="button" variant="ghost" onClick={() => setOpened(false)}>
+        <Button type="button" variant="ghost" onClick={() => (onClose ? onClose() : setOpened(false))}>
           {t('questions.cancel')}
         </Button>
       </div>

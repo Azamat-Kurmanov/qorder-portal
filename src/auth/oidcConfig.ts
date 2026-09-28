@@ -1,3 +1,4 @@
+import { getConfig } from '../config';
 import { UserManager, WebStorageStateStore, type StateStore } from 'oidc-client-ts';
 
 /** Куда вести клиента, если адрес начала входа неизвестен. */
@@ -7,7 +8,7 @@ export const DEFAULT_RETURN_TO = '/catalog';
 export const CALLBACK_PATH = '/callback';
 
 /** Куда Keycloak возвращает браузер после выхода. */
-export const POST_LOGOUT_PATH = '/';
+const POST_LOGOUT_PATH = '/';
 
 /**
  * Хранилище пользователя в памяти вкладки.
@@ -95,14 +96,14 @@ export function getUserManager(viewer: Viewer = currentViewer()): UserManager {
   if (existing) return existing;
 
   const realm = viewer === 'staff'
-    ? import.meta.env.VITE_KEYCLOAK_STAFF_REALM
-    : import.meta.env.VITE_KEYCLOAK_REALM;
+    ? getConfig().KEYCLOAK_STAFF_REALM
+    : getConfig().KEYCLOAK_REALM;
   const clientId = viewer === 'staff'
-    ? import.meta.env.VITE_KEYCLOAK_STAFF_CLIENT_ID
-    : import.meta.env.VITE_KEYCLOAK_CLIENT_ID;
+    ? getConfig().KEYCLOAK_STAFF_CLIENT_ID
+    : getConfig().KEYCLOAK_CLIENT_ID;
 
   const manager = new UserManager({
-    authority: `${import.meta.env.VITE_KEYCLOAK_URL}/realms/${realm}`,
+    authority: `${getConfig().KEYCLOAK_URL}/realms/${realm}`,
     client_id: clientId,
     redirect_uri: `${window.location.origin}${CALLBACK_PATH}`,
     post_logout_redirect_uri: `${window.location.origin}${POST_LOGOUT_PATH}`,
@@ -123,7 +124,7 @@ export function getUserManager(viewer: Viewer = currentViewer()): UserManager {
  * браузер считает абсолютным адресом, а обратный слэш для http(s) равен
  * прямому, поэтому строка разбирается тем же парсером, что и в браузере.
  */
-export function returnToOf(state: unknown): string {
+function returnToOf(state: unknown): string {
   const returnTo = (state as { returnTo?: unknown } | null | undefined)?.returnTo;
   if (typeof returnTo !== 'string' || !returnTo.startsWith('/')) return DEFAULT_RETURN_TO;
 

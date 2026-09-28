@@ -3,9 +3,12 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Method, PickupPoint } from '../../api/generated';
 import { slotLabel, useDeliveryOptions } from '../cart/DeliveryBlock';
-import { tenge } from '../../shared/format';
+import { money } from '../../shared/format';
+import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
+import type { Currency } from '../../shared/currency';
 import { Card } from '../../ui/Card';
 import { Reveal } from '../../ui/Reveal';
+import { loadersTerms } from '../cart/loaders';
 
 /**
  * Условия доставки поставщика — отдельным разделом, а не сноской в оформлении.
@@ -41,7 +44,7 @@ export function DeliveryInfoPage() {
   return (
     <div className="flex flex-col gap-4 pb-20">
       <header className="flex flex-col gap-1">
-        <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">
+        <h1 className="qo-page-title">
           {t('delivery.title')}
         </h1>
         {/*
@@ -49,7 +52,7 @@ export function DeliveryInfoPage() {
           и меняет когда захочет. Даты, на которую условия верны, в ответе
           сервера нет, и выдумывать её нельзя: она читалась бы как гарантия.
         */}
-        <p className="text-[13px] text-ink-subtle">{t('delivery.terms')}</p>
+        <p className="text-caption text-ink-subtle">{t('delivery.terms')}</p>
       </header>
 
       {/*
@@ -69,7 +72,7 @@ export function DeliveryInfoPage() {
         ) : (
           <CircleCheck className="size-5 shrink-0 text-in-stock" aria-hidden="true" />
         )}
-        <p className={pickupOnly ? 'text-[15px] font-medium text-ink' : 'text-[15px] font-medium text-in-stock'}>
+        <p className={pickupOnly ? 'text-body font-medium text-ink' : 'text-body font-medium text-in-stock'}>
           {pickupOnly ? t('delivery.pickupOnly') : t('delivery.delivers')}
         </p>
       </div>
@@ -77,7 +80,7 @@ export function DeliveryInfoPage() {
       {delivery.methods.length > 0 && (
         <Reveal>
           <Card className="overflow-hidden p-0">
-            <h2 className="border-b border-hairline px-3.5 py-3 text-[13px] font-semibold text-ink-muted">
+            <h2 className="border-b border-hairline px-3.5 py-3 text-caption font-semibold text-ink-muted">
               {t('delivery.methods')}
             </h2>
             <ul className="divide-y divide-hairline">
@@ -94,7 +97,7 @@ export function DeliveryInfoPage() {
       {delivery.pickupPoints.length > 0 && (
         <Reveal delay={0.04}>
           <Card className="overflow-hidden p-0">
-            <h2 className="border-b border-hairline px-3.5 py-3 text-[13px] font-semibold text-ink-muted">
+            <h2 className="border-b border-hairline px-3.5 py-3 text-caption font-semibold text-ink-muted">
               {t('delivery.pickup')}
             </h2>
             <ul className="divide-y divide-hairline">
@@ -109,12 +112,12 @@ export function DeliveryInfoPage() {
       )}
 
       {pickupOnly && delivery.pickupPoints.length === 0 && (
-        <p className="text-[15px] text-ink-subtle">
+        <p className="text-body text-ink-subtle">
           {t('delivery.noPoints')}
         </p>
       )}
 
-      <p className="text-[12px] leading-relaxed text-ink-subtle">
+      <p className="text-[0.75rem] leading-relaxed text-ink-subtle">
         {t('delivery.note')}
       </p>
     </div>
@@ -123,22 +126,23 @@ export function DeliveryInfoPage() {
 
 function MethodRow({ method }: { method: Method }) {
   const { t } = useTranslation();
-  const terms = termsOf(method, t);
+  const currency = useSupplierCurrency();
+  const terms = termsOf(method, t, currency);
 
   return (
     <div className="flex flex-col gap-2 p-3.5">
       <div className="flex items-baseline justify-between gap-4">
-        <span className="text-[15px] font-medium text-ink">{method.name}</span>
+        <span className="text-body font-medium text-ink">{method.name}</span>
         <span
           data-testid={`method-price-${method.id}`}
-          className="shrink-0 text-[15px] font-semibold tabular-nums text-ink"
+          className="shrink-0 text-body font-semibold tabular-nums text-ink"
         >
-          {priceOf(method, t)}
+          {priceOf(method, t, currency)}
         </span>
       </div>
 
       {terms && (
-        <p data-testid={`method-terms-${method.id}`} className="text-[12px] leading-[1.45] text-ink-subtle">
+        <p data-testid={`method-terms-${method.id}`} className="text-[0.75rem] leading-[1.45] text-ink-subtle">
           {terms}
         </p>
       )}
@@ -151,12 +155,12 @@ function PickupRow({ point }: { point: PickupPoint }) {
     <div className="flex gap-3 p-3.5">
       <MapPin className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden="true" />
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-[15px] font-medium text-ink">{point.name}</span>
+        <span className="text-body font-medium text-ink">{point.name}</span>
         {/*
           Адрес и часы одной строкой: по ним приезжают вместе, и разнесённые
           по разным строкам они читаются как два разных сведения.
         */}
-        <span className="text-[12px] leading-[1.45] text-ink-subtle">
+        <span className="text-[0.75rem] leading-[1.45] text-ink-subtle">
           {point.address}
           {point.workingHours ? ` · ${point.workingHours}` : ''}
         </span>
@@ -168,17 +172,17 @@ function PickupRow({ point }: { point: PickupPoint }) {
 /**
  * Цена способа в одну строку справа.
  *
- * Договорная цена не выдумывается нулём: «0 ₸» клиент прочитал бы
+ * Договорная цена не выдумывается нулём: «0 тенге» клиент прочитал бы
  * как бесплатно, а потом получил бы счёт. Цена по зонам называется «от»
  * — назови её точной, и клиент из дальней зоны посчитал бы её обещанием.
  */
-function priceOf(method: Method, t: TFunction): string {
+function priceOf(method: Method, t: TFunction, currency: Currency | undefined): string {
   if (method.negotiable) return t('delivery.negotiable');
-  if (method.price != null) return tenge(method.price);
+  if (method.price != null) return money(method.price, currency);
 
   const zonePrices = method.zones.map((zone) => zone.price).filter((price) => price != null);
   if (zonePrices.length > 0) {
-    return t('delivery.priceFrom', { amount: tenge(Math.min(...zonePrices)) });
+    return t('delivery.priceFrom', { amount: money(Math.min(...zonePrices), currency) });
   }
 
   return t('delivery.unset');
@@ -191,19 +195,19 @@ function priceOf(method: Method, t: TFunction): string {
  * а не после: они решают, стоит ли добрать до порога и получится ли принять
  * машину. Пустые части выпадают — «бесплатно от —» хуже, чем ничего.
  */
-function termsOf(method: Method, t: TFunction): string {
+function termsOf(method: Method, t: TFunction, currency: Currency | undefined): string {
   const parts: string[] = [];
 
   if (method.zones.length > 0) {
     parts.push(
       method.zones
-        .map((zone) => `${zone.name} ${zone.price != null ? tenge(zone.price) : '—'}`)
+        .map((zone) => `${zone.name} ${zone.price != null ? money(zone.price, currency) : '—'}`)
         .join(', '),
     );
   }
 
   if (method.freeFromAmount != null && !method.negotiable) {
-    parts.push(t('delivery.freeFrom', { amount: tenge(method.freeFromAmount) }));
+    parts.push(t('delivery.freeFrom', { amount: money(method.freeFromAmount, currency) }));
   }
 
   if (method.slots.length > 0) {
@@ -221,6 +225,9 @@ function termsOf(method: Method, t: TFunction): string {
   ].filter(Boolean);
   if (asked.length > 0) parts.push(t('delivery.willAsk', { list: asked.join(', ') }));
 
+  // Грузчики — часть условий: их обдумывают до заказа, а не при отправке.
+  const loaders = loadersTerms(method.loaders, t, currency);
+  if (loaders) parts.push(loaders);
   if (method.negotiable) parts.push(t('delivery.priceLater'));
 
   return parts.join(' · ');

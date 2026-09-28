@@ -4,6 +4,7 @@ import { rules } from '../../api/rules.generated';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetPortalQuestionsQueryKey, useAskPortalQuestion } from '../../api/generated';
 import { cn } from '../../ui/cn';
+import { sendOnEnter } from '../../ui/sendOnEnter';
 
 /**
  * Поле сообщения внизу переписки.
@@ -74,6 +75,7 @@ export function MessageComposer() {
           maxLength={rules.AskQuestionRequest.text.maxLength}
           aria-label={t('questions.message')}
           placeholder={t('questions.writeMessage')}
+          onKeyDown={sendOnEnter(send)}
           onChange={(event) => {
             setText(event.currentTarget.value);
             // Поле растёт под текст: вопрос в три строки, набираемый в щель
@@ -82,9 +84,9 @@ export function MessageComposer() {
             event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 128)}px`;
           }}
           className={cn(
-            'min-h-12 flex-1 resize-none rounded-[14px] border border-hairline bg-surface',
-            'px-3.5 py-3 text-[14px] leading-[1.45] text-ink placeholder:text-ink-faint',
-            'transition-all duration-300 focus:border-ink/30 focus:outline-none focus:ring-2 focus:ring-brand/30',
+            'min-h-12 flex-1 resize-none rounded-[var(--radius-control)] border border-hairline bg-surface',
+            'px-3.5 py-3 text-[0.875rem] leading-[1.45] text-ink placeholder:text-ink-faint',
+            'transition-[border-color,box-shadow] duration-150 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent',
           )}
         />
 
@@ -94,8 +96,8 @@ export function MessageComposer() {
           disabled={text.trim().length === 0 || ask.isPending}
           onClick={send}
           className={cn(
-            'inline-flex size-12 shrink-0 items-center justify-center rounded-[14px]',
-            'bg-ink text-white transition-all duration-300 active:scale-95 hover:bg-ink/90',
+            'inline-flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-control)]',
+            'bg-ink text-on-ink transition-all duration-300 active:scale-95 hover:bg-ink/90',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
             'disabled:pointer-events-none disabled:opacity-40',
           )}

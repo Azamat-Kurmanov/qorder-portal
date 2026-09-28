@@ -1,39 +1,7 @@
 import { cn } from '../../ui/cn';
 import { Img } from '../../ui/Img';
 import { useTranslation } from 'react-i18next';
-
-/**
- * Тёплые пары для заполнителя.
- *
- * Единственные сырые цвета в кабинете — и умышленно не токены: токен объявляет
- * смысл («в наличии», «чернила», «акцент»), а здесь смысла нет, это заглушка
- * на месте снимка. Завести их палитрой значило бы объявить семью цветов,
- * которой в системе не существует, и однажды покрасить ими что-то живое.
- * Взяты прямо из макета — там все снимки нарисованы такими градиентами.
- */
-const PLACEHOLDERS: readonly (readonly [string, string])[] = [
-  ['#D9D2C6', '#B9AE9C'],
-  ['#E7DFCF', '#CBBFA6'],
-  ['#DCD3C2', '#A8997F'],
-  ['#DED6C8', '#B3A793'],
-  ['#D8D8D2', '#A5A59C'],
-  ['#E2DACB', '#BDB09A'],
-  ['#D5DCD8', '#9FB0A8'],
-];
-
-/**
- * Заполнитель выбирается по идентификатору, а не случайно.
- *
- * Случайный менялся бы на каждый ответ сервера — от поиска, от переключения
- * рубрики, от нажатия на сердечко, — и список мигал бы разными пятнами под
- * пальцем. Сумма кодов достаточна: нужен постоянный выбор из семи, а не
- * равномерное распределение.
- */
-function placeholderOf(itemId: string): readonly [string, string] {
-  let sum = 0;
-  for (let index = 0; index < itemId.length; index += 1) sum += itemId.charCodeAt(index);
-  return PLACEHOLDERS[sum % PLACEHOLDERS.length];
-}
+import { placeholderOf } from '../../ui/thumbPlaceholder';
 
 /**
  * Слот под снимок позиции.
@@ -100,18 +68,25 @@ export function ItemThumb({
           )}
         />
       ) : (
-        /*
+        <>
+        {/*
+          Ночью бежевый заполнитель приглушён полупрозрачной бумагой: светлое
+          пятно на месте каждого снимка превращало бы тёмную витрину в шахматку.
+        */}
+        <span aria-hidden="true" className="absolute inset-0 hidden bg-canvas/60 dark:block" />
+        {/*
           Волна света поверх градиента: узкая светлая полоса, наклонённая
           и уезжающая слева направо. Отдельным слоем, а не в самом градиенте, —
           иначе её нельзя было бы двигать, не перерисовывая заполнитель.
-        */
+        */}
         <span
           aria-hidden="true"
           className={cn(
             'animate-sheen pointer-events-none absolute -inset-y-1/4 left-0 w-1/2',
-            'bg-[linear-gradient(100deg,transparent,rgb(255_255_255/0.7),transparent)]',
+            'bg-[linear-gradient(100deg,transparent,rgb(255_255_255/0.7),transparent)] dark:opacity-20',
           )}
         />
+        </>
       )}
 
       {/*
@@ -122,8 +97,8 @@ export function ItemThumb({
       {video && (
         <span
           className={cn(
-            'absolute bottom-2 left-2 inline-flex h-6 items-center gap-1.5 rounded-full',
-            'bg-ink/70 px-2 text-[0.6875rem] text-white backdrop-blur-sm',
+            'absolute bottom-2 left-2 inline-flex h-6 items-center gap-1.5 rounded-[var(--radius-pill)]',
+            'bg-black/60 px-2 text-[0.6875rem] text-white backdrop-blur-sm',
           )}
         >
           <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="size-[0.6875rem]">

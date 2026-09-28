@@ -14,6 +14,7 @@ import {
   type ItemReviewDto,
   type ItemReviewDtoStatus,
 } from '../../api/generated';
+import { currentViewer } from '../../auth/oidcConfig';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Reveal } from '../../ui/Reveal';
@@ -39,8 +40,8 @@ export function MyReviewsPage() {
   return (
     <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5">
       <header className="flex flex-col gap-0.5">
-        <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">{t('reviews.title')}</h1>
-        <p className="text-[13px] text-ink-subtle">{t('reviews.subtitle')}</p>
+        <h1 className="qo-page-title">{t('reviews.title')}</h1>
+        <p className="text-caption text-ink-subtle">{t('reviews.subtitle')}</p>
       </header>
 
       <AwaitingBlock />
@@ -51,7 +52,7 @@ export function MyReviewsPage() {
           className="h-24 animate-pulse rounded-[var(--radius-card)] border border-hairline bg-sunk"
         />
       ) : list.length === 0 ? (
-        <p className="text-[15px] leading-relaxed text-ink-subtle">
+        <p className="text-body leading-relaxed text-ink-subtle">
           {t('reviews.empty')}
         </p>
       ) : (
@@ -209,7 +210,7 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
           <span className="text-sm text-ink-faint">{t('reviews.gone')}</span>
         )}
         <span className="text-sm text-ink-faint">{shortDate(review.createdAt)}</span>
-        <span className="rounded-full bg-sunk px-2 py-0.5 text-[13px] text-unclear">
+        <span className="rounded-[var(--radius-pill)] bg-sunk px-2 py-0.5 text-caption text-unclear-ink">
           {STATUS_KEY[review.status] ? t(STATUS_KEY[review.status]) : review.status}
         </span>
       </div>
@@ -219,6 +220,7 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
           itemId={review.itemId}
           initialRating={review.rating}
           initialText={review.text ?? ''}
+          initialPhotos={review.photos ?? []}
           submitLabel={t('reviews.save')}
           // Правленый отзыв возвращается на модерацию на сервере, и человек,
           // у которого одобренный отзыв вдруг стал ожидающим, иначе решит,
@@ -232,12 +234,12 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
         />
       ) : (
         <>
-          {review.text && <p className="text-[15px] leading-relaxed text-ink">{review.text}</p>}
+          {review.text && <p className="text-body leading-relaxed text-ink">{review.text}</p>}
 
           {review.reply && (
             <div className="mt-1 rounded-[var(--radius-control)] border-l-2 border-accent bg-sunk p-3">
-              <p className="text-[13px] font-medium text-ink-muted">{t('reviews.sellerAnswer')}</p>
-              <p className="mt-1 text-[15px] leading-relaxed text-ink">{review.reply}</p>
+              <p className="text-caption font-medium text-ink-muted">{t('reviews.sellerAnswer')}</p>
+              <p className="mt-1 text-body leading-relaxed text-ink">{review.reply}</p>
             </div>
           )}
 
@@ -247,6 +249,8 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
             </p>
           )}
 
+          {/* Сотрудник магазина отзывы не правит и не удаляет — сервер ему откажет. */}
+          {currentViewer() !== 'staff' && (
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
@@ -283,6 +287,7 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
               </Button>
             )}
           </div>
+          )}
         </>
       )}
     </Card>

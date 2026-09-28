@@ -1,0 +1,16 @@
+# Browser-visible configuration. Set public URLs and enable HTTPRoute when domains are ready.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qorder-portal-config-preprod
+  namespace: qorder-preprod
+data:
+  TZ: "Asia/Almaty"
+  APP_API_URL: ""
+  NGINX_API_UPSTREAM: "http://qorder.qorder-preprod.svc.cluster.local:5000"
+  APP_KEYCLOAK_URL: "http://auth-preprod.q-order.kz"
+  APP_KEYCLOAK_REALM: "q-order-customers"
+  APP_KEYCLOAK_CLIENT_ID: "q-order-portal"
+  APP_KEYCLOAK_STAFF_REALM: "q-order"
+  APP_KEYCLOAK_STAFF_CLIENT_ID: "q-order-portal-staff"
+  APP_WEB_URL: "http://app-preprod.q-order.kz"

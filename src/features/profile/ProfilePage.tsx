@@ -5,6 +5,7 @@ import { useGetPortalSuppliers, useGetPortalUnreadSummary } from '../../api/gene
 import { useSupplier } from '../../supplier/useSupplier';
 import { useAuth } from '../../auth/useAuth';
 import { ConsentsBlock } from './ConsentsBlock';
+import { ShopTile } from '../shell/Shops';
 
 /**
  * Профиль: с кем клиент работает и как переключиться.
@@ -26,7 +27,7 @@ export function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">{t('profile.title')}</h1>
+      <h1 className="qo-page-title">{t('profile.title')}</h1>
 
       {list.length === 0 && (
         <p className="text-ink-subtle">{t('profile.empty')}</p>
@@ -39,12 +40,13 @@ export function ProfilePage() {
           <Card
             key={supplier.supplierId}
             data-testid="supplier-row"
-            className="flex items-center justify-between gap-3 p-4"
+            className="flex items-center gap-3 p-4"
           >
-            <div className="flex min-w-0 flex-col items-start gap-1">
-              <span className="font-medium text-ink">{supplier.name}</span>
+            <ShopTile supplier={supplier} className="size-11 text-lg" />
+            <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+              <span className="text-base font-bold text-ink">{supplier.name}</span>
               {supplier.supplierId === supplierId && (
-                <span className="inline-flex h-6 items-center rounded-full border border-accent/30 bg-accent-soft px-2 text-xs font-medium text-accent">
+                <span className="inline-flex h-6 items-center rounded-[var(--radius-pill)] bg-accent-soft px-2.5 text-xs font-bold text-accent-ink">
                   {t('profile.selected')}
                 </span>
               )}
@@ -60,7 +62,7 @@ export function ProfilePage() {
               <span
                 role="img"
                 aria-label={t('profile.unread', { count: unread })}
-                className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-semibold text-surface"
+                className="inline-flex h-6 min-w-6 items-center justify-center rounded-[var(--radius-pill)] bg-accent px-1.5 text-xs font-semibold text-on-accent"
               >
                 {unread}
               </span>

@@ -1,4 +1,6 @@
 import { beforeEach } from 'vitest';
+import { resetShopMemory } from '../supplier/shopMemory';
+import { resetCartDrawer } from '../features/cart/cartDrawer';
 import { configure } from '@testing-library/dom';
 import i18n from '../i18n';
 import '@testing-library/jest-dom/vitest';
@@ -43,6 +45,16 @@ void i18n.changeLanguage('ru');
 beforeEach(async () => {
   if (i18n.resolvedLanguage !== 'ru') await i18n.changeLanguage('ru');
   window.localStorage.setItem('q-order.portal.language-chosen', 'ru');
+  // Закреплённые и недавние магазины живут в хранилище модуля: без сброса
+  // звёздочка, поставленная одной проверкой, досталась бы следующей.
+  resetCartDrawer();
+  resetShopMemory();
+  // Тема живёт признаком на корне страницы и в хранилище, а корень в jsdom
+  // переживает границу проверки: тёмная тема одной не должна достаться другой.
+  window.localStorage.removeItem('q-order.portal.theme');
+  window.localStorage.removeItem('q-order.portal.theme-default');
+  delete document.documentElement.dataset.theme;
+  document.documentElement.style.colorScheme = '';
 });
 
 /**

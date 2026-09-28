@@ -29,7 +29,28 @@ import { cn } from '../../ui/cn';
  * Выбор запоминается и применяется до первой отрисовки следующего захода —
  * скриптом в `index.html`. Здесь же он применяется сразу, без перезагрузки.
  */
-export function FontScalePicker({ className }: { className?: string }) {
+export function FontScalePicker({
+  className,
+  onBrand = false,
+  boxed = false,
+  compact = false,
+  strip = false,
+}: {
+  className?: string;
+  /**
+   * В строке статуса над шапкой шаблона, как в макете: «Aa Обычный шрифт» —
+   * значок и ступень словами, низкая кнопка цветом строки.
+   */
+  strip?: boolean;
+  /** Один значок, без подписи, — в шапке шаблона продавца. */
+  compact?: boolean;
+  onBrand?: boolean;
+  /**
+   * Квадратная кнопка «Аа» с обводкой — в строке поиска телефона, как в макете.
+   * Стоит у правого края, поэтому и меню открывается вправо-налево.
+   */
+  boxed?: boolean;
+}) {
   const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
   const [scale, setScale] = useState<FontScale>(currentFontScale);
@@ -81,25 +102,37 @@ export function FontScalePicker({ className }: { className?: string }) {
           Названа словами и называет текущую ступень: значок «Аа» сам по себе
           экранный диктор прочитал бы как обрывок текста, а человек с мышью
           не понял бы, крупный у него сейчас шрифт или обычный.
+          В строке статуса имя повторяет видимую подпись целиком — «Обычный
+          шрифт», — чтобы голосом кнопку звали тем, что на ней написано.
         */
-        aria-label={`${t('fontScale.label')}: ${t(`fontScale.${scale}`)}`}
+        aria-label={`${t('fontScale.label')}: ${t(strip ? `fontScale.button.${scale}` : `fontScale.${scale}`)}`}
         aria-expanded={opened}
         aria-haspopup="menu"
         onClick={() => setOpened((open) => !open)}
         className={cn(
           'inline-flex h-11 items-center gap-2 rounded-[var(--radius-control)] px-3',
-          'text-sm font-medium text-ink-muted transition-all duration-300 ease-out',
-          'hover:bg-ink/5 active:scale-95',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+          'text-sm font-medium transition-all duration-300 ease-out active:scale-95',
+          'focus-visible:outline-none focus-visible:ring-2',
           // Выбранная не обычная ступень видна и в закрытом виде: иначе
           // человек, у которого кабинет уже крупный, ищет, чем его вернуть.
-          scale !== 'normal' && 'bg-accent-soft text-accent',
+          // На фирменной полосе шапки — белым по цвету поставщика.
+          boxed && 'size-13 justify-center rounded-[16px] border-2 border-bar-line bg-surface px-0 text-ink',
+          strip
+            ? cn('h-7 gap-1.5 rounded-[var(--radius-small)] px-2 text-caption font-semibold text-accent-ink',
+              'hover:bg-accent/10 focus-visible:ring-accent', opened && 'bg-accent/10')
+            : onBrand
+            ? cn('h-10 text-on-brand hover:bg-on-brand/15 focus-visible:ring-on-brand',
+              scale !== 'normal' && 'bg-on-brand text-strip hover:bg-on-brand')
+            : cn('text-ink-muted hover:bg-ink/5 focus-visible:ring-brand',
+              scale !== 'normal' && 'bg-accent-soft text-accent'),
         )}
       >
-        <ALargeSmall className="size-5 shrink-0" aria-hidden="true" />
+        <ALargeSmall className={cn('shrink-0', strip ? 'size-4' : 'size-5')} aria-hidden="true" />
+        {/* В строке статуса — «Обычный шрифт»: одно «Обычный» там не сказало бы, о чём речь. */}
+        {strip && <span>{t(`fontScale.button.${scale}`)}</span>}
         {/* Подпись — только там, где есть ширина. В выдвижном меню и в шапке
             монитора она есть; сам значок при этом остаётся узнаваемым. */}
-        <span className="hidden sm:inline">{t(`fontScale.${scale}`)}</span>
+        {!boxed && !compact && !strip && <span className="hidden sm:inline">{t(`fontScale.${scale}`)}</span>}
       </button>
 
       {opened && (
@@ -111,7 +144,7 @@ export function FontScalePicker({ className }: { className?: string }) {
             'rounded-[var(--radius-tile)] border border-hairline bg-surface p-1 shadow-float',
             // На мониторе переключатель стоит у правого края шапки, и меню,
             // выехавшее вправо, ушло бы за край окна.
-            'lg:left-auto lg:right-0',
+            boxed || compact || strip ? 'left-auto right-0' : 'lg:left-auto lg:right-0',
           )}
         >
           {FONT_SCALES.map((step) => (

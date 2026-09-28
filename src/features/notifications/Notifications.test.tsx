@@ -43,9 +43,9 @@ describe('уведомления кабинета', () => {
 
     // Число — на кнопке: значок без счётчика не отличает «ничего нового»
     // от «два пересогласования».
-    expect(await screen.findByRole('button', { name: 'Уведомления: 2' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Уведомления: 2 новых' })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Уведомления: 2' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Уведомления: 2 новых' }));
 
     // Повод назван словами, а не кодом: RENEGOTIATION клиенту ничего не говорит.
     expect(await screen.findByText(/продавец изменил заявку/i)).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe('уведомления кабинета', () => {
 
     renderScreen(<NotificationsBell />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 1' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 1 новое' }));
     await userEvent.click(await screen.findByRole('link', { name: /продавец изменил заявку/i }));
 
     await waitFor(() => {
@@ -92,7 +92,7 @@ describe('уведомления кабинета', () => {
     await screen.findByTestId('summary-total');
     const summaryCallsBefore = calls.filter((call) => call.url.includes('/notifications/summary')).length;
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 1' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 1 новое' }));
     await userEvent.click(await screen.findByRole('link', { name: /продавец изменил заявку/i }));
 
     await waitFor(() => {
@@ -129,7 +129,7 @@ describe('куда ведёт плашка', () => {
 
     renderScreen(<NotificationsBell />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 2' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 2 новых' }));
 
     expect(await screen.findByRole('link', { name: /продавец ответил на вопрос/i }))
       .toHaveAttribute('href', '/questions');

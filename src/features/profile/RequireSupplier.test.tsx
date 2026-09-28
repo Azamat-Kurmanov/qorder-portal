@@ -56,3 +56,63 @@ describe('кабинет без поставщиков', () => {
     await waitFor(() => expect(currentSupplierId()).toBeNull());
   });
 });
+
+/**
+ * Сохранённый поставщик, которому сервер отказывает.
+ *
+ * Живой случай: выбор остался от прежнего входа — клиентом или в чужой
+ * магазин, — и сервер отвечает 403 уже на сам список, потому что заголовок
+ * `X-Supplier-Id` уходит и с ним. Пустого списка, по которому выбор
+ * забывается, тут не будет. Проверка при этом пускала внутрь, экран внутри
+ * перезапрашивал упавший список, проверка снова уходила в ожидание и снимала
+ * экран — и так без конца: кабинет висел на «Смотрим, с кем вы работаете…».
+ */
+describe('сервер отказывает сохранённому поставщику', () => {
+  afterEach(() => {
+    setCurrentSupplierId(null);
+    vi.unstubAllGlobals();
+  });
+
+  const forbidden = { status: 403, code: 'SUPPLIER_FORBIDDEN', detail: 'Поставщик недоступен' };
+
+  /** Список: отказ, пока уходит чужой заголовок, и настоящий ответ без него. */
+  function suppliersRule(list: unknown[]) {
+    const refused = () => currentSupplierId() === 'supplier-foreign';
+    return {
+      match: (url: string, init?: RequestInit) => url.includes('/api/portal/suppliers')
+        && (init?.method ?? 'GET') === 'GET',
+      get status() { return refused() ? 403 : 200; },
+      get body() { return refused() ? forbidden : list; },
+    };
+  }
+
+  it('забывает отвергнутый выбор и берёт единственного поставщика', async () => {
+    setCurrentSupplierId('supplier-foreign');
+    stubFetch([
+      get('/api/portal/notifications/summary', []),
+      suppliersRule([{ supplierId: 'supplier-own', name: 'Свой магазин' }]),
+    ]);
+
+    renderWithRealSupplier(
+      <RequireSupplier><p>Витрина</p></RequireSupplier>,
+    );
+
+    expect(await screen.findByText('Витрина')).toBeInTheDocument();
+    expect(currentSupplierId()).toBe('supplier-own');
+  });
+
+  it('при сбое списка не пускает на экран', async () => {
+    stubFetch([
+      get('/api/portal/notifications/summary', []),
+      get('/api/portal/suppliers', { status: 500 }, 500),
+    ]);
+    const Screen = vi.fn(() => <p>Витрина</p>);
+
+    renderWithRealSupplier(
+      <RequireSupplier><Screen /></RequireSupplier>,
+    );
+
+    expect(await screen.findByText('Не удалось узнать, с кем вы работаете. Обновите страницу.')).toBeInTheDocument();
+    expect(Screen).not.toHaveBeenCalled();
+  });
+});

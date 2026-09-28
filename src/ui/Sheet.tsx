@@ -60,7 +60,7 @@ export function Sheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="qo-scrim fixed inset-0 z-40 bg-ink/40" />
+        <Dialog.Overlay className="qo-scrim fixed inset-0 z-40 bg-ink/40 dark:bg-black/60" />
 
         <Dialog.Content
           aria-describedby={undefined}

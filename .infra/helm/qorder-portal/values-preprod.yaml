@@ -1,0 +1,6 @@
+configMap:
+  name: qorder-portal-config-preprod
+httpRoute:
+  enabled: true
+  hostnames:
+    - portal-preprod.q-order.kz

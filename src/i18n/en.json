@@ -4,10 +4,9 @@
   },
   "common": {
     "retry": "Try again",
-    "loading": "Loading",
     "positions_one": "item",
     "positions_other": "items",
-    "appTitle": "Customer account"
+    "loadFailed": "Couldn't load. Check your internet connection."
   },
   "language": {
     "label": "Interface language",
@@ -28,19 +27,39 @@
     "label": "Text size",
     "normal": "Normal",
     "large": "Large",
-    "huge": "Extra large"
+    "huge": "Extra large",
+    "button": {
+      "normal": "Normal text",
+      "large": "Large text",
+      "huge": "Extra large text"
+    }
+  },
+  "theme": {
+    "label": "Dark theme",
+    "dark": "Dark",
+    "light": "Light"
   },
   "shell": {
+    "occasion": {
+      "NEW_YEAR": "Happy New Year!",
+      "MARCH_8": "Happy March 8!",
+      "NAURYZ": "Happy Nauryz!",
+      "RAMADAN": "Blessed Ramadan!",
+      "SUMMER": "Summer season in the shop",
+      "BACK_TO_SCHOOL": "Back to school — all for study",
+      "BLACK_FRIDAY": "Black Friday in the shop"
+    },
     "sections": {
       "catalog": "Catalogue",
       "favorites": "Favourites",
-      "checkout": "Checkout",
+      "checkout": "Basket",
       "orders": "My requests",
       "templates": "Purchase templates",
       "questions": "Questions to seller",
       "reviews": "My reviews",
       "delivery": "Delivery and pickup",
-      "profile": "Suppliers"
+      "profile": "Suppliers",
+      "promotions": "Offers"
     },
     "sectionsTitle": "Sections",
     "menu": "Menu",
@@ -49,13 +68,14 @@
     "supplier": "Supplier",
     "supplierChoose": "choose",
     "search": "Search the catalogue",
-    "searchPlaceholder": "What do you need? Cement, for example",
+    "searchPlaceholder": "Find a product — name, SKU or brand",
     "logo": "Q-Order, to the catalogue",
-    "cart": "Request",
+    "cart": "Basket",
     "orders": "My requests",
     "profile": "Profile",
     "othersHaveNews": "Other suppliers have news",
     "unread": "Unread: {{count}}",
+    "favoritesCount": "In favourites: {{count}}",
     "staffBanner": {
       "title": "Your own account, opened for a check",
       "note": "Requests sent from here are marked as test ones and are left out of channel metrics",
@@ -65,7 +85,32 @@
       "erase": "Remove test actions",
       "toWorkplace": "To the workplace"
     },
-    "activationBanner": "The account is not open yet. Ask your supplier for an activation link and open it — the catalogue and requests will appear right after that."
+    "activationBanner": "The account is not open yet. Ask your supplier for an activation link and open it — the catalogue and requests will appear right after that.",
+    "more": "More",
+    "less": "Less",
+    "bottomNav": "Main menu",
+    "tabs": {
+      "catalog": "Catalogue",
+      "promotions": "Deals",
+      "checkout": "Basket",
+      "orders": "Requests",
+      "favorites": "Favourites",
+      "more": "More"
+    },
+    "inCart_one": "{{count}} item in basket",
+    "inCart_other": "{{count}} items in basket",
+    "help": {
+      "title": "Need help?",
+      "note": "Write to the seller — they will reply right here in your account.",
+      "noteCall": "Call us — we'll help you choose and place the request.",
+      "action": "Ask a question"
+    },
+    "deals_one": "{{count}} discounted item",
+    "deals_other": "{{count}} discounted items",
+    "switchShop": "Switch shop · {{count}}",
+    "youAreIn": "You are in",
+    "closedNote": "Closed today — orders are accepted and will be processed on the next working day",
+    "closedShort": "Closed today · orders accepted"
   },
   "auth": {
     "appName": "Customer account",
@@ -89,6 +134,7 @@
     "switch": "Go to",
     "unread": "Unread: {{count}}",
     "looking": "Checking who you work with…",
+    "failed": "Couldn't find out who you work with. Please reload the page.",
     "logout": "Sign out",
     "consents": {
       "title": "Personal data consents",
@@ -102,7 +148,8 @@
   },
   "notifications": {
     "title": "Notifications",
-    "withCount": "Notifications: {{count}}",
+    "withCount_one": "Notifications: {{count}} new",
+    "withCount_other": "Notifications: {{count}} new",
     "empty": "No news.",
     "reasons": {
       "RENEGOTIATION": "The seller changed the request — see what is different",
@@ -121,7 +168,6 @@
     },
     "title": "Sign in to the account",
     "note": "A supplier has invited you: the account holds their catalogue with prices and takes your requests. The invitation is single-use and valid for a limited time.",
-    "signInFirst": "If you already have a cabinet, sign in — the invitation will be accepted from your account.",
     "signIn": "Sign in",
     "signedInAs": "The invitation must be issued for this number.",
     "signedInPrefix": "You are signed in as",
@@ -139,9 +185,13 @@
   },
   "cart": {
     "sheetTitle": "Basket",
-    "panelTitle": "Request",
+    "panelTitle": "Basket",
+    "goodsPieces": "Products, {{amount}} pcs",
+    "vatRate": "incl. VAT {{rate}}%",
+    "vatIncluded": "incl. VAT",
+    "noVat": "VAT not charged",
     "empty": "The basket is empty. Pick items in the catalogue.",
-    "panelEmpty": "Empty so far. Add items from the catalogue — the total will be counted here.",
+    "panelEmpty": "Press “Add to basket” under a product — it will show up here.",
     "notAdded": "Not added",
     "chooseReplacement": "Pick a replacement in the catalogue.",
     "total": "Total",
@@ -150,34 +200,75 @@
     "less": "Less",
     "more": "More",
     "priceChanged": "The price has changed: was {{was}}, now {{now}}",
-    "pricePerUnit": "{{price}} per {{unit}}"
+    "pricePerUnit": "{{price}} per {{unit}}",
+    "clear": "Clear",
+    "removeLine": "Remove {{name}}",
+    "goods_one": "{{count}} product",
+    "goods_other": "{{count}} products",
+    "panelEmptyTitle": "Your basket is empty",
+    "positionsInOrder_one": "{{count}} item in the request",
+    "positionsInOrder_other": "{{count}} items in the request",
+    "inCartShort_one": "{{count}} item in basket",
+    "inCartShort_other": "{{count}} items in basket",
+    "payLater": "No need to pay now. The seller will check availability and confirm the request.",
+    "tier": {
+      "more": "{{amount}} more",
+      "andMore": "— and it will be {{percent}}%.",
+      "andFirst": "— and get {{percent}}% off the whole order."
+    },
+    "discount": {
+      "VOLUME": "Volume discount −{{percent}}%",
+      "FIRST_ORDER": "First order discount −{{percent}}%",
+      "retailOnly": "single-piece items only"
+    },
+    "saved": "You save",
+    "adult": "The order has 21+ items. Show an ID at pickup.",
+    "close": "Close the basket",
+    "continue": "Continue shopping",
+    "toCatalog": "Go to the catalogue",
+    "added": "Added: {{name}}",
+    "open": "Open the basket",
+    "failed": "The cart didn't change. Check your connection and try again",
+    "removed": "Removed: {{name}}",
+    "undo": "Undo",
+    "wholesale": {
+      "pack": "{{amount}} each",
+      "hint": "Add {{amount}} more — {{packs}} at {{price}}, you save {{saving}}",
+      "packWord": "pack"
+    }
   },
   "checkout": {
-    "title": "Checkout",
+    "title": "Place your request",
     "sent": {
       "title": "The request has been sent",
-      "note": "The supplier will check stock and prices and come back with an answer. While the check is under way the request is already with them — there is no need to repeat it.",
-      "toCatalog": "To the catalogue"
+      "note": "The seller will check availability and reply. You can follow the request in “My requests” — no need to send it again.",
+      "toCatalog": "Back to the catalogue",
+      "toOrders": "View my requests"
     },
     "changed": {
       "title": "The contents have changed",
       "note": "Check the prices and stock: the request is not sent until you accept the changes."
     },
-    "comment": "Comment for the supplier",
-    "commentPlaceholder": "For example: unload at the second entrance, call an hour ahead",
+    "comment": "Notes for the seller",
+    "commentPlaceholder": "For example: I will collect on Saturday morning, call an hour before",
     "summary": {
-      "title": "Summary",
+      "title": "Your request",
       "goods": "Goods",
       "delivery": "Delivery",
-      "toPay": "To pay",
+      "toPay": "Total",
       "negotiable": "by arrangement",
-      "shippingNote": "The supplier will add the delivery cost during the check."
+      "shippingNote": "The supplier will add the delivery cost during the check.",
+      "loaders": "Loaders",
+      "loadersDirect": "Loaders — paid directly: {{amount}}",
+      "loadersLater": "the seller will confirm",
+      "goodsCount_one": "Products, {{count}} item",
+      "goodsCount_other": "Products, {{count}} items"
     },
     "sending": "Sending…",
-    "send": "Send the request",
+    "send": "Send the request to the seller",
     "note": "The supplier will check stock and confirm. If the contents change, you will see a new revision and confirm it yourself.",
     "delivery": {
-      "way": "How to receive",
+      "way": "How will you receive the goods?",
       "courier": "Delivery",
       "pickup": "Pickup",
       "pickupOnly": "The supplier hands the order over for pickup only.",
@@ -199,11 +290,39 @@
       "costByZone": "The cost depends on the direction: choose a zone.",
       "priceNegotiable": " — cost by arrangement",
       "priceFree": " — free",
-      "freeFrom": "{{amount}} short of free delivery"
+      "freeFrom": "{{amount}} short of free delivery",
+      "onMap": "Show on the map",
+      "loaders": {
+        "included": "Loaders are included in delivery",
+        "need": "I need loaders",
+        "floor": "Floor to carry up to",
+        "hasLift": "There is a freight lift",
+        "cost": "Loaders cost",
+        "later": "the seller will confirm the loaders cost",
+        "direct": "You pay the loaders directly — not included in the total",
+        "provider": { "OWN": "loaded by the seller's staff", "CARRIER": "loaded by the carrier's loaders", "CREW": "loaded by a separate crew" }
+      }
     },
     "closed": {
       "title": "The supplier is temporarily not accepting orders",
       "note": "Your cart is saved — send it once the supplier resumes taking orders."
+    },
+    "back": "Back to shopping",
+    "steps": {
+      "label": "Checkout steps",
+      "chosen": "Products chosen",
+      "receive": "How to receive",
+      "send": "Send to seller"
+    },
+    "optional": "Optional",
+    "contact": "The seller will call you on",
+    "editGoods": "Change products",
+    "linesTitle": "Order items",
+    "next": {
+      "title": "What happens next",
+      "check": "The seller checks that everything is in stock.",
+      "change": "If anything changes, you will see it and decide yourself whether to agree.",
+      "pickup": "When the request is ready, the seller hands over the goods the way you chose."
     }
   },
   "favorites": {
@@ -221,10 +340,13 @@
   },
   "catalog": {
     "search": "Search the catalogue",
-    "searchPlaceholder": "What do you need? Cement, for example",
+    "searchPlaceholder": "Find a product",
+    "colours_one": "{{count}} colour",
+    "colours_other": "{{count}} colours",
+    "variantsMore": "{{count}} more — on the product page",
     "rubrics": "Categories",
-    "all": "All",
-    "nothingFound": "Nothing found. Try another word or pick a category.",
+    "all": "All products",
+    "nothingFound": "Nothing found for this search. Try another name or reset the section.",
     "toCart": "Add to basket",
     "toCatalog": "To the catalogue",
     "title": "Catalogue",
@@ -250,7 +372,9 @@
     "add": "Add",
     "stock": {
       "inStock": "In stock",
+      "outOfStock": "Out of stock",
       "unclear": "Stock is being confirmed",
+      "unclearShort": "To be confirmed",
       "available": "Available: {{amount}}"
     },
     "priceNote": {
@@ -267,6 +391,64 @@
     "field": {
       "yes": "Yes",
       "no": "No"
+    },
+    "lead": "Next to each price it says what it is for: per piece, per sack, per box.",
+    "leadVat": "prices include {{rate}}% VAT, next to each one — per piece, sack or box",
+    "nothingTitle": "Nothing found",
+    "showAll": "Show all products",
+    "resetSection": "Reset section",
+    "onSale": "On sale",
+    "saving": "save {{amount}}",
+    "sort": {
+      "label": "Sort",
+      "POPULAR": "Popular first",
+      "CHEAPEST": "Cheapest first",
+      "DEAREST": "Most expensive first",
+      "NAME": "By name",
+      "DISCOUNT": "Discounts first"
+    },
+    "novelty": "New",
+    "badge": {
+      "hit": "Bestseller",
+      "new": "New",
+      "adult": "21+",
+      "sale": "Sale",
+      "saleNew": "Sale + new"
+    },
+    "toCartAmount": "Add to basket — {{amount}}",
+    "stepNote": "+ by {{amount}}",
+    "inCartNote": "in basket",
+    "facts": {
+      "min": "Minimum order {{amount}}",
+      "step": "Sold by {{amount}}",
+      "adult": "Sold to people aged 21+ — show an ID at pickup"
+    },
+    "age": {
+      "title": "Are you 21 or older?",
+      "text": "“{{name}}” is sold only to people aged 21 and over. The seller will ask for an ID when you pick up the order.",
+      "yes": "Yes, I am 21 or older",
+      "no": "No, back to shopping"
+    },
+    "quickOrder": "Quick order",
+    "quickOrderHint": "Know what you need? Add it without searching",
+    "emptyRubrics": "Empty sections · {{count}}",
+    "shown_one": "{{count}} item",
+    "shown_other": "{{count}} items",
+    "zoomHint": "{{count}} photos · click to enlarge",
+    "photoOf": "Photo {{number}} of {{count}}",
+    "allMedia": "All photos and videos",
+    "prevPhoto": "Previous photo",
+    "nextPhoto": "Next photo",
+    "list": {
+      "item": "Item",
+      "sku": "SKU",
+      "unit": "Unit & stock",
+      "price": "Price",
+      "noSku": "no SKU",
+      "discount": "{{percent}}% off"
+    },
+    "wholesale": {
+      "from": "Wholesale: {{price}} per {{unit}} — in packs of {{amount}}"
     }
   },
   "orders": {
@@ -275,7 +457,9 @@
     "tabs": {
       "needAnswer": "Your answer needed",
       "atSeller": "With the seller",
-      "resolved": "Resolved"
+      "resolved": "Resolved",
+      "active": "In progress",
+      "done": "Completed"
     },
     "sending": "Sending…",
     "agree": "I agree",
@@ -290,6 +474,7 @@
     "changesNote": "Look at what has changed and answer: confirmation applies to the offered contents.",
     "answerSent": "The answer has been sent to the supplier.",
     "toAll": "To all requests",
+    "openItem": "Open item: {{name}}",
     "total": "Total",
     "collecting": "Collecting…",
     "repeat": "Repeat the previous order",
@@ -298,7 +483,9 @@
       "IN_REVIEW": "Under review",
       "AWAITING_CONFIRMATION": "Your answer needed",
       "ACCEPTED": "Accepted",
-      "CLOSED": "Closed"
+      "CLOSED": "Closed",
+      "READY": "Ready for pickup",
+      "ISSUED": "Handed over"
     },
     "orderFrom": "Request of {{day}}",
     "sellerAnswer": "The seller's reply",
@@ -307,7 +494,152 @@
     "invoice": "Download the invoice",
     "invoiceAria": "Download the invoice for the request of {{day}}",
     "invoicePreparing": "Preparing…",
-    "invoiceFailed": "Could not get the invoice. Please try again."
+    "invoiceFailed": "Could not get the invoice. Please try again.",
+    "tabsLabel": "Which requests to show",
+    "emptyTab": {
+      "active": "No requests in progress right now.",
+      "done": "No completed requests yet."
+    },
+    "ask": "Ask a question",
+    "stages": {
+      "label": "Request stages",
+      "sent": "Sent",
+      "checking": "Seller is checking",
+      "answer": "Your answer is needed",
+      "accepted": "Confirmed",
+      "now": "Now here",
+      "ready": "Ready for pickup",
+      "readyDelivery": "Packed"
+    },
+    "help": {
+      "title": "What the status means",
+      "checking": {
+        "title": "Seller is checking",
+        "text": "The request has arrived. The seller is checking everything is available. Nothing to do."
+      },
+      "answer": {
+        "title": "Your answer is needed",
+        "text": "The seller changed something. Take a look and press “Agree” or “Cancel”."
+      },
+      "accepted": {
+        "title": "Accepted",
+        "text": "The seller has confirmed the request and is preparing the goods."
+      },
+      "ready": {
+        "title": "Ready for pickup",
+        "text": "The goods are packed and waiting for you at the shop."
+      }
+    },
+    "callSeller": "Call the seller",
+    "again": "Order the same again",
+    "v2": {
+      "subtitle": "Orders with new messages are on top. Tap an order to see the details.",
+      "newMessages_one": "{{count}} new message",
+      "newMessages_other": "{{count}} new messages",
+      "filtersLabel": "Which orders to show",
+      "filters": {
+        "all": "All",
+        "answer": "Needs your answer",
+        "ready": "Ready for pickup",
+        "seller": "With the seller",
+        "done": "Received",
+        "cancelled": "Cancelled"
+      },
+      "search": "Order number or product name",
+      "onlyNew": "Only with new messages",
+      "sortLabel": "Sort",
+      "sort": {
+        "recent": "By latest message",
+        "newest": "Newest orders first",
+        "oldest": "Oldest orders first",
+        "sumDesc": "Most expensive first",
+        "sumAsc": "Cheapest first"
+      },
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "nothingTitle": "Nothing found",
+      "nothing": "Try another filter or clear the search.",
+      "resetFilters": "Reset filters",
+      "kind": {
+        "answer": "Needs your answer",
+        "ready": "Ready for pickup",
+        "review": "Seller is checking",
+        "accepted": "Accepted",
+        "done": "Received",
+        "cancelled": "Cancelled"
+      },
+      "todo": {
+        "answer": "To do: reply to the seller",
+        "ready": "To do: pick it up in the store",
+        "readyDelivery": "Nothing to do — the order is on its way",
+        "review": "Nothing to do — waiting for the seller",
+        "accepted": "Nothing to do — we are packing the order",
+        "done": "Order received",
+        "cancelled": "Order closed"
+      },
+      "event": {
+        "answer": "The seller changed the order — please confirm the changes",
+        "ready": "Your order is packed and waiting in the store",
+        "readyDelivery": "Your order is packed and on its way",
+        "review": "Order received, checking stock",
+        "accepted": "Everything is in stock, packing your order",
+        "done": "Thank you for your purchase! We'd love a review",
+        "CUSTOMER": "You cancelled the order",
+        "SELLER": "The seller cancelled the order",
+        "TIMEOUT": "Order closed: no reply in time",
+        "cancelled": "Order closed"
+      },
+      "title": "Order #{{number}}",
+      "meta": "from {{day}} · {{goods}}, {{pieces}} pcs",
+      "goods_one": "{{count}} product",
+      "goods_other": "{{count}} products",
+      "new": "New",
+      "you": "You:",
+      "payOnPickup": "to pay on pickup",
+      "details": "Details of order #{{number}}",
+      "where": "Where the order is",
+      "todoTitle": "What you need to do",
+      "placed": "Placed",
+      "whereText": {
+        "answer": "The seller changed the order",
+        "ready": "Packed and waiting in the store",
+        "readyDelivery": "Packed and on its way",
+        "review": "Being checked by the seller",
+        "accepted": "Accepted, the seller is packing it",
+        "done": "You received the order",
+        "cancelled": "Order closed"
+      },
+      "doText": {
+        "answer": "Review the changes below and press “Agree” or “Cancel”",
+        "ready": "Come to the store and pay there",
+        "readyDelivery": "Meet the delivery and pay on receipt",
+        "review": "Nothing — the seller will check stock and reply",
+        "accepted": "Nothing — we'll let you know when it's packed",
+        "done": "Nothing. We'd love your review",
+        "cancelled": "Nothing. You can build a new order in the catalog"
+      },
+      "ordered": "What you ordered",
+      "changed": "What the seller changed",
+      "sum": "Total:",
+      "pickupAt": "Where to pick up",
+      "pickupCode": "Pickup code",
+      "pickupCodeHint": "Tell it to the seller when you collect the order",
+      "reason": "Reason",
+      "conversation": "Messages about the order",
+      "seller": "Seller",
+      "youAuthor": "You",
+      "askLabel": "Your question to the seller",
+      "askPlaceholder": "For example: can I pick it up tomorrow after six?",
+      "send": "Send",
+      "askCancel": "Don't send",
+      "askFailed": "Couldn't send the question. Please try again.",
+      "open": "Open order",
+      "payNote": "No need to pay in advance — you pay on pickup in the store.",
+      "today": "today",
+      "rate": "Rate the product",
+      "rateWhich": "Which product to rate",
+      "rateItem": "Rate: {{name}}"
+    }
   },
   "templates": {
     "title": "Templates",
@@ -345,9 +677,16 @@
     "sellerAnswer": "The seller's reply"
   },
   "reviews": {
+    "rejectReasons": {
+      "OFF_TOPIC": "Not about the item",
+      "ABUSE": "Insults",
+      "SPAM": "Advertising or spam",
+      "PERSONAL_DATA": "Personal data",
+      "OTHER": "Other"
+    },
     "title": "My reviews",
     "subtitle": "What you have written about the supplier's goods",
-    "empty": "You have not rated this supplier's goods yet. You can review what you bought from them — from the item card or from here.",
+    "empty": "You have not rated this supplier’s goods yet. You can rate any of their items from the item card; what you bought through requests is gathered here.",
     "awaiting": "Waiting for your rating",
     "rate": "Rate",
     "gone": "The item has been withdrawn from sale",
@@ -364,16 +703,75 @@
     "deleteFailed": "The review was not deleted. Try again.",
     "leave": "Leave a review",
     "afterCheck": "The review will appear in the catalogue after the seller's check.",
-    "textPlaceholder": "What you liked and what you did not",
+    "textPlaceholder": "What did you like, what not?",
+    "textPlaceholderSized": "What did you like, what not? How did the size fit?",
     "rating": "Rating",
     "review": "Review",
     "sendFailed": "The review was not sent. Try again.",
     "blockTitle": "Reviews",
-    "canReview": "You can review what you bought from this supplier.",
+    "canReview": "Any customer of the shop can rate an item, even one bought without a request.",
+    "staffNoReviews": "Store staff don’t leave reviews",
     "noneYet": "No reviews yet. Yours will be the first.",
     "client": "Client",
     "stars": "Rating {{value}} out of 5",
-    "purchasedAt": "bought {{date}}"
+    "purchasedAt": "bought {{date}}",
+    "tagsLabel": "Review tags",
+    "reviewOptional": "Tell us more — optional",
+    "pickStar": "Tap a star",
+    "photos": {
+      "label": "Review photos",
+      "open": "Photo {{index}} of {{count}} — enlarge",
+      "add": "Add photos",
+      "hint": "Up to {{count}} photos, JPEG, PNG or WebP, up to {{mb}} MB",
+      "remove": "Remove photo {{index}}",
+      "tooMany": "You can attach at most {{count}} photos — the extra ones were not added.",
+      "tooLarge": "“{{name}}” is larger than {{mb}} MB — choose a smaller one.",
+      "badType": "“{{name}}” is not supported: use JPEG, PNG or WebP photos.",
+      "uploadFailed": "The review is saved, but not all photos were uploaded. Press “Send” again — the selected photos are still here."
+    },
+    "word": {
+      "1": "Terrible",
+      "2": "Bad",
+      "3": "OK",
+      "4": "Good",
+      "5": "Excellent"
+    },
+    "tags": {
+      "MATCHES_DESCRIPTION": "Matches the description",
+      "GOOD_QUALITY": "Good quality",
+      "TRUE_TO_SIZE": "True to size",
+      "RUNS_SMALL": "Runs small",
+      "RUNS_LARGE": "Runs large"
+    },
+    "v2": {
+      "rejectedTitle": "The seller did not publish your review",
+      "rejectReason": "Reason: {{reason}}",
+      "notPublished": "Not published",
+      "title": "Reviews and ratings",
+      "fromBuyers_one": "{{count}} review from customers",
+      "fromBuyers_other": "{{count}} reviews from customers",
+      "noRatings": "No ratings yet",
+      "distribution": "Rating distribution",
+      "thanks": "Thank you for the review!",
+      "thanksPending": "Everyone will see it after the seller checks it. You can change it at any time.",
+      "thanksPublished": "It is already in the list. You can change it at any time.",
+      "editMine": "Change the review",
+      "rateTitle": "Rate your purchase",
+      "rateItemTitle": "Rate the item",
+      "purchased": "You bought this item · order №{{number}} of {{date}}",
+      "purchasedNoDate": "You bought this item · order №{{number}}",
+      "send": "Send the review",
+      "filter": "Filter by rating",
+      "all": "All · {{count}}",
+      "newestFirst": "Newest first",
+      "emptyTitle": "No reviews yet",
+      "emptyText": "Yours will be the first — it will help others choose.",
+      "mine": "Your review",
+      "bought": "✓ Bought in the shop",
+      "shopReply": "Shop’s reply",
+      "helpful": "Helpful · {{count}}",
+      "dateWithSize": "{{date}} · size {{size}}"
+    }
   },
   "delivery": {
     "title": "Delivery and pickup",
@@ -393,7 +791,17 @@
     "priceFrom": "from {{amount}}",
     "freeFrom": "free from {{amount}}",
     "slots": "windows {{list}}",
-    "willAsk": "at checkout you will need {{list}}"
+    "willAsk": "at checkout you will need {{list}}",
+    "loaders": {
+      "INCLUDED": "loaders included in delivery",
+      "FREE": "loaders free of charge",
+      "FIXED": "loaders {{amount}} per order",
+      "PER_FLOOR": "loaders {{amount}} per floor, {{lift}} with a lift",
+      "PER_UNITS": "loaders {{amount}} per {{step}} pcs",
+      "PER_WEIGHT": "loaders {{amount}} per {{step}} kg",
+      "NEGOTIABLE": "loaders by agreement",
+      "direct": "paid directly"
+    }
   },
   "validation": {
     "required": "The field is required",
@@ -403,5 +811,357 @@
     "pattern": {
       "default": "The value is written in a different form"
     }
+  },
+  "shops": {
+    "title": "My shops",
+    "hint": "pinned and recent",
+    "youAreHere": "You are here",
+    "here": "You are here",
+    "open": "Open catalogue",
+    "news_one": "{{count}} new notification",
+    "news_other": "{{count}} new notifications",
+    "inCart_one": "{{count}} in basket",
+    "inCart_other": "{{count}} in basket",
+    "all": "All my shops · {{count}}",
+    "note_one": "{{count}} shop has invited you. Each has its own catalogue, prices and basket.",
+    "note_other": "{{count}} shops have invited you. Each has its own catalogue, prices and basket.",
+    "close": "Close",
+    "search": "Find a shop",
+    "searchPlaceholder": "Find a shop by name",
+    "clear": "Clear",
+    "pinned": "Pinned",
+    "recent": "Recently opened",
+    "everything": "All shops",
+    "found": "Found",
+    "nothing": "There is no such shop in your list. Check the name or ask the seller to send you an invitation.",
+    "pinHint": "Tap the star to pin a shop — it will always stay on top and in the left menu.",
+    "pin": "Pin {{name}}",
+    "unpin": "Unpin {{name}}",
+    "switched": "You switched to {{name}}",
+    "kinds": "Kind of goods",
+    "allKind": "All",
+    "invites": {
+      "title": "New invitations",
+      "badge": "New invitation",
+      "invites_one": "{{count}} new invitation",
+      "invites_other": "{{count}} new invitations",
+      "accept": "Accept",
+      "decline": "Decline",
+      "acceptAria": "Accept the invitation from {{name}}",
+      "declineAria": "Decline the invitation from {{name}}",
+      "consent": "By accepting, you agree that this shop processes your data.",
+      "consentLink": "Read the notice",
+      "accepted": "You accepted the invitation from {{name}}",
+      "declined": "Invitation from {{name}} declined",
+      "failed": "Could not answer the invitation. Please try again."
+    }
+  },
+  "banners": {
+    "carousel": "carousel",
+    "label": "Shop offers",
+    "slide": "slide",
+    "slideLabel": "{{n}} of {{total}}: {{title}}",
+    "prev": "Previous slide",
+    "next": "Next slide",
+    "goTo": "Slide {{n}}",
+    "play": "Start the slideshow",
+    "pause": "Stop the slideshow",
+    "upTo": "up to",
+    "until": "until"
+  },
+  "shop": {
+    "hours": {
+      "always": "Open 24 hours",
+      "everyDay": "Every day {{from}}–{{to}}",
+      "monSat": "Mon–Sat {{from}}–{{to}}",
+      "today": "Today {{from}}–{{to}}",
+      "closedToday": "Closed today",
+      "now": {
+        "always": "Open 24 hours — orders are processed right away",
+        "open": "Open until {{to}} — orders are processed today",
+        "openShort": "Open until {{to}}",
+        "later": "Opens today at {{from}} — orders are already accepted",
+        "laterShort": "Opens at {{from}} · orders accepted",
+        "over": "Closed for today — orders are accepted and processed on the next working day",
+        "overShort": "Closed now · orders accepted",
+        "closedToday": "Closed today — orders are accepted and processed on the next working day",
+        "closedTodayShort": "Closed today · orders accepted",
+        "titled": "{{title}} · {{text}}"
+      }
+    },
+    "rating": "Rating {{value}} out of 5",
+    "call": "Call the shop",
+    "whatsapp": "Message on WhatsApp",
+    "pickup": "Pickup from the shop"
+  },
+  "promotions": {
+    "title": "Offers and discounts",
+    "lead": "All the shop's best deals in one place.",
+    "leadShop": "All the best deals of {{shop}} in one place.",
+    "emptyTitle": "No offers right now",
+    "emptyText": "Check back later — the shop will announce sales here and on the showcase.",
+    "sale": {
+      "badge": "Sale · up to −{{percent}}%",
+      "noCode": "The discount is already in the price — nothing to enter.",
+      "cta": "See discounted products",
+      "until": "Until the end",
+      "leftLabel": "{{days}} d {{hours}} h {{minutes}} min until the end",
+      "days_one": "day",
+      "days_other": "days",
+      "hours_one": "hour",
+      "hours_other": "hours",
+      "minutes_one": "minute",
+      "minutes_other": "minutes",
+      "lastDay": "Last day — {{date}}"
+    },
+    "save": {
+      "title": "More ways to save"
+    },
+    "volume": {
+      "title": "Cheaper in bulk",
+      "below": "up to {{amount}}",
+      "regular": "regular price",
+      "from": "from {{amount}}",
+      "text": "Counted from the order amount — works for any products: pieces, bags, boxes. The basket does the math."
+    },
+    "first": {
+      "title": "−{{percent}}% on your first order",
+      "text": "For new buyers of the shop. The discount appears in the basket by itself. It doesn't add up with the volume discount — the larger one applies.",
+      "status": {
+        "ELIGIBLE": "Applies to your first order",
+        "USED": "You've already got it",
+        "NOT_NEW": "For new buyers"
+      }
+    },
+    "subscription": {
+      "title": "Hear about offers first",
+      "on": "Done — we'll let you know",
+      "off": "Tell me about offers"
+    },
+    "deals": {
+      "title": "Discounted products",
+      "all_one": "All discounted products ({{count}})",
+      "all_other": "All discounted products ({{count}})"
+    },
+    "v2": {
+      "lead": "Discounts are calculated in the basket automatically — nothing to enter",
+      "active_one": "{{count}} offer is active now",
+      "active_other": "{{count}} offers are active now",
+      "activeShort_one": "{{count}} active",
+      "activeShort_other": "{{count}} active",
+      "back": "Back",
+      "mine": "My savings",
+      "byCart": "for your basket",
+      "progress": "Progress towards the volume discount",
+      "inCart": "In basket",
+      "addMore": "Add more from the catalogue",
+      "keepShopping": "Continue shopping",
+      "noStack": "Discounts do not stack — the basket applies the larger one.",
+      "volume": {
+        "done": "The −{{percent}}% discount is yours",
+        "doneText": "The order is over {{from}} — the basket has already taken off {{percent}}%. You save {{amount}}.",
+        "partial": "The −{{percent}}% discount is already yours",
+        "partialText": "{{missing}} more — and it will be −{{percent}}% on the whole order.",
+        "beforeWholesale": "{{missing}} more to the wholesale price",
+        "beforeWholesaleText": "The first-order discount applies now. The −{{percent}}% wholesale discount from {{from}} will work in all your next orders too.",
+        "more": "{{missing}} more — and −{{percent}}% on the whole order",
+        "moreText": "Add anything: pieces, sacks, boxes. The discount will appear in the basket by itself.",
+        "from": "From {{from}} — −{{percent}}% on the whole order",
+        "fromText": "A discount on every product in the order — pieces, bags and boxes count together."
+      },
+      "first": {
+        "title": "First order",
+        "wholeOrder": "on the whole order",
+        "applies": "Applies to this order",
+        "yields": "Gave way to wholesale",
+        "used": "Already used",
+        "notNew": "For new customers",
+        "appliesNote": "For the shop’s new customers. Saving on the current basket — {{amount}}.",
+        "waitNote": "For the shop’s new customers. The discount will appear in the basket by itself.",
+        "yieldsNote": "The wholesale discount applied — they do not stack. The first-order discount stays with you until your first order.",
+        "usedNote": "A discount for new customers — you got it on your first order.",
+        "notNewNote": "A discount for the shop’s new customers.",
+        "fromPill": "From {{sum}} per order",
+        "fromNote": "The discount applies once the products add up to {{sum}} — {{missing}} to go.",
+        "onFirst": "On your first order",
+        "appliesShort": "Applies in the basket by itself",
+        "noStackShort": "Does not stack with wholesale — the larger one applies."
+      },
+      "now": "In the shop now",
+      "seeDeals_one": "See {{count}} item",
+      "seeDeals_other": "See {{count}} items",
+      "allDeals_one": "All {{count}} item",
+      "allDeals_other": "All {{count}} items",
+      "allShort": "All",
+      "allChip": "All · {{count}}",
+      "saving": "You save {{amount}}",
+      "inCartShort": "In basket",
+      "removeAria": "Remove from basket: {{name}}",
+      "how": {
+        "title": "How discounts work",
+        "auto": {
+          "title": "They appear in the basket by themselves",
+          "text": "No promo codes — the total is recalculated automatically."
+        },
+        "together": {
+          "title": "All items count together",
+          "text": "Pieces, sacks, boxes — only the order total matters."
+        },
+        "one": {
+          "title": "One discount per order",
+          "text": "If two apply, the larger one is used."
+        }
+      },
+      "sub": {
+        "exampleLabel": "Example WhatsApp message",
+        "exampleSale": "“{{title}}” has started — up to −{{percent}}%.",
+        "exampleUntil": "Valid until {{date}}.",
+        "exampleGeneric": "The shop’s new discounts and items — straight to WhatsApp.",
+        "toPhone": "To {{phone}}",
+        "toPhoneLine": "To {{phone}} · {{promise}}",
+        "viaWhatsapp": "On WhatsApp, {{promise}}",
+        "promise": {
+          "WEEKLY": "no more than once a week",
+          "MONTHLY": "no more than once a month",
+          "SALES_ONLY": "only about sales"
+        }
+      },
+      "fromEditor": "Banners from the shop editor",
+      "slides": "Slides",
+      "slide": "Slide {{n}}",
+      "leftShort": "{{days}} d {{hours}} h left",
+      "untilShort": "until {{date}}"
+    }
+  },
+  "item": {
+    "back": "Back to catalogue",
+    "crumbs": "You are here",
+    "noReviews": "No reviews yet",
+    "ratingLabel_one": "Rated {{rating}} out of 5, {{count}} review",
+    "ratingLabel_other": "Rated {{rating}} out of 5, {{count}} reviews",
+    "ratingOnly": "Rated {{rating}} out of 5",
+    "reviews_one": "{{count}} review",
+    "reviews_other": "{{count}} reviews",
+    "sum": "Total",
+    "add": "Add to basket",
+    "added": "Added to basket: {{amount}}",
+    "toCart": "Go to basket",
+    "favorite": "Add to favourites",
+    "inFavorites": "In favourites",
+    "factPayLabel": "No payment now.",
+    "factPay": "The seller will check stock and confirm the order.",
+    "factPickupLabel": "Pickup:",
+    "factBulkLabel": "Cheaper in bulk:",
+    "factBulk": "from {{from}} per order — {{percent}}% off.",
+    "similar": "Similar items",
+    "allInCategory": "All items in “{{name}}”",
+    "allCatalog": "Whole catalogue",
+    "composition": "What it is made of",
+    "inSale": "Part of “{{title}}”",
+    "inSaleUntil": "The discount is already in the price · until {{date}}",
+    "dd": "d",
+    "hh": "h",
+    "mm": "min",
+    "discounts": {
+      "title": "Discounts on this item",
+      "inPrice": "Already in the price",
+      "noSale": "Not part of the shop’s sales",
+      "noSaleSub": "The discounts below still apply",
+      "from": "From {{amount}} per order",
+      "newBuyers": "For the shop’s new customers",
+      "left": "To the wholesale discount: {{amount}} more",
+      "reached": "The total is over {{threshold}} — the wholesale discount applies in the basket",
+      "partial": "−{{have}}% is yours, {{missing}} more to −{{percent}}%"
+    },
+    "novelSince": "New · arrived {{date}}",
+    "similarAdd": "+ Add to cart",
+    "similarAddAria": "Add “{{name}}” to cart",
+    "similarInCart": "In cart",
+    "variantOption": "{{name}}: {{value}}",
+    "soldBy": {
+      "label": "Sold",
+      "piece": "Sold by the piece",
+      "unit": "Sold in units of “{{unit}}”",
+      "pieceValue": "by the piece",
+      "unitValue": "in units of “{{unit}}”",
+      "stepValue": "by {{amount}}"
+    },
+    "sizeGuide": {
+      "link": "How to choose a size",
+      "title": "How to choose a size",
+      "close": "Close",
+      "intro": "Measure over underwear with a tape measure: snug, but not tight.",
+      "chest": "Chest",
+      "chestHow": "Around the fullest part, keeping the tape level under the arms.",
+      "waist": "Waist",
+      "waistHow": "Around the narrowest part, usually just above the navel.",
+      "hips": "Hips",
+      "hipsHow": "Around the fullest part of the seat, keeping the tape level.",
+      "inseam": "Inside leg",
+      "inseamHow": "From the crotch to the ankle along the inside of the leg.",
+      "shoesIntro": "Measure in the evening — feet are slightly larger by the end of the day — wearing the socks you'll wear with the shoes. Stand on a sheet of paper and trace your foot.",
+      "footLength": "Foot length",
+      "footLengthHow": "From the heel to the tip of the longest toe. Measure both feet and go with the larger one.",
+      "footWidth": "Foot width",
+      "footWidthHow": "Across the widest part, at the base of the toes.",
+      "headwearIntro": "Measure without a hat, using a tape measure: snug, but not pressing.",
+      "head": "Head circumference",
+      "headHow": "One finger above the eyebrows, over the ears and around the fullest part of the back of the head.",
+      "doubt": "Not sure? Ask the seller — they know how this model fits."
+    },
+    "wholesale": {
+      "packOf": "{{unit}} = {{amount}}",
+      "tiers": "Wholesale prices",
+      "tierFrom": "{{amount}} or more",
+      "noSale": "Sale discount applies to single pieces only",
+      "title": "How to get the wholesale price",
+      "split": "{{pieces}} = {{packs}} × {{price}}",
+      "perPiece": "· {{price}} per {{unit}}",
+      "belowMin": "Smaller quantities — retail price {{price}} per {{unit}}",
+      "onlyPacks": "Sold in packs only, minimum {{amount}}"
+    }
+  },
+  "design": {
+    "toCartShort": "Add to cart",
+    "add": "Add",
+    "days": "days",
+    "hours": "hours",
+    "minutes": "min",
+    "issue": "Issue",
+    "allDeals": "All deals",
+    "endsIn": "{{days}} days left",
+    "pick": "Pick of the week",
+    "all": "All →",
+    "stamp": "on sale",
+    "saleBadge": "Sale",
+    "volume": "{{left}} more — and −{{percent}}% on the whole order",
+    "volumeOf": "{{cart}} of {{from}}",
+    "first": "−{{percent}}% on the first order",
+    "saleUntil": "Until {{date}}",
+    "other": "Other",
+    "shelf": "Products in “{{name}}”",
+    "scrollShelf": "Scroll the shelf",
+    "sale": "Sale · up to −{{percent}}%",
+    "saleText": "The discount is already in the price.",
+    "goDeals": "View discounted products",
+    "categories": "Categories",
+    "allCategories": "All products"
+  },
+  "pager": {
+    "nav": "Pages",
+    "shown": "Showing {{from}}–{{to}} of {{total}}",
+    "perPage": "Per page",
+    "prev": "Back",
+    "next": "Next",
+    "page": "Page {{page}}",
+    "goTo": "Go to",
+    "ofPages": "Page {{page}} of {{count}}",
+    "compact": "{{page}} / {{count}}"
+  },
+  "pack": {
+    "inPress": "What is in the press",
+    "inPack": "What is in the pack",
+    "total": "Total",
+    "size": "press · {{amount}}"
   }
 }

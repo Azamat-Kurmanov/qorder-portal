@@ -5,6 +5,7 @@ import { Route, Routes } from 'react-router-dom';
 import { OrderPage } from './OrderPage';
 import { renderScreen } from '../../test/render';
 import { get, method, stubFetch } from '../../test/http';
+import type { Currency } from '../../shared/currency';
 
 const renegotiated = {
   id: 'order-1',
@@ -13,18 +14,19 @@ const renegotiated = {
   cancellable: true,
   createdAt: '2026-09-01T10:00:00Z',
   total: 12500,
+  currency: 'KZT',
   submitted: [{ name: 'Цемент М400', quantity: 5, unit: 'мешок', price: 2500, amount: 12500 }],
   proposed: [{ name: 'Цемент М400', quantity: 5, unit: 'мешок', price: 2700, amount: 13500 }],
   proposedTotal: 13500,
   diff: [{ kind: 'PRICE_CHANGED', name: 'Цемент М400', was: 2500, now: 2700 }],
 };
 
-function openOrder() {
+function openOrder(shopCurrency?: Currency | null) {
   renderScreen(
     <Routes>
       <Route path="/orders/:id" element={<OrderPage />} />
     </Routes>,
-    { route: '/orders/order-1' },
+    { route: '/orders/order-1', ...(shopCurrency === undefined ? {} : { currency: shopCurrency }) },
   );
 }
 
@@ -49,6 +51,19 @@ describe('заявка на пересогласовании', () => {
     expect(within(screen.getByTestId('submitted')).getByText('12 500 ₸')).toBeInTheDocument();
     expect(within(screen.getByTestId('proposed')).getByText('13 500 ₸')).toBeInTheDocument();
     expect(screen.getByTestId('diff')).toHaveTextContent('цена 2 500 ₸ → 2 700 ₸');
+    // Количество с единицей читается по-русски: «5 мешков», а не «5 мешок».
+    expect(screen.getByTestId('submitted')).toHaveTextContent('5 мешков');
+  });
+
+  it('карточка заявки — в валюте заявки, а не открытого магазина', async () => {
+    stubFetch([get('/api/portal/orders/order-1', { ...renegotiated, currency: 'EUR' })]);
+
+    openOrder('USD');
+
+    expect(await screen.findByTestId('diff')).toHaveTextContent('цена 2 500 € → 2 700 €');
+    expect(within(screen.getByTestId('submitted')).getByText('12 500 €')).toBeInTheDocument();
+    expect(within(screen.getByTestId('proposed')).getByText('13 500 €')).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('$');
   });
 
   it('ответ уходит кнопкой', async () => {
@@ -126,6 +141,7 @@ describe('ответ продавца в заявке', () => {
     cancellable: true,
     createdAt: '2026-09-01T10:00:00Z',
     total: 5000,
+    currency: 'KZT',
     submitted: [{ name: 'Цемент М-400', quantity: 2, unit: 'мешок', price: 2500, amount: 5000 }],
     diff: [],
     sellerAnswer: 'В бумажных мешках по 50 кг',
@@ -149,5 +165,119 @@ describe('ответ продавца в заявке', () => {
 
     expect(await screen.findByText('Состав заявки')).toBeInTheDocument();
     expect(screen.queryByText(/ответ продавца/i)).not.toBeInTheDocument();
+  });
+
+  /**
+   * Заявка с лентой сообщений — новый формат: старую карточку с одним
+   * ответом показывать незачем, ведёт к тому же разговору лента.
+   */
+  it('при наличии переписки показывает ленту, а не карточку ответа', async () => {
+    stubFetch([get('/api/portal/orders/order-1', {
+      ...answered,
+      messages: [
+        { author: 'CUSTOMER', text: 'Размер 44 будет?', createdAt: '2026-09-04T10:00:00Z' },
+        { author: 'MANAGER', text: 'В бумажных мешках по 50 кг', createdAt: '2026-09-05T08:00:00Z' },
+      ],
+    })]);
+
+    openOrder();
+
+    expect(await screen.findByText('Размер 44 будет?')).toBeInTheDocument();
+    expect(screen.getByText('В бумажных мешках по 50 кг')).toBeInTheDocument();
+    expect(screen.queryByText(/^ответ продавца$/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('снимки товаров на странице заявки', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('миниатюра поданной и предложенной позиции ведёт на карточку товара', async () => {
+    stubFetch([get('/api/portal/orders/order-1', {
+      ...renegotiated,
+      submitted: [{ ...renegotiated.submitted[0], itemId: 'item-1', imageUrl: 'https://cdn.example.kz/cement.jpg' }],
+      proposed: [{ ...renegotiated.proposed[0], itemId: 'item-1', imageUrl: 'https://cdn.example.kz/cement.jpg' }],
+    })]);
+    renderScreen(
+      <Routes>
+        <Route path="/orders/:id" element={<OrderPage />} />
+        <Route path="/catalog/:itemId" element={<p>Карточка товара</p>} />
+      </Routes>,
+      { route: '/orders/order-1' },
+    );
+
+    const submitted = await screen.findByTestId('submitted');
+    expect(within(submitted).getByTestId('line-thumb-photo'))
+      .toHaveAttribute('src', 'https://cdn.example.kz/cement.jpg');
+    expect(within(screen.getByTestId('proposed')).getByTestId('line-thumb-photo'))
+      .toHaveAttribute('src', 'https://cdn.example.kz/cement.jpg');
+
+    await userEvent.click(within(submitted).getByRole('link', { name: 'Открыть товар: Цемент М400' }));
+
+    expect(await screen.findByText('Карточка товара')).toBeInTheDocument();
+  });
+
+  it('у строки без позиции — заглушка без ссылки', async () => {
+    stubFetch([get('/api/portal/orders/order-1', renegotiated)]);
+    openOrder();
+
+    const submitted = await screen.findByTestId('submitted');
+    expect(within(submitted).getByTestId('line-thumb')).toBeInTheDocument();
+    expect(within(submitted).queryByTestId('line-thumb-photo')).not.toBeInTheDocument();
+    expect(within(submitted).queryByRole('link')).not.toBeInTheDocument();
+  });
+});
+
+/** Разбивка итога отправленной редакции — как в сводке оформления. */
+describe('итог заявки на её странице', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const sent = {
+    id: 'order-1',
+    state: 'IN_REVIEW',
+    needsAnswer: false,
+    cancellable: true,
+    createdAt: '2026-09-01T10:00:00Z',
+    total: 13125,
+    currency: 'KZT',
+    goodsTotal: 12500,
+    discount: { kind: 'VOLUME', percent: 5, amount: 625 },
+    deliveryPrice: 1250,
+    submitted: [{ name: 'Цемент М400', quantity: 5, unit: 'мешок', price: 2500, amount: 12500 }],
+    diff: [],
+    invoiceAvailable: false,
+  };
+
+  it('под составом — «Товары», «Скидка за объём −5%», «Доставка» и «Итого»', async () => {
+    stubFetch([get('/api/portal/orders/order-1', sent)]);
+    openOrder();
+
+    const submitted = await screen.findByTestId('submitted');
+    expect(within(submitted).getByTestId('order-goods')).toHaveTextContent(/Товары\s*12\s500\s₸/);
+    expect(within(submitted).getByTestId('order-discount')).toHaveTextContent(/Скидка за объём −5%\s*−625\s₸/);
+    expect(within(submitted).getByTestId('order-delivery')).toHaveTextContent(/Доставка\s*1\s250\s₸/);
+    expect(within(submitted).getByTestId('order-total')).toHaveTextContent(/Итого\s*13\s125\s₸/);
+  });
+
+  it('разбивка итога — в валюте заявки, а не открытого магазина', async () => {
+    stubFetch([get('/api/portal/orders/order-1', { ...sent, currency: 'EUR' })]);
+    openOrder('USD');
+
+    const submitted = await screen.findByTestId('submitted');
+    expect(within(submitted).getByTestId('order-goods')).toHaveTextContent(/Товары\s*12\s500\s€/);
+    expect(within(submitted).getByTestId('order-discount')).toHaveTextContent(/Скидка за объём −5%\s*−625\s€/);
+    expect(within(submitted).getByTestId('order-delivery')).toHaveTextContent(/Доставка\s*1\s250\s€/);
+    expect(within(submitted).getByTestId('order-total')).toHaveTextContent(/Итого\s*13\s125\s€/);
+    expect(document.body.textContent).not.toContain('$');
+  });
+
+  it('у предложенной продавцом редакции — только «Итого»', async () => {
+    stubFetch([get('/api/portal/orders/order-1', { ...renegotiated, goodsTotal: 12500, deliveryPrice: 0 })]);
+    openOrder();
+
+    const proposed = await screen.findByTestId('proposed');
+    expect(within(proposed).queryByTestId('order-goods')).not.toBeInTheDocument();
+    expect(within(proposed).queryByTestId('order-delivery')).not.toBeInTheDocument();
+    expect(within(proposed).getByTestId('order-total')).toHaveTextContent(/13\s500\s₸/);
+    expect(within(screen.getByTestId('submitted')).getByTestId('order-delivery')).toHaveTextContent(/0\s₸/);
   });
 });

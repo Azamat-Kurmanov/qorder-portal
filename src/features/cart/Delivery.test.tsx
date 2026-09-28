@@ -224,6 +224,23 @@ describe('доставка при оформлении', () => {
     expect(plate.className).toContain('bg-accent-soft');
   });
 
+  it('в другой валюте магазина цена способа и «не хватает» — с её знаком', async () => {
+    stubFetch([
+      get('/api/portal/cart', cart),
+      get('/api/portal/delivery', {
+        mode: 'ENABLED',
+        methods: [{ ...fixedMethod, requiresAddress: false, freeFromAmount: 20000 }],
+        pickupPoints: [],
+      }),
+    ]);
+
+    renderScreen(<CheckoutPage />, { currency: 'RUB' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Доставка' }));
+
+    expect(await screen.findByTestId('shipping-row')).toHaveTextContent('1 500 ₽');
+    expect(screen.getByTestId('missing-to-free')).toHaveTextContent('7 500 ₽');
+  });
+
   /** Порог пройден — доставка бесплатна, и в итоге это видно. */
   it('за порогом доставка бесплатна', async () => {
     stubFetch([

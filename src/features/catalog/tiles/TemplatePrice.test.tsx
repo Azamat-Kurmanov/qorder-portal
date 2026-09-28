@@ -1,0 +1,53 @@
+import { describe, expect, it } from 'vitest';
+import { screen } from '@testing-library/react';
+import { TemplatePrice } from './TemplatePrice';
+import { renderScreen } from '../../../test/render';
+
+describe('цена в плитке шаблона', () => {
+  it('единица после «за» — «за бутылку», «за шт.»', () => {
+    renderScreen(
+      <>
+        <TemplatePrice item={{ price: 900, unit: 'бутылка' }} look="plain" />
+        <TemplatePrice item={{ price: 100, unit: 'шт' }} look="plain" />
+      </>,
+    );
+
+    expect(screen.getByText('за бутылку')).toBeInTheDocument();
+    expect(screen.getByText('за шт.')).toBeInTheDocument();
+  });
+
+  it('товар «оба режима» — условие опта: цена за штуку на лучшей ступени и вложение', () => {
+    renderScreen(
+      <TemplatePrice
+        item={{
+          price: 100, unit: 'мешок',
+          wholesale: { unit: 'упаковка', packQty: 20, pieceUnit: 'мешок', retail: true,
+            tiers: [{ from: 1, price: 1800 }, { from: 10, price: 1700 }] },
+        }}
+        look="plain"
+      />,
+    );
+
+    expect(screen.getByTestId('wholesale-note')).toHaveTextContent(/Опт: 85 ₸ за мешок — упаковками по 20 мешков/);
+  });
+
+  it('товар «только опт» — вложение рядом с ценой упаковки', () => {
+    renderScreen(
+      <TemplatePrice
+        item={{
+          price: 1800, unit: 'упаковка',
+          wholesale: { unit: 'упаковка', packQty: 20, pieceUnit: 'мешок', retail: false,
+            tiers: [{ from: 1, price: 1800 }] },
+        }}
+        look="plain"
+      />,
+    );
+
+    expect(screen.getByTestId('wholesale-note')).toHaveTextContent('по 20 мешков');
+  });
+
+  it('у штучного товара подписи опта нет', () => {
+    renderScreen(<TemplatePrice item={{ price: 100, unit: 'мешок' }} look="plain" />);
+    expect(screen.queryByTestId('wholesale-note')).not.toBeInTheDocument();
+  });
+});

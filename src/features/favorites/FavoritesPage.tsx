@@ -13,8 +13,10 @@ import {
 } from '../../api/generated';
 import { CartBar } from '../cart/CartBar';
 import { QuantityField } from '../cart/QuantityField';
+import { LinkedLineThumb } from '../cart/LineThumb';
 import { FavoriteButton } from './FavoriteButton';
-import { tenge } from '../../shared/format';
+import { money } from '../../shared/format';
+import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Reveal } from '../../ui/Reveal';
@@ -72,11 +74,11 @@ export function FavoritesPage() {
     <div className="flex flex-col gap-4 pb-28">
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">{t('favorites.title')}</h1>
+          <h1 className="qo-page-title">{t('favorites.title')}</h1>
           {items.length > 0 && (
             // «Отложено вами» — про то, что список личный: он ничего не сообщил
             // продавцу и ни к чему не обязывает.
-            <p className="text-[13px] text-ink-subtle">
+            <p className="text-caption text-ink-subtle">
               {items.length} {t('common.positions', { count: items.length })}
               {' · '}
               {t('favorites.setAside')}
@@ -96,7 +98,7 @@ export function FavoritesPage() {
             }}
             className={cn(
               '-mr-2 inline-flex h-11 shrink-0 items-center rounded-[var(--radius-control)] px-2',
-              'text-[13px] text-ink-subtle transition-all duration-300',
+              'text-caption text-ink-subtle transition-all duration-300',
               'hover:bg-ink/5 hover:text-ink active:scale-95',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
               'disabled:pointer-events-none disabled:opacity-50',
@@ -123,7 +125,7 @@ export function FavoritesPage() {
           ))}
         </Card>
       ) : items.length === 0 ? (
-        <p className="text-[15px] leading-relaxed text-ink-subtle">
+        <p className="text-body leading-relaxed text-ink-subtle">
           {t('favorites.empty')}
         </p>
       ) : (
@@ -160,29 +162,52 @@ export function FavoritesPage() {
 
 function FavoriteRow({ item }: { item: FavoriteItemDto }) {
   const { t } = useTranslation();
+  const currency = useSupplierCurrency();
   return (
-    <div className={cn('flex gap-3 px-4 py-3.5', !item.available && 'opacity-60')}>
+    <div data-testid="favorite-row" className={cn('flex gap-3 px-4 py-3.5', !item.available && 'opacity-60')}>
+      {/*
+        Снимок — тот же путь к карточке, что и название, поэтому без своей
+        подписи. У снятой с продажи позиции карточки нет, и снимок остаётся
+        просто картинкой, погашенной вместе со строкой.
+      */}
+      <LinkedLineThumb
+        itemId={item.itemId}
+        seed={item.itemId}
+        src={item.imageUrl}
+        linked={item.available}
+        className="size-14"
+      />
       <div className="flex min-w-0 flex-1 flex-col gap-1 py-0.5">
         {item.available ? (
           <Link
             to={`/catalog/${item.itemId}`}
-            className="text-[15px] font-medium text-ink transition-all duration-300 hover:text-accent"
+            className="text-body font-medium text-ink transition-all duration-300 hover:text-accent"
           >
             {item.name}
           </Link>
         ) : (
-          <p className="text-[15px] font-medium text-ink">{item.name}</p>
+          <p className="text-body font-medium text-ink">{item.name}</p>
         )}
 
         {item.available && item.price != null ? (
-          <p className="text-[15px] font-semibold tabular-nums text-ink">
-            {tenge(item.price)}
-            {item.unit ? <span className="font-normal text-ink-subtle"> · {item.unit}</span> : null}
+          // Цена уже со скидкой распродажи — та же, что на витрине; рядом
+          // зачёркнутая старая и «−N%», а сама цена цветом скидки, как на плитке.
+          <p className="flex flex-wrap items-baseline gap-x-2 text-body tabular-nums">
+            <span className={cn('font-semibold', item.oldPrice !== undefined ? 'text-sale' : 'text-ink')}>
+              {money(item.price, currency)}
+            </span>
+            {item.oldPrice !== undefined ? (
+              <span className="flex items-center gap-1.5 text-caption">
+                <s className="text-ink-faint">{money(item.oldPrice, currency)}</s>
+                {item.discountPercent ? <span className="font-bold text-sale-ink">−{item.discountPercent}%</span> : null}
+              </span>
+            ) : null}
+            {item.unit ? <span className="text-caption text-ink-subtle">· {item.unit}</span> : null}
           </p>
         ) : (
           // Не «недоступна», а кто и что сделал: клиенту нужно понять, что ждать
           // возвращения бессмысленно и пора искать замену.
-          <p className="text-[12px] text-gone">{t('favorites.gone')}</p>
+          <p className="text-[0.75rem] text-gone">{t('favorites.gone')}</p>
         )}
       </div>
 

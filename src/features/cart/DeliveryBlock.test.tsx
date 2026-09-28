@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DeliveryBlock } from './DeliveryBlock';
-import type { Delivery } from '../../api/generated';
+import type { SubmitOrderDelivery } from '../../api/generated';
 import { renderScreen } from '../../test/render';
 import { get, stubFetch } from '../../test/http';
 
@@ -38,10 +38,10 @@ function Harness({
   initial,
   onChangeSpy,
 }: {
-  initial?: Delivery;
-  onChangeSpy?: (next: Delivery) => void;
+  initial?: SubmitOrderDelivery;
+  onChangeSpy?: (next: SubmitOrderDelivery) => void;
 }) {
-  const [value, setValue] = useState<Delivery>(initial ?? { methodId: 'method-1' });
+  const [value, setValue] = useState<SubmitOrderDelivery>(initial ?? { methodId: 'method-1' });
   return (
     <DeliveryBlock
       goodsTotal={0}
@@ -178,5 +178,96 @@ describe('предложение известного адреса', () => {
     const suggestion = await screen.findByRole('button', { name: /Стройторг/i });
     expect(suggestion).toHaveTextContent('ул. Соседняя, 5');
     expect(screen.queryByText(/ул\. Текущая, 1/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * «Только самовывоз» — решение поставщика, а не отсутствие способов:
+ * даже если в справочнике остался способ доставки, кнопка «Доставка»
+ * не нажимается и выбор самовывоза не сбивает.
+ */
+describe('только самовывоз', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('кнопка «Доставка» отключена, даже когда способ доставки заведён', async () => {
+    const onChangeSpy = vi.fn();
+    stubFetch([
+      get('/api/portal/delivery', {
+        ...deliveryOptions,
+        mode: 'PICKUP_ONLY',
+        methods: [
+          ...deliveryOptions.methods,
+          { ...deliveryOptions.methods[0], id: 'pickup-1', name: 'Самовывоз', pickup: true, requiresAddress: false, requiresFloor: false },
+        ],
+      }),
+      get('/api/portal/suppliers', suppliers),
+      get('/api/portal/addresses', []),
+    ]);
+
+    renderScreen(<Harness initial={{ methodId: 'pickup-1' }} onChangeSpy={onChangeSpy} />, { supplierId: 'supplier-1' });
+
+    const courier = await screen.findByRole('button', { name: 'Доставка' });
+    expect(courier).toBeDisabled();
+    await userEvent.click(courier);
+    expect(onChangeSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Один способ получения выбирается сам: спрашивать «какой из одного»
+ * незачем, а невыбранный он ушёл бы менеджеру вопросом.
+ */
+describe('единственный способ получения', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubOptions(options: unknown) {
+    stubFetch([
+      get('/api/portal/delivery', options),
+      get('/api/portal/suppliers', suppliers),
+      get('/api/portal/addresses', []),
+    ]);
+  }
+
+  it('единственная доставка выбрана сразу', async () => {
+    const onChangeSpy = vi.fn();
+    stubOptions(deliveryOptions);
+
+    renderScreen(<Harness initial={{}} onChangeSpy={onChangeSpy} />, { supplierId: 'supplier-1' });
+
+    expect(await screen.findByRole('button', { name: 'Доставка' })).toHaveAttribute('aria-pressed', 'true');
+    expect(onChangeSpy).toHaveBeenCalledWith({ methodId: 'method-1' });
+  });
+
+  it('единственный самовывоз у поставщика «только самовывоз» выбран сразу', async () => {
+    const onChangeSpy = vi.fn();
+    stubOptions({
+      ...deliveryOptions,
+      mode: 'PICKUP_ONLY',
+      methods: [
+        ...deliveryOptions.methods,
+        { ...deliveryOptions.methods[0], id: 'pickup-1', name: 'Самовывоз', pickup: true, requiresAddress: false, requiresFloor: false },
+      ],
+    });
+
+    renderScreen(<Harness initial={{}} onChangeSpy={onChangeSpy} />, { supplierId: 'supplier-1' });
+
+    await screen.findByRole('button', { name: 'Самовывоз' });
+    await vi.waitFor(() => expect(onChangeSpy).toHaveBeenCalledWith({ methodId: 'pickup-1' }));
+  });
+
+  it('из двух способов не выбирается ничего', async () => {
+    const onChangeSpy = vi.fn();
+    stubOptions({
+      ...deliveryOptions,
+      methods: [
+        ...deliveryOptions.methods,
+        { ...deliveryOptions.methods[0], id: 'pickup-1', name: 'Самовывоз', pickup: true, requiresAddress: false, requiresFloor: false },
+      ],
+    });
+
+    renderScreen(<Harness initial={{}} onChangeSpy={onChangeSpy} />, { supplierId: 'supplier-1' });
+
+    expect(await screen.findByRole('button', { name: 'Доставка' })).toHaveAttribute('aria-pressed', 'false');
+    expect(onChangeSpy).not.toHaveBeenCalled();
   });
 });

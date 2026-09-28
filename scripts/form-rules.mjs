@@ -19,7 +19,16 @@ const REQUEST_SCHEMA = /Request$/;
  */
 export function fieldRule(property, { required }) {
   const rule = { required };
-  if (property.pattern) rule.pattern = new RegExp(`^(?:${property.pattern})$`);
+  if (property.pattern) {
+    // Флаг `u` — только когда шаблон и правда просит юникод-свойство символа
+    // (`\p{...}`/`\P{...}`, как у `\p{L}` — «буква на любом языке»). Без него
+    // `\p{L}` в JS без `u` не значит ничего особого — совпадёт с буквальными
+    // символами «p», «{», «L», «}», а не с буквами. Ставить `u` всегда нельзя:
+    // он запрещает лишние экранирования, которые другие шаблоны уже используют
+    // (например, экранированные ASCII-знаки, допустимые только без `u`).
+    const needsUnicodeFlag = /\\[pP]\{/.test(property.pattern);
+    rule.pattern = new RegExp(`^(?:${property.pattern})$`, needsUnicodeFlag ? 'u' : undefined);
+  }
   if (typeof property.minLength === 'number' && property.minLength > 0) {
     rule.minLength = property.minLength;
   }

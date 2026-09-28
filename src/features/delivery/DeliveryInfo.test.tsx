@@ -90,6 +90,14 @@ describe('условия доставки', () => {
     expect(screen.getByTestId('method-price-m2')).toHaveTextContent('договорная');
   });
 
+  it('в другой валюте магазина цена способа и зона — с её знаком', async () => {
+    stubFetch([get('/api/portal/delivery', WITH_DELIVERY)]);
+    renderScreen(<DeliveryInfoPage />, { currency: 'RUB' });
+
+    expect(await screen.findByTestId('method-price-m1')).toHaveTextContent('4 000 ₽');
+    expect(screen.getByTestId('method-terms-m1')).toHaveTextContent('6 000 ₽');
+  });
+
   it('незаполненные цены приходят как null и не читаются нулём', async () => {
     stubFetch([get('/api/portal/delivery', {
       mode: 'ENABLED',
@@ -105,5 +113,23 @@ describe('условия доставки', () => {
 
     expect(await screen.findByTestId('method-price-m1')).toHaveTextContent('не указана');
     expect(screen.queryByText(/бесплатно от/i)).not.toBeInTheDocument();
+  });
+
+  it('условия грузчиков — в строке способа', async () => {
+    stubFetch([get('/api/portal/delivery', {
+      mode: 'ENABLED',
+      methods: [{
+        id: 'm1', name: 'До двери', pickup: false,
+        requiresAddress: true, requiresFloor: false, requiresTimeSlot: false,
+        price: 4000, negotiable: false, zones: [], slots: [],
+        loaders: { mode: 'ON_REQUEST', tariff: 'PER_UNITS', amount: 1000, step: 10, provider: 'CREW', payee: 'DIRECT' },
+      }],
+      pickupPoints: [],
+    })]);
+
+    renderScreen(<DeliveryInfoPage />);
+
+    expect(await screen.findByTestId('method-terms-m1'))
+      .toHaveTextContent(/грузчики 1\s000\s₸ за каждые 10 шт\., оплачиваются напрямую/);
   });
 });

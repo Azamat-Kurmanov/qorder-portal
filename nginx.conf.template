@@ -1,0 +1,208 @@
+# Раздача рабочего места платформы и проксирование его запросов к API.
+#
+# Это ШАБЛОН, а не готовый конфиг. Образ nginx перед запуском сервера
+# прогоняет всё из /etc/nginx/templates через envsubst и кладёт результат
+# в /etc/nginx/conf.d. Подставляются ровно две переменные — ${NGINX_LOCAL_RESOLVERS}
+# и ${NGINX_API_UPSTREAM}; их список сужен переменной NGINX_ENVSUBST_FILTER
+# в Dockerfile, иначе envsubst съел бы и $host, и $request_uri, и
+# $api_upstream — то есть собственные переменные nginx — и конфиг развалился бы.
+#
+# Приложение и API живут на одном origin намеренно. Так браузер не применяет
+# к запросам правило источников вовсе: нет ни предварительных запросов, ни
+# расхождений вида localhost против 127.0.0.1, ни повышения адреса до https.
+# Тот же приём использует dev-сервер Vite, и поведение стенда совпадает
+# с поведением машины разработчика.
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Версия nginx в заголовке Server и на страницах ошибок — бесплатная
+    # подсказка тому, кто подбирает известную уязвимость под конкретный выпуск.
+    # Отдавать её приложению незачем: наружу оно ничего о себе сообщать не должно.
+    server_tokens off;
+
+    # Сжатие только для текста: картинки и шрифты уже сжаты, повторное сжатие
+    # тратит процессор и ничего не выигрывает.
+    #
+    # text/javascript стоит рядом с application/javascript не для красоты:
+    # nginx постепенно переводит .js на новый тип, и на обновлении плавающего
+    # тега базового образа сборка Vite (а это сотни килобайт .js) молча
+    # перестала бы сжиматься — без единой ошибки, только страница грузится дольше.
+    gzip on;
+    gzip_types text/css application/javascript text/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # Заголовки безопасности. Стоят на уровне server, но ниже продублированы
+    # в каждом location, где есть свой add_header: nginx наследует add_header
+    # только целиком и только пока потомок не объявил НИ ОДНОГО своего —
+    # первый же add_header в location отменяет все родительские.
+    #
+    # nosniff: браузер обязан верить объявленному Content-Type и не угадывать
+    # его по содержимому. Без него загруженный когда-нибудь пользовательский
+    # файл может быть исполнен как скрипт нашего origin.
+    add_header X-Content-Type-Options "nosniff" always;
+    # strict-origin-when-cross-origin: на чужой адрес уходит только origin,
+    # без пути. Иначе в Referer чужого сервера утекали бы внутренние адреса
+    # вида /tenants/42 — то есть идентификаторы арендаторов.
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    # Запрет встраивания в рамку — через CSP frame-ancestors, а не через
+    # X-Frame-Options. Причина выбора: frame-ancestors — действующий стандарт,
+    # его понимают все текущие браузеры, и он умеет перечислять разрешённые
+    # источники, когда портал соседней команды захочет встроить у себя один
+    # наш экран. X-Frame-Options такого не умеет (ALLOW-FROM не поддержан
+    # нигде), и при наличии CSP браузер его всё равно игнорирует — держать
+    # оба заголовка значит держать один мёртвый.
+    add_header Content-Security-Policy "frame-ancestors 'none'" always;
+
+    # Рабочее место платформы файлов не загружает. Предел стоит низким
+    # намеренно: случайная многомегабайтная отправка не должна доходить до API.
+    client_max_body_size 1m;
+
+    # DNS пода. Адрес не зашит: NGINX_LOCAL_RESOLVERS заполняет штатный скрипт
+    # образа 15-local-resolvers.envsh — он читает nameserver из /etc/resolv.conf
+    # того пода, где контейнер запущен (включён переменной
+    # NGINX_ENTRYPOINT_LOCAL_RESOLVERS в Dockerfile). Зашитый адрес CoreDNS
+    # был бы верен ровно до переустановки кластера, и проверить его вне
+    # кластера нельзя вовсе.
+    #
+    # Сам resolver здесь нужен из-за переменной в proxy_pass (см. ниже):
+    # без resolver nginx с переменной в адресе отказывается стартовать.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+
+    # ---------- запросы приложения к API ----------
+    location /api/ {
+        # Адрес API — в переменной, и это не украшение.
+        #
+        # proxy_pass с именем-константой заставляет nginx разрешить это имя
+        # ОДИН РАЗ, при чтении конфигурации. Если Service бэкенда в namespace
+        # ещё нет — а в qorder-preprod его сейчас нет вовсе, — nginx не
+        # стартует, и под уходит в CrashLoopBackOff: приложение недоступно
+        # целиком, хотя статику оно раздало бы прекрасно. С переменной имя
+        # разрешается на каждый запрос, и отсутствие бэкенда стоит ровно
+        # столько, сколько стоит: 502 на /api/, живая страница вокруг.
+        #
+        # Значение приходит из ConfigMap стенда (ключ NGINX_API_UPSTREAM) и
+        # записано полным именем — qorder.<namespace>.svc.cluster.local, —
+        # потому что resolver — собственный DNS-клиент nginx: он не читает
+        # /etc/resolv.conf и не дописывает search-домены Kubernetes. Короткое
+        # имя `qorder` ушло бы в CoreDNS как есть, не попало бы в зону
+        # cluster.local, уехало бы во внешний forward и вернулось NXDOMAIN —
+        # то есть 502 на полностью здоровом бэкенде.
+        set $api_upstream ${NGINX_API_UPSTREAM};
+        proxy_pass $api_upstream$request_uri;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Пустой Connection: соединение к API держится открытым, а не гасится
+        # после каждого запроса.
+        proxy_set_header Connection        "";
+
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    60s;
+        proxy_send_timeout    60s;
+    }
+
+    # ---------- контракт OpenAPI ----------
+    # Им живёт `npm run api:pull`: разработчик забирает контракт со стенда,
+    # не поднимая бэкенд у себя. Без этого правила запрос получил бы страницу
+    # приложения с кодом 200, и orval упал бы на разборе HTML как JSON.
+    location /v3/api-docs {
+        set $api_upstream ${NGINX_API_UPSTREAM};
+        proxy_pass $api_upstream$request_uri;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection        "";
+
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    30s;
+    }
+
+    # ---------- служебные адреса API ----------
+    # Наружу отдаются только проба и версия: по ним приложение отличает
+    # недоступный бэкенд от собственной ошибки. Метрики
+    # (/actuator/prometheus) сюда намеренно не попадают.
+    location ~ ^/actuator/(info|health)(/.*)?$ {
+        set $api_upstream ${NGINX_API_UPSTREAM};
+        proxy_pass $api_upstream$request_uri;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection        "";
+
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    10s;
+    }
+
+    # Всё остальное на /actuator/ закрыто здесь, а не оставлено общему правилу:
+    # иначе запрос метрик получал бы страницу приложения с кодом 200, и отличить
+    # закрытый адрес от опечатки было бы нельзя.
+    location /actuator/ {
+        return 404;
+    }
+
+    # ---------- настройки стенда ----------
+    # Кэшировать нельзя ни секунды: файл пишется при старте контейнера и
+    # у каждого стенда свой. Закэшированный, он увёл бы браузер на Keycloak
+    # соседнего окружения — с ошибкой входа, ничего не говорящей о причине.
+    location = /config.js {
+        add_header Cache-Control "no-store" always;
+        # Повтор заголовков безопасности: свой add_header выше отменил
+        # наследование серверных.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    }
+
+    # ---------- статика ----------
+    # У файлов сборки хэш в имени: содержимое по такому адресу не меняется
+    # никогда, и браузер вправе держать его до истечения срока.
+    location /assets/ {
+        # Один заголовок, а не expires плюс add_header: две директивы отдают
+        # два разных Cache-Control в одном ответе, и какой из них выиграет,
+        # решает уже браузер.
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        # Повтор заголовков безопасности: свой add_header выше отменил
+        # наследование серверных.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+        try_files $uri =404;
+    }
+
+    # Точка входа кэшироваться не должна: иначе после выкатки браузер продолжит
+    # просить файлы старой сборки, которых в образе уже нет, и приложение
+    # встретит человека пустым экраном.
+    #
+    # Сюда же попадает и любой маршрут приложения: try_files из location /
+    # отдаёт /index.html внутренним перенаправлением, а оно заново проходит
+    # разбор location. То есть заголовки этого блока — это заголовки всех
+    # экранов приложения, и потерять их здесь означало бы потерять везде.
+    location = /index.html {
+        add_header Cache-Control "no-store" always;
+        # Повтор заголовков безопасности: свой add_header выше отменил
+        # наследование серверных.
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Content-Security-Policy "frame-ancestors 'none'" always;
+    }
+
+    # Маршруты приложения разбирает браузер, а не сервер: адрес вида
+    # /tenants/42 существует только в приложении. Без возврата index.html
+    # обновление страницы на любом внутреннем экране давало бы 404 — и первым
+    # под удар попадал бы возврат с Keycloak на /callback.
+    #
+    # Своего add_header здесь нет намеренно: блок наследует серверные
+    # заголовки безопасности целиком.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

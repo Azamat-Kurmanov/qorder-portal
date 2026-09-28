@@ -26,14 +26,6 @@ export function isAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.QOrderBridge === 'object';
 }
 
-/** Сохранить секрет в защищённом хранилище приложения; в браузере ничего не делает. */
-export function storeSecret(key: string, value: string): boolean {
-  const bridge = window.QOrderBridge;
-  if (!bridge?.storeSecret) return false;
-  bridge.storeSecret(key, value);
-  return true;
-}
-
 /**
  * Отдать файл приложению.
  *

@@ -66,7 +66,7 @@ export function LanguageAsk() {
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="qo-scrim fixed inset-0 z-40 bg-ink/40" />
+        <Dialog.Overlay className="qo-scrim fixed inset-0 z-40 bg-ink/40 dark:bg-black/60" />
 
         <Dialog.Content
           className={cn(
@@ -95,7 +95,7 @@ export function LanguageAsk() {
                 onClick={() => answer(language)}
                 className={cn(
                   'flex h-12 items-center justify-center rounded-[var(--radius-control)]',
-                  'text-[15px] font-medium transition-all duration-300 active:scale-95',
+                  'text-body font-medium transition-all duration-300 active:scale-95',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
                   language === current
                     ? 'bg-accent-soft text-accent'
@@ -117,7 +117,7 @@ export function LanguageAsk() {
             Обещание, что решение не окончательное: без него выбор выглядит
             дверью, которая захлопнется, и его откладывают.
           */}
-          <Dialog.Description className="mt-4 text-[13px] leading-snug text-ink-subtle">
+          <Dialog.Description className="mt-4 text-caption leading-snug text-ink-subtle">
             {t('language.ask.note')}
           </Dialog.Description>
         </Dialog.Content>

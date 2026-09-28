@@ -68,7 +68,7 @@ export function TemplatesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold tracking-tight text-ink">{t('templates.title')}</h1>
+      <h1 className="qo-page-title">{t('templates.title')}</h1>
 
       <RepeatOrderButton />
 
@@ -97,8 +97,8 @@ export function TemplatesPage() {
               onBlur={form.field('name').onBlur}
               className={cn(
                 'h-11 w-full rounded-[var(--radius-control)] border border-hairline bg-surface px-3',
-                'text-[15px] text-ink placeholder:text-ink-faint',
-                'transition-all duration-300 focus:border-ink/30 focus:outline-none focus:ring-2 focus:ring-brand/30',
+                'text-body text-ink placeholder:text-ink-faint',
+                'transition-[border-color,box-shadow] duration-150 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent',
               )}
             />
           </label>

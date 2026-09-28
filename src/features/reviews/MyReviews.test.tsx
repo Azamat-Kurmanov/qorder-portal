@@ -94,7 +94,7 @@ describe('мои отзывы', () => {
     renderScreen(<MyReviewsPage />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Изменить' }));
-    await userEvent.click(screen.getByRole('radio', { name: 'Оценка 3 из 5' }));
+    await userEvent.click(screen.getByRole('radio', { name: /^Оценка 3 из 5/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() => {
@@ -167,7 +167,7 @@ describe('мои отзывы', () => {
     expect(await screen.findByText(/ждут вашей оценки/i)).toBeInTheDocument();
     expect(screen.getByText('Гвозди 100')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('radio', { name: 'Оценка 4 из 5' }));
+    await userEvent.click(screen.getByRole('radio', { name: /^Оценка 4 из 5/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Оценить' }));
 
     // Отправлять человека за оценкой обратно в карточку незачем: он дошёл
@@ -239,7 +239,7 @@ describe('мои отзывы', () => {
     awaitingRule.body = [];
     reviewsRule.body = [SAVED_AWAITING_REVIEW];
 
-    await userEvent.click(screen.getByRole('radio', { name: 'Оценка 4 из 5' }));
+    await userEvent.click(screen.getByRole('radio', { name: /^Оценка 4 из 5/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Оценить' }));
 
     await waitFor(() => {

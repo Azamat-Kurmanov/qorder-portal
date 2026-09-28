@@ -1,4 +1,7 @@
+import type { TFunction } from 'i18next';
+import type { SnapshotLineDto } from '../../api/generated';
 import { intlLocale } from '../../i18n';
+import { quantityWithUnit } from '../../shared/units';
 
 /**
  * Слова, которыми список заявок называет дату.
@@ -17,4 +20,15 @@ export function orderDay(iso: string): string {
   return Number.isNaN(date.getTime())
     ? iso
     : new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long' }).format(date);
+}
+
+/**
+ * Штуки оптовой строки: « · 60 мешков», а у снятой с продажи позиции,
+ * единица штук которой уже неизвестна, — « · по 50». У штучной строки пусто.
+ */
+export function packNote(line: SnapshotLineDto, t: TFunction): string {
+  if (!line.packQty) return '';
+  return ` · ${line.pieceUnit
+    ? quantityWithUnit(line.quantity * line.packQty, line.pieceUnit)
+    : t('cart.wholesale.pack', { amount: line.packQty })}`;
 }

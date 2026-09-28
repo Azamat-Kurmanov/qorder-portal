@@ -1,3 +1,4 @@
+import { prefersReducedMotion } from './reducedMotion';
 /**
  * Признак места, куда улетает позиция.
  *
@@ -30,7 +31,7 @@ export const CART_TARGET = 'data-cart-target';
  */
 export function flyToCart(source: Element | null | undefined): void {
   if (!source || typeof document === 'undefined') return;
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  if (prefersReducedMotion()) return;
 
   const target = visibleCartTarget();
   if (!target) return;

@@ -155,7 +155,7 @@ export function ActivationPage() {
             на телефоне — имя усекалось бы первым. */}
         <div>
           <div className="text-sm font-semibold leading-tight text-ink">Q-Order</div>
-          <div className="text-[11px] leading-4 text-ink-faint">{t('brand.tagline')}</div>
+          <div className="text-2xs leading-4 text-ink-faint">{t('brand.tagline')}</div>
         </div>
         <div className="ml-auto">
           <LanguagePicker />

@@ -2,8 +2,29 @@
 # ломает кэш слоёв, а кое-что и опасно.
 node_modules
 dist
-.env
 *.tsbuildinfo
 .git
 .idea
 coverage
+
+# Локальные настройки не должны запекаться в образ: конфигурация стенда
+# приходит при старте контейнера из ConfigMap.
+.env
+.env.*
+
+# История, настройки IDE и инфраструктура не участвуют в сборке статики.
+.gitignore
+.vscode
+.claude
+.infra
+
+# Локальные рабочие материалы и отчёты тестов не должны сбрасывать кэш COPY.
+.superpowers
+.impeccable
+.junie
+temp
+docs
+design-canvas
+graphify-out
+playwright-report
+test-results

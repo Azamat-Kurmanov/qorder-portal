@@ -35,10 +35,28 @@
       } catch (error) {
         // Хранилище запрещено настройками сайта — кабинет откроется обычным.
       }
+      /*
+        Тема — по той же причине и тем же способом: покупатель, выбравший
+        тёмную (или зашедший в магазин, у которого она по умолчанию), иначе
+        видел бы белую вспышку до того, как приложение прочтёт выбор.
+        Сначала выбор покупателя, потом последняя тема продавца — порядок
+        и ключи те же, что в `src/ui/theme.ts` (закреплены `theme.test.ts`).
+      */
+      try {
+        var theme = localStorage.getItem('q-order.portal.theme');
+        if (theme !== 'light' && theme !== 'dark') theme = localStorage.getItem('q-order.portal.theme-default');
+        if (theme === 'dark' || theme === 'light') {
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+        }
+      } catch (error) {
+        // Хранилище запрещено — кабинет откроется светлым.
+      }
     </script>
   </head>
   <body>
     <div id="root"></div>
+    <script src="/config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

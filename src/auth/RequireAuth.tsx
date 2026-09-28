@@ -35,7 +35,7 @@ export function RequireAuth({ children }: RequireAuthProps) {
               читается подписью при знаке, а не следующей строкой экрана. */}
           <div className="flex flex-col items-center gap-1.5">
             <Logo height={56} />
-            <p className="text-[13px] tracking-[0.01em] text-ink-subtle">{t('brand.tagline')}</p>
+            <p className="text-caption tracking-[0.01em] text-ink-subtle">{t('brand.tagline')}</p>
           </div>
           {/* Имя кабинета под знаком: систем у Q-Order три, и знак у них общий.
               Клиент попадает сюда по присланной ссылке и из одного знака
@@ -61,7 +61,7 @@ export function RequireAuth({ children }: RequireAuthProps) {
               читается подписью при знаке, а не следующей строкой экрана. */}
           <div className="flex flex-col items-center gap-1.5">
             <Logo height={96} />
-            <p className="text-[13px] tracking-[0.01em] text-ink-subtle">{t('brand.tagline')}</p>
+            <p className="text-caption tracking-[0.01em] text-ink-subtle">{t('brand.tagline')}</p>
           </div>
           {/* Имя кабинета под знаком: систем у Q-Order три, и знак у них общий.
               Клиент попадает сюда по присланной ссылке и из одного знака

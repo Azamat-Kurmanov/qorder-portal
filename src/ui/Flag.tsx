@@ -34,7 +34,7 @@ export function Flag({ language, className }: { language: Language; className?: 
     <span
       data-flag={language}
       aria-hidden="true"
-      className={cn('shrink-0 text-[17px] leading-none', className)}
+      className={cn('shrink-0 text-lead leading-none', className)}
     >
       {FLAGS[language]}
     </span>

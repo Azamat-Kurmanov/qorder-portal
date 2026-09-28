@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PackContents, packMembers } from '../catalog/PackContents';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../ui/Button';
@@ -15,11 +16,17 @@ import {
   type PortalOrderDto,
   type SnapshotLineDto,
 } from '../../api/generated';
+import { OrderMessages } from './OrderMessages';
 import { OrderStateBadge } from './OrderStateBadge';
+import { PickupCode } from './PickupCode';
 import { RevisionDiff } from './RevisionDiff';
+import { OrderTotals, type OrderBreakdown } from './OrderTotals';
+import type { Currency } from '../../shared/currency';
+import { LinkedLineThumb } from '../cart/LineThumb';
 import { fileNameFrom, saveFile } from '../../shared/download';
-import { money, tenge } from '../../shared/format';
-import { orderDay } from './orderText';
+import { decimal, money } from '../../shared/format';
+import { quantityWithUnit } from '../../shared/units';
+import { orderDay, packNote } from './orderText';
 
 /**
  * Заявка целиком: что отправлено, что предлагает поставщик и что с этим делать.
@@ -103,11 +110,13 @@ export function OrderPage() {
   return (
     <div className="flex flex-col gap-4 pb-28">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight text-ink">
+        <h1 className="qo-page-title">
           {t('orders.orderFrom', { day: orderDay(order.createdAt) })}
         </h1>
         <OrderStateBadge state={order.state} />
       </div>
+
+      {order.pickupCode ? <PickupCode code={order.pickupCode} className="self-start" /> : null}
 
       {order.needsAnswer && (
         <div
@@ -118,31 +127,37 @@ export function OrderPage() {
           <p className="mt-1 text-sm text-ink-muted">
             {t('orders.changesNote')}
           </p>
-          <RevisionDiff diff={order.diff} />
+          <RevisionDiff diff={order.diff} currency={order.currency} />
         </div>
       )}
 
-      {order.sellerAnswer && (
-        /*
-          Ответ продавца — здесь, а не в мессенджере: в кабинет приходят те,
-          кто в переписке не сидит, и другого места прочитать ответ у них нет.
-        */
+      {/*
+        Переписка — здесь, а не в мессенджере: в кабинет приходят те, кто
+        в переписке не сидит, и другого места прочитать её у них нет.
+        Заявки, поданные до ленты, хранят только `sellerAnswer` — для них
+        показывается прежняя карточка одним ответом.
+      */}
+      {(order.messages ?? []).length > 0 ? (
+        <OrderMessages messages={order.messages} />
+      ) : order.sellerAnswer ? (
         <Card className="border-l-2 border-l-accent p-4">
           <p className="text-sm font-medium text-ink-muted">
             {t('orders.sellerAnswer')}
             {order.answeredAt ? ` · ${orderDay(order.answeredAt)}` : ''}
           </p>
-          <p className="mt-1 whitespace-pre-line text-[15px] leading-relaxed text-ink">
+          <p className="mt-1 whitespace-pre-line text-body leading-relaxed text-ink">
             {order.sellerAnswer}
           </p>
         </Card>
-      )}
+      ) : null}
 
       <Revision
         title={order.proposed ? t('orders.youSent') : t('orders.contents')}
         lines={order.submitted}
         total={order.total}
         testId="submitted"
+        breakdown={order}
+        currency={order.currency}
       />
 
       {order.proposed && (
@@ -151,6 +166,7 @@ export function OrderPage() {
           lines={order.proposed}
           total={order.proposedTotal ?? 0}
           testId="proposed"
+          currency={order.currency}
         />
       )}
 
@@ -218,11 +234,15 @@ export function OrderPage() {
 }
 
 /** Одна редакция состава: то, что предъявлено, и её итог. */
-function Revision({ title, lines, total, testId }: {
+function Revision({ title, lines, total, testId, breakdown, currency }: {
   title: string;
   lines: SnapshotLineDto[];
   total: number;
   testId: string;
+  /** Разбивка итога — только у отправленной редакции. */
+  breakdown?: OrderBreakdown;
+  /** Валюта заявки, а не открытого магазина. */
+  currency: Currency | undefined;
 }) {
   const { t } = useTranslation();
   return (
@@ -234,12 +254,26 @@ function Revision({ title, lines, total, testId }: {
           <tbody>
             {lines.map((line, index) => (
               <tr key={`${line.name}-${index}`} className="border-b border-hairline last:border-0">
-                <td className="py-2 pr-2 text-ink">{line.name}</td>
+                <td className="py-2 pr-2 text-ink">
+                  <span className="flex items-center gap-3">
+                    <LinkedLineThumb
+                      itemId={line.itemId}
+                      seed={line.itemId ?? line.name}
+                      src={line.imageUrl}
+                      label={t('orders.openItem', { name: line.name })}
+                      className="size-11"
+                    />
+                    <span className="flex min-w-0 flex-col">
+                      {line.name}
+                      {line.pack ? <PackContents label={t('pack.inPress')} members={packMembers(line.pack)} /> : null}
+                    </span>
+                  </span>
+                </td>
                 <td className="py-2 pr-2 text-right tabular-nums text-ink-muted">
-                  {money(line.quantity)} {line.unit ?? ''}
+                  {line.unit ? quantityWithUnit(line.quantity, line.unit) : decimal(line.quantity)}{packNote(line, t)}
                 </td>
                 <td className="py-2 text-right tabular-nums text-ink">
-                  {line.price === undefined ? '' : tenge(line.price)}
+                  {line.price === undefined ? '' : money(line.price, currency)}
                 </td>
               </tr>
             ))}
@@ -248,10 +282,7 @@ function Revision({ title, lines, total, testId }: {
       </div>
 
       <div className="my-2 h-px bg-hairline" />
-      <div className="flex justify-between font-semibold text-ink">
-        <span>{t('orders.total')}</span>
-        <span className="tabular-nums">{tenge(total)}</span>
-      </div>
+      <OrderTotals total={total} breakdown={breakdown} currency={currency} />
     </Card>
   );
 }

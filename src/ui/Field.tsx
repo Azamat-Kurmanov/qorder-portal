@@ -28,7 +28,7 @@ export interface FieldFault {
  * диктор. Раньше в формах стоял `role="alert"` без связи с полем, и диктор
  * читал их как два не связанных куска экрана.
  */
-export function Field({
+function Field({
   name, label, hint, rule, fault, value, onChange, onBlur,
   type = 'text', inputMode, disabled = false,
 }: {
@@ -78,12 +78,15 @@ export function Field({
         className={cn(
           'h-10 w-full rounded-[var(--radius-control)] border bg-surface px-3',
           'text-sm text-ink outline-none disabled:cursor-not-allowed disabled:opacity-60',
-          fault ? 'border-gone focus:border-gone' : 'border-hairline focus:border-ink-faint',
+          // Фокус — рамкой в два пикселя цветом магазина (ошибка — красным): смена
+          // оттенка однопиксельной рамки на глаз не читалась вовсе.
+          'transition-[border-color,box-shadow] duration-150 focus:ring-1',
+          fault ? 'border-gone focus:ring-gone' : 'border-line focus:border-accent focus:ring-accent',
         )}
       />
-      {hint ? <span id={hintId} className="text-[13px] text-ink-faint">{hint}</span> : null}
+      {hint ? <span id={hintId} className="text-caption text-ink-faint">{hint}</span> : null}
       {fault ? (
-        <span id={faultId} role="alert" className="text-[13px] text-gone">
+        <span id={faultId} role="alert" className="text-caption text-gone">
           {faultText(fault, name, t)}
         </span>
       ) : null}
@@ -107,7 +110,7 @@ export function FieldFaultText({ fault, name }: { fault?: FieldFault; name: stri
   if (!fault) return null;
 
   return (
-    <span role="alert" className="text-[13px] text-gone">
+    <span role="alert" className="text-caption text-gone">
       {faultText(fault, name, t)}
     </span>
   );

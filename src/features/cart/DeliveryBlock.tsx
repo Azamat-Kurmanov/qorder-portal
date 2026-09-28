@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MapPin } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { cn } from '../../ui/cn';
 import { Card } from '../../ui/Card';
@@ -7,19 +8,25 @@ import {
   useGetPortalDeliveryOptions,
   useGetPortalKnownAddresses,
   useGetPortalSuppliers,
-  type Delivery,
+  type SubmitOrderDelivery,
   type DeliveryOptionsDto,
   type KnownAddressDto,
   type Method,
 } from '../../api/generated';
 import { useSupplier } from '../../supplier/useSupplier';
-import { tenge } from '../../shared/format';
+import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
+import type { Currency } from '../../shared/currency';
+import { money } from '../../shared/format';
+import { LoadersChoice } from './LoadersChoice';
+import type { LoadersLine } from './loaders';
 
 interface DeliveryBlockProps {
   /** Сумма товаров: по ней считается, сколько не хватает до бесплатной доставки. */
   goodsTotal: number;
-  value: Delivery;
-  onChange: (next: Delivery) => void;
+  value: SubmitOrderDelivery;
+  onChange: (next: SubmitOrderDelivery) => void;
+  /** Строки корзины — для предварительного расчёта грузчиков «за количество» и «за вес». */
+  lines?: LoadersLine[];
 }
 
 /** Привезут или заберёт сам — первое решение, а не один из способов в списке. */
@@ -53,8 +60,9 @@ export function useDeliveryOptions(): DeliveryOptionsDto | undefined {
  * до менеджера с неразрешённой доставкой, и он назовёт условия сам. Поэтому
  * блок ничего не блокирует и ни на что не жалуется.
  */
-export function DeliveryBlock({ goodsTotal, value, onChange }: DeliveryBlockProps) {
+export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: DeliveryBlockProps) {
   const { t } = useTranslation();
+  const currency = useSupplierCurrency();
   const options = useDeliveryOptions();
   // Ветка живёт отдельно от выбора: пока способ не назван, из полей заявки
   // не видно, чего клиент ждёт — а показать ему нужно уже нужную половину.
@@ -62,6 +70,20 @@ export function DeliveryBlock({ goodsTotal, value, onChange }: DeliveryBlockProp
   const { supplierId } = useSupplier();
   const knownAddresses = useGetPortalKnownAddresses();
   const suppliers = useGetPortalSuppliers();
+
+  // Единственный способ получения выбирается сам, как и единственный
+  // в ветке: спрашивать «какой из одного» незачем. У «только самовывоза»
+  // считаются лишь способы самовывоза — доставку поставщик отключил.
+  const offered = options
+    ? options.methods.filter((candidate) => options.mode !== 'PICKUP_ONLY' || candidate.pickup)
+    : [];
+  const only = offered.length === 1 ? offered[0].id : undefined;
+  const unchosen = !value.methodId;
+  useEffect(() => {
+    if (only && unchosen) onChange({ methodId: only });
+    // onChange — новая функция на каждой отрисовке экрана; выбор нужен один раз.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [only, unchosen]);
 
   if (!options) return null;
 
@@ -102,13 +124,15 @@ export function DeliveryBlock({ goodsTotal, value, onChange }: DeliveryBlockProp
   };
 
   return (
-    <Card className="flex flex-col gap-3 p-3.5" data-testid="delivery">
-      <p className="text-[15px] font-semibold text-ink">{t('checkout.delivery.way')}</p>
+    <Card className="flex flex-col gap-4 p-5 lg:p-6" data-testid="delivery">
+      <h2 className="text-xl font-bold text-ink">{t('checkout.delivery.way')}</h2>
 
-      <div className="flex gap-2" role="group" aria-label={t('checkout.delivery.way')}>
+      <div className="flex flex-col gap-3 sm:flex-row" role="group" aria-label={t('checkout.delivery.way')}>
         <WayButton
           selected={way === 'DELIVERY'}
-          disabled={shipped.length === 0}
+          // «Только самовывоз» — решение поставщика: заведённый в справочнике
+          // способ доставки его не отменяет, и нажатие сбило бы выбранную точку.
+          disabled={pickupOnly || shipped.length === 0}
           onSelect={() => choose('DELIVERY')}
         >
           {t('checkout.delivery.courier')}
@@ -142,7 +166,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange }: DeliveryBlockProp
                 {list.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>
                     {candidate.name}
-                    {priceOf(candidate, t)}
+                    {priceOf(candidate, t, currency)}
                   </option>
                 ))}
               </select>
@@ -160,7 +184,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange }: DeliveryBlockProp
                 <option value="">{t('checkout.delivery.chooseZone')}</option>
                 {zones.map((candidate) => (
                   <option key={candidate.id} value={candidate.id}>
-                    {candidate.name} · {tenge(candidate.price)}
+                    {candidate.name} · {money(candidate.price, currency)}
                   </option>
                 ))}
               </select>
@@ -181,6 +205,26 @@ export function DeliveryBlock({ goodsTotal, value, onChange }: DeliveryBlockProp
                   {point.workingHours ? ` (${point.workingHours})` : ''}
                 </Choice>
               ))}
+              {/*
+                Карта — поиском адреса в 2ГИС, а не точкой: координат пункта
+                продавец не вводит, а адрес ищется и по названию рынка.
+                Ссылка стоит вне пунктов: внутри подписи переключателя она
+                перехватывала бы нажатие, выбирающее пункт.
+              */}
+              {(() => {
+                const chosen = options.pickupPoints.find((point) => point.id === value.pickupPointId);
+                return chosen?.address ? (
+                  <a
+                    href={`https://2gis.kz/search/${encodeURIComponent(chosen.address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center gap-2 self-start px-3 text-sm font-semibold text-accent-ink hover:underline"
+                  >
+                    <MapPin aria-hidden="true" className="size-4" />
+                    {t('checkout.delivery.onMap')}
+                  </a>
+                ) : null;
+              })()}
             </fieldset>
           )}
 
@@ -212,7 +256,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange }: DeliveryBlockProp
                         })}
                       className={cn(
                         'flex flex-col items-start gap-0.5 rounded-[var(--radius-tile)] border border-hairline',
-                        'px-3 py-2 text-left text-[13px] transition-all duration-300 hover:bg-sunk',
+                        'px-3 py-2 text-left text-caption transition-all duration-300 hover:bg-sunk',
                         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
                       )}
                     >
@@ -296,13 +340,23 @@ export function DeliveryBlock({ goodsTotal, value, onChange }: DeliveryBlockProp
           {way === 'DELIVERY' && method && (
             <div
               data-testid="shipping-row"
-              className="flex items-center justify-between text-[13px]"
+              className="flex items-center justify-between text-caption"
             >
               <span className="text-ink-muted">{t('checkout.delivery.cost')}</span>
               <span className="font-semibold tabular-nums text-ink">
-                {shipping === undefined ? t('checkout.summary.negotiable') : tenge(shipping)}
+                {shipping === undefined ? t('checkout.summary.negotiable') : money(shipping, currency)}
               </span>
             </div>
+          )}
+
+          {way === 'DELIVERY' && method?.loaders && (
+            <LoadersChoice
+              loaders={method.loaders}
+              value={value}
+              lines={lines}
+              askFloor={!method.requiresFloor}
+              onChange={onChange}
+            />
           )}
 
           {missing !== undefined && (
@@ -319,7 +373,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange }: DeliveryBlockProp
                   strokeLinecap="round"
                 />
               </svg>
-              {t('checkout.delivery.freeFrom', { amount: tenge(missing) })}
+              {t('checkout.delivery.freeFrom', { amount: money(missing, currency) })}
             </p>
           )}
 
@@ -366,13 +420,15 @@ function WayButton({
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        'h-11 flex-1 rounded-[var(--radius-tile)] border text-[13px]',
-        'transition-all duration-300 active:scale-95',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+        // Крупная плитка, а не тонкий переключатель: способ получения —
+        // главный вопрос экрана, и выбор должен читаться издалека.
+        'min-h-16 flex-1 rounded-[var(--radius-tile)] border-2 px-4 text-left text-lead font-bold',
+        'transition-all duration-200 active:scale-[0.98]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
         'disabled:pointer-events-none disabled:opacity-45',
         selected
-          ? 'border-accent/25 bg-accent-soft font-medium text-accent'
-          : 'border-hairline text-ink-muted hover:bg-sunk',
+          ? 'border-accent bg-bar text-accent-ink'
+          : 'border-line bg-surface text-ink hover:border-ink',
       )}
     >
       {children}
@@ -430,7 +486,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const FIELD = cn(
   'h-12 w-full rounded-[var(--radius-tile)] border border-hairline bg-surface px-3',
   'text-sm text-ink placeholder:text-ink-faint',
-  'transition-all duration-300 focus:border-ink/30 focus:outline-none focus:ring-2 focus:ring-brand/30',
+  'transition-[border-color,box-shadow] duration-150 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent',
 );
 
 /**
@@ -452,19 +508,19 @@ function otherSuppliersAddresses(
 }
 
 /** Стоимость способа в подписи. Договорную не называем: её называет человек. */
-function priceOf(method: Method, t: TFunction): string {
+function priceOf(method: Method, t: TFunction, currency: Currency | undefined): string {
   if (method.negotiable) return t('checkout.delivery.priceNegotiable');
   if (method.price === undefined) return '';
-  return method.price === 0 ? t('checkout.delivery.priceFree') : ` — ${tenge(method.price)}`;
+  return method.price === 0 ? t('checkout.delivery.priceFree') : ` — ${money(method.price, currency)}`;
 }
 
 /**
  * Сколько не хватает до бесплатной доставки.
  *
- * Пусто, когда порога нет или он уже пройден: «не хватает 0 ₸» человек читает
+ * Пусто, когда порога нет или он уже пройден: «не хватает 0 тенге» человек читает
  * как поломку, а не как хорошую новость.
  */
-export function missingToFree(method: Method, goodsTotal: number): number | undefined {
+function missingToFree(method: Method, goodsTotal: number): number | undefined {
   if (method.freeFromAmount === undefined) return undefined;
   const missing = method.freeFromAmount - goodsTotal;
   return missing > 0 ? missing : undefined;

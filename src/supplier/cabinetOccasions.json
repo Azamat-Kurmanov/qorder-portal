@@ -1,0 +1,12 @@
+{
+  "_comment": "Праздничное оформление кабинета клиента поверх шаблона: второй цвет и фактура фона на даты повода. Коды совпадают с перечислением сервера (CabinetOccasion). Один и тот же файл лежит в front и portal: правка — в обоих.",
+  "occasions": {
+    "NEW_YEAR": { "accent2": "#C8102E", "pattern": "glow" },
+    "MARCH_8": { "accent2": "#E0457B", "pattern": "dots" },
+    "NAURYZ": { "accent2": "#12A4A0", "pattern": "dots" },
+    "RAMADAN": { "accent2": "#C9A227", "pattern": "glow" },
+    "SUMMER": { "accent2": "#F2A007", "pattern": "glow" },
+    "BACK_TO_SCHOOL": { "accent2": "#2C6BD6", "pattern": "grid" },
+    "BLACK_FRIDAY": { "accent2": "#F5C400", "pattern": "grain" }
+  }
+}

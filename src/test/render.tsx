@@ -5,6 +5,8 @@ import { render } from '@testing-library/react';
 import { AuthContext, type AuthContextValue } from '../auth/AuthContext';
 import { SupplierContext } from '../supplier/SupplierContext';
 import { SupplierProvider } from '../supplier/SupplierProvider';
+import { SupplierCurrencyContext } from '../supplier/SupplierCurrency';
+import type { Currency } from '../shared/currency';
 
 /**
  * Обвязка экрана в тестах: те же провайдеры, что в приложении.
@@ -58,6 +60,15 @@ export function renderScreen(
     supplierId?: string | null;
     auth?: Partial<AuthContextValue>;
     route?: string;
+    /**
+     * Валюта открытого магазина: в бою её ставит `SupplierCurrencyScope`
+     * из списка поставщиков — здесь она подставляется прямо, чтобы экран
+     * не тянул за собой ответ `/api/portal/suppliers` ради одной суммы.
+     * По умолчанию — `'KZT'`, как валюта, с которой пока работают все
+     * магазины; `null` — витрина открыта, а магазин ещё не известен
+     * (суммы идут без знака).
+     */
+    currency?: Currency | null;
   } = {},
 ) {
   const queryClient = new QueryClient({
@@ -79,12 +90,16 @@ export function renderScreen(
     select: () => {},
   };
 
+  const currency = options.currency === undefined ? 'KZT' : options.currency ?? undefined;
+
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <MemoryRouter initialEntries={[options.route ?? '/']}>
         <AuthContext.Provider value={auth}>
           <QueryClientProvider client={queryClient}>
-            <SupplierContext.Provider value={supplier}>{children}</SupplierContext.Provider>
+            <SupplierContext.Provider value={supplier}>
+              <SupplierCurrencyContext.Provider value={currency}>{children}</SupplierCurrencyContext.Provider>
+            </SupplierContext.Provider>
           </QueryClientProvider>
         </AuthContext.Provider>
       </MemoryRouter>

@@ -35,6 +35,11 @@ export function RequireSupplier({ children }: RequireSupplierProps) {
   // у последнего поставщика или не открывали вовсе.
   const stale = supplierId !== null && answered
     && !list.some((supplier) => supplier.supplierId === supplierId);
+  // Отказ на сам список — тоже мёртвый выбор, только сказанный иначе: сервер
+  // проверяет заголовок `X-Supplier-Id` и у этого запроса, и выбор, оставшийся
+  // от прежнего входа (клиентом или в чужой магазин), отвергает раньше, чем
+  // успевает отдать список.
+  const refused = supplierId !== null && (suppliers.error as { status?: number } | null)?.status === 403;
 
   useEffect(() => {
     // Выбранный ранее поставщик мог отозвать доступ: тогда сохранённый выбор
@@ -43,11 +48,19 @@ export function RequireSupplier({ children }: RequireSupplierProps) {
     // заголовком `X-Supplier-Id` в каждом запросе кабинета — и каждый
     // получает отказ.
     if (stale && onlyOne) select(onlyOne);
-    else if (stale) select(null);
+    else if (stale || refused) select(null);
     else if (supplierId === null && onlyOne) select(onlyOne);
-  }, [stale, onlyOne, supplierId, select]);
+  }, [stale, refused, onlyOne, supplierId, select]);
 
-  if (suppliers.isPending) {
+  // Сбой списка экран не пропускает. Экран внутри спросил бы список ещё раз,
+  // упавший запрос на это время снова уходит в ожидание, и проверка сняла бы
+  // экран — чтобы поставить его обратно, как только придёт тот же отказ.
+  // Кабинет крутился бы в этом круге без конца, не отвечая на нажатия.
+  if (suppliers.isError && !refused) {
+    return <p className="py-12 text-center text-ink-subtle">{t('profile.failed')}</p>;
+  }
+
+  if (suppliers.isPending || refused) {
     return (
       <div className="flex flex-col items-center gap-3 py-12">
         <span

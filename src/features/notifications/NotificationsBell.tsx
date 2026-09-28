@@ -64,7 +64,20 @@ function destinationOf(kind: string, draftId: string): string {
  * уведомления принадлежат поставщику, и в кабинете, который ещё не открыли,
  * запрос за ними возвращает отказ.
  */
-export function NotificationsBell({ active = true }: { active?: boolean }) {
+export function NotificationsBell({
+  active = true,
+  dot = false,
+  className,
+}: {
+  active?: boolean;
+  /**
+   * Точка вместо числа — в шапке шаблона продавца, как в макете: число там
+   * спорило бы со счётчиком корзины рядом. Само число не теряется — оно
+   * в имени кнопки («Уведомления: 3 новых»).
+   */
+  dot?: boolean;
+  className?: string;
+}) {
   const { t } = useTranslation();
   const [opened, setOpened] = useState(false);
   const notifications = useGetPortalNotifications({ query: { enabled: active } });
@@ -84,14 +97,22 @@ export function NotificationsBell({ active = true }: { active?: boolean }) {
           'relative inline-flex size-11 items-center justify-center rounded-[var(--radius-control)]',
           'text-ink-muted transition-all duration-300 hover:bg-ink/5 active:scale-95',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+          className,
         )}
       >
         <Bell className="size-5" aria-hidden="true" />
-        {list.length > 0 && (
+        {list.length > 0 && dot && (
+          <span
+            data-testid="notifications-dot"
+            aria-hidden="true"
+            className="absolute right-2 top-2 size-2 rounded-full bg-accent ring-2 ring-surface"
+          />
+        )}
+        {list.length > 0 && !dot && (
           <span
             data-testid="notifications-count"
             aria-hidden="true"
-            className="absolute right-1.5 top-1.5 min-w-4 rounded-full bg-accent px-1 text-[11px] font-semibold leading-4 text-white"
+            className="absolute right-1.5 top-1.5 min-w-4 rounded-full bg-accent px-1 text-2xs font-semibold leading-4 text-on-accent"
           >
             {list.length}
           </span>
@@ -153,8 +174,8 @@ function NotificationRow({
         'transition-all duration-300 hover:bg-canvas active:scale-95',
       )}
     >
-      <span className="text-[15px] text-ink">{reasonOf(notification.kind, t)}</span>
-      <span className="text-[13px] text-ink-faint">{shortDate(notification.createdAt)}</span>
+      <span className="text-body text-ink">{reasonOf(notification.kind, t)}</span>
+      <span className="text-caption text-ink-faint">{shortDate(notification.createdAt)}</span>
     </Link>
   );
 }

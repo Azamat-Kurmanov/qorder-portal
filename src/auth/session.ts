@@ -82,12 +82,16 @@ function signedInJustNow(): boolean {
  * на Keycloak, живая сессия немедленно вернёт код, экран снова получит 401 —
  * и страница будет перезагружаться сама без конца. Такой отказ признаётся
  * отказом сессии и показывается словами, а повторную попытку делает человек.
+ *
+ * Возвращает, начат ли новый вход: мутатору запросов от этого зависит,
+ * отдавать ли экрану ошибку или ждать ухода со страницы.
  */
-export function requestReauthentication(): void {
+export function requestReauthentication(): boolean {
   if (signedInJustNow() || isSessionRejected()) {
     writeMark(REJECTED_KEY, '1');
     rejectionListeners.forEach((listener) => listener());
-    return;
+    return false;
   }
   reauthenticate();
+  return true;
 }

@@ -4,8 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { CatalogPage } from '../features/catalog/CatalogPage';
 import { ProfilePage } from '../features/profile/ProfilePage';
 import { renderScreen, renderWithRealSupplier } from '../test/render';
-import { get, stubFetch } from '../test/http';
+import { get, method, stubFetch } from '../test/http';
 import { setCurrentSupplierId } from '../supplier/supplier';
+import { markSigninCompleted, setSession } from '../auth/session';
+import { apiRequest, ReauthenticationRequiredError } from './client';
 import i18n from '../i18n';
 
 const emptyCatalog = [
@@ -98,5 +100,72 @@ describe('язык в запросах кабинета', () => {
       const headers = new Headers(call.init?.headers);
       expect(headers.get('Accept-Language')).toBe('kk');
     });
+  });
+});
+
+/**
+ * Отказ 401 значит «сессия истекла» только там, где сессия была. Анонимный
+ * запрос — активация приглашения, единственный экран без входа, — получает
+ * 401 как ответ по существу, и новый вход его не исправит: человек ушёл бы
+ * на Keycloak, так и не прочитав, что приглашение недействительно.
+ */
+describe('отказ 401 в запросах кабинета', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.sessionStorage.clear();
+    setSession(null, () => {});
+  });
+
+  const refusal = { code: 'INVITATION_INVALID', detail: 'Приглашение недействительно' };
+
+  it('анонимный запрос не уводит на вход и отдаёт тело отказа', async () => {
+    const reauthenticate = vi.fn();
+    setSession(null, reauthenticate);
+    stubFetch([method('POST', '/api/portal/invitation/activate', refusal, 401)]);
+
+    const failure = await apiRequest('/api/portal/invitation/activate', { method: 'POST' })
+      .catch((error: unknown) => error);
+
+    expect(reauthenticate).not.toHaveBeenCalled();
+    expect(failure).not.toBeInstanceOf(ReauthenticationRequiredError);
+    expect(failure).toMatchObject({ status: 401, info: refusal });
+  });
+
+  /**
+   * Пока браузер уходит на Keycloak, экрану нечего показывать: ни данных,
+   * ни ошибки. Запрос так и остаётся в ожидании, и экран не успевает
+   * нарисовать сбой, которого не было.
+   */
+  it('запрос с токеном на 401 уводит на новый вход и не завершается', async () => {
+    const reauthenticate = vi.fn();
+    setSession('expired-token', reauthenticate);
+    stubFetch([get('/api/portal/cart', refusal, 401)]);
+
+    const outcome = await Promise.race([
+      apiRequest('/api/portal/cart').then(() => 'resolved', () => 'rejected'),
+      new Promise((resolve) => setTimeout(() => resolve('pending'), 50)),
+    ]);
+
+    expect(reauthenticate).toHaveBeenCalledTimes(1);
+    expect(outcome).toBe('pending');
+  });
+
+  /**
+   * Вход только что завершился — нового входа не будет, отказ показывается
+   * словами. Тело ответа при этом доезжает до экрана: код отказа нужен ему,
+   * чтобы назвать причину.
+   */
+  it('отказ сразу после входа отдаёт тело ответа вместе с ошибкой', async () => {
+    const reauthenticate = vi.fn();
+    setSession('fresh-token', reauthenticate);
+    markSigninCompleted();
+    stubFetch([method('POST', '/api/portal/invitation/activate', refusal, 401)]);
+
+    const failure = await apiRequest('/api/portal/invitation/activate', { method: 'POST' })
+      .catch((error: unknown) => error);
+
+    expect(reauthenticate).not.toHaveBeenCalled();
+    expect(failure).toBeInstanceOf(ReauthenticationRequiredError);
+    expect(failure).toMatchObject({ status: 401, info: refusal });
   });
 });

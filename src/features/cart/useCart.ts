@@ -1,6 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
+import i18n from 'i18next';
+import { announceFailed } from './cartDrawer';
 import {
   getGetPortalCartQueryKey,
+  useClearPortalCart,
   useGetPortalCart,
   useSetPortalCartLine,
   type CartDto,
@@ -35,6 +38,17 @@ export function cartOf(response?: { status: number; data: unknown }): CartDto | 
 }
 
 /**
+ * Сообщить, что корзина не изменилась: текст сервера, если он есть, —
+ * он уже переведён и называет причину («нет в наличии», «минимум 5 шт.»).
+ */
+function reportFailure(error: unknown) {
+  // 401 — не отказ корзины: кабинет уже уводит на повторный вход.
+  if ((error as { status?: number } | null)?.status === 401) return;
+  const detail = (error as { info?: { detail?: unknown } } | null)?.info?.detail;
+  announceFailed(typeof detail === 'string' && detail ? detail : i18n.t('cart.failed'));
+}
+
+/**
  * Изменение количества позиции.
  *
  * Ноль убирает строку — отдельного удаления нет: две операции с одним смыслом
@@ -56,6 +70,27 @@ export function useSetCartLine() {
         if (response.status !== 200) return;
         queryClient.setQueryData(getGetPortalCartQueryKey(), response);
       },
+      onError: reportFailure,
+    },
+  });
+}
+
+/**
+ * Очистить корзину целиком.
+ *
+ * Ответ — уже пустая корзина: она кладётся в кеш так же, как ответ на
+ * изменение строки, без второго запроса.
+ */
+export function useClearCart() {
+  const queryClient = useQueryClient();
+
+  return useClearPortalCart({
+    mutation: {
+      onSuccess: (response) => {
+        if (response.status !== 200) return;
+        queryClient.setQueryData(getGetPortalCartQueryKey(), response);
+      },
+      onError: reportFailure,
     },
   });
 }

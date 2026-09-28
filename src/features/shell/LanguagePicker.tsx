@@ -1,54 +1,102 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { SUPPORTED_LANGUAGES, currentLanguage } from '../../i18n';
-import { Flag } from '../../ui/Flag';
+import { Check, ChevronDown, Globe } from 'lucide-react';
+import { SUPPORTED_LANGUAGES, currentLanguage, type Language } from '../../i18n';
 import { cn } from '../../ui/cn';
 
 /**
- * Выбор языка кабинета.
+ * Код языка на ярлыке — как в макете: латиницей и одинаковый на любом
+ * языке кабинета. Код не переводится: по нему язык узнают, не читая.
+ */
+const CODE: Record<Language, string> = { ru: 'RU', kk: 'KZ', en: 'EN' };
+
+/**
+ * Выбор языка кабинета — макет «Клиент · Мои заявки v2»: глобус, код
+ * и стрелка; в меню — код, название на самом языке и галочка у текущего.
  *
  * Языки названы на себе самих: человек, открывший кабинет на чужом языке,
- * ищет своё слово, а не его перевод. По той же причине список короткий
- * и всегда одинаковый — три кода, а не выпадающий список стран.
+ * ищет своё слово, а не его перевод. Список короткий и всегда одинаковый.
  *
- * Рядом со словом — флаг страны языка: чужую надпись читают, а свой флаг
- * узнают, и на слово «Қазақша» глазом попадают ещё до того, как его
- * прочли. Флаг стоит вместе с подписью, а не вместо неё: одним флагом
- * язык не назван — на русском говорят не только в России.
- *
- * Кнопка названа словами («Язык интерфейса»), а не только показывает код:
- * «РУС» само по себе экранный диктор прочитал бы как обрывок текста.
+ * Кнопка названа словами («Язык интерфейса: Русский»), а не только кодом:
+ * «RU» само по себе экранный диктор прочитал бы как обрывок текста.
  *
  * Смена языка сбрасывает кеш запросов. Ответы сервера переведены по заголовку
  * `Accept-Language`, и оставленные в кеше тексты ошибок пережили бы смену:
  * экран переключился, а отказ на нём остался на прежнем языке.
  */
-export function LanguagePicker() {
+export function LanguagePicker({
+  onBrand = false,
+  strip = false,
+}: {
+  onBrand?: boolean;
+  /** Низкая кнопка цветом строки статуса над шапкой шаблона, как в макете. */
+  strip?: boolean;
+} = {}) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [opened, setOpened] = useState(false);
   const current = currentLanguage();
+  const holder = useRef<HTMLDivElement | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+
+  // Закрытие Escape и нажатием мимо — тем же приёмом, что у размера шрифта.
+  useEffect(() => {
+    if (!opened) return;
+
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      setOpened(false);
+      trigger.current?.focus();
+    }
+
+    function onOutside(event: MouseEvent) {
+      if (!holder.current?.contains(event.target as Node)) setOpened(false);
+    }
+
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onOutside);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onOutside);
+    };
+  }, [opened]);
+
+  function choose(lng: Language) {
+    setOpened(false);
+    trigger.current?.focus();
+    if (lng === current) return;
+    void i18n.changeLanguage(lng);
+    // Именно clear: ответы сервера переведены по заголовку,
+    // и старые тексты не должны пережить смену языка.
+    queryClient.clear();
+  }
 
   return (
-    <div className="relative">
+    <div ref={holder} className="relative">
       <button
+        ref={trigger}
         type="button"
-        aria-label={`${t('language.label')}: ${t(`language.${current}`)}`}
+        aria-label={`${t('language.label')}: ${t(`language.full.${current}`)}`}
+        title={t(`language.full.${current}`)}
         aria-expanded={opened}
         aria-haspopup="menu"
         onClick={() => setOpened((open) => !open)}
         className={cn(
-          'inline-flex h-11 items-center rounded-[var(--radius-control)] px-3',
-          'text-sm font-medium text-ink-muted transition-all duration-300',
-          'hover:bg-ink/5 active:scale-95',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+          'inline-flex h-11 items-center gap-1.5 rounded-[var(--radius-control)] px-2.5',
+          'text-caption font-bold tracking-[0.04em] transition-colors duration-200',
+          'focus-visible:outline-none focus-visible:ring-2',
+          // На фирменной полосе шапки — белым по цвету поставщика.
+          strip
+            ? cn('h-7 gap-1 rounded-[var(--radius-small)] px-2 text-accent-ink hover:bg-accent/10 focus-visible:ring-accent', opened && 'bg-accent/10')
+            : onBrand
+            ? cn('h-10 text-on-brand hover:bg-black/15 focus-visible:ring-on-brand', opened && 'bg-black/15')
+            : cn('text-ink-muted hover:bg-ink/5 hover:text-ink focus-visible:ring-brand', opened && 'bg-ink/5 text-ink'),
         )}
       >
-        <span className="flex items-center gap-2">
-          <Flag language={current} />
-          {t(`language.${current}`)}
-        </span>
+        <Globe aria-hidden="true" className="size-4 shrink-0" strokeWidth={1.8} />
+        {CODE[current]}
+        <ChevronDown aria-hidden="true" className={cn('size-3 shrink-0 transition-transform duration-200', opened && 'rotate-180')} strokeWidth={2.2} />
       </button>
 
       {opened && (
@@ -56,35 +104,27 @@ export function LanguagePicker() {
           role="menu"
           aria-label={t('language.label')}
           className={cn(
-            'absolute right-0 top-full z-30 mt-1 flex min-w-24 flex-col',
-            'rounded-[var(--radius-tile)] border border-hairline bg-surface p-1 shadow-lg',
+            'absolute right-0 top-full z-30 mt-1 flex w-[200px] flex-col gap-0.5',
+            'rounded-[var(--radius-tile)] border border-hairline bg-surface p-1.5 shadow-float',
           )}
         >
           {SUPPORTED_LANGUAGES.map((lng) => (
             <button
               key={lng}
               type="button"
-              role="menuitem"
-              aria-current={lng === current ? 'true' : undefined}
-              onClick={() => {
-                if (lng === current) {
-                  setOpened(false);
-                  return;
-                }
-                void i18n.changeLanguage(lng);
-                // Именно clear: ответы сервера переведены по заголовку,
-                // и старые тексты не должны пережить смену языка.
-                queryClient.clear();
-                setOpened(false);
-              }}
+              // Язык выбран ровно один из трёх — радио, а не набор кнопок.
+              role="menuitemradio"
+              aria-checked={lng === current}
+              onClick={() => choose(lng)}
               className={cn(
-                'flex h-11 items-center rounded-[var(--radius-control)] px-3 text-left text-sm',
-                'transition-all duration-300 active:scale-95',
-                lng === current ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-ink/5',
+                'flex h-10 items-center gap-2.5 rounded-[var(--radius-control)] px-2.5 text-left text-sm font-semibold text-ink',
+                'transition-colors duration-200 hover:bg-ink/5',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
               )}
             >
-              <Flag language={lng} className="mr-2" />
-              {t(`language.${lng}`)}
+              <span aria-hidden="true" className="w-7 text-xs font-bold tracking-[0.04em] text-ink-subtle">{CODE[lng]}</span>
+              <span className="flex-1">{t(`language.full.${lng}`)}</span>
+              {lng === current && <Check aria-hidden="true" className="size-4 shrink-0 text-accent" strokeWidth={2.6} />}
             </button>
           ))}
         </div>

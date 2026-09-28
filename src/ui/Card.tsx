@@ -22,9 +22,11 @@ export function Card({ className, interactive = false, ...props }: ComponentProp
   return (
     <div
       className={cn(
-        'rounded-[var(--radius-card)] border border-hairline bg-surface shadow-soft',
+        // Край и тень — из шаблона продавца (`qo-card` в index.css): линия,
+        // тень или ничего. Без шаблона — прежние линия и мягкая тень.
+        'qo-card rounded-[var(--radius-card)] bg-surface',
         interactive
-          && 'transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-ink/15 hover:shadow-lift',
+          && 'qo-card-hover transition-all duration-300 ease-out hover:-translate-y-0.5',
         className,
       )}
       {...props}

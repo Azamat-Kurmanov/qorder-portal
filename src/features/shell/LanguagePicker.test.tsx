@@ -22,50 +22,30 @@ describe('переключатель языка', () => {
     window.localStorage.clear();
   });
 
-  it('называет текущий язык на нём самом', async () => {
+  it('ярлык — код языка, а имя кнопки — название словами', async () => {
     renderScreen(<LanguagePicker />);
 
-    expect(await screen.findByRole('button', { name: /Язык интерфейса/ }))
-      .toHaveTextContent('РУС');
+    expect(await screen.findByRole('button', { name: 'Язык интерфейса: Русский' }))
+      .toHaveTextContent('RU');
   });
 
   it('меняет язык приложения выбором из трёх', async () => {
     renderScreen(<LanguagePicker />);
 
     await userEvent.click(screen.getByRole('button', { name: /Язык интерфейса/ }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'ҚАЗ' }));
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: 'Қазақша' }));
 
     expect(i18n.resolvedLanguage).toBe('kk');
   });
 
-  it('выбранный язык назван выбранным, а не только подкрашен', async () => {
+  it('выбранный язык назван выбранным, а не только отмечен галочкой', async () => {
     renderScreen(<LanguagePicker />);
 
     await userEvent.click(screen.getByRole('button', { name: /Язык интерфейса/ }));
 
-    // Цвет читает не всякий: состояние обязано быть сказано словами.
-    expect(screen.getByRole('menuitem', { name: 'РУС' }))
-      .toHaveAttribute('aria-current', 'true');
-  });
-
-  /*
-   * Флаги те же, что на странице входа: их показывает переключатель темы
-   * Keycloak (ключи `locale_ru`, `locale_kk`, `locale_en`), и такие же стоят
-   * в кабинете сотрудника. Человек проходит через эти места подряд, и разные
-   * флаги у одного языка читаются как разные языки.
-   */
-  it('показывает те же флаги, что и страница входа', async () => {
-    renderScreen(<LanguagePicker />);
-
-    await userEvent.click(screen.getByRole('button', { name: /Язык интерфейса/ }));
-
-    const flags = Object.fromEntries(
-      [...document.querySelectorAll('[data-flag]')].map((node) => [
-        node.getAttribute('data-flag'),
-        node.textContent,
-      ]),
-    );
-    expect(flags).toEqual({ ru: '🇷🇺', kk: '🇰🇿', en: '🇬🇧' });
+    // Галочку читает не всякий: состояние обязано быть сказано словами.
+    expect(screen.getByRole('menuitemradio', { name: 'Русский' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menuitemradio', { name: 'English' })).toHaveAttribute('aria-checked', 'false');
   });
 
   it('смена языка сбрасывает кеш запросов', async () => {
@@ -73,7 +53,7 @@ describe('переключатель языка', () => {
     queryClient.setQueryData(['проверка'], 'ответ сервера на прежнем языке');
 
     await userEvent.click(screen.getByRole('button', { name: /Язык интерфейса/ }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'ENG' }));
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: 'English' }));
 
     // Тексты ошибок и уведомление о согласии приходят с сервера переведёнными.
     // Оставь их в кеше — экран переключится, а серверные строки останутся

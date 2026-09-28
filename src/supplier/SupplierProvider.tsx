@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { SupplierContext, type SupplierContextValue } from './SupplierContext';
 import { currentSupplierId, setCurrentSupplierId } from './supplier';
+import { rememberVisit } from './shopMemory';
 
 interface SupplierProviderProps {
   children: ReactNode;
@@ -21,6 +22,8 @@ export function SupplierProvider({ children }: SupplierProviderProps) {
   const select = useCallback((next: string | null) => {
     setCurrentSupplierId(next);
     setSupplierId(next);
+    // Открытый магазин встаёт первым в «Недавно открывали».
+    if (next !== null) rememberVisit(next);
     // Именно clear, а не invalidate: данные прежнего поставщика не должны
     // мелькнуть на экране, пока грузятся новые.
     queryClient.clear();

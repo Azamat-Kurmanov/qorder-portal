@@ -1,21 +1,31 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import i18n from '../i18n';
-import { shortDate, tenge } from './format';
+import { decimal, money, shortDate } from './format';
 
 describe('запись чисел и дат', () => {
   afterEach(async () => {
     await i18n.changeLanguage('ru');
   });
 
-  it('сумма записывается по правилам выбранного языка', async () => {
-    const russian = tenge(12500);
+  it('сумма записывается по правилам выбранного языка, со знаком валюты магазина', async () => {
+    const russian = money(12500, 'KZT');
     await i18n.changeLanguage('en');
-    const english = tenge(12500);
+    const english = money(12500, 'KZT');
 
     // Разделитель разрядов у русского — неразрывный пробел, у английского —
     // запятая. Совпади они, локаль до Intl не доходит.
     expect(english).not.toBe(russian);
     expect(english).toContain('₸');
+    expect(russian).toContain('₸');
+  });
+
+  it('валюта магазина — знак меняется вместе с ней', () => {
+    expect(money(1000, 'RUB')).toContain('₽');
+    expect(money(1000, 'RUB')).not.toContain('₸');
+  });
+
+  it('без известной валюты магазина сумма выводится числом без знака — как decimal', () => {
+    expect(money(1000, undefined)).toBe(decimal(1000));
   });
 
   /*
@@ -25,10 +35,10 @@ describe('запись чисел и дат', () => {
    */
   it('смена языка влияет на уже загруженный модуль', async () => {
     await i18n.changeLanguage('kk');
-    const kazakh = tenge(1000000);
+    const kazakh = money(1000000, 'KZT');
     await i18n.changeLanguage('en');
 
-    expect(tenge(1000000)).not.toBe(kazakh);
+    expect(money(1000000, 'KZT')).not.toBe(kazakh);
   });
 
   it('дата записывается по правилам выбранного языка', async () => {

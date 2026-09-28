@@ -25,10 +25,13 @@ export function FavoriteButton({
   itemId,
   favorite,
   className,
+  labelled = false,
 }: {
   itemId: string;
   favorite: boolean;
   className?: string;
+  /** Подпись словами рядом с сердечком — кнопка «В избранное» в карточке товара. */
+  labelled?: boolean;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -75,7 +78,7 @@ export function FavoriteButton({
   return (
     <button
       type="button"
-      aria-label={favorite ? t('favorites.remove') : t('favorites.add')}
+      aria-label={labelled ? undefined : favorite ? t('favorites.remove') : t('favorites.add')}
       aria-pressed={favorite}
       disabled={toggle.isPending}
       onClick={() => toggle.mutate({ itemId })}
@@ -83,7 +86,7 @@ export function FavoriteButton({
         // Сорок четыре точки цели остаются, а рамки вокруг нет: отметка стоит
         // в строке рядом с названием, и обведённая кнопка спорила бы там
         // за внимание с ценой и количеством — тем, ради чего строку читают.
-        'inline-flex size-11 items-center justify-center rounded-[var(--radius-control)]',
+        'qo-hit inline-flex size-11 items-center justify-center rounded-[var(--radius-control)]',
         'transition-all duration-300 active:scale-95',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
         favorite ? 'text-accent' : 'text-ink-faint hover:text-ink',
@@ -116,6 +119,7 @@ export function FavoriteButton({
           <path d="M12 20.5s-7.5-4.6-7.5-9.6A4.4 4.4 0 0 1 12 8.4a4.4 4.4 0 0 1 7.5 2.5c0 5-7.5 9.6-7.5 9.6Z" />
         </svg>
       </Bump>
+      {labelled && <span>{favorite ? t('item.inFavorites') : t('item.favorite')}</span>}
     </button>
   );
 }

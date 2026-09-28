@@ -42,7 +42,21 @@ function initialsOf(name: string): string {
  * из сохранённого выбора, который до ответа может указывать в никуда, и
  * ответом на такой запрос будет отказ.
  */
-export function ViewerBadge({ active = true }: { active?: boolean }) {
+export function ViewerBadge({
+  active = true,
+  chip = false,
+  initialsOnly = false,
+}: {
+  active?: boolean;
+  /** Чип без имени на виду — в плавающей панели и доке, где ширина нужна разделам. */
+  initialsOnly?: boolean;
+  /**
+   * Чип шапки шаблона продавца, как в макете: квадрат с инициалами на мягкой
+   * подложке и имя одной строкой (номер — подсказкой). Имя — от широкого
+   * монитора: на 1024 точках его ширина нужнее полю поиска.
+   */
+  chip?: boolean;
+}) {
   const { t } = useTranslation();
   const { phone: viewerPhone } = useAuth();
   const profile = useGetPortalProfile({ query: { enabled: active } });
@@ -54,6 +68,35 @@ export function ViewerBadge({ active = true }: { active?: boolean }) {
   const number = viewerPhone ? formatPhone(viewerPhone) : null;
   const initials = name ? initialsOf(name) : '';
 
+  if (chip) {
+    return (
+      <Link
+        to="/profile"
+        aria-label={name ? undefined : t('shell.profile')}
+        title={number ?? undefined}
+        className={cn(
+          'hidden h-[2.625rem] shrink-0 items-center gap-2.5 whitespace-nowrap rounded-[var(--radius-small)] border border-line pl-1.5 pr-1.5 lg:flex',
+          !initialsOnly && 'xl:pr-3',
+          'transition-colors duration-200 hover:border-accent',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        )}
+      >
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-accent-soft text-accent-ink">
+          {initials ? (
+            <span data-testid="viewer-initials" className="text-xs font-extrabold leading-none">{initials}</span>
+          ) : (
+            <User className="size-4" aria-hidden="true" />
+          )}
+        </span>
+        {name && (
+          // Имя остаётся в дереве и на 1024 точках — для диктора, но видно
+          // только там, где ему есть место.
+          <span className={cn('max-w-[160px] truncate text-caption font-semibold text-ink', initialsOnly ? 'sr-only' : 'max-xl:sr-only')}>{name}</span>
+        )}
+      </Link>
+    );
+  }
+
   return (
     <Link
       to="/profile"
@@ -64,20 +107,22 @@ export function ViewerBadge({ active = true }: { active?: boolean }) {
       */
       aria-label={name ? undefined : t('shell.profile')}
       className={cn(
-        'flex shrink-0 items-center gap-2 rounded-full',
+        // На телефоне плашки в шапке нет: полоса поделена между магазином
+        // и колокольчиком, а профиль открывается из меню.
+        'hidden shrink-0 items-center gap-2 rounded-full lg:flex',
         'transition-all duration-300 active:scale-95',
-        'lg:h-12 lg:gap-2.5 lg:rounded-[var(--radius-control)] lg:border lg:border-hairline',
-        'lg:bg-sunk lg:pl-1.5 lg:pr-3 lg:hover:border-ink/20',
+        'lg:h-13 lg:gap-2.5 lg:rounded-[var(--radius-tile)] lg:border-[1.5px] lg:border-bar-line',
+        'lg:bg-surface lg:pl-1.5 lg:pr-3.5 lg:hover:border-accent',
       )}
     >
       <span
         className={cn(
-          'flex size-9 shrink-0 items-center justify-center rounded-full lg:size-9',
-          'bg-accent-soft text-accent',
+          'flex size-10 shrink-0 items-center justify-center rounded-full',
+          'bg-accent-soft text-accent-ink',
         )}
       >
         {initials ? (
-          <span data-testid="viewer-initials" className="text-[13px] font-semibold leading-none">
+          <span data-testid="viewer-initials" className="text-caption font-semibold leading-none">
             {initials}
           </span>
         ) : (
@@ -93,13 +138,13 @@ export function ViewerBadge({ active = true }: { active?: boolean }) {
       */}
       <span className="hidden min-w-0 max-w-[160px] flex-col lg:flex">
         {name && (
-          <span className="truncate text-[13px] font-semibold leading-4 text-ink">{name}</span>
+          <span className="truncate text-body font-bold leading-5 text-ink">{name}</span>
         )}
         {number && (
           <span
             className={cn(
               'truncate leading-[13px] text-ink-subtle',
-              name ? 'text-[11px]' : 'text-[13px] font-medium',
+              name ? 'text-caption' : 'text-caption font-medium',
             )}
           >
             {number}

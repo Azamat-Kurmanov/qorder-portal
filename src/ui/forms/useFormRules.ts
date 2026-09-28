@@ -166,7 +166,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * ответа на вопрос «что сейчас в поле». Правило при этом обязано быть одно,
  * поэтому проверку зовут оба.
  */
-export function faultOf(rule: FieldRule | undefined, value: string): FieldFault | undefined {
+function faultOf(rule: FieldRule | undefined, value: string): FieldFault | undefined {
   if (!rule) return undefined;
   const trimmed = value.trim();
   if (rule.required && trimmed === '') return { rule: 'required' };
@@ -182,17 +182,4 @@ export function faultOf(rule: FieldRule | undefined, value: string): FieldFault 
     return { rule: 'maxLength', params: { max: rule.maxLength } };
   }
   return undefined;
-}
-
-/** Все причины разом — для формы, которая правит чужой черновик. */
-export function faultsOf<T extends Record<string, string>>(
-  schema: Record<string, FieldRule>,
-  values: T,
-): Partial<Record<keyof T, FieldFault>> {
-  const found: Partial<Record<keyof T, FieldFault>> = {};
-  for (const name of Object.keys(values) as (keyof T & string)[]) {
-    const fault = faultOf(schema[name], values[name]);
-    if (fault) found[name] = fault;
-  }
-  return found;
 }

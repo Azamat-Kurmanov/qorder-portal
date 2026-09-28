@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FavoritesPage } from './FavoritesPage';
 import { renderScreen } from '../../test/render';
@@ -85,6 +85,32 @@ describe('избранное', () => {
     expect(await screen.findByTestId('cart-bar')).toHaveTextContent('2 500');
   });
 
+  it('позиция со скидкой: старая цена зачёркнута, метка «−N%», цена цветом скидки', async () => {
+    const onSale = { ...CEMENT, price: 2000, oldPrice: 2500, discountPercent: 20 };
+    stubFetch([get('/api/portal/favorites', [onSale, { ...CEMENT, itemId: 'item-3', name: 'Песок' }]), get('/api/portal/cart', emptyCart)]);
+
+    renderScreen(<FavoritesPage />);
+
+    const [sale, plain] = await screen.findAllByTestId('favorite-row');
+    expect(within(sale).getByText('−20%')).toBeInTheDocument();
+    const old = sale.querySelector('s');
+    expect(old?.textContent).toMatch(/2\s500 ₸/);
+    expect(within(sale).getByText(/2\s000 ₸/)).toHaveClass('text-sale');
+    // Без скидки — ни метки, ни старой цены, цена обычным цветом.
+    expect(within(plain).queryByText(/^−\d+%$/)).not.toBeInTheDocument();
+    expect(plain.querySelector('s')).toBeNull();
+    expect(within(plain).getByText(/2\s500 ₸/)).not.toHaveClass('text-sale');
+  });
+
+  it('в другой валюте магазина цена показывается с её знаком', async () => {
+    stubFetch([get('/api/portal/favorites', [CEMENT]), get('/api/portal/cart', emptyCart)]);
+    renderScreen(<FavoritesPage />, { currency: 'RUB' });
+
+    const [row] = await screen.findAllByTestId('favorite-row');
+    expect(within(row).getByText(/2\s500 ₽/)).toBeInTheDocument();
+    expect(row).not.toHaveTextContent('₸');
+  });
+
   it('пустой список объясняет, зачем отмечать', async () => {
     stubFetch([get('/api/portal/favorites', []), get('/api/portal/cart', emptyCart)]);
 
@@ -93,5 +119,38 @@ describe('избранное', () => {
     expect(await screen.findByText(/отмечайте позиции сердечком/i)).toBeInTheDocument();
     // Очищать нечего — и кнопки нет: она обещала бы действие над пустотой.
     expect(screen.queryByRole('button', { name: 'Очистить избранное' })).not.toBeInTheDocument();
+  });
+});
+
+describe('снимки в избранном', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('у доступной позиции снимок — ссылка на карточку, у снятой — без ссылки', async () => {
+    stubFetch([
+      get('/api/portal/favorites', [
+        { ...CEMENT, imageUrl: 'https://cdn.example.kz/cement.jpg' },
+        { ...GONE, imageUrl: 'https://cdn.example.kz/rotband.jpg' },
+      ]),
+      get('/api/portal/cart', emptyCart),
+    ]);
+    renderScreen(<FavoritesPage />);
+
+    const [cement, gone] = await screen.findAllByTestId('favorite-row');
+    const photo = within(cement).getByTestId('line-thumb-photo');
+    expect(photo).toHaveAttribute('src', 'https://cdn.example.kz/cement.jpg');
+    expect(photo.closest('a')).toHaveAttribute('href', '/catalog/item-1');
+
+    const gonePhoto = within(gone).getByTestId('line-thumb-photo');
+    expect(gonePhoto).toHaveAttribute('src', 'https://cdn.example.kz/rotband.jpg');
+    expect(gonePhoto.closest('a')).toBeNull();
+  });
+
+  it('без снимка — заглушка', async () => {
+    stubFetch([get('/api/portal/favorites', [CEMENT]), get('/api/portal/cart', emptyCart)]);
+    renderScreen(<FavoritesPage />);
+
+    const [row] = await screen.findAllByTestId('favorite-row');
+    expect(within(row).getByTestId('line-thumb')).toBeInTheDocument();
+    expect(within(row).queryByTestId('line-thumb-photo')).not.toBeInTheDocument();
   });
 });

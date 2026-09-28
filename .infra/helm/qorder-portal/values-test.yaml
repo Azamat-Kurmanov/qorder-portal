@@ -1,0 +1,6 @@
+configMap:
+  name: qorder-portal-config-test
+httpRoute:
+  enabled: true
+  hostnames:
+    - portal-test.q-order.kz

@@ -88,7 +88,7 @@ export function MediaLightbox({
                 взглядом, а «7 / 12» читается с любого числа. */}
             <span
               className={cn(
-                'inline-flex h-8 items-center rounded-full px-3 text-sm tabular-nums',
+                'inline-flex h-8 items-center rounded-[var(--radius-pill)] px-3 text-sm tabular-nums',
                 'bg-white/10 text-white/85 backdrop-blur',
                 media.length > 1 ? '' : 'invisible',
               )}

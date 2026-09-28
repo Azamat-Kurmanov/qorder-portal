@@ -21,11 +21,28 @@ const cartWith = (overrides: Record<string, unknown> = {}) => ({
   }],
   total: 12500,
   skipped: [],
+  vatPayer: true,
   ...overrides,
 });
 
 describe('оформление заявки', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('при пустой корзине сводка не пишет «0 позиций · 0 ₸» и НДС, а пустоту называет тихо', async () => {
+    stubFetch([
+      get('/api/portal/cart', cartWith({ lines: [], total: 0, goodsTotal: 0, vatAmount: 0 })),
+      get('/api/portal/delivery', pickupOnly),
+    ]);
+
+    renderScreen(<CheckoutPage />);
+
+    const empty = await screen.findAllByText(/Корзина пуста/);
+    expect(empty.length).toBeGreaterThan(0);
+    empty.forEach((text) => expect(text).toHaveClass('text-sm', 'text-ink-subtle'));
+    expect(screen.queryByTestId('cart-goods')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cart-vat')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /отправить заявку/i })).toBeDisabled();
+  });
 
   it('показывает итог и отправляет комментарий', async () => {
     const { calls } = stubFetch([
@@ -40,7 +57,7 @@ describe('оформление заявки', () => {
     // поэтому ждать надо значения, а не элемента.
     await waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('12 500'));
 
-    await userEvent.type(screen.getByLabelText(/комментарий/i), 'позвоните за час');
+    await userEvent.type(screen.getByLabelText(/пожелания продавцу/i), 'позвоните за час');
     await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
 
     await waitFor(() => {
@@ -49,6 +66,18 @@ describe('оформление заявки', () => {
       expect(JSON.parse(String(submit?.init?.body))).toEqual({ note: 'позвоните за час' });
     });
     expect(await screen.findByText(/заявка отправлена/i)).toBeInTheDocument();
+  });
+
+  it('в другой валюте магазина итог и доставка показывают её знак', async () => {
+    stubFetch([
+      get('/api/portal/cart', cartWith()),
+      get('/api/portal/delivery', pickupOnly),
+    ]);
+
+    renderScreen(<CheckoutPage />, { currency: 'RUB' });
+
+    await waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('12 500 ₽'));
+    expect(screen.getByTestId('total')).not.toHaveTextContent('₸');
   });
 
   it('расхождение цены показывается, а заявка не создаётся', async () => {
@@ -80,7 +109,8 @@ describe('оформление заявки', () => {
 
     // Клиент отправлял другую сумму: решение принимает он, а не система.
     expect(await screen.findByText(/состав изменился/i)).toBeInTheDocument();
-    expect(await screen.findByText(/было 2 500 ₸, стало 2 700 ₸/i)).toBeInTheDocument();
+    // Строка стоит дважды: в блоке состава для телефона и в сводке монитора.
+    expect((await screen.findAllByText(/было 2 500 ₸, стало 2 700 ₸/i)).length).toBeGreaterThan(0);
     expect(screen.queryByText(/заявка отправлена/i)).not.toBeInTheDocument();
   });
 
@@ -132,9 +162,10 @@ describe('оформление заявки', () => {
 
     renderScreen(<CheckoutPage />);
 
-    const line = await screen.findByTestId('cart-line');
+    const summary = await screen.findByTestId('checkout-summary');
+    const line = await within(summary).findByTestId('cart-line');
     expect(line).toHaveTextContent('Цемент М400');
-    expect(line).toHaveTextContent('5 мешок × 2 500 ₸');
+    expect(line).toHaveTextContent('5 мешков × 2 500 ₸');
     expect(within(line).getByTestId('line-total')).toHaveTextContent('12 500 ₸');
   });
 
@@ -152,11 +183,35 @@ describe('оформление заявки', () => {
 
     const { rerender } = renderScreen(<CheckoutPage />);
 
-    const before = (await screen.findByTestId('line-thumb')).getAttribute('style');
+    const summary = await screen.findByTestId('checkout-summary');
+    const before = (await within(summary).findByTestId('line-thumb')).getAttribute('style');
     expect(before).toContain('linear-gradient');
 
     rerender(<CheckoutPage />);
-    expect(screen.getByTestId('line-thumb').getAttribute('style')).toBe(before);
+    expect(within(screen.getByTestId('checkout-summary')).getByTestId('line-thumb').getAttribute('style')).toBe(before);
+  });
+
+  /**
+   * На телефоне сводка прилипает к низу и обязана оставаться низкой — состав
+   * в ней спрятан. Поэтому на телефоне он стоит отдельным блоком наверху
+   * страницы: что заказываешь, видно со снимками, а не только суммой.
+   */
+  it('на телефоне состав заявки со снимками стоит отдельным блоком', async () => {
+    stubFetch([
+      get('/api/portal/cart', cartWith({
+        lines: [{ ...cartWith().lines[0], imageUrl: 'https://cdn.test/cement.jpg' }],
+      })),
+      get('/api/portal/delivery', pickupOnly),
+    ]);
+
+    renderScreen(<CheckoutPage />);
+
+    const block = await screen.findByRole('region', { name: 'Состав заявки' });
+    expect(block.className).toContain('lg:hidden');
+    expect(await within(block).findByTestId('cart-line')).toHaveTextContent('Цемент М400');
+    // Снимок декоративный (alt=""): название стоит рядом, поэтому ищется по разметке, а не по роли.
+    expect(block.querySelector('img')).toHaveAttribute('src', 'https://cdn.test/cement.jpg');
+    expect(within(block).getByRole('link', { name: 'Изменить товары' })).toHaveAttribute('href', '/catalog');
   });
 
   /** На мониторе итог стоит колонкой справа и не уезжает при прокрутке. */

@@ -1,6 +1,5 @@
 import type { PortalOrderDtoState } from '../../api/generated';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { cn } from '../../ui/cn';
 
 /**
@@ -40,6 +39,17 @@ const STATES: Record<PortalOrderDtoState, { tone: string; dot: string }> = {
     tone: 'bg-in-stock/10 text-in-stock border-in-stock/25',
     dot: 'bg-in-stock',
   },
+  // «Можно забирать» — ход за клиентом, как у ответа на изменения: цвет
+  // магазина, а не спокойный зелёный, иначе собранная заявка не отличается
+  // от просто принятой.
+  READY: {
+    tone: 'bg-accent-soft text-accent-ink border-accent/30',
+    dot: 'bg-accent',
+  },
+  ISSUED: {
+    tone: 'bg-sunk text-ink-muted border-hairline',
+    dot: 'bg-in-stock',
+  },
   CLOSED: {
     tone: 'bg-sunk text-ink-subtle border-hairline',
     dot: 'bg-ink-faint',
@@ -53,7 +63,7 @@ export function OrderStateBadge({ state }: { state: PortalOrderDtoState }) {
   return (
     <span
       className={cn(
-        'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium',
+        'inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-pill)] border px-2.5 text-xs font-medium',
         view.tone,
       )}
     >
@@ -61,9 +71,4 @@ export function OrderStateBadge({ state }: { state: PortalOrderDtoState }) {
       {t(`orders.state.${state}`)}
     </span>
   );
-}
-
-/** Название состояния отдельно: списку оно нужно и без значка. */
-export function stateLabel(state: PortalOrderDtoState, t: TFunction): string {
-  return t(`orders.state.${state}`);
 }

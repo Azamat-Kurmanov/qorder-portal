@@ -1,0 +1,18 @@
+replicaCount: 1
+image:
+  repository: nexus.q-order.kz:8081/qorder-docker-hosted/qorder/portal
+  digest: ""
+  pullPolicy: IfNotPresent
+rolloutRevision: ""
+imagePullSecrets:
+  - name: nexus-registry
+service:
+  port: 80
+httpRoute:
+  enabled: false
+  parentRefs:
+    - name: qorder-gateway
+      namespace: istio-system
+      sectionName: http
+  hostnames: []
+resources: {}

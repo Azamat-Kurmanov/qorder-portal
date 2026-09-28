@@ -85,6 +85,8 @@ describe('вопросы продавцу', () => {
     });
 
     expect(await screen.findByText(/вопрос отправлен/i)).toBeInTheDocument();
+    // Подтверждение приходит вместо формы — диктор должен его прочесть сам.
+    expect(screen.getByRole('status')).toHaveTextContent('Вопрос отправлен продавцу.');
   });
 
   it('переписка идёт двумя голосами: вопрос клиента и ответ продавца', async () => {
@@ -136,6 +138,23 @@ describe('вопросы продавцу', () => {
     expect(screen.getAllByTestId(/^thread-q/)).toHaveLength(1);
   });
 
+  /** О чём спрашивали, узнаётся по снимку быстрее, чем по названию. */
+  it('у обсуждаемой позиции — её первое фото', async () => {
+    stubFetch([
+      get('/api/portal/catalog/item-1', {
+        ...CARD,
+        media: [{ id: 'm-1', kind: 'PHOTO', url: 'https://cdn.example.kz/cement.jpg', position: 0 }],
+      }),
+      get('/api/portal/questions', [ANSWERED]),
+    ]);
+
+    renderScreen(<QuestionsPage />);
+
+    await screen.findByText(/2 500 ₸/);
+    const thumb = screen.getByTestId('item-thumb');
+    expect(thumb.querySelector('img')).toHaveAttribute('src', 'https://cdn.example.kz/cement.jpg');
+  });
+
   it('обсуждаемая позиция кладётся в заявку прямо из переписки', async () => {
     const { calls } = stubFetch([
       method('PUT', '/api/portal/cart/lines/item-1', { lines: [], total: 0, skipped: [] }),
@@ -156,6 +175,17 @@ describe('вопросы продавцу', () => {
     });
   });
 
+  it('в другой валюте магазина цена обсуждаемой позиции — с её знаком', async () => {
+    stubFetch([
+      get('/api/portal/catalog/item-1', CARD),
+      get('/api/portal/questions', [ANSWERED]),
+    ]);
+
+    renderScreen(<QuestionsPage />, { currency: 'RUB' });
+
+    expect(await screen.findByText(/2 500 ₽/)).toBeInTheDocument();
+  });
+
   it('поле внизу отправляет продавцу новое сообщение', async () => {
     const { calls } = stubFetch([
       method('POST', '/api/portal/questions', { ...WAITING, question: 'Когда привезёте?' }, 201),
@@ -174,6 +204,42 @@ describe('вопросы продавцу', () => {
       const sent = calls.find((call) => call.init?.method === 'POST');
       expect(sent).toBeDefined();
       expect(JSON.parse(String(sent?.init?.body))).toEqual({ text: 'Когда привезёте?' });
+    });
+  });
+
+  it('Enter в поле переписки отправляет сообщение, Shift+Enter переносит строку', async () => {
+    const { calls } = stubFetch([
+      method('POST', '/api/portal/questions', { ...WAITING, question: 'Когда?\nИ сколько?' }, 201),
+      get('/api/portal/questions', []),
+    ]);
+
+    renderScreen(<QuestionsPage />);
+
+    const field = await screen.findByPlaceholderText('Написать сообщение');
+    await userEvent.type(field, 'Когда?{Shift>}{Enter}{/Shift}И сколько?');
+    expect(calls.some((call) => call.init?.method === 'POST')).toBe(false);
+    await userEvent.type(field, '{Enter}');
+
+    await waitFor(() => {
+      const sent = calls.find((call) => call.init?.method === 'POST');
+      expect(JSON.parse(String(sent?.init?.body))).toEqual({ text: 'Когда?\nИ сколько?' });
+    });
+  });
+
+  it('Enter в вопросе о товаре отправляет его продавцу', async () => {
+    const { calls } = stubFetch([
+      method('POST', '/api/portal/questions', { ...WAITING, itemId: 'item-1' }, 201),
+      get('/api/portal/questions', []),
+    ]);
+
+    renderScreen(<AskQuestionForm itemId="item-1" itemName="Цемент М400" />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Спросить продавца' }));
+    await userEvent.type(screen.getByLabelText('Вопрос'), 'Сколько сохнет?{Enter}');
+
+    await waitFor(() => {
+      const sent = calls.find((call) => call.init?.method === 'POST');
+      expect(JSON.parse(String(sent?.init?.body))).toEqual({ itemId: 'item-1', text: 'Сколько сохнет?' });
     });
   });
 

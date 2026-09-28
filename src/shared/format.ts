@@ -1,4 +1,5 @@
 import { intlLocale } from '../i18n';
+import { currencySign, type Currency } from './currency';
 
 /**
  * Числа и цены в том виде, в каком их читает человек.
@@ -15,14 +16,24 @@ function numberFormat(): Intl.NumberFormat {
   return new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 });
 }
 
-/** Число без хвоста нулей: «5», а не «5.0000». */
-export function money(value: number): string {
+/** Число без хвоста нулей и без знака валюты: количество, ставка НДС. Бывшая `money(value)`. */
+export function decimal(value: number): string {
   return numberFormat().format(value);
 }
 
-/** Сумма с валютой. Тенге остаётся тенге на всех языках: меняется запись числа. */
-export function tenge(value: number): string {
-  return `${numberFormat().format(value)} ₸`;
+/**
+ * Сумма со знаком валюты магазина: число по правилам языка и знак валюты
+ * рядом с ним, как в справочнике (`shared/currency.ts`).
+ *
+ * `currency === undefined` — магазин ещё не известен (список поставщиков
+ * не дошёл или ушёл переключением) — число выводится без знака, тем же
+ * `decimal`: выдумывать знак раньше, чем известна валюта магазина, нельзя.
+ * Второй аргумент обязателен: он называет явно, что вызывающая сторона
+ * ещё не довела валюту заявки или магазина по цепочке вызовов, а не забыла
+ * её передать.
+ */
+export function money(value: number, currency: Currency | undefined): string {
+  return currency === undefined ? decimal(value) : `${numberFormat().format(value)} ${currencySign(currency)}`;
 }
 
 /** Дата без года: клиенту важно «на когда», а не архивная точность. */

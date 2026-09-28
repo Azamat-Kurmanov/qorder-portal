@@ -5,10 +5,23 @@ import './index.css';
 // Язык поднимается до первого рендера: подпись, нарисованная раньше, чем
 // известен язык, мигнула бы русским текстом на казахском экране.
 import './i18n';
+import '@fontsource-variable/onest';
 import '@fontsource-variable/inter';
+// Шрифты шаблонов кабинета (src/supplier/cabinetTemplates.json). Подключение
+// объявляет только начертания: файл шрифта браузер скачает, лишь когда
+// продавец выбрал шаблон, где он нужен.
+import '@fontsource-variable/manrope';
+import '@fontsource/pt-serif/400.css';
+import '@fontsource/pt-serif/700.css';
+import '@fontsource/ibm-plex-sans/400.css';
+import '@fontsource/ibm-plex-sans/600.css';
+import '@fontsource/ibm-plex-sans/700.css';
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/600.css';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthProvider';
 import { rememberViewer } from './auth/oidcConfig';
+import { getGetPortalSuppliersQueryKey } from './api/generated';
 
 /*
  * Режим читается из адреса до первого рендера — и сразу из него убирается.
@@ -53,6 +66,16 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Список поставщиков спрашивают около девяти компонентов кабинета, и с тех
+// пор как карточка отдаёт ещё и часы с рейтингом, ответ стоит пять запросов
+// к базе на магазин. Нулевой staleTime по умолчанию превращал каждое такое
+// монтирование в новый поход на сервер. Минута сглаживает это, не трогая
+// сами компоненты: ни один хук не приходится переписывать. Смена поставщика
+// по-прежнему сбрасывает кеш целиком — staleTime её не переживает, а не мешает.
+// Возврат во вкладку перечитывает список всегда: продавец мог сменить валюту,
+// и старый знак не должен висеть ещё минуту.
+queryClient.setQueryDefaults(getGetPortalSuppliersQueryKey(), { staleTime: 60_000, refetchOnWindowFocus: 'always' });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

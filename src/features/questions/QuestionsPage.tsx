@@ -1,3 +1,4 @@
+import { ItemThumb } from '../catalog/ItemThumb';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -7,7 +8,8 @@ import {
 } from '../../api/generated';
 import { useSetCartLine } from '../cart/useCart';
 import { MessageComposer } from './MessageComposer';
-import { shortDate, tenge } from '../../shared/format';
+import { shortDate, money } from '../../shared/format';
+import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { Button } from '../../ui/Button';
 import { Reveal } from '../../ui/Reveal';
 
@@ -35,8 +37,8 @@ export function QuestionsPage() {
   return (
     <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5">
       <header className="flex flex-col gap-0.5">
-        <h1 className="text-[22px] font-semibold tracking-[-0.015em] text-ink">{t('questions.title')}</h1>
-        <p className="text-[13px] text-ink-subtle">{t('questions.subtitle')}</p>
+        <h1 className="qo-page-title">{t('questions.title')}</h1>
+        <p className="text-caption text-ink-subtle">{t('questions.subtitle')}</p>
       </header>
 
       {questions.isPending ? (
@@ -45,7 +47,7 @@ export function QuestionsPage() {
           className="h-24 animate-pulse rounded-[var(--radius-card)] border border-hairline bg-sunk"
         />
       ) : threads.length === 0 ? (
-        <p className="text-[15px] leading-relaxed text-ink-subtle">
+        <p className="text-body leading-relaxed text-ink-subtle">
           {t('questions.empty')}
         </p>
       ) : (
@@ -80,7 +82,7 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
     <article data-testid={`thread-${thread.id}`} className="flex flex-col gap-2">
       <div
         data-testid={`thread-subject-${thread.id}`}
-        className="flex items-center justify-center gap-1.5 text-[11px] text-ink-subtle"
+        className="flex items-center justify-center gap-1.5 text-2xs text-ink-subtle"
       >
         <span>{shortDate(messages[0]?.createdAt)}</span>
         <span aria-hidden="true">·</span>
@@ -106,15 +108,15 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
               превратил бы ответ про доставку в ответ про цемент.
             */}
             {message.itemName && (
-              <span className="max-w-full truncate rounded-full bg-sunk px-2.5 py-1 text-[12px] text-ink-muted">
+              <span className="max-w-full truncate rounded-[var(--radius-pill)] bg-sunk px-2.5 py-1 text-[0.75rem] text-ink-muted">
                 {message.itemName}
               </span>
             )}
             <p
               className={
                 mine
-                  ? 'rounded-[16px_16px_4px_16px] bg-ink px-3.5 py-2.5 text-[14px] leading-[1.45] text-white'
-                  : 'rounded-[16px_16px_16px_4px] border border-hairline bg-surface px-3.5 py-2.5 text-[14px] leading-[1.45] text-ink'
+                  ? 'rounded-[16px_16px_4px_16px] bg-ink px-3.5 py-2.5 text-[0.875rem] leading-[1.45] text-on-ink'
+                  : 'rounded-[16px_16px_16px_4px] border border-hairline bg-surface px-3.5 py-2.5 text-[0.875rem] leading-[1.45] text-ink'
               }
             >
               {message.text}
@@ -123,7 +125,7 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
               Подпись говорит ровно то, что известно: имени менеджера в ответе
               сервера нет, и придуманное имя однажды окажется чужим.
             */}
-            <span className="text-[11px] text-ink-subtle">
+            <span className="text-2xs text-ink-subtle">
               {mine
                 ? atTime(message.createdAt)
                 : `${t('questions.sellerAnswer')} · ${atTime(message.createdAt)}`}
@@ -137,7 +139,7 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
         сообщение вообще, и пишет второй раз.
       */}
       {thread.awaitingAnswer && (
-        <p className="self-start text-sm text-unclear">{t('questions.waiting')}</p>
+        <p className="self-start text-sm text-unclear-ink">{t('questions.waiting')}</p>
       )}
 
       {discussed?.itemId && <DiscussedItem itemId={discussed.itemId} />}
@@ -152,31 +154,39 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
  * их нет, а решение принимают по ним. Заодно цена оказывается сегодняшней —
  * ответ продавца мог быть написан неделю назад.
  *
+ * Первое фото карточки стоит рядом с названием: о чём спрашивали, узнаётся
+ * по снимку быстрее, чем по имени. Без фото — тот же заполнитель, что в витрине.
+ *
  * Ничего не показывается, пока карточка не пришла или не открылась: позицию
  * могли снять с продажи, и карточка с кнопкой «в заявку» обещала бы то, чего
  * сервер уже не примет. О чём шёл разговор, сказано выше названием.
  */
 function DiscussedItem({ itemId }: { itemId: string }) {
   const { t } = useTranslation();
+  const currency = useSupplierCurrency();
   const card = useGetPortalCatalogItem(itemId);
   const setLine = useSetCartLine();
 
   if (card.data?.status !== 200) return null;
   const item = card.data.data;
+  const photo = item.media?.find((media) => media.kind === 'PHOTO')?.url;
 
   return (
     <div className="flex w-full max-w-[86%] flex-col gap-2.5 self-start rounded-[16px_16px_16px_4px] border border-hairline bg-surface p-3">
-      <div className="flex flex-col gap-0.5">
-        <Link
-          to={`/catalog/${item.id}`}
-          className="text-[13px] font-medium text-ink transition-all duration-300 hover:text-accent"
-        >
-          {item.name}
-        </Link>
-        <p className="text-[13px] font-semibold tabular-nums text-ink">
-          {tenge(item.price)}
-          <span className="font-normal text-ink-subtle"> · {item.unit}</span>
-        </p>
+      <div className="flex items-center gap-3">
+        <ItemThumb itemId={item.id} src={photo} className="size-14 rounded-[10px]" />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <Link
+            to={`/catalog/${item.id}`}
+            className="text-caption font-medium text-ink transition-all duration-300 hover:text-accent"
+          >
+            {item.name}
+          </Link>
+          <p className="text-caption font-semibold tabular-nums text-ink">
+            {money(item.price, currency)}
+            <span className="font-normal text-ink-subtle"> · {item.unit}</span>
+          </p>
+        </div>
       </div>
 
       {/*

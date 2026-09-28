@@ -1,0 +1,147 @@
+# Сборка образа кабинета клиента (portal) и выкатка на стенды.
+#
+# Устроено как у бэкенда: один образ с тегом коммита уезжает в Nexus, затем
+# Helm ставит его в namespace стенда по неизменяемому digest. Настройки стенда в образ не запекаются
+# вовсе — их несёт ConfigMap, который применяется здесь же, перед чартом.
+stages:
+  - build
+  - deploy
+
+build-and-publish:
+  stage: build
+  tags:
+    - qorder
+
+  script:
+    - echo "=== Образ ==="
+    - export IMAGE="${NEXUS_DOCKER_REGISTRY}/qorder/portal:${CI_COMMIT_SHORT_SHA}"
+    - echo "$IMAGE"
+
+    - echo "=== Вход в реестр Nexus ==="
+    - echo "$NEXUS_DOCKER_PASSWORD" | docker login nexus.q-order.kz:8081 --username "$NEXUS_DOCKER_USER" --password-stdin
+
+    # --pull: базовые образы node и nginx берутся заново, а не с кэша узла.
+    # Иначе сборка месячной давности молча повторилась бы на устаревшей базе.
+    #
+    # Тесты гоняет сам Dockerfile (RUN npm test перед npm run build), но в
+    # конвейере они отключены: SKIP_TESTS по умолчанию true. Вернуть — задать
+    # переменную CI/CD SKIP_TESTS=false (в настройках проекта или при запуске
+    # pipeline).
+    - echo "=== Сборка образа (SKIP_TESTS=${SKIP_TESTS:-true}) ==="
+    - docker build --pull --build-arg SKIP_TESTS="${SKIP_TESTS:-true}" -t "$IMAGE" .
+
+    - echo "=== Отправка образа в Nexus ==="
+    - docker push "$IMAGE"
+    - export IMAGE_DIGEST="$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE" | cut -d@ -f2)"
+    - test -n "$IMAGE_DIGEST"
+    - printf 'IMAGE_DIGEST=%s\n' "$IMAGE_DIGEST" > image.env
+
+    - echo "=== Выход из реестра ==="
+    - docker logout nexus.q-order.kz:8081
+
+  artifacts:
+    reports:
+      dotenv: image.env
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "test"'
+    - if: '$CI_COMMIT_BRANCH == "preprod"'
+
+
+deploy-test:
+  stage: deploy
+  tags:
+    - qorder
+
+  needs:
+    - build-and-publish
+
+  script:
+    - echo "=== Выкатка TEST, образ ${IMAGE_DIGEST} ==="
+
+    # Обновляем pull-secret теми же рабочими учётными данными Nexus, которыми
+    # сборочное задание отправило образ. apply одинаково создаёт и обновляет его.
+    - |
+      kubectl create secret docker-registry nexus-registry \
+        --namespace qorder-test \
+        --docker-server=nexus.q-order.kz:8081 \
+        --docker-username="$NEXUS_DOCKER_USER" \
+        --docker-password="$NEXUS_DOCKER_PASSWORD" \
+        --dry-run=client \
+        -o yaml | kubectl apply -f -
+
+    # ConfigMap применяется до чарта: под без него не запустится вовсе —
+    # entrypoint образа отказывает при незаданном Keycloak.
+    - kubectl apply -f .infra/configmap/configmap-test.yaml
+
+    - helm upgrade --install qorder-portal .infra/helm/qorder-portal
+      --namespace qorder-test
+      -f .infra/helm/qorder-portal/values-test.yaml
+      --set-string image.digest="${IMAGE_DIGEST}"
+      --set-string rolloutRevision="${CI_COMMIT_SHA}"
+      --atomic
+      --timeout 5m
+
+    # Проверка не формальная: под мог подняться со старым config.js, если
+    # ConfigMap менялся без перезапуска. В логе видно, с какими адресами
+    # стенд на самом деле работает.
+    - kubectl exec deploy/qorder-portal -n qorder-test -- cat /usr/share/nginx/html/config.js
+
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" != "success" ]; then
+        echo "=== События qorder-test ==="
+        kubectl get events -n qorder-test --sort-by=.lastTimestamp | tail -40
+      fi
+
+  environment:
+    name: test
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "test"'
+
+
+deploy-preprod:
+  stage: deploy
+  tags:
+    - qorder
+
+  needs:
+    - build-and-publish
+
+  script:
+    - echo "=== Выкатка PREPROD, образ ${IMAGE_DIGEST} ==="
+
+    - |
+      kubectl create secret docker-registry nexus-registry \
+        --namespace qorder-preprod \
+        --docker-server=nexus.q-order.kz:8081 \
+        --docker-username="$NEXUS_DOCKER_USER" \
+        --docker-password="$NEXUS_DOCKER_PASSWORD" \
+        --dry-run=client \
+        -o yaml | kubectl apply -f -
+
+    - kubectl apply -f .infra/configmap/configmap-preprod.yaml
+
+    - helm upgrade --install qorder-portal .infra/helm/qorder-portal
+      --namespace qorder-preprod
+      -f .infra/helm/qorder-portal/values-preprod.yaml
+      --set-string image.digest="${IMAGE_DIGEST}"
+      --set-string rolloutRevision="${CI_COMMIT_SHA}"
+      --atomic
+      --timeout 5m
+
+    - kubectl exec deploy/qorder-portal -n qorder-preprod -- cat /usr/share/nginx/html/config.js
+
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" != "success" ]; then
+        echo "=== События qorder-preprod ==="
+        kubectl get events -n qorder-preprod --sort-by=.lastTimestamp | tail -40
+      fi
+
+  environment:
+    name: preprod
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "preprod"'

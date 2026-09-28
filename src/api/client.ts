@@ -1,3 +1,4 @@
+import { getConfig } from '../config';
 import { getSessionToken, requestReauthentication } from '../auth/session';
 import { currentSupplierId } from '../supplier/supplier';
 import { currentLanguage } from '../i18n';
@@ -8,18 +9,16 @@ const NO_BODY_STATUSES = new Set([204, 205, 304]);
 const SUPPLIER_HEADER = 'X-Supplier-Id';
 
 /**
- * Бросается вместо обычной ошибки, когда сервер отвечает 401.
- *
- * requestReauthentication() к этому моменту уже вызван и уводит человека
- * на новый вход, но редирект не мгновенен: отклонённый промис долетает
- * до экрана раньше, чем браузер уходит со страницы. Экран обязан отличить
- * этот случай от сбоя сервера и не рисовать ошибку — по классу и статусу,
- * а не по тексту сообщения.
+ * Бросается вместо обычной ошибки, когда сервер отказал сессии (401 на запрос
+ * с токеном), а нового входа не будет: он только что завершился, и повтор
+ * замкнул бы круг редиректов. Экран закрывает RequireAuth словами об отказе;
+ * тело ответа лежит в `info`, как у любого отказа, — открытому без входа
+ * экрану оно нужно, чтобы назвать причину.
  */
 export class ReauthenticationRequiredError extends Error {
   readonly status = 401 as const;
 
-  constructor(url: string) {
+  constructor(url: string, readonly info?: unknown) {
     super(`Unauthorized request to ${url}`);
     this.name = 'ReauthenticationRequiredError';
   }
@@ -49,11 +48,26 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
   const supplier = currentSupplierId();
   if (supplier) headers.set(SUPPLIER_HEADER, supplier);
 
-  const response = await fetch(`${import.meta.env.VITE_API_URL}${url}`, { ...options, headers });
+  const response = await fetch(`${getConfig().API_URL}${url}`, { ...options, headers });
 
-  if (response.status === 401) {
-    requestReauthentication();
-    throw new ReauthenticationRequiredError(url);
+  // Новый вход лечит только истёкшую сессию. Анонимный запрос (активация
+  // приглашения) получает 401 как отказ по существу: его тело разбирается
+  // ниже, как у любого другого отказа, и экран показывает причину словами.
+  if (response.status === 401 && token) {
+    // Начат новый вход — запрос не завершается вовсе. Редирект не мгновенен,
+    // и отклонённый промис долетел бы до экрана раньше, чем браузер уйдёт
+    // со страницы: экран нарисовал бы сбой, которого не было. Проверять это
+    // в каждом экране — значит однажды забыть в новом.
+    if (requestReauthentication()) return new Promise<never>(() => {});
+    // Отказ сессии может прийти и не от нашего сервера (страница прокси),
+    // а класс ошибки обязан уцелеть при любом теле.
+    let info: unknown;
+    try {
+      info = JSON.parse(await response.text());
+    } catch {
+      info = undefined;
+    }
+    throw new ReauthenticationRequiredError(url, info);
   }
 
   // Документ приходит документом. Разобранный как JSON, PDF падает на первом
