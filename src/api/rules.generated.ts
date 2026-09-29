@@ -136,10 +136,21 @@ export const rules = {
   SetCartLineRequest: {
 
   },
+  TrackingRequest: {
+    trackingNumber: { required: false, maxLength: 64, example: "AB123456" },
+  },
   UpdateDraftRequest: {
     customerName: { required: false },
     deliveryAddress: { required: false },
     deliveryDate: { required: false },
+  },
+  TransportReceiptRequest: {
+    payee: { required: true, maxLength: 255, example: "ТОО «СДЭК-Казахстан»" },
+    requisites: { required: false, maxLength: 1000 },
+    payUrl: { required: false, pattern: /^(?:^https?:\/\/\S+$)$/, maxLength: 1000, example: "https://pay.example/abc" },
+    number: { required: false, maxLength: 64, example: "К-10245" },
+    dueDate: { required: false },
+    comment: { required: false, maxLength: 1000 },
   },
   PickupPointRequest: {
     name: { required: true, maxLength: 255, example: "Склад на Рыскулова" },
@@ -156,17 +167,23 @@ export const rules = {
     type: { required: true },
     tariffRule: { required: true },
   },
+  CarrierRequest: {
+    name: { required: true, maxLength: 255, example: "СДЭК" },
+    phone: { required: false, maxLength: 32, example: "+7 727 000 00 00" },
+    trackingUrlTemplate: { required: false, pattern: /^(?:^https?:\/\/\S*\{number}\S*$)$/, maxLength: 512, example: "https://cdek.kz/track?n={number}" },
+    terminalAddress: { required: false, maxLength: 512, example: "Алматы, Толе би 101" },
+    note: { required: false, maxLength: 512, example: "Звонят за час до приезда" },
+  },
   SaveCatalogSettingsRequest: {
 
   },
   SaveSaleModeRequest: {
     saleMode: { required: true, example: "BOTH" },
   },
-  SavePressRequest: {
-
-  },
   SaveSellerUnitRequest: {
     name: { required: true, maxLength: 64, example: "ящик" },
+    insideBase: { required: false, maxLength: 32, example: "шт" },
+    insideUnitId: { required: false },
   },
   ReorderSellerUnitsRequest: {
 
@@ -285,6 +302,11 @@ export const rules = {
   SubmitOrderRequest: {
     note: { required: false, maxLength: 1000, example: "позвоните за час" },
   },
+  PaymentReportRequest: {
+    paymentRef: { required: false, maxLength: 64, example: "OP-7781" },
+    paidAt: { required: false },
+    comment: { required: false, maxLength: 1000 },
+  },
   AskAboutOrderRequest: {
     text: { required: true, maxLength: 2000, example: "Можно забрать завтра после шести?" },
   },
@@ -301,6 +323,9 @@ export const rules = {
   },
   LinkUnmatchedLineRequest: {
     itemId: { required: true },
+  },
+  PaymentRejectRequest: {
+    reason: { required: true, maxLength: 512, example: "Платёж не найден" },
   },
   StockRequestCreateRequest: {
     note: { required: false, maxLength: 1000, example: "Клиентке нужно к пятнице. Если блузки нет в 44 — спросите про 46" },

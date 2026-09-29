@@ -31,14 +31,27 @@ export function OrderStages({ kind, delivery }: { kind: OrderKind; delivery: boo
       {steps.map((step, index) => {
         const done = index < current;
         const now = index === current;
+        const last = index === steps.length - 1;
         return (
-          <li key={step} aria-current={now ? 'step' : undefined} className="flex min-w-0 flex-col gap-1.5">
-            <span className={cn('h-1.5 rounded-full', done || now ? 'bg-accent' : 'bg-hairline')} />
-            <span className={cn('flex items-center gap-1 text-caption leading-tight', now ? 'font-bold text-ink' : done ? 'text-ink-muted' : 'text-ink-subtle')}>
-              {done ? <Check aria-hidden="true" className="size-3.5 shrink-0 text-accent" /> : null}
+          <li key={step} aria-current={now ? 'step' : undefined} className="flex min-w-0 flex-col gap-2">
+            {/* Кружок этапа и линия к следующему — как в макете «Мои заявки». */}
+            <span className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  'flex size-[26px] shrink-0 items-center justify-center rounded-full',
+                  done && 'border-[1.5px] border-ok bg-ok text-white',
+                  now && 'border-2 border-ok bg-surface text-ok shadow-[0_0_0_4px_var(--color-ok-soft)]',
+                  !done && !now && 'border-[1.5px] border-line bg-sunk text-ink-subtle',
+                )}
+              >
+                <Check aria-hidden="true" strokeWidth={2.6} className="size-3.5" />
+              </span>
+              {!last && <span className={cn('h-0.5 grow rounded-full', done ? 'bg-ok' : 'bg-hairline')} />}
+            </span>
+            <span className={cn('text-caption leading-tight', now ? 'font-bold text-ink' : done ? 'text-ink-muted' : 'text-ink-subtle')}>
               {step}
             </span>
-            {now ? <span className="text-2xs font-bold uppercase tracking-[0.06em] text-accent-ink">{t('orders.stages.now')}</span> : null}
+            {now ? <span className="text-2xs font-bold uppercase tracking-[0.06em] text-ok-ink">{t('orders.stages.now')}</span> : null}
           </li>
         );
       })}

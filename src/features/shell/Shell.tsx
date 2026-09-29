@@ -30,7 +30,7 @@ import { RequireSupplier } from '../profile/RequireSupplier';
 import { useGetPortalDeliveryOptions, useGetPortalFavorites, useGetPortalSuppliers, useGetPortalUnreadSummary } from '../../api/generated';
 import { currentViewer } from '../../auth/oidcConfig';
 import { intlLocale } from '../../i18n';
-import { money } from '../../shared/format';
+import { money, phone as formatPhone } from '../../shared/format';
 import { ActivationBanner } from './ActivationBanner';
 import { FontScalePicker } from './FontScale';
 import { ThemeToggle } from './ThemeToggle';
@@ -995,7 +995,7 @@ function Header({
                 )}
               >
                 <Phone aria-hidden="true" className="size-4" />
-                {shop?.phone}
+                {shop?.phone && formatPhone(shop.phone)}
               </a>
             )}
             {wa && (
@@ -1142,7 +1142,7 @@ function Header({
             {tel && (
               <a
                 href={tel}
-                aria-label={`${t('shop.call')} ${shop?.phone ?? ''}`.trim()}
+                aria-label={`${t('shop.call')} ${shop?.phone ? formatPhone(shop.phone) : ''}`.trim()}
                 className={cn(
                   'flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-tile)] bg-surface text-accent-ink lg:hidden',
                   'transition-transform duration-200 active:scale-95',

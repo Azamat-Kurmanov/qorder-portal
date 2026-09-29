@@ -17,6 +17,8 @@ import { useSupplier } from '../../supplier/useSupplier';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import type { Currency } from '../../shared/currency';
 import { money } from '../../shared/format';
+import { CarrierChoice } from './CarrierChoice';
+import { paysCarrierDirectly } from './carrier';
 import { LoadersChoice } from './LoadersChoice';
 import type { LoadersLine } from './loaders';
 
@@ -191,6 +193,10 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
             </Field>
           )}
 
+          {way === 'DELIVERY' && method && (
+            <CarrierChoice method={method} value={value} onChange={onChange} fieldClass={FIELD} />
+          )}
+
           {way === 'PICKUP' && options.pickupPoints.length > 0 && (
             <fieldset className="flex flex-col gap-1">
               <legend className="mb-1 text-xs text-ink-subtle">{t('checkout.delivery.pickupPoint')}</legend>
@@ -344,9 +350,15 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
             >
               <span className="text-ink-muted">{t('checkout.delivery.cost')}</span>
               <span className="font-semibold tabular-nums text-ink">
-                {shipping === undefined ? t('checkout.summary.negotiable') : money(shipping, currency)}
+                {shipping === undefined
+                  ? (paysCarrierDirectly(method) ? t('checkout.delivery.carrierTariff') : t('checkout.summary.negotiable'))
+                  : money(shipping, currency)}
               </span>
             </div>
+          )}
+
+          {way === 'DELIVERY' && paysCarrierDirectly(method) && (
+            <p className="text-xs text-ink-subtle">{t('checkout.delivery.directNote')}</p>
           )}
 
           {way === 'DELIVERY' && method?.loaders && (
@@ -377,7 +389,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
             </p>
           )}
 
-          {method?.negotiable && (
+          {method?.negotiable && !paysCarrierDirectly(method) && (
             <p className="text-xs text-ink-subtle">
               {t('checkout.delivery.costLater')}
             </p>

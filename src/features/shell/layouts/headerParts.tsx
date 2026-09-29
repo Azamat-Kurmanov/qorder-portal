@@ -7,7 +7,7 @@ import { useGetPortalDeliveryOptions } from '../../../api/generated';
 import { toggleCart, useCartDrawer } from '../../cart/cartDrawer';
 import { cartOf, useCart } from '../../cart/useCart';
 import { NotificationsBell } from '../../notifications/NotificationsBell';
-import { money } from '../../../shared/format';
+import { money, phone as formatPhone } from '../../../shared/format';
 import { useSupplierCurrency } from '../../../supplier/SupplierCurrency';
 import { CART_TARGET } from '../../../ui/flyToCart';
 import { cn } from '../../../ui/cn';
@@ -402,7 +402,7 @@ export function StatusDetails({ ready, onBrand = false, className }: { ready: bo
       {tel && (
         <a href={tel} className="flex items-center gap-1.5 hover:underline">
           <Phone aria-hidden="true" className="size-3.5" />
-          {shop?.phone}
+          {shop?.phone && formatPhone(shop.phone)}
         </a>
       )}
       {wa && (

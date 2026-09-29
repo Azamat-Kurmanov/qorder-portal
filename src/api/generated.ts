@@ -2030,86 +2030,16 @@ export interface CartDto {
   volumeGoods: number;
 }
 
-export interface Delivery {
-  methodId?: string;
-  pickupPointId?: string;
-  zoneId?: string;
+/**
+ * Номер отправления заказа
+ */
+export interface TrackingRequest {
   /**
-     * @minLength 0
-     * @maxLength 512
-     */
-  address?: string;
-  /**
-     * @minLength 0
-     * @maxLength 255
-     */
-  city?: string;
-  /** @minimum 0 */
-  floor?: number;
-  date?: string;
-  /**
+     * Номер отправления у перевозчика; пусто — снять
      * @minLength 0
      * @maxLength 64
      */
-  slot?: string;
-  /** @minimum 0 */
-  price?: number;
-  /**
-     * @minLength 0
-     * @maxLength 512
-     */
-  note?: string;
-  loaders?: boolean;
-  hasLift?: boolean;
-  /** @minimum 0 */
-  loadersPrice?: number;
-}
-
-export type LinePatchAvailabilityStatus = typeof LinePatchAvailabilityStatus[keyof typeof LinePatchAvailabilityStatus];
-
-
-export const LinePatchAvailabilityStatus = {
-  IN_STOCK: 'IN_STOCK',
-  PARTIAL: 'PARTIAL',
-  OUT_OF_STOCK: 'OUT_OF_STOCK',
-  UNKNOWN: 'UNKNOWN',
-} as const;
-
-export interface LinePatch {
-  lineNo: number;
-  name?: string;
-  /** @minimum 0 */
-  quantity?: number;
-  unit?: string;
-  /** @minimum 0 */
-  price?: number;
-  catalogItemId?: string;
-  availabilityStatus?: LinePatchAvailabilityStatus;
-}
-
-export interface UpdateDraftRequest {
-  customerName?: string;
-  deliveryAddress?: string;
-  deliveryDate?: string;
-  delivery?: Delivery;
-  /**
-     * @minItems 0
-     * @maxItems 200
-     */
-  lines: LinePatch[];
-}
-
-export interface AssigneeDto {
-  id?: string;
-  displayName?: string;
-}
-
-export interface CatalogCandidate {
-  itemId?: string;
-  name?: string;
-  unit?: string;
-  price?: number;
-  score?: number;
+  trackingNumber?: string;
 }
 
 /**
@@ -2159,6 +2089,28 @@ export type CustomerOrderDtoLoadersPayee = typeof CustomerOrderDtoLoadersPayee[k
 export const CustomerOrderDtoLoadersPayee = {
   SELLER: 'SELLER',
   DIRECT: 'DIRECT',
+} as const;
+
+/**
+ * Кому клиент платит за перевозку: SELLER — в итоге, DIRECT — перевозчику
+ */
+export type CustomerOrderDtoTransportPayee = typeof CustomerOrderDtoTransportPayee[keyof typeof CustomerOrderDtoTransportPayee];
+
+
+export const CustomerOrderDtoTransportPayee = {
+  SELLER: 'SELLER',
+  DIRECT: 'DIRECT',
+} as const;
+
+/**
+ * До двери или до терминала
+ */
+export type CustomerOrderDtoDeliverTo = typeof CustomerOrderDtoDeliverTo[keyof typeof CustomerOrderDtoDeliverTo];
+
+
+export const CustomerOrderDtoDeliverTo = {
+  DOOR: 'DOOR',
+  TERMINAL: 'TERMINAL',
 } as const;
 
 /**
@@ -2226,6 +2178,110 @@ export interface CustomerOrderDto {
   loadersPayee?: CustomerOrderDtoLoadersPayee;
   /** Этаж доставки; пусто — не указан */
   deliveryFloor?: number;
+  /** Перевозчик; пусто — возит продавец */
+  carrierName?: string;
+  /** Телефон перевозчика */
+  carrierPhone?: string;
+  /** Кому клиент платит за перевозку: SELLER — в итоге, DIRECT — перевозчику */
+  transportPayee?: CustomerOrderDtoTransportPayee;
+  /** До двери или до терминала */
+  deliverTo?: CustomerOrderDtoDeliverTo;
+  /** Номер отправления; появляется после отгрузки */
+  trackingNumber?: string;
+  /** Ссылка отслеживания по номеру отправления */
+  trackingUrl?: string;
+}
+
+export type DeliveryDeliverTo = typeof DeliveryDeliverTo[keyof typeof DeliveryDeliverTo];
+
+
+export const DeliveryDeliverTo = {
+  DOOR: 'DOOR',
+  TERMINAL: 'TERMINAL',
+} as const;
+
+export interface Delivery {
+  methodId?: string;
+  pickupPointId?: string;
+  zoneId?: string;
+  /**
+     * @minLength 0
+     * @maxLength 512
+     */
+  address?: string;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  city?: string;
+  /** @minimum 0 */
+  floor?: number;
+  date?: string;
+  /**
+     * @minLength 0
+     * @maxLength 64
+     */
+  slot?: string;
+  /** @minimum 0 */
+  price?: number;
+  /**
+     * @minLength 0
+     * @maxLength 512
+     */
+  note?: string;
+  loaders?: boolean;
+  hasLift?: boolean;
+  /** @minimum 0 */
+  loadersPrice?: number;
+  carrierId?: string;
+  deliverTo?: DeliveryDeliverTo;
+}
+
+export type LinePatchAvailabilityStatus = typeof LinePatchAvailabilityStatus[keyof typeof LinePatchAvailabilityStatus];
+
+
+export const LinePatchAvailabilityStatus = {
+  IN_STOCK: 'IN_STOCK',
+  PARTIAL: 'PARTIAL',
+  OUT_OF_STOCK: 'OUT_OF_STOCK',
+  UNKNOWN: 'UNKNOWN',
+} as const;
+
+export interface LinePatch {
+  lineNo: number;
+  name?: string;
+  /** @minimum 0 */
+  quantity?: number;
+  unit?: string;
+  /** @minimum 0 */
+  price?: number;
+  catalogItemId?: string;
+  availabilityStatus?: LinePatchAvailabilityStatus;
+}
+
+export interface UpdateDraftRequest {
+  customerName?: string;
+  deliveryAddress?: string;
+  deliveryDate?: string;
+  delivery?: Delivery;
+  /**
+     * @minItems 0
+     * @maxItems 200
+     */
+  lines: LinePatch[];
+}
+
+export interface AssigneeDto {
+  id?: string;
+  displayName?: string;
+}
+
+export interface CatalogCandidate {
+  itemId?: string;
+  name?: string;
+  unit?: string;
+  price?: number;
+  score?: number;
 }
 
 export type DraftDeliveryDtoStatus = typeof DraftDeliveryDtoStatus[keyof typeof DraftDeliveryDtoStatus];
@@ -2240,6 +2296,22 @@ export type DraftDeliveryDtoLoadersPayee = typeof DraftDeliveryDtoLoadersPayee[k
 
 
 export const DraftDeliveryDtoLoadersPayee = {
+  SELLER: 'SELLER',
+  DIRECT: 'DIRECT',
+} as const;
+
+export type DraftDeliveryDtoDeliverTo = typeof DraftDeliveryDtoDeliverTo[keyof typeof DraftDeliveryDtoDeliverTo];
+
+
+export const DraftDeliveryDtoDeliverTo = {
+  DOOR: 'DOOR',
+  TERMINAL: 'TERMINAL',
+} as const;
+
+export type DraftDeliveryDtoTransportPayee = typeof DraftDeliveryDtoTransportPayee[keyof typeof DraftDeliveryDtoTransportPayee];
+
+
+export const DraftDeliveryDtoTransportPayee = {
   SELLER: 'SELLER',
   DIRECT: 'DIRECT',
 } as const;
@@ -2268,6 +2340,11 @@ export interface DraftDeliveryDto {
   loadersPrice?: number;
   loadersManual?: boolean;
   loadersPayee?: DraftDeliveryDtoLoadersPayee;
+  carrierId?: string;
+  carrierName?: string;
+  carrierPhone?: string;
+  deliverTo?: DraftDeliveryDtoDeliverTo;
+  transportPayee?: DraftDeliveryDtoTransportPayee;
 }
 
 export type DraftDetailDtoStatus = typeof DraftDetailDtoStatus[keyof typeof DraftDetailDtoStatus];
@@ -2566,6 +2643,148 @@ export interface DraftDetailDto {
   currency: DraftDetailDtoCurrency;
 }
 
+/**
+ * Квитанция на оплату перевозки
+ */
+export interface TransportReceiptRequest {
+  /**
+     * Сумма к оплате
+     * @minimum 0
+     */
+  amount: number;
+  /**
+     * Получатель оплаты: перевозчик или его представитель
+     * @minLength 0
+     * @maxLength 255
+     */
+  payee: string;
+  /**
+     * Реквизиты для оплаты текстом
+     * @minLength 0
+     * @maxLength 1000
+     */
+  requisites?: string;
+  /**
+     * Ссылка на оплату
+     * @minLength 0
+     * @maxLength 1000
+     * @pattern ^https?://\S+$
+     */
+  payUrl?: string;
+  /**
+     * Номер квитанции
+     * @minLength 0
+     * @maxLength 64
+     */
+  number?: string;
+  /** Оплатить до */
+  dueDate?: string;
+  /**
+     * Комментарий для клиента
+     * @minLength 0
+     * @maxLength 1000
+     */
+  comment?: string;
+}
+
+/**
+ * Кто сообщил: клиент или продавец со слов клиента
+ */
+export type PaymentReportDtoAuthor = typeof PaymentReportDtoAuthor[keyof typeof PaymentReportDtoAuthor];
+
+
+export const PaymentReportDtoAuthor = {
+  SELLER: 'SELLER',
+  CUSTOMER: 'CUSTOMER',
+} as const;
+
+/**
+ * Сообщение об оплате перевозки
+ */
+export interface PaymentReportDto {
+  id: string;
+  /** Кто сообщил: клиент или продавец со слов клиента */
+  author: PaymentReportDtoAuthor;
+  /** Номер операции */
+  paymentRef?: string;
+  /** Когда оплачено */
+  paidAt?: string;
+  /** Комментарий */
+  comment?: string;
+  /** Со слов клиента из WhatsApp */
+  viaWhatsApp: boolean;
+  /** Когда сообщено */
+  createdAt: string;
+}
+
+/**
+ * Ход оплаты
+ */
+export type TransportPaymentDtoStatus = typeof TransportPaymentDtoStatus[keyof typeof TransportPaymentDtoStatus];
+
+
+export const TransportPaymentDtoStatus = {
+  NONE: 'NONE',
+  AWAITING_RECEIPT: 'AWAITING_RECEIPT',
+  AWAITING_PAYMENT: 'AWAITING_PAYMENT',
+  REPORTED: 'REPORTED',
+  CONFIRMED: 'CONFIRMED',
+  REJECTED: 'REJECTED',
+} as const;
+
+/**
+ * Режим контроля оплаты по заявке; пусто — ход не включён
+ */
+export type TransportPaymentDtoControl = typeof TransportPaymentDtoControl[keyof typeof TransportPaymentDtoControl];
+
+
+export const TransportPaymentDtoControl = {
+  DATA_ONLY: 'DATA_ONLY',
+  MARK: 'MARK',
+  BLOCK_SHIPMENT: 'BLOCK_SHIPMENT',
+} as const;
+
+/**
+ * Квитанция на оплату перевозки
+ */
+export interface TransportReceiptDto {
+  id: string;
+  /** Сумма к оплате */
+  amount: number;
+  /** Получатель оплаты */
+  payee: string;
+  /** Реквизиты */
+  requisites?: string;
+  /** Ссылка на оплату */
+  payUrl?: string;
+  /** Номер квитанции */
+  number?: string;
+  /** Оплатить до */
+  dueDate?: string;
+  /** Комментарий */
+  comment?: string;
+  /** Когда приложена */
+  createdAt: string;
+}
+
+/**
+ * Оплата перевозки по квитанции
+ */
+export interface TransportPaymentDto {
+  /** Ход оплаты */
+  status: TransportPaymentDtoStatus;
+  /** Режим контроля оплаты по заявке; пусто — ход не включён */
+  control?: TransportPaymentDtoControl;
+  /** Почему оплата не подтверждена */
+  rejectionReason?: string;
+  /** Действующая квитанция */
+  receipt?: TransportReceiptDto;
+  /** Последнее сообщение об оплате */
+  lastReport?: PaymentReportDto;
+  /** Выдать заказ нельзя, пока оплата не подтверждена */
+  shipmentBlocked: boolean;
+}
+
 export type PickupPointRequestWorkingDaysItem = typeof PickupPointRequestWorkingDaysItem[keyof typeof PickupPointRequestWorkingDaysItem];
 
 
@@ -2781,6 +3000,62 @@ export const DeliveryMethodRequestTariffRule = {
 } as const;
 
 /**
+ * OWN — сами, CARRIER — перевозчик
+ */
+export type DeliveryTransportBy = typeof DeliveryTransportBy[keyof typeof DeliveryTransportBy];
+
+
+export const DeliveryTransportBy = {
+  OWN: 'OWN',
+  CARRIER: 'CARRIER',
+} as const;
+
+/**
+ * Кому платит клиент за перевозку: SELLER — в итоге заявки, DIRECT — перевозчику, в итог не входит; при OWN пусто
+ */
+export type DeliveryTransportPayee = typeof DeliveryTransportPayee[keyof typeof DeliveryTransportPayee];
+
+
+export const DeliveryTransportPayee = {
+  SELLER: 'SELLER',
+  DIRECT: 'DIRECT',
+} as const;
+
+/**
+ * Кто возит способом доставки
+ */
+export interface DeliveryTransport {
+  /** OWN — сами, CARRIER — перевозчик */
+  by: DeliveryTransportBy;
+  /** Перевозчики способа, в порядке показа клиенту; при OWN пусто */
+  carrierIds?: string[];
+  /** Кому платит клиент за перевозку: SELLER — в итоге заявки, DIRECT — перевозчику, в итог не входит; при OWN пусто */
+  payee?: DeliveryTransportPayee;
+}
+
+/**
+ * DATA_ONLY — только данные, MARK — отметка оплаты, BLOCK_SHIPMENT — отметка и запрет выдачи до подтверждения
+ */
+export type DeliveryReceiptControl = typeof DeliveryReceiptControl[keyof typeof DeliveryReceiptControl];
+
+
+export const DeliveryReceiptControl = {
+  DATA_ONLY: 'DATA_ONLY',
+  MARK: 'MARK',
+  BLOCK_SHIPMENT: 'BLOCK_SHIPMENT',
+} as const;
+
+/**
+ * Квитанция на оплату перевозки у способа доставки
+ */
+export interface DeliveryReceipt {
+  /** Просить квитанцию после подтверждения заявки клиентом */
+  required: boolean;
+  /** DATA_ONLY — только данные, MARK — отметка оплаты, BLOCK_SHIPMENT — отметка и запрет выдачи до подтверждения */
+  control: DeliveryReceiptControl;
+}
+
+/**
  * Заведение или правка способа доставки
  */
 export interface DeliveryMethodRequest {
@@ -2814,6 +3089,10 @@ export interface DeliveryMethodRequest {
   active: boolean;
   /** Грузчики у способа. Пусто — не предлагаем. Лишние для тарифа суммы сервер сбрасывает, недостающие — отказ DELIVERY_LOADERS_MISCONFIGURED */
   loaders?: DeliveryLoaders;
+  /** Кто возит. Пусто — сами. При CARRIER нужны действующие перевозчики продавца и получатель оплаты, иначе отказ DELIVERY_TRANSPORT_MISCONFIGURED */
+  transport?: DeliveryTransport;
+  /** Квитанция на оплату перевозки. Пусто: при заведении — по типу (межгород просит квитанцию), при правке — не менять */
+  receipt?: DeliveryReceipt;
 }
 
 export type DeliveryMethodDtoType = typeof DeliveryMethodDtoType[keyof typeof DeliveryMethodDtoType];
@@ -2851,6 +3130,68 @@ export interface DeliveryMethodDto {
   active?: boolean;
   /** Грузчики у способа: предлагаются ли и как считаются */
   loaders?: DeliveryLoaders;
+  /** Кто возит: сами или перевозчик, и кому клиент платит за перевозку */
+  transport?: DeliveryTransport;
+  /** Квитанция на оплату перевозки */
+  receipt?: DeliveryReceipt;
+}
+
+/**
+ * Заведение или правка перевозчика
+ */
+export interface CarrierRequest {
+  /**
+     * Название
+     * @minLength 0
+     * @maxLength 255
+     */
+  name: string;
+  /**
+     * Телефон для клиента
+     * @minLength 0
+     * @maxLength 32
+     */
+  phone?: string;
+  /**
+     * Шаблон ссылки отслеживания: http(s)://… с {number} на месте номера
+     * @minLength 0
+     * @maxLength 512
+     * @pattern ^https?://\S*\{number}\S*$
+     */
+  trackingUrlTemplate?: string;
+  /**
+     * Адрес терминала — для доставки «до терминала»
+     * @minLength 0
+     * @maxLength 512
+     */
+  terminalAddress?: string;
+  /**
+     * Заметка для клиента
+     * @minLength 0
+     * @maxLength 512
+     */
+  note?: string;
+  /** Предлагается ли на новых заявках */
+  active: boolean;
+}
+
+/**
+ * Перевозчик арендатора
+ */
+export interface CarrierDto {
+  id: string;
+  /** Название */
+  name: string;
+  /** Телефон для клиента */
+  phone?: string;
+  /** Шаблон ссылки отслеживания с {number} */
+  trackingUrlTemplate?: string;
+  /** Адрес терминала — для доставки «до терминала» */
+  terminalAddress?: string;
+  /** Заметка для клиента */
+  note?: string;
+  /** Предлагается ли на новых заявках */
+  active: boolean;
 }
 
 /**
@@ -2885,8 +3226,6 @@ export interface CatalogSettingsDto {
   vatPayer: boolean;
   /** Ставка НДС магазина; у товара без своей ставки действует она */
   vatRate?: number;
-  /** Продаёт ли магазин прессами — комплектами размеров. Включают оптовики с рынка; у остальных нет ни вкладки «Состав пресса», ни кнопки «Собрать пресс» */
-  pressEnabled: boolean;
 }
 
 /**
@@ -2910,15 +3249,7 @@ export interface SaveSaleModeRequest {
 }
 
 /**
- * Продаёт ли магазин прессами — комплектами размеров
- */
-export interface SavePressRequest {
-  /** true — в карточке товара есть вкладка «Состав пресса» и кнопка «Собрать пресс из линейки» */
-  enabled: boolean;
-}
-
-/**
- * Единица опта: название и видимость
+ * Единица опта: название, видимость и что внутри
  */
 export interface SaveSellerUnitRequest {
   /**
@@ -2929,6 +3260,21 @@ export interface SaveSellerUnitRequest {
   name: string;
   /** Скрыть из выбора. Не передан — при создании видима, при правке не меняется */
   hidden?: boolean;
+  /**
+     * Сколько внутри; не передано — «внутри» не указано
+     * @minimum 0
+     */
+  insideQty?: number;
+  /**
+     * Основа словом: шт, пар, комплект, кг, л или своё
+     * @minLength 0
+     * @maxLength 32
+     */
+  insideBase?: string;
+  /** Основа — другая единица продавца */
+  insideUnitId?: string;
+  /** Ассорти. Не передано — при создании нет, при правке не меняется */
+  assorted?: boolean;
 }
 
 /**
@@ -2943,6 +3289,20 @@ export interface SellerUnitDto {
   position: number;
   /** Скрыта из выбора: товары, которые её уже носят, её сохраняют */
   hidden: boolean;
+  /** Сколько внутри одной единицы; пусто — не указано */
+  insideQty?: number;
+  /** Основа словом: шт, пар, комплект, кг, л или своё слово */
+  insideBase?: string;
+  /** Основа — другая единица продавца */
+  insideUnitId?: string;
+  /** Ассорти: в одной единице разные варианты товара — у таких товаров есть вкладка состава */
+  assorted: boolean;
+  /** Цепочка до основы словом: коробка = 10 упаковок = 50 шт. → 50; пусто, если где-то «внутри» не указано */
+  baseQty?: number;
+  /** Основа словом в конце цепочки */
+  baseWord?: string;
+  /** У скольких живых товаров эта оптовая единица */
+  usedBy: number;
 }
 
 /**
@@ -4390,6 +4750,17 @@ export interface AccountDto {
 }
 
 /**
+ * До двери или до терминала — у межгорода с терминалом перевозчика
+ */
+export type SubmitOrderDeliveryDeliverTo = typeof SubmitOrderDeliveryDeliverTo[keyof typeof SubmitOrderDeliveryDeliverTo];
+
+
+export const SubmitOrderDeliveryDeliverTo = {
+  DOOR: 'DOOR',
+  TERMINAL: 'TERMINAL',
+} as const;
+
+/**
  * Выбор клиента по доставке
  */
 export interface SubmitOrderDelivery {
@@ -4434,6 +4805,10 @@ export interface SubmitOrderDelivery {
   loaders?: boolean;
   /** Есть грузовой лифт — для грузчиков «за этаж» */
   hasLift?: boolean;
+  /** Перевозчик способа «перевозчиком»; единственного сервер выберет сам */
+  carrierId?: string;
+  /** До двери или до терминала — у межгорода с терминалом перевозчика */
+  deliverTo?: SubmitOrderDeliveryDeliverTo;
 }
 
 /**
@@ -4477,15 +4852,71 @@ export interface PortalDraftCreated {
 }
 
 /**
- * Вопрос клиента по заявке
+ * Сообщение об оплате перевозки
  */
-export interface AskAboutOrderRequest {
+export interface PaymentReportRequest {
   /**
-     * Текст вопроса
+     * Номер операции
      * @minLength 0
-     * @maxLength 2000
+     * @maxLength 64
      */
-  text: string;
+  paymentRef?: string;
+  /** Когда оплачено */
+  paidAt?: string;
+  /**
+     * Комментарий
+     * @minLength 0
+     * @maxLength 1000
+     */
+  comment?: string;
+  /** Со слов клиента из WhatsApp */
+  viaWhatsApp?: boolean;
+}
+
+/**
+ * Кому платить за перевозку: SELLER — в итоге, DIRECT — перевозчику
+ */
+export type PortalOrderDeliveryTransportPayee = typeof PortalOrderDeliveryTransportPayee[keyof typeof PortalOrderDeliveryTransportPayee];
+
+
+export const PortalOrderDeliveryTransportPayee = {
+  SELLER: 'SELLER',
+  DIRECT: 'DIRECT',
+} as const;
+
+/**
+ * До двери или до терминала
+ */
+export type PortalOrderDeliveryDeliverTo = typeof PortalOrderDeliveryDeliverTo[keyof typeof PortalOrderDeliveryDeliverTo];
+
+
+export const PortalOrderDeliveryDeliverTo = {
+  DOOR: 'DOOR',
+  TERMINAL: 'TERMINAL',
+} as const;
+
+/**
+ * Доставка заявки для клиента
+ */
+export interface PortalOrderDelivery {
+  /** Способ */
+  methodName?: string;
+  /** Адрес: клиента или терминала */
+  address?: string;
+  /** Город */
+  city?: string;
+  /** Перевозчик; пусто — возит продавец */
+  carrierName?: string;
+  /** Телефон перевозчика */
+  carrierPhone?: string;
+  /** Кому платить за перевозку: SELLER — в итоге, DIRECT — перевозчику */
+  transportPayee?: PortalOrderDeliveryTransportPayee;
+  /** До двери или до терминала */
+  deliverTo?: PortalOrderDeliveryDeliverTo;
+  /** Номер отправления; появляется после отгрузки */
+  trackingNumber?: string;
+  /** Ссылка отслеживания */
+  trackingUrl?: string;
 }
 
 /**
@@ -4695,6 +5126,22 @@ export interface PortalOrderDto {
   loadersPrice?: number;
   /** Кому платить за грузчиков: SELLER — входит в итог, DIRECT — напрямую, в итог не входит */
   loadersPayee?: PortalOrderDtoLoadersPayee;
+  /** Доставка: способ, адрес, перевозчик, кому платить, номер отправления; пусто — самовывоз или доставка не выбрана */
+  delivery?: PortalOrderDelivery;
+  /** Оплата перевозки по квитанции; пусто — не требуется */
+  transportPayment?: TransportPaymentDto;
+}
+
+/**
+ * Вопрос клиента по заявке
+ */
+export interface AskAboutOrderRequest {
+  /**
+     * Текст вопроса
+     * @minLength 0
+     * @maxLength 2000
+     */
+  text: string;
 }
 
 export type SubmitReviewRequestTagsItem = typeof SubmitReviewRequestTagsItem[keyof typeof SubmitReviewRequestTagsItem];
@@ -4845,6 +5292,18 @@ export interface UnmatchedLinkResultDto {
 }
 
 /**
+ * Отклонение сообщения об оплате перевозки
+ */
+export interface PaymentRejectRequest {
+  /**
+     * Почему оплата не подтверждена
+     * @minLength 0
+     * @maxLength 512
+     */
+  reason: string;
+}
+
+/**
  * Запрос наличия у склада
  */
 export interface StockRequestCreateRequest {
@@ -4864,6 +5323,22 @@ export const ConfirmationDeliveryDtoLoadersPayee = {
   DIRECT: 'DIRECT',
 } as const;
 
+export type ConfirmationDeliveryDtoTransportPayee = typeof ConfirmationDeliveryDtoTransportPayee[keyof typeof ConfirmationDeliveryDtoTransportPayee];
+
+
+export const ConfirmationDeliveryDtoTransportPayee = {
+  SELLER: 'SELLER',
+  DIRECT: 'DIRECT',
+} as const;
+
+export type ConfirmationDeliveryDtoDeliverTo = typeof ConfirmationDeliveryDtoDeliverTo[keyof typeof ConfirmationDeliveryDtoDeliverTo];
+
+
+export const ConfirmationDeliveryDtoDeliverTo = {
+  DOOR: 'DOOR',
+  TERMINAL: 'TERMINAL',
+} as const;
+
 export interface ConfirmationDeliveryDto {
   methodName?: string;
   pointName?: string;
@@ -4877,6 +5352,10 @@ export interface ConfirmationDeliveryDto {
   loaders?: boolean;
   loadersPrice?: number;
   loadersPayee?: ConfirmationDeliveryDtoLoadersPayee;
+  carrierName?: string;
+  carrierPhone?: string;
+  transportPayee?: ConfirmationDeliveryDtoTransportPayee;
+  deliverTo?: ConfirmationDeliveryDtoDeliverTo;
 }
 
 export type ConfirmationDtoDraftStatus = typeof ConfirmationDtoDraftStatus[keyof typeof ConfirmationDtoDraftStatus];
@@ -5956,6 +6435,9 @@ export const PortalNotificationDtoKind = {
   QUESTION_ANSWERED: 'QUESTION_ANSWERED',
   ORDER_ANSWERED: 'ORDER_ANSWERED',
   CUSTOMER_MESSAGE: 'CUSTOMER_MESSAGE',
+  TRANSPORT_RECEIPT_SENT: 'TRANSPORT_RECEIPT_SENT',
+  TRANSPORT_PAYMENT_REJECTED: 'TRANSPORT_PAYMENT_REJECTED',
+  TRANSPORT_PAYMENT_REPORTED: 'TRANSPORT_PAYMENT_REPORTED',
 } as const;
 
 /**
@@ -5969,6 +6451,8 @@ export interface PortalNotificationDto {
   kind: PortalNotificationDtoKind;
   /** Когда появилось */
   createdAt: string;
+  /** Подробность повода словами продавца: причина отклонения оплаты перевозки */
+  detail?: string;
 }
 
 /**
@@ -6004,6 +6488,21 @@ export interface FavoriteItemDto {
 }
 
 /**
+ * Перевозчик способа
+ */
+export interface Carrier {
+  id: string;
+  /** Название */
+  name: string;
+  /** Телефон */
+  phone?: string;
+  /** Заметка для клиента */
+  note?: string;
+  /** Адрес терминала; пусто — «до терминала» недоступно */
+  terminalAddress?: string;
+}
+
+/**
  * Режим: возит ли поставщик вообще. При самовывозе выбирать нечего, кроме точки
  */
 export type DeliveryOptionsDtoMode = typeof DeliveryOptionsDtoMode[keyof typeof DeliveryOptionsDtoMode];
@@ -6034,6 +6533,17 @@ export interface TimeSlot {
 }
 
 /**
+ * Кому платить за перевозку: SELLER — в итоге, DIRECT — перевозчику, в итог не входит; пусто — возит продавец
+ */
+export type MethodTransportPayee = typeof MethodTransportPayee[keyof typeof MethodTransportPayee];
+
+
+export const MethodTransportPayee = {
+  SELLER: 'SELLER',
+  DIRECT: 'DIRECT',
+} as const;
+
+/**
  * Способ доставки
  */
 export interface Method {
@@ -6052,6 +6562,12 @@ export interface Method {
   slots: TimeSlot[];
   /** Грузчики способа; пусто — не предлагаются */
   loaders?: DeliveryLoaders;
+  /** Перевозчики способа; пусто — возит сам продавец */
+  carriers: Carrier[];
+  /** Кому платить за перевозку: SELLER — в итоге, DIRECT — перевозчику, в итог не входит; пусто — возит продавец */
+  transportPayee?: MethodTransportPayee;
+  /** Межгород: у перевозчика с терминалом можно выбрать «до терминала» */
+  intercity: boolean;
 }
 
 /**
@@ -6309,6 +6825,9 @@ export const NotificationDtoKind = {
   QUESTION_ANSWERED: 'QUESTION_ANSWERED',
   ORDER_ANSWERED: 'ORDER_ANSWERED',
   CUSTOMER_MESSAGE: 'CUSTOMER_MESSAGE',
+  TRANSPORT_RECEIPT_SENT: 'TRANSPORT_RECEIPT_SENT',
+  TRANSPORT_PAYMENT_REJECTED: 'TRANSPORT_PAYMENT_REJECTED',
+  TRANSPORT_PAYMENT_REPORTED: 'TRANSPORT_PAYMENT_REPORTED',
 } as const;
 
 /**
@@ -6496,6 +7015,8 @@ export interface DraftSummaryDto {
   customerOrderId?: string;
   /** Валюта заявки (не сегодняшняя валюта арендатора) */
   currency: DraftSummaryDtoCurrency;
+  /** Клиент сообщил об оплате перевозки — ждёт проверки */
+  paymentReview: boolean;
 }
 
 /**
@@ -7221,6 +7742,7 @@ export type GetDraftQueueFlag = typeof GetDraftQueueFlag[keyof typeof GetDraftQu
 export const GetDraftQueueFlag = {
   LATE: 'LATE',
   UNREAD: 'UNREAD',
+  PAYMENT_REVIEW: 'PAYMENT_REVIEW',
 } as const;
 
 export type GetDraftCountersParams = {
@@ -7263,6 +7785,7 @@ export type GetDraftCountersFlag = typeof GetDraftCountersFlag[keyof typeof GetD
 export const GetDraftCountersFlag = {
   LATE: 'LATE',
   UNREAD: 'UNREAD',
+  PAYMENT_REVIEW: 'PAYMENT_REVIEW',
 } as const;
 
 export type LookupCatalogItemsParams = {
@@ -11902,6 +12425,129 @@ export const useSetPortalCartLine = <TError = ErrorResponse,
       return useMutation(getSetPortalCartLineMutationOptions(options), queryClient);
     }
 
+export type setOrderTrackingResponse200 = {
+  data: CustomerOrderDto
+  status: 200
+}
+
+export type setOrderTrackingResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type setOrderTrackingResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type setOrderTrackingResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type setOrderTrackingResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type setOrderTrackingResponseSuccess = (setOrderTrackingResponse200) & {
+  headers: Headers;
+};
+export type setOrderTrackingResponseError = (setOrderTrackingResponse400 | setOrderTrackingResponse404 | setOrderTrackingResponse409 | setOrderTrackingResponse500) & {
+  headers: Headers;
+};
+
+export type setOrderTrackingResponse = (setOrderTrackingResponseSuccess | setOrderTrackingResponseError)
+
+export const getSetOrderTrackingUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/${id}/tracking`
+}
+
+/**
+ * Ставит менеджер после отгрузки перевозчику. Ссылка отслеживания собирается по шаблону перевозчика, с которым заказ принят; клиент видит номер и ссылку в «Моих заявках».
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Принять заявку со способом «перевозчиком», у перевозчика шаблон `https://…/{number}`.
+ * 2. Войти менеджером (`77010000102`), отправить `{"trackingNumber": "AB123"}` — 200, в ответе `trackingUrl` с номером.
+ * 3. Пустой номер снимает и номер, и ссылку.
+ * 4. Негативный 400: номер длиннее 64 символов. Негативный 409: отменённый заказ.
+ * @summary Номер отправления
+ */
+export const setOrderTracking = async (id: string,
+    trackingRequest: TrackingRequest, options?: RequestInit): Promise<setOrderTrackingResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<setOrderTrackingResponse>(getSetOrderTrackingUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(trackingRequest)
+  }
+);}
+
+
+
+
+
+export const getSetOrderTrackingMutationKey = () => ['setOrderTracking'] as const;
+
+export const getSetOrderTrackingMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setOrderTracking>>, TError,SetOrderTrackingMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof setOrderTracking>>, TError,SetOrderTrackingMutationVariables, TContext> => {
+
+const mutationKey = getSetOrderTrackingMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setOrderTracking>>, SetOrderTrackingMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setOrderTracking(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetOrderTrackingMutationResult = NonNullable<Awaited<ReturnType<typeof setOrderTracking>>>
+    export type SetOrderTrackingMutationBody = TrackingRequest
+    export type SetOrderTrackingMutationError = ErrorResponse
+    export type SetOrderTrackingMutationVariables = {id: string;data: TrackingRequest}
+
+    /**
+ * @summary Номер отправления
+ */
+export const useSetOrderTracking = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setOrderTracking>>, TError,SetOrderTrackingMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setOrderTracking>>,
+        TError,
+        SetOrderTrackingMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetOrderTrackingMutationOptions(options), queryClient);
+    }
+
 export type getDraftResponse200 = {
   data: DraftDetailDto
   status: 200
@@ -12095,6 +12741,7 @@ export const getUpdateDraftUrl = (id: string,) => {
  * 5. Отправить строку без `catalogItemId` — прежняя привязка к каталогу осталась. Слетевшая привязка означала бы, что исправление опечатки в количестве стирает работу разбора.
  * 6. Негативный 400: количество 0 или отрицательное; отрицательная цена; больше 200 строк.
  * 6а. Грузчики: у способа с грузчиками «по запросу» прислать в `delivery` `"loaders": true` — в ответе `delivery.loadersPrice` по тарифу и `loadersManual: false`; с `"loadersPrice": 3500` — ручная сумма и `loadersManual: true`. У договорных без суммы — блокер `LOADERS_PRICE_MISSING`.
+ * 6б. Перевозчик: у способа «перевозчиком» с несколькими перевозчиками без `delivery.carrierId` доставка остаётся `UNRESOLVED` с причиной «Выберите перевозчика»; с `carrierId` — `RESOLVED`, в ответе `carrierName` и `transportPayee`. `"deliverTo": "TERMINAL"` у межгорода с терминалом — адрес заявки становится адресом терминала.
  * 7. Негативный 404: случайный идентификатор в пути.
  * @summary Сохранить правки менеджера
  */
@@ -12166,6 +12813,130 @@ export const useUpdateDraft = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getUpdateDraftMutationOptions(options), queryClient);
+    }
+
+export type attachTransportReceiptResponse200 = {
+  data: TransportPaymentDto
+  status: 200
+}
+
+export type attachTransportReceiptResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type attachTransportReceiptResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type attachTransportReceiptResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type attachTransportReceiptResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type attachTransportReceiptResponseSuccess = (attachTransportReceiptResponse200) & {
+  headers: Headers;
+};
+export type attachTransportReceiptResponseError = (attachTransportReceiptResponse400 | attachTransportReceiptResponse404 | attachTransportReceiptResponse409 | attachTransportReceiptResponse500) & {
+  headers: Headers;
+};
+
+export type attachTransportReceiptResponse = (attachTransportReceiptResponseSuccess | attachTransportReceiptResponseError)
+
+export const getAttachTransportReceiptUrl = (id: string,) => {
+
+
+
+
+  return `/api/drafts/${id}/transport-payment/receipt`
+}
+
+/**
+ * Новая квитанция заменяет прежнюю (прежняя остаётся в истории). Клиент кабинета видит её в заявке и получает уведомление, клиенту WhatsApp она уходит текстом. К заявке без хода оплаты квитанция включает его в режиме отметки.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отправить `{"amount": 4500, "payee": "ТОО «СДЭК»", "payUrl": "https://pay.example/abc"}` — 200, `status: AWAITING_PAYMENT`, `receipt.amount: 4500`.
+ * 2. Отправить другую сумму — в ответе новая квитанция.
+ * 3. Негативный 400: без `payee`, затем `payUrl` без http(s)://.
+ * 4. Негативный 409 `TRANSPORT_PAYMENT_STATE`: оплата уже подтверждена.
+ * Негативный 409 `DRAFT_NOT_ASSIGNED`: заявку ведёт другой менеджер.
+ * @summary Приложить или заменить квитанцию
+ */
+export const attachTransportReceipt = async (id: string,
+    transportReceiptRequest: TransportReceiptRequest, options?: RequestInit): Promise<attachTransportReceiptResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<attachTransportReceiptResponse>(getAttachTransportReceiptUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(transportReceiptRequest)
+  }
+);}
+
+
+
+
+
+export const getAttachTransportReceiptMutationKey = () => ['attachTransportReceipt'] as const;
+
+export const getAttachTransportReceiptMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachTransportReceipt>>, TError,AttachTransportReceiptMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof attachTransportReceipt>>, TError,AttachTransportReceiptMutationVariables, TContext> => {
+
+const mutationKey = getAttachTransportReceiptMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof attachTransportReceipt>>, AttachTransportReceiptMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  attachTransportReceipt(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AttachTransportReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof attachTransportReceipt>>>
+    export type AttachTransportReceiptMutationBody = TransportReceiptRequest
+    export type AttachTransportReceiptMutationError = ErrorResponse
+    export type AttachTransportReceiptMutationVariables = {id: string;data: TransportReceiptRequest}
+
+    /**
+ * @summary Приложить или заменить квитанцию
+ */
+export const useAttachTransportReceipt = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof attachTransportReceipt>>, TError,AttachTransportReceiptMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof attachTransportReceipt>>,
+        TError,
+        AttachTransportReceiptMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAttachTransportReceiptMutationOptions(options), queryClient);
     }
 
 export type updatePickupPointResponse200 = {
@@ -12916,6 +13687,242 @@ export const useDeleteDeliveryMethod = <TError = ErrorResponse,
       return useMutation(getDeleteDeliveryMethodMutationOptions(options), queryClient);
     }
 
+export type updateCarrierResponse200 = {
+  data: CarrierDto
+  status: 200
+}
+
+export type updateCarrierResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updateCarrierResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updateCarrierResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type updateCarrierResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updateCarrierResponseSuccess = (updateCarrierResponse200) & {
+  headers: Headers;
+};
+export type updateCarrierResponseError = (updateCarrierResponse400 | updateCarrierResponse404 | updateCarrierResponse409 | updateCarrierResponse500) & {
+  headers: Headers;
+};
+
+export type updateCarrierResponse = (updateCarrierResponseSuccess | updateCarrierResponseError)
+
+export const getUpdateCarrierUrl = (id: string,) => {
+
+
+
+
+  return `/api/delivery/carriers/${id}`
+}
+
+/**
+ * Выключить единственного перевозчика действующего способа нельзя — `409 CARRIER_LAST_OF_METHOD`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Поправить телефон — 200, новый телефон в ответе.
+ * 2. Негативный 409: выключить перевозчика, который единственный у действующего способа «перевозчиком».
+ * 3. Негативный 404: идентификатор перевозчика другого арендатора.
+ * @summary Поправить перевозчика
+ */
+export const updateCarrier = async (id: string,
+    carrierRequest: CarrierRequest, options?: RequestInit): Promise<updateCarrierResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<updateCarrierResponse>(getUpdateCarrierUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(carrierRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateCarrierMutationKey = () => ['updateCarrier'] as const;
+
+export const getUpdateCarrierMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCarrier>>, TError,UpdateCarrierMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof updateCarrier>>, TError,UpdateCarrierMutationVariables, TContext> => {
+
+const mutationKey = getUpdateCarrierMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCarrier>>, UpdateCarrierMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCarrier(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCarrierMutationResult = NonNullable<Awaited<ReturnType<typeof updateCarrier>>>
+    export type UpdateCarrierMutationBody = CarrierRequest
+    export type UpdateCarrierMutationError = ErrorResponse
+    export type UpdateCarrierMutationVariables = {id: string;data: CarrierRequest}
+
+    /**
+ * @summary Поправить перевозчика
+ */
+export const useUpdateCarrier = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCarrier>>, TError,UpdateCarrierMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateCarrier>>,
+        TError,
+        UpdateCarrierMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateCarrierMutationOptions(options), queryClient);
+    }
+
+export type deleteCarrierResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteCarrierResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deleteCarrierResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deleteCarrierResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type deleteCarrierResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deleteCarrierResponseSuccess = (deleteCarrierResponse204) & {
+  headers: Headers;
+};
+export type deleteCarrierResponseError = (deleteCarrierResponse400 | deleteCarrierResponse404 | deleteCarrierResponse409 | deleteCarrierResponse500) & {
+  headers: Headers;
+};
+
+export type deleteCarrierResponse = (deleteCarrierResponseSuccess | deleteCarrierResponseError)
+
+export const getDeleteCarrierUrl = (id: string,) => {
+
+
+
+
+  return `/api/delivery/carriers/${id}`
+}
+
+/**
+ * Удаление мягкое: заказы, отданные перевозчику, открываются с его именем.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Удалить перевозчика, не занятого способами, — 204, из списка пропал.
+ * 2. Негативный 409: удалить единственного перевозчика действующего способа.
+ * @summary Убрать перевозчика
+ */
+export const deleteCarrier = async (id: string, options?: RequestInit): Promise<deleteCarrierResponse> => {
+
+  return apiRequest<deleteCarrierResponse>(getDeleteCarrierUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCarrierMutationKey = () => ['deleteCarrier'] as const;
+
+export const getDeleteCarrierMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCarrier>>, TError,DeleteCarrierMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCarrier>>, TError,DeleteCarrierMutationVariables, TContext> => {
+
+const mutationKey = getDeleteCarrierMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCarrier>>, DeleteCarrierMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteCarrier(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCarrierMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCarrier>>>
+
+    export type DeleteCarrierMutationError = ErrorResponse
+    export type DeleteCarrierMutationVariables = {id: string}
+
+    /**
+ * @summary Убрать перевозчика
+ */
+export const useDeleteCarrier = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCarrier>>, TError,DeleteCarrierMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCarrier>>,
+        TError,
+        DeleteCarrierMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteCarrierMutationOptions(options), queryClient);
+    }
+
 export type getCatalogSettingsResponse200 = {
   data: CatalogSettingsDto
   status: 200
@@ -13300,127 +14307,6 @@ export const useUpdateSaleMode = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getUpdateSaleModeMutationOptions(options), queryClient);
-    }
-
-export type updatePressResponse200 = {
-  data: CatalogSettingsDto
-  status: 200
-}
-
-export type updatePressResponse400 = {
-  data: ErrorResponse
-  status: 400
-}
-
-export type updatePressResponse403 = {
-  data: ErrorResponse
-  status: 403
-}
-
-export type updatePressResponse404 = {
-  data: ErrorResponse
-  status: 404
-}
-
-export type updatePressResponse500 = {
-  data: ErrorResponse
-  status: 500
-}
-
-export type updatePressResponseSuccess = (updatePressResponse200) & {
-  headers: Headers;
-};
-export type updatePressResponseError = (updatePressResponse400 | updatePressResponse403 | updatePressResponse404 | updatePressResponse500) & {
-  headers: Headers;
-};
-
-export type updatePressResponse = (updatePressResponseSuccess | updatePressResponseError)
-
-export const getUpdatePressUrl = () => {
-
-
-
-
-  return `/api/catalog/settings/press`
-}
-
-/**
- * Продаёт ли магазин прессами — комплектами размеров, какими товар приходит оптовикам с рынка. Включённая настройка открывает в карточке товара вкладку «Состав пресса» и кнопку «Собрать пресс из линейки»; витрина и заявки от неё не зависят.
- *
- * **Как проверить вручную**
- *
- * 1. Администратором (`77010000101`) отправить `{"enabled":true}` — 200, `pressEnabled: true`.
- * 2. Негативный 400: пустое тело `{}`.
- * 3. Негативный 403: менеджер (`77010000102`).
- * @summary Продажа прессами
- */
-export const updatePress = async (savePressRequest: SavePressRequest, options?: RequestInit): Promise<updatePressResponse> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Array.isArray(h)) return Object.fromEntries(h);
-    return h;
-  };
-return apiRequest<updatePressResponse>(getUpdatePressUrl(),
-  {
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(savePressRequest)
-  }
-);}
-
-
-
-
-
-export const getUpdatePressMutationKey = () => ['updatePress'] as const;
-
-export const getUpdatePressMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePress>>, TError,UpdatePressMutationVariables, TContext>, }
-): UseMutationOptions<Awaited<ReturnType<typeof updatePress>>, TError,UpdatePressMutationVariables, TContext> => {
-
-const mutationKey = getUpdatePressMutationKey();
-const {mutation: mutationOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePress>>, UpdatePressMutationVariables> = (props) => {
-          const {data} = props ?? {};
-
-          return  updatePress(data,)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type UpdatePressMutationResult = NonNullable<Awaited<ReturnType<typeof updatePress>>>
-    export type UpdatePressMutationBody = SavePressRequest
-    export type UpdatePressMutationError = ErrorResponse
-    export type UpdatePressMutationVariables = {data: SavePressRequest}
-
-    /**
- * @summary Продажа прессами
- */
-export const useUpdatePress = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePress>>, TError,UpdatePressMutationVariables, TContext>, }
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof updatePress>>,
-        TError,
-        UpdatePressMutationVariables,
-        TContext
-      > => {
-      return useMutation(getUpdatePressMutationOptions(options), queryClient);
     }
 
 export type updateSellerUnitResponse200 = {
@@ -21137,6 +22023,7 @@ export const getSubmitPortalOrderUrl = () => {
  * 5. Негативный 403: заголовок поставщика, у которого клиента нет.
  * 6. Зона: у способа с тарифом по зонам прислать `delivery.zoneId` — у заявки доставка разрешена, цена — цена зоны.
  * 7. Грузчики: у способа с грузчиками «по запросу» прислать `"loaders": true` (для «за этаж» — ещё `floor` и `hasLift`). Оплачиваемые продавцу входят в `total`, «напрямую» — нет.
+ * 8. Перевозчик: у способа с несколькими перевозчиками прислать `delivery.carrierId`; при получателе `DIRECT` сумма доставки в `total` не входит.
  * @summary Отправить заявку
  */
 export const submitPortalOrder = async (submitOrderRequest: SubmitOrderRequest, options?: RequestInit): Promise<submitPortalOrderResponse> => {
@@ -21206,6 +22093,123 @@ export const useSubmitPortalOrder = <TError = ErrorResponse | CartStaleResponse,
         TContext
       > => {
       return useMutation(getSubmitPortalOrderMutationOptions(options), queryClient);
+    }
+
+export type reportPortalTransportPaymentResponse200 = {
+  data: PortalOrderDto
+  status: 200
+}
+
+export type reportPortalTransportPaymentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type reportPortalTransportPaymentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type reportPortalTransportPaymentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type reportPortalTransportPaymentResponseSuccess = (reportPortalTransportPaymentResponse200) & {
+  headers: Headers;
+};
+export type reportPortalTransportPaymentResponseError = (reportPortalTransportPaymentResponse400 | reportPortalTransportPaymentResponse404 | reportPortalTransportPaymentResponse500) & {
+  headers: Headers;
+};
+
+export type reportPortalTransportPaymentResponse = (reportPortalTransportPaymentResponseSuccess | reportPortalTransportPaymentResponseError)
+
+export const getReportPortalTransportPaymentUrl = (id: string,) => {
+
+
+
+
+  return `/api/portal/orders/${id}/transport-payment`
+}
+
+/**
+ * Клиент сообщает об оплате перевозки по квитанции продавца: номер операции, дата, комментарий. Статус становится `REPORTED`, продавец получает уведомление.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Продавец прикладывает квитанцию к принятой заявке (`PUT /api/drafts/{id}/transport-payment/receipt`).
+ * 2. Клиент отправляет `{"paymentRef": "OP-1", "paidAt": "2026-10-01"}` — 200, `transportPayment.status: REPORTED`.
+ * 3. Негативный 404: чужая заявка. Негативный 403: сотрудник на витрине как клиент. Негативный 409: квитанции ещё нет.
+ * @summary Я оплатил перевозку
+ */
+export const reportPortalTransportPayment = async (id: string,
+    paymentReportRequest: PaymentReportRequest, options?: RequestInit): Promise<reportPortalTransportPaymentResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<reportPortalTransportPaymentResponse>(getReportPortalTransportPaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(paymentReportRequest)
+  }
+);}
+
+
+
+
+
+export const getReportPortalTransportPaymentMutationKey = () => ['reportPortalTransportPayment'] as const;
+
+export const getReportPortalTransportPaymentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportPortalTransportPayment>>, TError,ReportPortalTransportPaymentMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof reportPortalTransportPayment>>, TError,ReportPortalTransportPaymentMutationVariables, TContext> => {
+
+const mutationKey = getReportPortalTransportPaymentMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportPortalTransportPayment>>, ReportPortalTransportPaymentMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reportPortalTransportPayment(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportPortalTransportPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof reportPortalTransportPayment>>>
+    export type ReportPortalTransportPaymentMutationBody = PaymentReportRequest
+    export type ReportPortalTransportPaymentMutationError = ErrorResponse
+    export type ReportPortalTransportPaymentMutationVariables = {id: string;data: PaymentReportRequest}
+
+    /**
+ * @summary Я оплатил перевозку
+ */
+export const useReportPortalTransportPayment = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportPortalTransportPayment>>, TError,ReportPortalTransportPaymentMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reportPortalTransportPayment>>,
+        TError,
+        ReportPortalTransportPaymentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReportPortalTransportPaymentMutationOptions(options), queryClient);
     }
 
 export type askAboutMyPortalOrderResponse200 = {
@@ -23493,6 +24497,7 @@ export const getMarkOrderIssuedUrl = (id: string,) => {
  * 1. Кладовщиком отметить выдачу собранного заказа — 200.
  * 2. Негативный 409: отметить выдачу несобранного — выдавать нечего.
  * 3. Негативный 403: то же под менеджером.
+ * 4. Негативный 409 `TRANSPORT_PAYMENT_NOT_CONFIRMED`: способ с квитанцией в режиме BLOCK_SHIPMENT, оплата перевозки не подтверждена.
  * @summary Заказ выдан клиенту
  */
 export const markOrderIssued = async (id: string, options?: RequestInit): Promise<markOrderIssuedResponse> => {
@@ -24569,6 +25574,365 @@ export const useRequestFullExport = <TError = ErrorResponse | void,
         TContext
       > => {
       return useMutation(getRequestFullExportMutationOptions(options), queryClient);
+    }
+
+export type reportTransportPaymentForCustomerResponse200 = {
+  data: TransportPaymentDto
+  status: 200
+}
+
+export type reportTransportPaymentForCustomerResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type reportTransportPaymentForCustomerResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type reportTransportPaymentForCustomerResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type reportTransportPaymentForCustomerResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type reportTransportPaymentForCustomerResponseSuccess = (reportTransportPaymentForCustomerResponse200) & {
+  headers: Headers;
+};
+export type reportTransportPaymentForCustomerResponseError = (reportTransportPaymentForCustomerResponse400 | reportTransportPaymentForCustomerResponse404 | reportTransportPaymentForCustomerResponse409 | reportTransportPaymentForCustomerResponse500) & {
+  headers: Headers;
+};
+
+export type reportTransportPaymentForCustomerResponse = (reportTransportPaymentForCustomerResponseSuccess | reportTransportPaymentForCustomerResponseError)
+
+export const getReportTransportPaymentForCustomerUrl = (id: string,) => {
+
+
+
+
+  return `/api/drafts/${id}/transport-payment/report`
+}
+
+/**
+ * Менеджер записывает, что клиент сообщил об оплате (например, в WhatsApp): `REPORTED`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. После квитанции отправить `{"paymentRef": "OP-7781", "viaWhatsApp": true}` — `status: REPORTED`, `lastReport.author: SELLER`.
+ * 2. Негативный 409 `TRANSPORT_PAYMENT_STATE`: квитанции ещё нет.
+ * Негативный 409 `DRAFT_NOT_ASSIGNED`: заявку ведёт другой менеджер.
+ * @summary Отметить оплату со слов клиента
+ */
+export const reportTransportPaymentForCustomer = async (id: string,
+    paymentReportRequest: PaymentReportRequest, options?: RequestInit): Promise<reportTransportPaymentForCustomerResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<reportTransportPaymentForCustomerResponse>(getReportTransportPaymentForCustomerUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(paymentReportRequest)
+  }
+);}
+
+
+
+
+
+export const getReportTransportPaymentForCustomerMutationKey = () => ['reportTransportPaymentForCustomer'] as const;
+
+export const getReportTransportPaymentForCustomerMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportTransportPaymentForCustomer>>, TError,ReportTransportPaymentForCustomerMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof reportTransportPaymentForCustomer>>, TError,ReportTransportPaymentForCustomerMutationVariables, TContext> => {
+
+const mutationKey = getReportTransportPaymentForCustomerMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportTransportPaymentForCustomer>>, ReportTransportPaymentForCustomerMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reportTransportPaymentForCustomer(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportTransportPaymentForCustomerMutationResult = NonNullable<Awaited<ReturnType<typeof reportTransportPaymentForCustomer>>>
+    export type ReportTransportPaymentForCustomerMutationBody = PaymentReportRequest
+    export type ReportTransportPaymentForCustomerMutationError = ErrorResponse
+    export type ReportTransportPaymentForCustomerMutationVariables = {id: string;data: PaymentReportRequest}
+
+    /**
+ * @summary Отметить оплату со слов клиента
+ */
+export const useReportTransportPaymentForCustomer = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportTransportPaymentForCustomer>>, TError,ReportTransportPaymentForCustomerMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reportTransportPaymentForCustomer>>,
+        TError,
+        ReportTransportPaymentForCustomerMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReportTransportPaymentForCustomerMutationOptions(options), queryClient);
+    }
+
+export type rejectTransportPaymentResponse200 = {
+  data: TransportPaymentDto
+  status: 200
+}
+
+export type rejectTransportPaymentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type rejectTransportPaymentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type rejectTransportPaymentResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type rejectTransportPaymentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type rejectTransportPaymentResponseSuccess = (rejectTransportPaymentResponse200) & {
+  headers: Headers;
+};
+export type rejectTransportPaymentResponseError = (rejectTransportPaymentResponse400 | rejectTransportPaymentResponse404 | rejectTransportPaymentResponse409 | rejectTransportPaymentResponse500) & {
+  headers: Headers;
+};
+
+export type rejectTransportPaymentResponse = (rejectTransportPaymentResponseSuccess | rejectTransportPaymentResponseError)
+
+export const getRejectTransportPaymentUrl = (id: string,) => {
+
+
+
+
+  return `/api/drafts/${id}/transport-payment/reject`
+}
+
+/**
+ * Оплата не найдена: `REJECTED` с причиной; клиент получает уведомление и может сообщить снова.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. После сообщения об оплате отправить `{"reason": "Платёж не найден"}` — `status: REJECTED`, `rejectionReason` в ответе.
+ * 2. Негативный 400: пустая причина. Негативный 409: отклонять нечего.
+ * Негативный 409 `DRAFT_NOT_ASSIGNED`: заявку ведёт другой менеджер.
+ * @summary Отклонить сообщение об оплате
+ */
+export const rejectTransportPayment = async (id: string,
+    paymentRejectRequest: PaymentRejectRequest, options?: RequestInit): Promise<rejectTransportPaymentResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<rejectTransportPaymentResponse>(getRejectTransportPaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(paymentRejectRequest)
+  }
+);}
+
+
+
+
+
+export const getRejectTransportPaymentMutationKey = () => ['rejectTransportPayment'] as const;
+
+export const getRejectTransportPaymentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectTransportPayment>>, TError,RejectTransportPaymentMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof rejectTransportPayment>>, TError,RejectTransportPaymentMutationVariables, TContext> => {
+
+const mutationKey = getRejectTransportPaymentMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectTransportPayment>>, RejectTransportPaymentMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectTransportPayment(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectTransportPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof rejectTransportPayment>>>
+    export type RejectTransportPaymentMutationBody = PaymentRejectRequest
+    export type RejectTransportPaymentMutationError = ErrorResponse
+    export type RejectTransportPaymentMutationVariables = {id: string;data: PaymentRejectRequest}
+
+    /**
+ * @summary Отклонить сообщение об оплате
+ */
+export const useRejectTransportPayment = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectTransportPayment>>, TError,RejectTransportPaymentMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rejectTransportPayment>>,
+        TError,
+        RejectTransportPaymentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRejectTransportPaymentMutationOptions(options), queryClient);
+    }
+
+export type confirmTransportPaymentResponse200 = {
+  data: TransportPaymentDto
+  status: 200
+}
+
+export type confirmTransportPaymentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type confirmTransportPaymentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type confirmTransportPaymentResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type confirmTransportPaymentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type confirmTransportPaymentResponseSuccess = (confirmTransportPaymentResponse200) & {
+  headers: Headers;
+};
+export type confirmTransportPaymentResponseError = (confirmTransportPaymentResponse400 | confirmTransportPaymentResponse404 | confirmTransportPaymentResponse409 | confirmTransportPaymentResponse500) & {
+  headers: Headers;
+};
+
+export type confirmTransportPaymentResponse = (confirmTransportPaymentResponseSuccess | confirmTransportPaymentResponseError)
+
+export const getConfirmTransportPaymentUrl = (id: string,) => {
+
+
+
+
+  return `/api/drafts/${id}/transport-payment/confirm`
+}
+
+/**
+ * Оплата найдена: `CONFIRMED`. После этого заказ можно выдать и в режиме запрета выдачи.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. После сообщения об оплате вызвать метод — `status: CONFIRMED`.
+ * 2. Негативный 409 `TRANSPORT_PAYMENT_STATE`: подтвердить без сообщения об оплате.
+ * Негативный 409 `DRAFT_NOT_ASSIGNED`: заявку ведёт другой менеджер.
+ * @summary Подтвердить оплату перевозки
+ */
+export const confirmTransportPayment = async (id: string, options?: RequestInit): Promise<confirmTransportPaymentResponse> => {
+
+  return apiRequest<confirmTransportPaymentResponse>(getConfirmTransportPaymentUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getConfirmTransportPaymentMutationKey = () => ['confirmTransportPayment'] as const;
+
+export const getConfirmTransportPaymentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmTransportPayment>>, TError,ConfirmTransportPaymentMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof confirmTransportPayment>>, TError,ConfirmTransportPaymentMutationVariables, TContext> => {
+
+const mutationKey = getConfirmTransportPaymentMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmTransportPayment>>, ConfirmTransportPaymentMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  confirmTransportPayment(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmTransportPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof confirmTransportPayment>>>
+
+    export type ConfirmTransportPaymentMutationError = ErrorResponse
+    export type ConfirmTransportPaymentMutationVariables = {id: string}
+
+    /**
+ * @summary Подтвердить оплату перевозки
+ */
+export const useConfirmTransportPayment = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmTransportPayment>>, TError,ConfirmTransportPaymentMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmTransportPayment>>,
+        TError,
+        ConfirmTransportPaymentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConfirmTransportPaymentMutationOptions(options), queryClient);
     }
 
 export type inquiryToOrderResponse200 = {
@@ -27107,6 +28471,8 @@ export const getCreateDeliveryMethodUrl = () => {
  * 4. Негативный 400: тот же запрос с `"tariffRule": "FIXED"` без `tariffAmount`, затем с пустым названием.
  * 5. Негативный 403: тот же запрос под менеджером (`77010000102`).
  * 6. Грузчики: добавить `"loaders": {"mode": "ON_REQUEST", "tariff": "PER_FLOOR", "amount": 500, "liftAmount": 200, "provider": "CREW", "payee": "DIRECT"}` — в ответе те же значения. С `"tariff": "PER_UNITS"` без `step` — 400 `DELIVERY_LOADERS_MISCONFIGURED`; с `"provider": "OWN"` получатель в ответе всегда `SELLER`.
+ * 7. Перевозчик: завести перевозчика (`POST /api/delivery/carriers`), затем способ с `"transport": {"by": "CARRIER", "carrierIds": ["<id>"], "payee": "DIRECT"}` — в ответе те же значения. С пустым `carrierIds` или чужим перевозчиком — 400 `DELIVERY_TRANSPORT_MISCONFIGURED`.
+ * 8. Квитанция: без блока `receipt` межгород заводится с `required: true, control: MARK`, остальные — с `required: false`; с `"receipt": {"required": true, "control": "BLOCK_SHIPMENT"}` — те же значения в ответе.
  * @summary Завести способ доставки
  */
 export const createDeliveryMethod = async (deliveryMethodRequest: DeliveryMethodRequest, options?: RequestInit): Promise<createDeliveryMethodResponse> => {
@@ -27701,6 +29067,265 @@ export const useSaveDeliveryTimeSlot = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSaveDeliveryTimeSlotMutationOptions(options), queryClient);
+    }
+
+export type getCarriersResponse200 = {
+  data: CarrierDto[]
+  status: 200
+}
+
+export type getCarriersResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getCarriersResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getCarriersResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getCarriersResponseSuccess = (getCarriersResponse200) & {
+  headers: Headers;
+};
+export type getCarriersResponseError = (getCarriersResponse400 | getCarriersResponse404 | getCarriersResponse500) & {
+  headers: Headers;
+};
+
+export type getCarriersResponse = (getCarriersResponseSuccess | getCarriersResponseError)
+
+export const getGetCarriersUrl = () => {
+
+
+
+
+  return `/api/delivery/carriers`
+}
+
+/**
+ * Список вместе с выключенными — настройщику нужно видеть то, что он выключил.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести двух перевозчиков, одного выключить.
+ * 2. Вызвать метод — в списке оба, выключенный с `active: false`.
+ * 3. Негативный: запрос без токена — 401.
+ * @summary Перевозчики арендатора
+ */
+export const getCarriers = async ( options?: RequestInit): Promise<getCarriersResponse> => {
+
+  return apiRequest<getCarriersResponse>(getGetCarriersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCarriersQueryKey = () => {
+    return [
+    `/api/delivery/carriers`
+    ] as const;
+    }
+
+
+export const getGetCarriersQueryOptions = <TData = Awaited<ReturnType<typeof getCarriers>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCarriers>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCarriersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCarriers>>> = ({ signal }) => getCarriers({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCarriers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCarriersQueryResult = NonNullable<Awaited<ReturnType<typeof getCarriers>>>
+export type GetCarriersQueryError = ErrorResponse
+
+
+export function useGetCarriers<TData = Awaited<ReturnType<typeof getCarriers>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCarriers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCarriers>>,
+          TError,
+          Awaited<ReturnType<typeof getCarriers>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCarriers<TData = Awaited<ReturnType<typeof getCarriers>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCarriers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCarriers>>,
+          TError,
+          Awaited<ReturnType<typeof getCarriers>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCarriers<TData = Awaited<ReturnType<typeof getCarriers>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCarriers>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Перевозчики арендатора
+ */
+
+export function useGetCarriers<TData = Awaited<ReturnType<typeof getCarriers>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCarriers>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCarriersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createCarrierResponse201 = {
+  data: CarrierDto
+  status: 201
+}
+
+export type createCarrierResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createCarrierResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createCarrierResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createCarrierResponseSuccess = (createCarrierResponse201) & {
+  headers: Headers;
+};
+export type createCarrierResponseError = (createCarrierResponse400 | createCarrierResponse404 | createCarrierResponse500) & {
+  headers: Headers;
+};
+
+export type createCarrierResponse = (createCarrierResponseSuccess | createCarrierResponseError)
+
+export const getCreateCarrierUrl = () => {
+
+
+
+
+  return `/api/delivery/carriers`
+}
+
+/**
+ * Шаблон ссылки отслеживания — адрес с `{number}` на месте номера отправления.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`). Отправить:
+ *
+ * ```json
+ * {"name": "СДЭК", "phone": "+7 727 000 00 00", "trackingUrlTemplate": "https://cdek.kz/track?n={number}", "terminalAddress": "Алматы, Толе би 101", "active": true}
+ * ```
+ *
+ * 2. Ответ 201; перевозчик появился в списке.
+ * 3. Негативный 400: шаблон без `{number}`, затем пустое название.
+ * 4. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Завести перевозчика
+ */
+export const createCarrier = async (carrierRequest: CarrierRequest, options?: RequestInit): Promise<createCarrierResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<createCarrierResponse>(getCreateCarrierUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(carrierRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateCarrierMutationKey = () => ['createCarrier'] as const;
+
+export const getCreateCarrierMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCarrier>>, TError,CreateCarrierMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createCarrier>>, TError,CreateCarrierMutationVariables, TContext> => {
+
+const mutationKey = getCreateCarrierMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCarrier>>, CreateCarrierMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCarrier(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCarrierMutationResult = NonNullable<Awaited<ReturnType<typeof createCarrier>>>
+    export type CreateCarrierMutationBody = CarrierRequest
+    export type CreateCarrierMutationError = ErrorResponse
+    export type CreateCarrierMutationVariables = {data: CarrierRequest}
+
+    /**
+ * @summary Завести перевозчика
+ */
+export const useCreateCarrier = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCarrier>>, TError,CreateCarrierMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCarrier>>,
+        TError,
+        CreateCarrierMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateCarrierMutationOptions(options), queryClient);
     }
 
 export type closeDataRequestResponse200 = {
@@ -36014,7 +37639,7 @@ export const getGetMyPortalOrderUrl = (id: string,) => {
  *
  * **Как проверить вручную**
  *
- * 1. Открыть свою заявку — состав, итог, состояние. Из чего сложился итог — `goodsTotal`, `discount` (вид, процент, сумма), `deliveryPrice`, `loadersPrice` с `loadersPayee` (`DIRECT` в итог не входит) из подтверждённого снимка.
+ * 1. Открыть свою заявку — состав, итог, состояние. Из чего сложился итог — `goodsTotal`, `discount` (вид, процент, сумма), `deliveryPrice`, `loadersPrice` с `loadersPayee` (`DIRECT` в итог не входит) Блок `delivery` — способ, адрес, перевозчик с телефоном, кому платить за перевозку, номер отправления со ссылкой. из подтверждённого снимка.
  * 2. После пересогласования открыть снова — есть `proposed` и `diff` с видом отличия.
  * 3. Негативный 404: идентификатор чужой заявки.
  * @summary Заявка целиком
@@ -39607,6 +41232,143 @@ export function useGetDraftQueue<TData = Awaited<ReturnType<typeof getDraftQueue
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetDraftQueueQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getTransportPaymentResponse200 = {
+  data: TransportPaymentDto
+  status: 200
+}
+
+export type getTransportPaymentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getTransportPaymentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getTransportPaymentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getTransportPaymentResponseSuccess = (getTransportPaymentResponse200) & {
+  headers: Headers;
+};
+export type getTransportPaymentResponseError = (getTransportPaymentResponse400 | getTransportPaymentResponse404 | getTransportPaymentResponse500) & {
+  headers: Headers;
+};
+
+export type getTransportPaymentResponse = (getTransportPaymentResponseSuccess | getTransportPaymentResponseError)
+
+export const getGetTransportPaymentUrl = (id: string,) => {
+
+
+
+
+  return `/api/drafts/${id}/transport-payment`
+}
+
+/**
+ * Статус, режим контроля, действующая квитанция и последнее сообщение об оплате.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Завести способ «межгород» (квитанция по умолчанию включена), принять заявку с ним.
+ * 2. Вызвать метод под менеджером (`77010000102`) — `status: AWAITING_RECEIPT`, `control: MARK`.
+ * 3. Негативный 404: идентификатор чужой заявки.
+ * @summary Оплата перевозки по заявке
+ */
+export const getTransportPayment = async (id: string, options?: RequestInit): Promise<getTransportPaymentResponse> => {
+
+  return apiRequest<getTransportPaymentResponse>(getGetTransportPaymentUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTransportPaymentQueryKey = (id: string,) => {
+    return [
+    `/api/drafts/${id}/transport-payment`
+    ] as const;
+    }
+
+
+export const getGetTransportPaymentQueryOptions = <TData = Awaited<ReturnType<typeof getTransportPayment>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransportPayment>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTransportPaymentQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTransportPayment>>> = ({ signal }) => getTransportPayment(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTransportPayment>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTransportPaymentQueryResult = NonNullable<Awaited<ReturnType<typeof getTransportPayment>>>
+export type GetTransportPaymentQueryError = ErrorResponse
+
+
+export function useGetTransportPayment<TData = Awaited<ReturnType<typeof getTransportPayment>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransportPayment>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTransportPayment>>,
+          TError,
+          Awaited<ReturnType<typeof getTransportPayment>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTransportPayment<TData = Awaited<ReturnType<typeof getTransportPayment>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransportPayment>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTransportPayment>>,
+          TError,
+          Awaited<ReturnType<typeof getTransportPayment>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTransportPayment<TData = Awaited<ReturnType<typeof getTransportPayment>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransportPayment>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Оплата перевозки по заявке
+ */
+
+export function useGetTransportPayment<TData = Awaited<ReturnType<typeof getTransportPayment>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTransportPayment>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTransportPaymentQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

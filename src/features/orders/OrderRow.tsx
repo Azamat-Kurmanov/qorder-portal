@@ -26,6 +26,8 @@ import { PickupCode } from './PickupCode';
 import { useCurrentShop } from '../shell/Shops';
 import { telLink } from '../shell/shopHours';
 import { RevisionDiff } from './RevisionDiff';
+import { OrderDelivery } from './OrderDelivery';
+import { TransportPayment } from './TransportPayment';
 import { OrderTotals } from './OrderTotals';
 import { LinkedLineThumb } from '../cart/LineThumb';
 import { orderDay, packNote } from './orderText';
@@ -234,6 +236,10 @@ function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: O
               </li>
             ))}
           </ul>
+          {order.delivery ? <OrderDelivery delivery={order.delivery} /> : null}
+          {order.transportPayment ? (
+            <TransportPayment orderId={order.id} payment={order.transportPayment} currency={order.currency} />
+          ) : null}
           {/* Разбивка — у отправленного состава; предложенный продавцом идёт одним итогом. */}
           <OrderTotals
             total={totalOf(order)}

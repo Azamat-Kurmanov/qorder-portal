@@ -225,6 +225,13 @@ function termsOf(method: Method, t: TFunction, currency: Currency | undefined): 
   ].filter(Boolean);
   if (asked.length > 0) parts.push(t('delivery.willAsk', { list: asked.join(', ') }));
 
+  // Кто возит и кому платить — часть условий, как и грузчики.
+  if ((method.carriers?.length ?? 0) > 0) {
+    const names = method.carriers.map((carrier) => carrier.name).join(', ');
+    parts.push(method.transportPayee === 'DIRECT'
+      ? t('delivery.carriersDirect', { names })
+      : t('delivery.carriers', { names }));
+  }
   // Грузчики — часть условий: их обдумывают до заказа, а не при отправке.
   const loaders = loadersTerms(method.loaders, t, currency);
   if (loaders) parts.push(loaders);

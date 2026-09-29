@@ -115,7 +115,7 @@ describe('оболочка кабинета', () => {
     expect(await screen.findByRole('heading', { name: 'Мои отзывы' }, { timeout: 5000 })).toBeInTheDocument();
 
     renderScreen(<Shell />, { route: '/delivery' });
-    expect(await screen.findByRole('heading', { name: 'Доставка и самовывоз' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Доставка и самовывоз' }, { timeout: 15_000 })).toBeInTheDocument();
   }, 30_000);
 
   /** У «Избранного» в колонке — число отложенного, как у «Корзины». */

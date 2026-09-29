@@ -20,6 +20,8 @@ import { OrderMessages } from './OrderMessages';
 import { OrderStateBadge } from './OrderStateBadge';
 import { PickupCode } from './PickupCode';
 import { RevisionDiff } from './RevisionDiff';
+import { OrderDelivery } from './OrderDelivery';
+import { TransportPayment } from './TransportPayment';
 import { OrderTotals, type OrderBreakdown } from './OrderTotals';
 import type { Currency } from '../../shared/currency';
 import { LinkedLineThumb } from '../cart/LineThumb';
@@ -148,6 +150,18 @@ export function OrderPage() {
           <p className="mt-1 whitespace-pre-line text-body leading-relaxed text-ink">
             {order.sellerAnswer}
           </p>
+        </Card>
+      ) : null}
+
+      {order.delivery ? (
+        <Card className="p-4">
+          <OrderDelivery delivery={order.delivery} />
+        </Card>
+      ) : null}
+
+      {order.transportPayment ? (
+        <Card className="p-4">
+          <TransportPayment orderId={order.id} payment={order.transportPayment} currency={order.currency} />
         </Card>
       ) : null}
 

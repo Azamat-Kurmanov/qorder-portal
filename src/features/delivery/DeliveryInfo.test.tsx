@@ -132,4 +132,22 @@ describe('условия доставки', () => {
     expect(await screen.findByTestId('method-terms-m1'))
       .toHaveTextContent(/грузчики 1\s000\s₸ за каждые 10 шт\., оплачиваются напрямую/);
   });
+
+  it('кто возит и кому платить — в строке способа', async () => {
+    stubFetch([get('/api/portal/delivery', {
+      mode: 'ENABLED',
+      methods: [{
+        id: 'm1', name: 'Межгород', pickup: false, requiresAddress: true, requiresFloor: false,
+        requiresTimeSlot: false, price: 4000, negotiable: false, zones: [], slots: [],
+        carriers: [{ id: 'c1', name: 'СДЭК' }, { id: 'c2', name: 'Байтерек' }],
+        transportPayee: 'DIRECT', intercity: true,
+      }],
+      pickupPoints: [],
+    })]);
+
+    renderScreen(<DeliveryInfoPage />);
+
+    expect(await screen.findByTestId('method-terms-m1'))
+      .toHaveTextContent(/возит: СДЭК, Байтерек, оплачивается перевозчику/);
+  });
 });

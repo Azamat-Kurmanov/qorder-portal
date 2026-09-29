@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Menu, Phone, Search } from 'lucide-react';
 import { cn } from '../../../ui/cn';
 import { ViewerBadge } from '../ViewerBadge';
+import { phone as formatPhone } from '../../../shared/format';
 import {
   CartButton,
   DesignShopButton,
@@ -95,7 +96,7 @@ export function DesignHeader({
             {tel && (
               <a
                 href={tel}
-                aria-label={`${t('shop.call')} ${shop?.phone ?? ''}`.trim()}
+                aria-label={`${t('shop.call')} ${shop?.phone ? formatPhone(shop.phone) : ''}`.trim()}
                 className={cn(ICON_BUTTON, 'size-10 text-accent-ink lg:hidden')}
               >
                 <Phone aria-hidden="true" className="size-[18px]" />

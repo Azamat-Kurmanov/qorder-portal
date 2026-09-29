@@ -109,6 +109,8 @@
   /* Главная распродажа — тёмная плита с тёплым светлым текстом, как в макете. */
   --color-night: #1A1917;
   --color-night-sub: #D9D2C6;
+  /* Пройденный этап заявки — сплошной зелёный, как в макете «Мои заявки». */
+  --color-ok: #2F8A4C;
   --color-ok-soft: #E4F3E8;
   --color-ok-ink: #166534;
   --color-sage-soft: #E4ECE3;
@@ -293,6 +295,7 @@ html[data-theme='dark'] {
   --color-adult: #A8364A;
   --color-night: #26272C;
   --color-night-sub: #D9D2C6;
+  --color-ok: #3FA262;
   --color-ok-soft: #173323;
   --color-ok-ink: #86D6A0;
   --color-sage-soft: #1F2A22;

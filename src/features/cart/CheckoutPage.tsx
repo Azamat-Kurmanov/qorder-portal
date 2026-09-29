@@ -23,6 +23,7 @@ import { phone as formatPhone, money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { CartSavings } from './CartSavings';
 import { GoodsLine, VatLine } from './CartTotals';
+import { paysCarrierDirectly } from './carrier';
 import { chosenLoaders, type LoadersLine } from './loaders';
 import { AdultNotice } from './AdultNotice';
 
@@ -125,6 +126,9 @@ export function CheckoutPage() {
   // и договорного тарифа её называет поставщик, и показать вместо неё ноль
   // значило бы пообещать за него.
   const shipping = deliveryPrice(method, goodsTotal, delivery.zoneId);
+  // Доставку, оплачиваемую перевозчику напрямую, клиент видит, но в итог она не входит.
+  const direct = paysCarrierDirectly(method);
+  const shippingInTotal = direct ? 0 : shipping ?? 0;
   // Корзина считается в штуках: по ним и вес, и «за количество».
   const loadersLines: LoadersLine[] = lines.map((line) => ({ quantity: line.quantity ?? 0, unitWeightKg: line.unitWeightKg }));
   // Грузчики продавцу входят в итог; «напрямую» — строкой под итогом, в сумму не входят.
@@ -294,7 +298,11 @@ export function CheckoutPage() {
             <div className="flex justify-between gap-2 text-body text-ink-muted">
               <span>{t('checkout.summary.delivery')}</span>
               <span data-testid="delivery-total" className="tabular-nums text-ink">
-                {shipping === undefined ? t('checkout.summary.negotiable') : money(shipping, currency)}
+                {direct
+                  ? (shipping === undefined
+                    ? t('checkout.delivery.carrierTariff')
+                    : t('checkout.summary.deliveryInfo', { amount: money(shipping, currency) }))
+                  : (shipping === undefined ? t('checkout.summary.negotiable') : money(shipping, currency))}
               </span>
             </div>
             {loaders && !loaders.direct && (
@@ -312,9 +320,14 @@ export function CheckoutPage() {
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-lg font-bold text-ink">{t('checkout.summary.toPay')}</span>
             <span data-testid="total" className="text-[1.75rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink">
-              {money(payForGoods + (shipping ?? 0) + loadersInTotal, currency)}
+              {money(payForGoods + shippingInTotal + loadersInTotal, currency)}
             </span>
           </div>
+          {direct && shipping !== undefined && (
+            <p data-testid="delivery-direct" className="text-caption text-ink-muted">
+              {t('checkout.summary.deliveryDirect', { amount: money(shipping, currency) })}
+            </p>
+          )}
           {loaders?.direct && (
             <p data-testid="loaders-direct" className="text-caption text-ink-muted">
               {t('checkout.summary.loadersDirect', {
@@ -337,7 +350,7 @@ export function CheckoutPage() {
             {submit.isPending ? t('checkout.sending') : t('checkout.send')}
           </Button>
 
-          {shipping === undefined && (
+          {shipping === undefined && !direct && (
             <p className="text-caption text-ink-muted">{t('checkout.summary.shippingNote')}</p>
           )}
 

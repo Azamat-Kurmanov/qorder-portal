@@ -52,6 +52,18 @@ describe('уведомления кабинета', () => {
     expect(screen.getByText(/продавец ответил на вопрос/i)).toBeInTheDocument();
   });
 
+  it('отклонённая оплата перевозки названа с причиной продавца', async () => {
+    stubFetch([get('/api/portal/notifications', [{
+      id: 'n3', draftId: 'draft-3', kind: 'TRANSPORT_PAYMENT_REJECTED', createdAt: '2026-09-30T10:00:00Z',
+      detail: 'Платёж не найден',
+    }])]);
+
+    renderScreen(<NotificationsBell />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 1 новое' }));
+
+    expect(await screen.findByText('Оплата перевозки не подтверждена: Платёж не найден')).toBeInTheDocument();
+  });
+
   it('прочитанное отмечается на сервере и исчезает из счётчика', async () => {
     const { calls } = stubFetch([
       get('/api/portal/notifications', [RENEGOTIATION]),

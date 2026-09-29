@@ -6,6 +6,7 @@ import { cn } from '../../../ui/cn';
 import { useShops } from '../Shops';
 import { CartButton, HeaderTools, SearchField, ShopStatusPill } from './headerParts';
 import { COUNT_PILL, useNavModel } from './navModel';
+import { phone as formatPhone } from '../../../shared/format';
 
 /**
  * Шапка «ленты по центру» («Ателье», «Нуар», «Уют»): имя магазина крупно
@@ -29,7 +30,7 @@ export function CenterHeader({
   const { t } = useTranslation();
   const { current: shop } = useShops();
   const nav = useNavModel(ready);
-  const subtitle = [shop?.address, shop?.phone].filter(Boolean).join(' · ');
+  const subtitle = [shop?.address, shop?.phone && formatPhone(shop.phone)].filter(Boolean).join(' · ');
   const item = (active: boolean) => cn(
     'flex items-center gap-1.5 text-caption uppercase tracking-[0.12em] transition-colors duration-200',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',

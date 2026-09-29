@@ -7,6 +7,7 @@ import { cn } from '../../../ui/cn';
 import { ShopTile, useShops } from '../Shops';
 import { CartButton, HeaderTools, SearchField, StatusDetails, StatusText } from './headerParts';
 import { COUNT_PILL, useNavModel } from './navModel';
+import { phone as formatPhone } from '../../../shared/format';
 
 /**
  * Колонка магазина в раскладке «разворот» («Крафт», «Закат»): слева во всю
@@ -33,7 +34,7 @@ export function StoryColumn({
   const nav = useNavModel(ready);
   const promotions = useGetPortalPromotions({ query: { enabled: ready } });
   const sale = promotions.data?.status === 200 ? promotions.data.data.sale : undefined;
-  const subtitle = [shop?.address, shop?.phone].filter(Boolean).join(' · ');
+  const subtitle = [shop?.address, shop?.phone && formatPhone(shop.phone)].filter(Boolean).join(' · ');
   const item = (active: boolean) => cn(
     'flex h-11 shrink-0 items-center gap-3 rounded-[var(--radius-small)] px-3.5 text-body transition-colors duration-200',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',

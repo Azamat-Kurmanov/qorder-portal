@@ -6,7 +6,8 @@
     "retry": "Try again",
     "positions_one": "item",
     "positions_other": "items",
-    "loadFailed": "Couldn't load. Check your internet connection."
+    "loadFailed": "Couldn't load. Check your internet connection.",
+    "appTitle": "Customer account"
   },
   "language": {
     "label": "Interface language",
@@ -157,6 +158,9 @@
       "ACCEPTED": "The request has been accepted by the seller",
       "QUESTION_ANSWERED": "The seller answered your question",
       "ORDER_ANSWERED": "The seller replied about the request",
+      "TRANSPORT_RECEIPT_SENT": "The seller sent a transport payment receipt",
+      "TRANSPORT_PAYMENT_REJECTED": "Transport payment not confirmed",
+      "transportRejectedWith": "Transport payment not confirmed: {{reason}}",
       "fallback": "There is news about the request"
     }
   },
@@ -261,6 +265,8 @@
       "loaders": "Loaders",
       "loadersDirect": "Loaders — paid directly: {{amount}}",
       "loadersLater": "the seller will confirm",
+      "deliveryDirect": "Delivery — paid to the carrier: {{amount}}",
+      "deliveryInfo": "{{amount}}, to the carrier",
       "goodsCount_one": "Products, {{count}} item",
       "goodsCount_other": "Products, {{count}} items"
     },
@@ -301,7 +307,14 @@
         "later": "the seller will confirm the loaders cost",
         "direct": "You pay the loaders directly — not included in the total",
         "provider": { "OWN": "loaded by the seller's staff", "CARRIER": "loaded by the carrier's loaders", "CREW": "loaded by a separate crew" }
-      }
+      },
+      "carrier": "Carrier",
+      "chooseCarrier": "Choose a carrier",
+      "carrierOne": "Delivered by {{name}}",
+      "toDoor": "To the door — at your address",
+      "toTerminal": "To the terminal: {{address}}",
+      "carrierTariff": "at carrier rates",
+      "directNote": "You pay the carrier for delivery — not in the total"
     },
     "closed": {
       "title": "The supplier is temporarily not accepting orders",
@@ -452,6 +465,13 @@
     }
   },
   "orders": {
+    "delivery": {
+      "title": "Delivery",
+      "terminal": "To the carrier terminal — you pick it up",
+      "carrier": "Delivered by {{name}}",
+      "direct": "You pay the carrier for delivery — not in the total",
+      "tracking": "Tracking number:"
+    },
     "title": "My requests",
     "empty": "No requests yet. Fill the basket in the catalogue and send it.",
     "tabs": {
@@ -639,6 +659,26 @@
       "rate": "Rate the product",
       "rateWhich": "Which product to rate",
       "rateItem": "Rate: {{name}}"
+    },
+    "payment": {
+      "title": "Transport payment",
+      "status": {
+        "AWAITING_RECEIPT": "The seller will send a transport payment receipt",
+        "AWAITING_PAYMENT": "Pay for transport using the receipt",
+        "REPORTED": "You reported the payment — the seller will check it",
+        "CONFIRMED": "Transport payment confirmed",
+        "REJECTED": "Payment not confirmed"
+      },
+      "rejected": "Payment not confirmed: {{reason}}",
+      "number": "Receipt No. {{number}}",
+      "due": "Pay by {{date}}",
+      "payOnline": "Pay online",
+      "paid": "I've paid",
+      "paymentRef": "Transaction number",
+      "paidAt": "Payment date",
+      "comment": "Comment",
+      "send": "Send",
+      "failed": "Couldn't send — try again"
     }
   },
   "templates": {
@@ -792,6 +832,8 @@
     "freeFrom": "free from {{amount}}",
     "slots": "windows {{list}}",
     "willAsk": "at checkout you will need {{list}}",
+    "carriers": "carried by: {{names}}",
+    "carriersDirect": "carried by: {{names}}, paid to the carrier",
     "loaders": {
       "INCLUDED": "loaders included in delivery",
       "FREE": "loaders free of charge",

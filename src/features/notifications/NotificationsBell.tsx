@@ -32,9 +32,13 @@ const KNOWN_REASONS = [
   'ACCEPTED',
   'QUESTION_ANSWERED',
   'ORDER_ANSWERED',
+  'TRANSPORT_RECEIPT_SENT',
+  'TRANSPORT_PAYMENT_REJECTED',
 ];
 
-function reasonOf(kind: string, t: TFunction): string {
+function reasonOf(kind: string, t: TFunction, detail?: string): string {
+  // Причина отклонения — слова продавца: подставляются как есть, без перевода.
+  if (kind === 'TRANSPORT_PAYMENT_REJECTED' && detail) return t('notifications.reasons.transportRejectedWith', { reason: detail });
   return KNOWN_REASONS.includes(kind)
     ? t(`notifications.reasons.${kind}`)
     : t('notifications.reasons.fallback');
@@ -174,7 +178,7 @@ function NotificationRow({
         'transition-all duration-300 hover:bg-canvas active:scale-95',
       )}
     >
-      <span className="text-body text-ink">{reasonOf(notification.kind, t)}</span>
+      <span className="text-body text-ink">{reasonOf(notification.kind, t, notification.detail)}</span>
       <span className="text-caption text-ink-faint">{shortDate(notification.createdAt)}</span>
     </Link>
   );
