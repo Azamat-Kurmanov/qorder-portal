@@ -41,6 +41,8 @@
     "light": "Light"
   },
   "shell": {
+    "occasionFrom": "Greetings from {{shop}}",
+    "occasionHide": "Hide greeting until tomorrow",
     "occasion": {
       "NEW_YEAR": "Happy New Year!",
       "MARCH_8": "Happy March 8!",
@@ -204,6 +206,7 @@
     "less": "Less",
     "more": "More",
     "priceChanged": "The price has changed: was {{was}}, now {{now}}",
+    "packPriceChanged": "The pack price has changed: was {{was}}, now {{now}}",
     "pricePerUnit": "{{price}} per {{unit}}",
     "clear": "Clear",
     "removeLine": "Remove {{name}}",
@@ -239,7 +242,8 @@
       "pack": "{{amount}} each",
       "hint": "Add {{amount}} more — {{packs}} at {{price}}, you save {{saving}}",
       "packWord": "pack"
-    }
+    },
+    "withoutDiscount": "without discount"
   },
   "checkout": {
     "title": "Place your request",
@@ -256,6 +260,8 @@
     "comment": "Notes for the seller",
     "commentPlaceholder": "For example: I will collect on Saturday morning, call an hour before",
     "summary": {
+      "more": "Details",
+      "less": "Hide",
       "title": "Your request",
       "goods": "Goods",
       "delivery": "Delivery",
@@ -695,6 +701,13 @@
     "deleteAria": "Delete the template {{name}}"
   },
   "questions": {
+    "tabQuestions": "Questions to the seller",
+    "archive": {
+      "title": "WhatsApp archive",
+      "note": "Your whole WhatsApp chat with the shop is kept here — even if it was deleted on your phone. This is an archive: you cannot reply here; write in “Questions to the seller” or on WhatsApp.",
+      "you": "You",
+      "shop": "Shop"
+    },
     "title": "Questions to seller",
     "subtitle": "Correspondence about goods, dates and delivery",
     "empty": "Here you ask the seller about goods, dates and delivery, and they answer. The thread is kept apart from requests: a question orders nothing.",

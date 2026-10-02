@@ -25,6 +25,20 @@ const filledCart = {
   skipped: [],
 };
 
+/**
+ * Оболочка ждёт список магазинов: до него шаблон неизвестен, и вместо шапки
+ * стоит пустая подложка (см. `Shell` — «пока список магазинов не пришёл»).
+ */
+async function shown<T>(result: T): Promise<T> {
+  // All: в тесте, где оболочку рисуют несколько раз, прежние ещё на месте.
+  await screen.findAllByTestId('shell');
+  return result;
+}
+
+function renderShell(options?: Parameters<typeof renderScreen>[1]) {
+  return shown(renderScreen(<Shell />, options));
+}
+
 function shellRules(cart: unknown = emptyCart) {
   return [
     // У текущего (supplier-1) число ненулевое и не совпадает с суммой по
@@ -85,7 +99,7 @@ describe('оболочка кабинета', () => {
   it('на широком экране разделы стоят на виду, а лист остаётся телефону', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     // Постоянная навигация — не копия листа, а тот же список: разойдись они,
     // на телефоне и на мониторе оказались бы разные кабинеты.
@@ -105,16 +119,16 @@ describe('оболочка кабинета', () => {
     // первая загрузка модуля под нагрузкой дольше секунды поиска по умолчанию.
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/favorites' });
+    await renderShell({ route: '/favorites' });
     expect(await screen.findByRole('heading', { name: 'Избранное' }, { timeout: 5000 })).toBeInTheDocument();
 
-    renderScreen(<Shell />, { route: '/questions' });
+    await renderShell({ route: '/questions' });
     expect(await screen.findByRole('heading', { name: 'Вопросы продавцу' }, { timeout: 5000 })).toBeInTheDocument();
 
-    renderScreen(<Shell />, { route: '/reviews' });
+    await renderShell({ route: '/reviews' });
     expect(await screen.findByRole('heading', { name: 'Мои отзывы' }, { timeout: 5000 })).toBeInTheDocument();
 
-    renderScreen(<Shell />, { route: '/delivery' });
+    await renderShell({ route: '/delivery' });
     expect(await screen.findByRole('heading', { name: 'Доставка и самовывоз' }, { timeout: 15_000 })).toBeInTheDocument();
   }, 30_000);
 
@@ -129,7 +143,7 @@ describe('оболочка кабинета', () => {
       ...shellRules(),
     ]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
     const favorites = within(rail).getByRole('link', { name: /Избранное/ });
@@ -142,7 +156,7 @@ describe('оболочка кабинета', () => {
     stubWideScreen();
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
     expect(within(rail).queryByRole('link', { name: 'Мои отзывы' })).not.toBeInTheDocument();
@@ -186,7 +200,7 @@ describe('оболочка кабинета', () => {
       get('/api/portal/cart', emptyCart),
     ]);
 
-    renderScreen(<Shell />, { route: '/catalog/item-1' });
+    await renderShell({ route: '/catalog/item-1' });
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Цемент М400' }))
       .toBeInTheDocument();
@@ -203,7 +217,7 @@ describe('оболочка кабинета', () => {
   it('меню разделов выезжает слева, а не снизу', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     await userEvent.click(screen.getByRole('button', { name: 'Меню' }));
 
@@ -226,7 +240,7 @@ describe('оболочка кабинета', () => {
     stubWideScreen();
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const button = await screen.findByRole('button', { name: 'Меню' });
     expect(button.className).not.toContain('lg:hidden');
@@ -241,7 +255,7 @@ describe('оболочка кабинета', () => {
     stubWideScreen();
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     expect(await screen.findByRole('navigation', { name: 'Разделы кабинета' })).toBeInTheDocument();
 
@@ -259,7 +273,7 @@ describe('оболочка кабинета', () => {
   it('на телефоне кнопка открывает лист разделов слева', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     await userEvent.click(await screen.findByRole('button', { name: 'Меню' }));
 
@@ -285,7 +299,7 @@ describe('оболочка кабинета', () => {
       ...shellRules(),
     ]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const mark = await screen.findByAltText('Стройбаза');
     expect(mark).toHaveAttribute('src', 'https://cdn.example.kz/sb.png');
@@ -301,7 +315,7 @@ describe('оболочка кабинета', () => {
       ...shellRules(),
     ]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     await screen.findAllByText('Стройбаза');
     const css = document.querySelector('[data-supplier-theme]')?.textContent ?? '';
@@ -315,7 +329,7 @@ describe('оболочка кабинета', () => {
       ...shellRules(),
     ]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     expect((await screen.findAllByText('Стройбаза')).length).toBeGreaterThan(0);
     expect(screen.queryByAltText('Стройбаза')).not.toBeInTheDocument();
@@ -324,7 +338,7 @@ describe('оболочка кабинета', () => {
   it('колокольчик уведомлений стоит в шапке', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     expect(await screen.findByRole('button', { name: 'Уведомления' })).toBeInTheDocument();
   });
@@ -339,7 +353,7 @@ describe('оболочка кабинета', () => {
   it('шапка называет поставщика, а не кабинет вообще', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = screen.getByRole('banner');
     expect(await within(header).findByText('СтройБаза Алматы')).toBeInTheDocument();
@@ -355,7 +369,7 @@ describe('оболочка кабинета', () => {
   it('шапка называет вошедшего по имени, а не безликим кружком', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = screen.getByRole('banner');
     expect(await within(header).findByRole('link', { name: /Асхат Каримов/ }))
@@ -374,7 +388,7 @@ describe('оболочка кабинета', () => {
   it('в самом низу выдвижного меню стоит знак системы', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     await userEvent.click(screen.getByRole('button', { name: 'Меню' }));
     const menu = await screen.findByRole('dialog', { name: 'Меню' });
@@ -402,7 +416,7 @@ describe('оболочка кабинета', () => {
     stubWideScreen();
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const rail = await screen.findByTestId('rail');
     await userEvent.click(within(rail).getByRole('button', { name: 'Ещё' }));
@@ -418,7 +432,7 @@ describe('оболочка кабинета', () => {
   it('на мониторе кабинет разложен в две колонки: разделы и витрина — корзина выдвижная', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const grid = await screen.findByTestId('shell-grid');
     expect(grid.className).toContain('lg:grid-cols-[256px_minmax(0,1fr)]');
@@ -433,7 +447,7 @@ describe('оболочка кабинета', () => {
   it('кнопка «Корзина» в шапке показывает сумму и открывает выдвижную корзину', async () => {
     stubFetch(shellRules(filledCart));
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = screen.getByRole('banner');
     const cartButton = within(header).getByRole('button', { name: /Корзина/ });
@@ -464,7 +478,7 @@ describe('оболочка кабинета', () => {
   it('без единой акции «Акции» пропадают из меню; с акцией — на месте', async () => {
     const none = { volumeTiers: [], deals: [], dealCount: 0 };
     stubFetch([get('/api/portal/promotions', none), ...shellRules(filledCart)]);
-    const { unmount } = renderScreen(<Shell />, { route: '/catalog' });
+    const { unmount } = await renderShell({ route: '/catalog' });
     const tabs = screen.getByRole('navigation', { name: 'Главное меню' });
     await waitFor(() => expect(within(tabs).queryByRole('link', { name: 'Акции' })).not.toBeInTheDocument());
     unmount();
@@ -473,7 +487,7 @@ describe('оболочка кабинета', () => {
       get('/api/portal/promotions', { ...none, volumeTiers: [{ from: 100000, percent: 5 }] }),
       ...shellRules(filledCart),
     ]);
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
     expect(await within(screen.getByRole('navigation', { name: 'Главное меню' }))
       .findByRole('link', { name: 'Акции' })).toHaveAttribute('href', '/promotions');
   });
@@ -481,7 +495,7 @@ describe('оболочка кабинета', () => {
   it('на телефоне главные разделы стоят в нижнем меню, а корзина в шапке — только на мониторе', async () => {
     stubFetch(shellRules(filledCart));
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const tabs = screen.getByRole('navigation', { name: 'Главное меню' });
     expect(tabs.className).toContain('lg:hidden');
@@ -509,7 +523,7 @@ describe('оболочка кабинета', () => {
   it('поиск стоит в шапке: на мониторе в строке магазина, на телефоне строкой под ней', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const [wide, phone] = within(screen.getByRole('banner')).getAllByRole('search');
     expect(wide.className).toContain('hidden');
@@ -528,7 +542,7 @@ describe('оболочка кабинета', () => {
   it('переключатель языка стоит в шапке и в выдвижном меню', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = screen.getByRole('banner');
     const inHeader = within(header).getByRole('button', { name: /Язык интерфейса/ });
@@ -546,7 +560,7 @@ describe('оболочка кабинета', () => {
   it('выбранный раздел назван выбранным, а не только подкрашен', async () => {
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/favorites' });
+    await renderShell({ route: '/favorites' });
 
     await userEvent.click(screen.getByRole('button', { name: 'Меню' }));
     const links = await screen.findAllByRole('link', { name: 'Избранное' });
@@ -564,7 +578,7 @@ describe('мои магазины', () => {
 
   it('кнопка магазина в шапке открывает окно со всеми магазинами', async () => {
     stubFetch(shellRules());
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = screen.getByRole('banner');
     await within(header).findByText('СтройБаза Алматы');
@@ -578,7 +592,7 @@ describe('мои магазины', () => {
 
   it('переход в другой магазин открывает его витрину и говорит, что произошло', async () => {
     stubFetch(shellRules());
-    renderScreen(<Shell />, { route: '/orders', supplierId: 'supplier-1' });
+    await renderShell({ route: '/orders', supplierId: 'supplier-1' });
 
     const header = screen.getByRole('banner');
     await within(header).findByText('СтройБаза Алматы');
@@ -601,7 +615,7 @@ describe('мои магазины', () => {
       ...shellRules(),
     ]);
     try {
-      renderWithRealSupplier(<Shell />);
+      await shown(renderWithRealSupplier(<Shell />));
 
       const rubrics = await screen.findByRole('group', { name: 'Рубрики' });
       await userEvent.click(within(rubrics).getByRole('button', { name: 'Сухие смеси' }));
@@ -627,7 +641,7 @@ describe('мои магазины', () => {
 
   it('поиск по названию сужает список, а пустой ответ объясняет, что делать', async () => {
     stubFetch(shellRules());
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = screen.getByRole('banner');
     await within(header).findByText('СтройБаза Алматы');
@@ -658,7 +672,7 @@ describe('мои магазины', () => {
       ]),
       ...shellRules(),
     ]);
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = screen.getByRole('banner');
     await within(header).findByText('СтройБаза Алматы');
@@ -683,7 +697,7 @@ describe('мои магазины', () => {
     stubWideScreen();
     rememberVisit('supplier-2');
     stubFetch(shellRules());
-    renderScreen(<Shell />, { route: '/catalog', supplierId: 'supplier-1' });
+    await renderShell({ route: '/catalog', supplierId: 'supplier-1' });
 
     const rail = await screen.findByTestId('rail');
     const block = await within(rail).findByRole('region', { name: 'Мои магазины' });
@@ -710,7 +724,7 @@ describe('мои магазины', () => {
     ]);
     togglePin('supplier-4');
     rememberVisit('supplier-3');
-    renderScreen(<Shell />, { route: '/catalog', supplierId: 'supplier-1' });
+    await renderShell({ route: '/catalog', supplierId: 'supplier-1' });
 
     const block = await within(await screen.findByTestId('rail')).findByRole('region', { name: 'Мои магазины' });
     const names = within(block).getAllByRole('button').map((button) => button.getAttribute('title'));
@@ -728,7 +742,7 @@ describe('мои магазины', () => {
       get('/api/portal/notifications/summary', []),
       ...shellRules(),
     ]);
-    renderScreen(<Shell />, { route: '/catalog', supplierId: 'supplier-1' });
+    await renderShell({ route: '/catalog', supplierId: 'supplier-1' });
 
     const block = await within(await screen.findByTestId('rail')).findByRole('region', { name: 'Мои магазины' });
     const row = await within(block).findByRole('button', { name: /Бумага оптом/ });
@@ -741,7 +755,7 @@ describe('мои магазины', () => {
     stubWideScreen();
     rememberVisit('supplier-2');
     stubFetch(shellRules());
-    renderScreen(<Shell />, { route: '/orders', supplierId: 'supplier-1' });
+    await renderShell({ route: '/orders', supplierId: 'supplier-1' });
 
     const block = await within(await screen.findByTestId('rail')).findByRole('region', { name: 'Мои магазины' });
     await userEvent.click(within(block).getByRole('button', { name: /Бумага оптом/ }));
@@ -751,7 +765,7 @@ describe('мои магазины', () => {
 
   it('звёздочка закрепляет магазин, и он встаёт в «Закреплённые»', async () => {
     stubFetch(shellRules());
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = screen.getByRole('banner');
     await within(header).findByText('СтройБаза Алматы');
@@ -805,7 +819,7 @@ describe('несколько магазинов — у каждого свой �
       ...shellRules(),
     ]);
 
-    renderWithRealSupplier(<Shell />);
+    await shown(renderWithRealSupplier(<Shell />));
 
     const header = screen.getByRole('banner');
     await within(header).findByText('Стройка');
@@ -835,7 +849,7 @@ describe('новости у других поставщиков', () => {
     stubWideScreen();
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
     await userEvent.click(within(rail).getByRole('button', { name: 'Ещё' }));
@@ -855,7 +869,7 @@ describe('новости у других поставщиков', () => {
     stubWideScreen();
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     expect(await screen.findByLabelText('У других поставщиков есть новости')).toBeInTheDocument();
   });
@@ -870,7 +884,7 @@ describe('новости у других поставщиков', () => {
       ...shellRules(),
     ]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
     await userEvent.click(within(rail).getByRole('button', { name: 'Ещё' }));
@@ -904,7 +918,7 @@ describe('новости у других поставщиков', () => {
       ...shellRules(),
     ]);
 
-    const { queryClient } = renderScreen(<Shell />, { route: '/catalog' });
+    const { queryClient } = await renderShell({ route: '/catalog' });
 
     const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
     await userEvent.click(within(rail).getByRole('button', { name: 'Ещё' }));
@@ -952,7 +966,7 @@ describe('кабинет, который поставщик ещё не откр
   it('полоса под шапкой красным зовёт за ссылкой активации', async () => {
     stubFetch(noSuppliersRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const banner = await screen.findByRole('alert');
     expect(banner).toHaveTextContent(/ссылку активации/);
@@ -968,7 +982,7 @@ describe('кабинет, который поставщик ещё не откр
   it('витрина, заявка и уведомления не уходят в сеть, пока поставщика нет', async () => {
     const { calls } = stubFetch(noSuppliersRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     await screen.findByRole('alert');
     await waitFor(() => {
@@ -987,7 +1001,7 @@ describe('кабинет, который поставщик ещё не откр
   it('вместо витрины стоит список поставщиков, а не пустой каталог', async () => {
     stubFetch(noSuppliersRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     expect(await screen.findByRole('heading', { name: 'Поставщики' })).toBeInTheDocument();
   });
@@ -995,7 +1009,7 @@ describe('кабинет, который поставщик ещё не откр
   it('колокольчик из шапки уходит: новостям взяться неоткуда', async () => {
     stubFetch(noSuppliersRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     await screen.findByRole('alert');
     expect(screen.queryByRole('button', { name: /Уведомления/ })).not.toBeInTheDocument();
@@ -1006,7 +1020,7 @@ describe('кабинет, который поставщик ещё не откр
 
     // Ждём именно ответа списка: до него утверждение об отсутствии полосы
     // истинно само по себе и ничего не доказывает.
-    const { queryClient } = renderScreen(<Shell />, { route: '/catalog' });
+    const { queryClient } = await renderShell({ route: '/catalog' });
     await waitFor(() => {
       expect(queryClient.getQueryState(getGetPortalSuppliersQueryKey())?.status).toBe('success');
     });
@@ -1030,7 +1044,7 @@ describe('сведения о магазине', () => {
 
   it('полоса называет адрес, часы и даёт позвонить и написать', async () => {
     stubFetch([get('/api/portal/suppliers', [shopCard]), ...shellRules()]);
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
     const header = screen.getByRole('banner');
     expect(await within(header).findByText('Барахолка «Кенжехан-2»')).toBeInTheDocument();
     expect(within(header).getByText('Каждый день с 7:00 до 17:00')).toBeInTheDocument();
@@ -1042,7 +1056,7 @@ describe('сведения о магазине', () => {
 
   it('без контактов пунктов нет, а колонка называет, в каком вы магазине', async () => {
     stubFetch(shellRules());   // поставщики без address/phone/whatsapp
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
     const header = screen.getByRole('banner');
     await within(header).findByText('СтройБаза Алматы');
     expect(within(header).queryByRole('link', { name: /WhatsApp/ })).not.toBeInTheDocument();
@@ -1054,7 +1068,7 @@ describe('сведения о магазине', () => {
   it('закрытый сегодня магазин предупреждает, что заявки всё равно принимаются', async () => {
     const closed = { ...shopCard, hours: { timezone: 'Asia/Almaty', exceptions: [], days: [1, 2, 3, 4, 5, 6, 7].map((d) => ({ dayOfWeek: d, closed: true })) } };
     stubFetch([get('/api/portal/suppliers', [closed]), ...shellRules()]);
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
     expect(await within(screen.getByRole('banner'))
       .findByText('Сегодня закрыто — заявки принимаются, обработаем в ближайший рабочий день')).toBeInTheDocument();
   });
@@ -1079,7 +1093,7 @@ describe('раскладка оболочки по шаблону продавц
     stubWideScreen();
     stubFetch(designRules('VITRINA'));
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const top = await screen.findByTestId('top-nav');
     expect(within(top).getByRole('link', { name: 'Каталог товаров' })).toHaveAttribute('aria-current', 'page');
@@ -1096,7 +1110,7 @@ describe('раскладка оболочки по шаблону продавц
     stubWideScreen();
     stubFetch(designRules('STRICT'));
 
-    renderScreen(<Shell />, { route: '/orders' });
+    await renderShell({ route: '/orders' });
 
     const slim = await screen.findByTestId('slim-rail');
     expect(within(slim).getByRole('link', { name: 'Заявки' })).toHaveAttribute('aria-current', 'page');
@@ -1111,7 +1125,7 @@ describe('раскладка оболочки по шаблону продавц
     stubWideScreen();
     stubFetch(designRules('APP'));
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const bottom = await screen.findByRole('navigation', { name: 'Главное меню' });
     await waitFor(() => expect(screen.getByTestId('shell-grid')).toHaveAttribute('data-layout', 'bottom'));
@@ -1126,7 +1140,7 @@ describe('раскладка оболочки по шаблону продавц
     stubWideScreen();
     stubFetch(shellRules());
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     expect(await screen.findByTestId('rail')).toBeInTheDocument();
     expect(screen.getByTestId('shell-grid')).toHaveAttribute('data-layout', 'side');
@@ -1137,7 +1151,7 @@ describe('раскладка оболочки по шаблону продавц
   it('тёмный шаблон открывает кабинет в тёмной теме', async () => {
     stubFetch(designRules('NIGHT'));
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
     // Оттенки тёмной темы — в таблице стилей поставщика.
@@ -1148,7 +1162,7 @@ describe('раскладка оболочки по шаблону продавц
     window.localStorage.setItem('q-order.portal.theme', 'light');
     stubFetch(designRules('NIGHT'));
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     await screen.findByTestId('shell-grid');
     await waitFor(() => expect(window.localStorage.getItem('q-order.portal.theme-default')).toBe('dark'));
@@ -1180,7 +1194,7 @@ describe('шапка с опубликованным дизайном', () => {
       design: { ...closedShop.design, occasion: 'NAURYZ', occasionFrom: day(-2), occasionUntil: day(2) },
     }]), ...shellRules(filledCart)]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     expect(await screen.findByText('С праздником Наурыз!')).toBeInTheDocument();
   });
@@ -1189,7 +1203,7 @@ describe('шапка с опубликованным дизайном', () => {
     stubWideScreen();
     stubFetch([get('/api/portal/suppliers', [closedShop]), ...shellRules(filledCart)]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = await screen.findByTestId('design-header');
     expect(header).toBe(screen.getByRole('banner'));
@@ -1228,7 +1242,7 @@ describe('шапка с опубликованным дизайном', () => {
     stubWideScreen();
     stubFetch([get('/api/portal/suppliers', [closedShop]), ...shellRules()]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const status = await screen.findByTestId('shop-status');
     expect(status.className).toContain('bg-accent-soft');
@@ -1257,7 +1271,7 @@ describe('шапка с опубликованным дизайном', () => {
     stubWideScreen();
     openShopAt('2026-09-24T12:00:00+05:00');
     try {
-      renderScreen(<Shell />, { route: '/catalog' });
+      await renderShell({ route: '/catalog' });
 
       const status = await screen.findByTestId('shop-status');
       expect(await within(status).findByText('Открыто до 18:00 — заявки обработаем сегодня')).toBeInTheDocument();
@@ -1271,7 +1285,7 @@ describe('шапка с опубликованным дизайном', () => {
     stubWideScreen();
     openShopAt('2026-09-24T20:00:00+05:00');
     try {
-      renderScreen(<Shell />, { route: '/catalog' });
+      await renderShell({ route: '/catalog' });
 
       const status = await screen.findByTestId('shop-status');
       expect(await within(status)
@@ -1286,7 +1300,7 @@ describe('шапка с опубликованным дизайном', () => {
     stubWideScreen();
     stubFetch([get('/api/portal/suppliers', [closedShop]), ...shellRules()]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const rail = await screen.findByTestId('rail');
     await waitFor(() => expect(screen.getByTestId('shell-grid').className).toContain('lg:grid-cols-[232px_minmax(0,1fr)]'));
@@ -1300,7 +1314,7 @@ describe('шапка с опубликованным дизайном', () => {
     stubWideScreen();
     stubFetch(designRules('APP'));
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = await screen.findByTestId('design-header');
     expect(await within(header).findByTestId('top-nav')).toBeInTheDocument();
@@ -1317,7 +1331,7 @@ describe('шапка с опубликованным дизайном', () => {
       ...shellRules(),
     ]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const header = await screen.findByTestId('design-header');
     const bell = await within(header).findByRole('button', { name: 'Уведомления: 3 новых' });
@@ -1331,7 +1345,7 @@ describe('шапка с опубликованным дизайном', () => {
     stubWideScreen();
     stubFetch([get('/api/portal/suppliers', [closedShop]), ...shellRules()]);
 
-    renderScreen(<Shell />, { route: '/catalog' });
+    await renderShell({ route: '/catalog' });
 
     const settings = await screen.findByTestId('status-settings');
     expect(within(settings).getByRole('button', { name: /Язык интерфейса/ })).toBeInTheDocument();
@@ -1347,7 +1361,7 @@ describe('шапка с опубликованным дизайном', () => {
   it('без дизайна шапка прежняя', async () => {
     stubFetch(shellRules());
 
-    const { queryClient } = renderScreen(<Shell />, { route: '/catalog' });
+    const { queryClient } = await renderShell({ route: '/catalog' });
     await waitFor(() => {
       expect(queryClient.getQueryState(getGetPortalSuppliersQueryKey())?.status).toBe('success');
     });

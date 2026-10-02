@@ -146,6 +146,30 @@ describe('баннеры на витрине', () => {
     expect(screen.queryByText('Пуховики и тренчи')).not.toBeInTheDocument();
   });
 
+  /**
+   * Тематические шаблоны (праздники, кэшбэк, розыгрыш) раньше у покупателя
+   * не рисовались вовсе: слайд оставался пустым цветным прямоугольником.
+   */
+  it('тематический шаблон показывает заголовок, кнопку и свою иллюстрацию', () => {
+    const cashback = { ...SALE, template: 'CASHBACK', title: 'Кэшбэк 5%', discount: '5%' } as ShowcaseBannerDto;
+    const { container } = renderScreen(<BannerSlide slide={cashback} brand="#1F5C57" compact={false} hidden={false} onAction={() => {}} />);
+    expect(screen.getByText('Кэшбэк 5%')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Смотреть товары/ })).toBeInTheDocument();
+    expect(container.querySelector('svg[viewBox="0 0 200 200"]')).not.toBeNull();
+  });
+
+  it('на телефоне длинная подпись кнопки укорочена по словам, читалке — полная', () => {
+    renderScreen(<BannerSlide slide={{ ...SALE, buttonText: 'Смотреть товары со скидкой' } as ShowcaseBannerDto} brand="#1F5C57" compact hidden={false} onAction={() => {}} />);
+    const button = screen.getByRole('button', { name: 'Смотреть товары со скидкой' });
+    expect(button).toHaveTextContent(/^Смотреть товары$/);
+  });
+
+  it('на телефоне плашка над заголовком укорочена по словам', () => {
+    renderScreen(<BannerSlide slide={{ ...SALE, badge: 'На все товары летнего сезона скидка' } as ShowcaseBannerDto} brand="#1F5C57" compact hidden={false} onAction={() => {}} />);
+    expect(screen.getByText('На все товары')).toBeInTheDocument();
+    expect(screen.queryByText('На все товары летнего сезона скидка')).not.toBeInTheDocument();
+  });
+
   it('на мониторе описание слайда остаётся', () => {
     renderScreen(<BannerSlide slide={SALE as ShowcaseBannerDto} brand="#1F5C57" compact={false} hidden={false} onAction={() => {}} />);
     expect(screen.getByText('Пуховики и тренчи')).toBeInTheDocument();

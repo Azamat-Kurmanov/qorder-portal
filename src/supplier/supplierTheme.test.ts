@@ -120,7 +120,7 @@ describe('дизайн кабинета из шаблона', () => {
     expect(supplierTokens('#1F5C57', null)['--color-banner']).toBe('#1F5C57');
     expect(darkTokens('#1F5C57', null)['--color-banner']).toBe('#1E4643');
     // Без своего цвета тёмный баннер — от цвета платформы, как в `index.css`.
-    expect(darkTokens(null, null)['--color-banner']).toBe('#773711');
+    expect(darkTokens(null, null)['--color-banner']).toBe('#0A4234');
     const css = designCss(resolveDesign({ brandColor: '#1F5C57' }))!;
     const [light, dark] = css.split("html[data-theme='dark']");
     expect(light).toContain('--color-banner: #1F5C57');

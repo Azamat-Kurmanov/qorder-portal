@@ -37,6 +37,16 @@ const BACKGROUNDS: Record<string, string> = {
   MINT: '#E0EEE8',
   SAGE: '#E6EADC',
   FOG: '#E6E8EB',
+  IVORY: '#F6F2E6',
+  LEMON: '#F6F1D6',
+  APRICOT: '#F7E4D2',
+  CORAL: '#F6E0DA',
+  ROSE: '#F5E1EA',
+  PLUM: '#ECE2EE',
+  AZURE: '#E0EBF5',
+  TEAL: '#DDEDEC',
+  PISTACHIO: '#E8EFD9',
+  STONE: '#E9E6E1',
 };
 
 function channels(hex: string): [number, number, number] {
@@ -103,7 +113,7 @@ export function supplierTokens(brandColor: string | null | undefined, background
 }
 
 /** Цвет платформы: от него считаются тёмные оттенки, когда свой цвет не выбран. */
-const PLATFORM_BRAND = '#A8450A';
+const PLATFORM_BRAND = '#015640';
 /** Панель и линии тёмной темы — как в макете и в `index.css`. */
 const DARK_PANEL = '#1B1C1F';
 const DARK_LINE = '#2C2E33';
@@ -257,7 +267,7 @@ export function templateTokens(template: CabinetTemplate): Record<string, string
 /** Бледная линия узора: та же, что у макета (`faint` светлой и тёмной палитры). */
 const FAINT_LIGHT = '#DAD6CC';
 const FAINT_DARK = '#3A3C42';
-/** Текст на втором цвете шаблона: тёмный в обеих темах — второй цвет всегда светлый. */
+/** Тёмный текст на втором цвете шаблона; на тёмном втором цвете — белый. */
 const ACCENT2_INK_LIGHT = '#16171A';
 const ACCENT2_INK_DARK = '#141414';
 
@@ -289,7 +299,9 @@ function styleTokens(style: TemplateStyle, brand: string, canvas: string, dark: 
     '--color-shop': brand,
     '--color-on-shop': readableOn(brand),
     '--color-accent2': second,
-    '--color-accent2-ink': dark ? ACCENT2_INK_DARK : ACCENT2_INK_LIGHT,
+    // По контрасту: у праздников второй цвет бывает тёмным (красный, синий),
+    // и прежний «всегда тёмный» текст на нём не читался.
+    '--color-accent2-ink': readableOn(second) === WHITE ? WHITE : dark ? ACCENT2_INK_DARK : ACCENT2_INK_LIGHT,
     '--color-brand-deep': mix(brand, BLACK, dark ? 0.35 : 0.3),
     '--color-glow': glow,
     '--canvas-bg': layers[style.pattern] ?? canvas,

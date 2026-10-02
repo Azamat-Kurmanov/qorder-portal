@@ -14,7 +14,7 @@ import { saleHero, slideHero, useHeroSource } from './heroes/heroData';
 const SLIDE_MS = 7000;
 
 /** Фирменный цвет платформы: им красится «цвет магазина», пока магазин своего не выбрал. */
-const PLATFORM_BRAND = '#A8450A';
+const PLATFORM_BRAND = '#015640';
 
 /** Уже этой ширины раскладке макета тесно — слайд собирается компактно. */
 const COMPACT_BELOW = 640;

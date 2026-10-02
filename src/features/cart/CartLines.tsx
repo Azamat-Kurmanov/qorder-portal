@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 import type { TFunction } from 'i18next';
+import { Link } from 'react-router-dom';
 import { LineThumb } from './LineThumb';
+import { closeCart } from './cartDrawer';
 import { QuantityField } from './QuantityField';
 import { money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
@@ -128,11 +130,16 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
             >
             <div className={cn('min-h-0', going && 'overflow-hidden')}>
             <div className="flex gap-3.5 py-4">
-              <LineThumb seed={line.itemId} src={line.imageUrl} className="h-[4.75rem] w-16 rounded-[var(--radius-control)]" />
+              {/* Картинка — та же ссылка, что и название: для диктора одна, второй он не услышит. */}
+              <Link to={itemHref(line)} onClick={closeCart} tabIndex={-1} aria-hidden="true" className="shrink-0">
+                <LineThumb seed={line.itemId} src={line.imageUrl} className="h-[4.75rem] w-16 rounded-[var(--radius-control)]" />
+              </Link>
 
               <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <div className="flex items-start gap-2">
-                  <p className="min-w-0 flex-1 text-body font-semibold leading-[1.3] text-ink">{line.name}</p>
+                  <p className="min-w-0 flex-1 text-body font-semibold leading-[1.3] text-ink">
+                    <ItemLink line={line} />
+                  </p>
                   {/*
                     Убрать одну строку — крестиком у названия, как в макете.
                     Отдельной операции удаления нет: ноль и есть «убрать»
@@ -184,9 +191,11 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
               data-testid="cart-line"
               className="flex items-center gap-3 border-b border-hairline py-3 last:border-b-0"
             >
-              <LineThumb seed={line.itemId} src={line.imageUrl} className="size-12" />
+              <Link to={itemHref(line)} onClick={closeCart} tabIndex={-1} aria-hidden="true" className="shrink-0">
+                <LineThumb seed={line.itemId} src={line.imageUrl} className="size-12" />
+              </Link>
               <div className="min-w-0 flex-1 break-words">
-                <p className="text-body font-semibold leading-[1.3] text-ink">{line.name}</p>
+                <p className="text-body font-semibold leading-[1.3] text-ink"><ItemLink line={line} /></p>
                 <PriceLine line={line} editable={false} currency={currency} />
                 {line.pack ? <PackContents label={t('pack.inPress')} members={packMembers(line.pack)} /> : null}
               </div>
@@ -205,6 +214,41 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
 }
 
 /**
+ * Карточка товара строки. Из выдвижной корзины переход её закрывает: иначе
+ * карточка открылась бы под шторкой, и клиент решил бы, что ссылка не работает.
+ */
+function itemHref(line: CartLineDto): string {
+  return `/catalog/${encodeURIComponent(line.itemId)}`;
+}
+
+function ItemLink({ line }: { line: CartLineDto }) {
+  return (
+    <Link
+      to={itemHref(line)}
+      onClick={closeCart}
+      className="rounded-[4px] text-inherit no-underline hover:text-accent-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      {line.name}
+    </Link>
+  );
+}
+
+/**
+ * Изменилась ли цена по-настоящему, а не началась скидка.
+ *
+ * Товар, положенный до акции, сервер помечает `priceChanged`: цена при
+ * добавлении — обычная, сейчас — со скидкой. Но обычная цена та же
+ * (`listPrice` = `priceAtAdding`), и «было 31 990, стало 28 791» читалось бы
+ * как смена цены продавцом. Это скидка — и показывается она как скидка.
+ */
+export function priceReallyChanged(line: CartLineDto): boolean {
+  if (!line.priceChanged) return false;
+  const discountOnly = line.listPrice !== undefined && !!line.discountPercent
+    && line.priceAtAdding === line.listPrice && line.split?.packPriceAtAdding === undefined;
+  return !discountOnly;
+}
+
+/**
  * Цена под названием — или расхождение «было — стало».
  *
  * Цена, изменившаяся с момента добавления, — не мелочь оформления: клиент
@@ -212,21 +256,45 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
  */
 function PriceLine({ line, editable, currency }: { line: CartLineDto; editable: boolean; currency: Currency | undefined }) {
   const { t } = useTranslation();
-  return line.priceChanged ? (
+  // У смешанной строки могла измениться розница, цена упаковки или обе.
+  const packWas = line.split?.packPriceAtAdding;
+  return priceReallyChanged(line) ? (
     <p className="text-caption font-medium text-unclear-ink">
-      {t('cart.priceChanged', { was: money(line.priceAtAdding, currency), now: money(line.price, currency) })}
-    </p>
-  ) : (
-    <p className="flex flex-wrap items-center gap-x-2 text-caption text-ink-muted">
-      {amountLine(line, editable, currency, t)}
-      {line.listPrice !== undefined && line.discountPercent ? (
-        // Цена без скидки рядом — чтобы было видно, откуда взялась эта.
-        <span className="flex items-center gap-1.5">
-          <s className="tabular-nums text-ink-faint">{money(line.listPrice, currency)}</s>
-          <span className="font-bold text-sale-ink">−{line.discountPercent}%</span>
+      {line.priceAtAdding !== line.price || packWas === undefined
+        ? t('cart.priceChanged', { was: money(line.priceAtAdding, currency), now: money(line.price, currency) })
+        : null}
+      {packWas !== undefined && line.split ? (
+        <span className="block">
+          {t('cart.packPriceChanged', { was: money(packWas, currency), now: money(line.split.packPrice, currency) })}
         </span>
       ) : null}
     </p>
+  ) : (
+    <>
+      <p className="flex flex-wrap items-center gap-x-2 text-caption text-ink-muted">
+        {amountLine(line, editable, currency, t)}
+        {/* В сводке оформления — в строку, как в макете: сводка обязана оставаться низкой. */}
+        {!editable && line.listPrice !== undefined && line.discountPercent ? (
+          <span className="flex items-center gap-1.5">
+            <s className="tabular-nums text-ink-faint">{money(line.listPrice, currency)}</s>
+            <span className="font-bold text-sale-ink">−{line.discountPercent}%</span>
+          </span>
+        ) : null}
+      </p>
+      {editable && line.listPrice !== undefined && line.discountPercent ? (
+        // Скидка — своей строкой и с подписью: слитые в одну строку три суммы
+        // не говорили, какая из них настоящая, а какая была до скидки.
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption">
+          <span className="rounded-full bg-sale-soft px-2 py-px font-bold tabular-nums text-sale-ink">
+            −{line.discountPercent}%
+          </span>
+          <span className="text-ink-faint">
+            {t('cart.withoutDiscount')}{' '}
+            <s className="tabular-nums">{money(line.listPrice, currency)}</s>
+          </span>
+        </p>
+      ) : null}
+    </>
   );
 }
 

@@ -47,6 +47,46 @@ describe('строки корзины', () => {
     expect(screen.getByText('Гвозди 100 мм')).toBeInTheDocument();
   });
 
+  it('название товара ведёт на его карточку', async () => {
+    stubFetch([get('/api/portal/cart', cart)]);
+    renderScreen(<CartLines />);
+
+    const link = await screen.findByRole('link', { name: 'Цемент М400' });
+    expect(link).toHaveAttribute('href', '/catalog/item-1');
+  });
+
+  /**
+   * Положили до акции — сервер помечает `priceChanged`, но обычная цена та же.
+   * Это скидка, а не смена цены: «было — стало» здесь вводило бы в заблуждение.
+   */
+  it('началась акция — показана скидка, а не «Цена изменилась»', async () => {
+    const sale = {
+      ...line('item-1', 'Брюки чинос City', 'шт'), quantity: 1,
+      priceAtAdding: 31990, price: 28791, priceChanged: true, total: 28791,
+      listPrice: 31990, discountPercent: 10,
+    };
+    stubFetch([get('/api/portal/cart', { ...cart, lines: [sale] })]);
+    renderScreen(<CartLines />);
+
+    const [row] = await screen.findAllByTestId('cart-line');
+    expect(row).not.toHaveTextContent('Цена изменилась');
+    expect(row).toHaveTextContent('−10%');
+    expect(row).toHaveTextContent(/без скидки 31\s990 ₸/);
+  });
+
+  it('продавец сменил обычную цену во время акции — «Цена изменилась»', async () => {
+    const changed = {
+      ...line('item-1', 'Брюки чинос City', 'шт'), quantity: 1,
+      priceAtAdding: 31990, price: 30591, priceChanged: true, total: 30591,
+      listPrice: 33990, discountPercent: 10,
+    };
+    stubFetch([get('/api/portal/cart', { ...cart, lines: [changed] })]);
+    renderScreen(<CartLines />);
+
+    const [row] = await screen.findAllByTestId('cart-line');
+    expect(row).toHaveTextContent(/Цена изменилась: было 31\s990 ₸, стало 30\s591 ₸/);
+  });
+
   /**
    * Варианты — отдельные позиции с одним названием: две строки разных
    * цветов без подписи читались бы одной позицией, положенной дважды.
@@ -107,6 +147,19 @@ describe('строки корзины', () => {
 
       const puts = calls.filter((call) => call.init?.method === 'PUT').map((call) => JSON.parse(String(call.init?.body)));
       expect(puts).toEqual([{ quantity: 0 }, { quantity: 45 }]);
+    });
+
+    it('продавец поднял цену ступени — «Цена упаковки изменилась», розница та же', async () => {
+      const changed = {
+        ...packs, priceChanged: true, total: 4300,
+        split: { ...packs.split, packPrice: 1900, packPriceAtAdding: 1800 },
+      };
+      stubFetch([get('/api/portal/cart', { ...cart, lines: [changed] })]);
+      renderScreen(<CartLines />);
+
+      const [row] = await screen.findAllByTestId('cart-line');
+      expect(row).toHaveTextContent(/Цена упаковки изменилась: было 1\s800 ₸, стало 1\s900 ₸/);
+      expect(row).not.toHaveTextContent('Цена изменилась');
     });
   });
 

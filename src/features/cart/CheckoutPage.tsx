@@ -64,6 +64,8 @@ export function CheckoutPage() {
   const [delivery, setDelivery] = useState<SubmitOrderDelivery>({});
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [stale, setStale] = useState<CartStaleResponse | null>(null);
+  /** Расчёт в липкой сводке на телефоне — по нажатию «Подробнее». */
+  const [details, setDetails] = useState(false);
   // Поставщик приостановлен платформой: заявку не примут, корзина остаётся.
   const [closed, setClosed] = useState(false);
   // Условия доставки спрашиваются до всякого ветвления экрана: хук, стоящий
@@ -137,42 +139,6 @@ export function CheckoutPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <Link
-        to="/catalog"
-        className="inline-flex items-center gap-2 self-start rounded-md text-body font-semibold text-accent-ink hover:underline"
-      >
-        <ArrowLeft aria-hidden="true" className="size-[18px]" />
-        {t('checkout.back')}
-      </Link>
-
-      {/*
-        Шаги — подсказка, где человек находится, а не мастер из трёх экранов:
-        всё оформление помещается на одну страницу, и листать его по шагам
-        значило бы прятать итог.
-      */}
-      <ol aria-label={t('checkout.steps.label')} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-body">
-        <li className="flex items-center gap-2 font-semibold text-in-stock">
-          <span className="flex size-7 items-center justify-center rounded-full bg-in-stock text-white">
-            <Check aria-hidden="true" className="size-4" strokeWidth={3} />
-          </span>
-          {t('checkout.steps.chosen')}
-        </li>
-        <li aria-hidden="true" className="h-0.5 w-8 rounded bg-line" />
-        <li aria-current="step" className="flex items-center gap-2 font-bold text-ink">
-          <span className="flex size-7 items-center justify-center rounded-full bg-accent text-sm text-on-accent">2</span>
-          {t('checkout.steps.receive')}
-        </li>
-        <li aria-hidden="true" className="h-0.5 w-8 rounded bg-line" />
-        <li className="flex items-center gap-2 font-medium text-ink-muted">
-          <span className="flex size-7 items-center justify-center rounded-full border-[1.5px] border-line text-sm">3</span>
-          {t('checkout.steps.send')}
-        </li>
-      </ol>
-
-      <h1 className="qo-page-title">
-        {t('checkout.title')}
-      </h1>
-
       {/*
         На мониторе итог стоит отдельной колонкой справа и остаётся на месте
         при прокрутке: сумма, уехавшая вверх, заставляет прокручивать обратно
@@ -185,6 +151,49 @@ export function CheckoutPage() {
         className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:gap-6"
       >
         <div className="flex min-w-0 flex-col gap-4">
+          {/*
+            Заголовок — внутри левой колонки: итог справа начинается вровень
+            с «Вернуться к покупкам», а не под заголовком — иначе над ним
+            оставалась пустая полоса высотой в шаги и заголовок.
+          */}
+          <div className="flex flex-col gap-5 pb-1">
+            <Link
+              to="/catalog"
+              className="inline-flex items-center gap-2 self-start rounded-md text-body font-semibold text-accent-ink hover:underline"
+            >
+              <ArrowLeft aria-hidden="true" className="size-[18px]" />
+              {t('checkout.back')}
+            </Link>
+
+            {/*
+              Шаги — подсказка, где человек находится, а не мастер из трёх экранов:
+              всё оформление помещается на одну страницу, и листать его по шагам
+              значило бы прятать итог.
+            */}
+            <ol aria-label={t('checkout.steps.label')} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-body">
+              <li className="flex items-center gap-2 font-semibold text-in-stock">
+                <span className="flex size-7 items-center justify-center rounded-full bg-in-stock text-white">
+                  <Check aria-hidden="true" className="size-4" strokeWidth={3} />
+                </span>
+                {t('checkout.steps.chosen')}
+              </li>
+              <li aria-hidden="true" className="h-0.5 w-8 rounded bg-line" />
+              <li aria-current="step" className="flex items-center gap-2 font-bold text-ink">
+                <span className="flex size-7 items-center justify-center rounded-full bg-accent text-sm text-on-accent">2</span>
+                {t('checkout.steps.receive')}
+              </li>
+              <li aria-hidden="true" className="h-0.5 w-8 rounded bg-line" />
+              <li className="flex items-center gap-2 font-medium text-ink-muted">
+                <span className="flex size-7 items-center justify-center rounded-full border-[1.5px] border-line text-sm">3</span>
+                {t('checkout.steps.send')}
+              </li>
+            </ol>
+
+            <h1 className="qo-page-title">
+              {t('checkout.title')}
+            </h1>
+          </div>
+
           {/* «Не добавлено» — над формой, на любой ширине: молча пропущенная
               позиция обнаруживается уже при отгрузке. */}
           <SkippedLines />
@@ -268,7 +277,12 @@ export function CheckoutPage() {
             'lg:bottom-auto lg:top-[calc(var(--header-h)+1.5rem)] lg:p-6',
           )}
         >
-          <h2 className="text-xl font-bold text-ink">{t('checkout.summary.title')}</h2>
+          {/*
+            На телефоне сводка липнет к низу и обязана оставаться низкой: в ней
+            итог и кнопка, а расчёт — по «Подробнее». Раскрытой по умолчанию она
+            занимала полэкрана и закрывала «Состав заявки» при любой прокрутке.
+          */}
+          <h2 className={cn('text-xl font-bold text-ink', !details && 'max-lg:hidden')}>{t('checkout.summary.title')}</h2>
 
           {/*
             Количество здесь не правят: заявку на этом экране сверяют, а меняют
@@ -286,7 +300,7 @@ export function CheckoutPage() {
             {t('checkout.editGoods')}
           </Link>
 
-          <div className="flex flex-col gap-2 border-t border-hairline pt-3.5">
+          <div id="checkout-breakdown" className={cn('flex flex-col gap-2 border-t border-hairline pt-3.5', !details && 'max-lg:hidden')}>
             {/* Пустая корзина — без «Товары, 0 позиций · 0 тенге» и без НДС: нулевые строки читаются как посчитанное. */}
             {cart && lines.length > 0 && <GoodsLine cart={cart} />}
             {/*
@@ -315,10 +329,23 @@ export function CheckoutPage() {
             )}
           </div>
 
-          <CartSavings cart={cart} withTier={false} />
+          <div className={cn(!details && 'max-lg:hidden')}>
+            <CartSavings cart={cart} withTier={false} />
+          </div>
 
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-lg font-bold text-ink">{t('checkout.summary.toPay')}</span>
+            <span className="flex items-baseline gap-3">
+              <span className="text-lg font-bold text-ink">{t('checkout.summary.toPay')}</span>
+              <button
+                type="button"
+                aria-expanded={details}
+                aria-controls="checkout-breakdown"
+                onClick={() => setDetails((open) => !open)}
+                className="text-sm font-semibold text-accent-ink underline underline-offset-[3px] lg:hidden"
+              >
+                {details ? t('checkout.summary.less') : t('checkout.summary.more')}
+              </button>
+            </span>
             <span data-testid="total" className="text-[1.75rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink">
               {money(payForGoods + shippingInTotal + loadersInTotal, currency)}
             </span>
@@ -351,7 +378,7 @@ export function CheckoutPage() {
           </Button>
 
           {shipping === undefined && !direct && (
-            <p className="text-caption text-ink-muted">{t('checkout.summary.shippingNote')}</p>
+            <p className={cn('text-caption text-ink-muted', !details && 'max-lg:hidden')}>{t('checkout.summary.shippingNote')}</p>
           )}
 
           <AdultNotice cart={cart} />

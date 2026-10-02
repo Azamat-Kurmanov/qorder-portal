@@ -1,3 +1,4 @@
+import { useIsFetching } from '@tanstack/react-query';
 import { Bump } from '../../ui/Bump';
 import { getConfig } from '../../config';
 import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
@@ -135,6 +136,8 @@ export function Shell() {
   // Раскладка меню на мониторе — из шаблона продавца. На телефоне она
   // не меняется: нижнее меню под большим пальцем удобнее любой другой.
   const design = useCabinetDesign();
+  // Тот же запрос и тот же кеш, что у дизайна: лишнего похода на сервер нет.
+  const suppliersPending = useGetPortalSuppliers({ query: { refetchOnMount: false, retryOnMount: false } }).isPending;
   const { layout, style } = design;
   // Новая шапка макета — только у опубликованного дизайна. Без него кабинет
   // остаётся прежним целиком, как и обещано в `cabinetDesign.ts`: молча
@@ -171,6 +174,13 @@ export function Shell() {
     setToast(t('shops.switched', { name }));
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 3200);
+  }
+
+  // Пока список магазинов не пришёл, шаблон неизвестен: оболочка по умолчанию,
+  // нарисованная сейчас, через секунду сменилась бы шаблоном магазина. Вместо
+  // неё — пустая подложка в цветах магазина (их уже поставил `index.html`).
+  if (suppliersPending) {
+    return <div data-testid="shell-pending" aria-busy="true" className="min-h-screen bg-canvas" />;
   }
 
   return (
@@ -229,7 +239,9 @@ export function Shell() {
       {!activated && <ActivationBanner />}
 
       {/* Праздник продавца — только в его дни, решает `resolveDesign`. */}
-      {design.occasion && <OccasionRibbon occasion={design.occasion} />}
+      {design.occasion && (
+        <OccasionRibbon occasion={design.occasion} shop={list.find((supplier) => supplier.supplierId === supplierId)?.name} />
+      )}
 
       <Sheet open={opened && !(wide && (layout === 'side' || layout === 'right'))} onOpenChange={setOpened} title={t('shell.menu')} side="left">
         {/*
@@ -670,13 +682,20 @@ function SlimRail({
   );
 }
 
-/** Знак системы с лозунгом: «чья это система» и «что она делает». */
+/**
+ * Знак системы с лозунгом: «чья это система» и «что она делает».
+ *
+ * Пока идёт первая загрузка, знак «дышит». Первая — значит запрос в полёте,
+ * а данных у него ещё нет: тихое обновление уже показанного не считается,
+ * иначе знак двигался бы почти всё время.
+ */
 function SystemMark() {
   const { t } = useTranslation();
+  const loading = useIsFetching({ predicate: (query) => query.state.data === undefined }) > 0;
   return (
     <>
       <div className="flex items-center gap-2">
-        <Logo variant="mark" decorative className="h-6" />
+        <Logo variant="mark" decorative animated={loading} className="h-6" />
         <span className="text-caption font-medium tracking-[-0.01em] text-ink-subtle">
           Q-Order
         </span>

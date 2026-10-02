@@ -9,6 +9,8 @@
       ровно у тех, кто заказывает чаще всех.
     -->
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- SVG сам подстраивает цвета под тему браузера; PNG — запас. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Q-Order — кабинет клиента</title>
     <!--
@@ -51,6 +53,23 @@
         }
       } catch (error) {
         // Хранилище запрещено — кабинет откроется светлым.
+      }
+      /*
+        Оформление магазина — тоже до первого кадра: цвета, фон и шрифты
+        последнего открытого магазина. Без этого кабинет секунду стоял
+        в оформлении по умолчанию и потом перекрашивался целиком. Ключ и id
+        те же, что в `src/supplier/designBoot.ts` (закреплены его тестом).
+      */
+      try {
+        var design = localStorage.getItem('q-order.portal.design-css');
+        if (design) {
+          var style = document.createElement('style');
+          style.id = 'qo-design-boot';
+          style.textContent = design;
+          document.head.appendChild(style);
+        }
+      } catch (error) {
+        // Хранилище запрещено — оформление придёт вместе с магазином.
       }
     </script>
   </head>

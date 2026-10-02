@@ -28,6 +28,9 @@ import { cn } from '../../../ui/cn';
  * и «В корзину», которая после нажатия становится счётчиком. Нажимается
  * карточка целиком (`useOpenCard`), имя остаётся настоящей ссылкой.
  */
+/** Наименьшая высота снимка у плитки с подписью поверх — в `rem` (288 точек). */
+const OVERLAY_MIN_PHOTO = 18;
+
 export function TemplateTile({
   item,
   taken: takenIds,
@@ -122,8 +125,13 @@ export function TemplateTile({
     case 'overlay':
       return shell('qo-tile relative overflow-hidden rounded-[var(--radius-template)]', (
         <>
-          {/* Снимок выше, чем у соседей, на высоту подписи, которая ляжет поверх (как в макете, +90). */}
-          {thumb('', photo + 5.625)}
+          {/*
+            Снимок выше, чем у соседей, на высоту подписи, которая ляжет поверх (как в макете, +90).
+            Но не ниже 18rem: у узких видов на телефоне снимок 8.5rem, и подпись (название в две
+            строки, цена, наличие) вместе с плашками в три строки «−10% · Хит продаж · Новинка»
+            ложились друг на друга.
+          */}
+          {thumb('', Math.max(photo + 5.625, OVERLAY_MIN_PHOTO))}
           {badges()}
           {heart}
           <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-[linear-gradient(transparent,rgb(22_23_26/0.88))] px-3.5 pb-3.5 pt-11">

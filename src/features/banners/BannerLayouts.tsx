@@ -1,5 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { LIFT, PHOTO, type SlideColors } from './bannerTheme';
+import { ArtSvg } from './bannerArt';
+import { ThemedLayout } from './BannerThemes';
 import { cn } from '../../ui/cn';
 
 /*
@@ -38,8 +40,6 @@ export type PartsFor = (colors: SlideColors, big?: boolean) => SlideParts;
 
 const BAG_BODY = 'M22 52h76l-6 84H28z';
 const BAG_HANDLE = 'M44 60V42a16 16 0 0 1 32 0v18';
-const TRUCK = 'M2 5h11v10H2z M13 9h4l3 3v3h-7z M6 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4z M17 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4z';
-const GIFT_BOX = 'M18 64h84v70H18z M12 44h96v22H12z';
 const GIFT_BOW = 'M60 44c-10-18-34-20-30-4 2 6 16 6 30 4z M60 44c10-18 34-20 30-4-2 6-16 6-30 4z';
 
 /** «2026-09-30» → «30.09». */
@@ -49,11 +49,18 @@ function dayMonth(iso: string | undefined): string | null {
 }
 
 /** Картинка — или силуэт сумки, если её нет или она не открылась. */
-function Photo({ src, color, className, style }: { src?: string; color: string; className?: string; style?: CSSProperties }) {
+function Photo({ src, color, className, style, fallback }: {
+  src?: string; color: string; className?: string; style?: CSSProperties;
+  /** Что стоит, пока снимка нет: иллюстрация шаблона. Пусто — силуэт сумки. */
+  fallback?: ReactNode;
+}) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [src]);
   if (src && !broken) {
     return <img src={src} alt="" onError={() => setBroken(true)} className={cn('object-cover', className)} style={style} />;
+  }
+  if (fallback) {
+    return <div aria-hidden="true" className={cn('flex items-center justify-center', className)} style={style}>{fallback}</div>;
   }
   return (
     <div aria-hidden="true" className={cn('flex items-center justify-center', className)} style={style}>
@@ -116,12 +123,16 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
   const pad = compact ? 16 : 32;
   const edge = { top: compact ? 16 : 28, bottom: compact ? 16 : 28 };
   const silhouette = c.stack[1];
+  // Иллюстрация шаблона: на месте фото, пока его нет, и там, где картинки не бывает.
+  const art = (className = 'h-[88%] w-auto max-w-[88%]', style?: CSSProperties) => (
+    <ArtSvg template={slide.template} c={c} className={className} style={style} />
+  );
 
   switch (slide.template) {
     case 'SPLIT':
       return (
         <>
-          <Photo src={slide.imageSrc} color={silhouette} className="absolute inset-y-0 right-0 h-full"
+          <Photo src={slide.imageSrc} color={silhouette} fallback={art()} className="absolute inset-y-0 right-0 h-full"
             style={{ width: compact ? '40%' : '46%', background: c.panel }} />
           <Column c={c} slide={slide} parts={parts} compact={compact} narrow
             style={{ ...edge, left: pad, right: compact ? 'calc(40% + 14px)' : 'calc(46% + 28px)' }} />
@@ -133,7 +144,7 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
         // Пока снимка нет, на его месте силуэт — иначе шаблон не отличить от «По центру».
         return (
           <>
-            <Photo color={silhouette} className="absolute inset-y-0 right-0" style={{ width: compact ? '40%' : '42%', opacity: 0.6 }} />
+            <Photo color={silhouette} fallback={art()} className="absolute inset-y-0 right-0" style={{ width: compact ? '40%' : '42%' }} />
             <Column c={c} slide={slide} parts={parts} compact={compact} narrow
               style={{ ...edge, left: pad, right: compact ? 'calc(40% + 8px)' : '40%' }} />
           </>
@@ -145,7 +156,7 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
       };
       return (
         <>
-          <Photo src={slide.imageSrc} color={silhouette} className="absolute inset-0 size-full" />
+          <Photo src={slide.imageSrc} color={silhouette} fallback={art()} className="absolute inset-0 size-full" />
           <div aria-hidden="true" className="absolute inset-0"
             style={{ background: PHOTO.shade }} />
           <div className="absolute inset-0" style={{ color: onPhoto.fg }}>
@@ -157,17 +168,24 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
     }
 
     case 'CENTERED':
-      return <Column c={c} slide={slide} parts={parts} compact={compact} center style={{ ...edge, left: pad, right: pad }} />;
+      return (
+        <>
+          {art('absolute', { left: compact ? -24 : 8, bottom: compact ? -12 : -18, width: compact ? 96 : 170, height: compact ? 96 : 170, opacity: 0.9 })}
+          {art('absolute', { right: compact ? -24 : 8, top: compact ? -12 : -18, width: compact ? 80 : 140, height: compact ? 80 : 140, opacity: 0.9 })}
+          <Column c={c} slide={slide} parts={parts} compact={compact} center style={{ ...edge, left: compact ? 56 : 150, right: compact ? 56 : 150 }} />
+        </>
+      );
 
     case 'FLASH_SALE':
       return (
         <>
-          <div className="absolute inset-y-0 flex items-center font-extrabold leading-none tracking-[-0.05em]"
+          {compact ? null : art('absolute', { right: 12, top: '50%', width: 190, height: 190, transform: 'translateY(-50%)' })}
+          <div data-discount="" className="absolute inset-y-0 flex items-center font-extrabold leading-none tracking-[-0.05em]"
             style={{ left: pad, width: compact ? '40%' : 300, fontSize: compact ? 48 : 96, color: c.circleBg }}>
             {slide.discount}
           </div>
           <Column c={c} slide={slide} parts={parts} compact={compact} narrow
-            style={{ ...edge, left: compact ? 'calc(40% + 24px)' : 360, right: pad }} />
+            style={{ ...edge, left: compact ? 'calc(40% + 24px)' : 360, right: compact ? pad : 200 }} />
         </>
       );
 
@@ -176,10 +194,10 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
         <>
           <div className="absolute overflow-hidden"
             style={{ top: compact ? 10 : 14, bottom: compact ? 10 : 14, right: compact ? 10 : 14, width: compact ? '38%' : 300, borderRadius: 16, background: c.panel }}>
-            <Photo src={slide.imageSrc} color={silhouette} className="absolute inset-0 size-full" />
+            <Photo src={slide.imageSrc} color={silhouette} fallback={art()} className="absolute inset-0 size-full" />
           </div>
           {slide.discount ? (
-            <div className="absolute flex items-center gap-2 font-extrabold leading-none"
+            <div data-discount="" className="absolute flex items-center gap-2 font-extrabold leading-none"
               style={{
                 top: compact ? 16 : 28, right: compact ? 'calc(38% - 70px)' : 190, padding: compact ? '8px 12px' : '12px 16px',
                 fontSize: compact ? 18 : 30, borderRadius: '8px 16px 16px 8px', background: c.circleBg, color: c.circleFg, transform: 'rotate(-6deg)', boxShadow: LIFT,
@@ -197,9 +215,10 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
       const size = compact ? 150 : 230;
       return (
         <>
-          <div aria-hidden="true" className="absolute rounded-full" style={{ width: compact ? 22 : 38, height: compact ? 22 : 38, right: compact ? 150 : 290, top: compact ? 14 : 26, background: c.circleBg }} />
+          {/* На телефоне кружок лёг бы на плашку над заголовком. */}
+          {compact ? null : <div aria-hidden="true" className="absolute rounded-full" style={{ width: 38, height: 38, right: 290, top: 26, background: c.circleBg }} />}
           <div aria-hidden="true" className="absolute rounded-full" style={{ width: compact ? 12 : 18, height: compact ? 12 : 18, right: compact ? 12 : 30, bottom: compact ? 14 : 22, background: c.circleBg, opacity: 0.7 }} />
-          <Photo src={slide.imageSrc} color={silhouette} className="absolute overflow-hidden rounded-full"
+          <Photo src={slide.imageSrc} color={silhouette} fallback={art()} className="absolute overflow-hidden rounded-full"
             style={{ width: size, height: size, right: compact ? -12 : 50, top: '50%', transform: 'translateY(-50%)', border: `${compact ? 4 : 6}px solid ${c.panel}`, background: c.panel }} />
           <Column c={c} slide={slide} parts={parts} compact={compact} narrow
             style={{ ...edge, left: pad, right: compact ? size + 4 : size + 100 }} />
@@ -211,6 +230,7 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
       const ribbon = compact ? 32 : 40;
       return (
         <>
+          {art('absolute', { right: compact ? 0 : 20, bottom: compact ? -10 : -16, width: compact ? 120 : 200, height: compact ? 120 : 200 })}
           {slide.badge ? (
             <div className="absolute inset-x-0 top-0 flex items-center font-extrabold uppercase tracking-[0.08em]"
               style={{ height: ribbon, paddingLeft: pad, paddingRight: pad, fontSize: compact ? 11 : 13, background: c.circleBg, color: c.circleFg }}>
@@ -218,7 +238,7 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
             </div>
           ) : null}
           <Column c={c} slide={{ ...slide, badge: undefined }} parts={parts} compact={compact}
-            style={{ top: slide.badge ? ribbon + (compact ? 12 : 22) : edge.top, bottom: edge.bottom, left: pad, right: pad }} />
+            style={{ top: slide.badge ? ribbon + (compact ? 12 : 22) : edge.top, bottom: edge.bottom, left: pad, right: compact ? 118 : 230 }} />
         </>
       );
     }
@@ -226,11 +246,7 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
     case 'DELIVERY':
       return (
         <>
-          {compact ? null : (
-            <svg viewBox="0 0 22 22" aria-hidden="true" className="absolute" style={{ right: 36, bottom: -34, width: 160, height: 160, opacity: 0.18 }}>
-              <path d={TRUCK} fill={c.fg} />
-            </svg>
-          )}
+          {art('absolute', { right: compact ? 4 : 16, bottom: compact ? -8 : -14, width: compact ? 120 : 190, height: compact ? 120 : 190 })}
           <Plaque c={c} compact={compact} discount={slide.discount} note={slide.discountNote} />
           <Column c={c} slide={slide} parts={parts} compact={compact} narrow
             style={{ ...edge, left: pad, right: compact ? 146 : 250 }} />
@@ -243,14 +259,8 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
           <div className="absolute flex items-center justify-center overflow-hidden"
             style={{ top: compact ? 10 : 14, bottom: compact ? 10 : 14, right: compact ? 10 : 14, width: compact ? '38%' : 280, borderRadius: 16, background: c.panel }}>
             {slide.imageSrc ? (
-              <Photo src={slide.imageSrc} color={silhouette} className="absolute inset-0 size-full" />
-            ) : (
-              <svg viewBox="0 0 120 150" aria-hidden="true" className="h-[78%] w-auto">
-                <path d={GIFT_BOX} fill={c.stack[1]} />
-                <path d="M52 44h16v90H52z" fill={c.circleBg} />
-                <path d={GIFT_BOW} fill={c.circleBg} />
-              </svg>
-            )}
+              <Photo src={slide.imageSrc} color={silhouette} fallback={art()} className="absolute inset-0 size-full" />
+            ) : art('h-[92%] w-auto')}
             {slide.imageSrc ? (
               <svg viewBox="0 0 120 60" aria-hidden="true" className="absolute left-1/2 top-2 -translate-x-1/2" style={{ width: compact ? 56 : 84 }}>
                 <path d={GIFT_BOW.replace(/44/g, '40')} fill={c.circleBg} />
@@ -268,10 +278,10 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
       const dot = compact ? 52 : 76;
       return (
         <>
-          <Photo src={slide.imageSrc} color={silhouette} className="absolute overflow-hidden rounded-full"
+          <Photo src={slide.imageSrc} color={silhouette} fallback={art()} className="absolute overflow-hidden rounded-full"
             style={{ width: size, height: size, left, top: '50%', transform: 'translateY(-50%)', border: `${compact ? 4 : 6}px solid ${c.panel}`, background: c.panel }} />
           {slide.discount ? (
-            <div className="absolute flex items-center justify-center rounded-full font-extrabold leading-none tracking-[-0.03em]"
+            <div data-discount="" className="absolute flex items-center justify-center rounded-full font-extrabold leading-none tracking-[-0.03em]"
               style={{ width: dot, height: dot, left: left + size - dot * 0.7, top: compact ? 12 : 22, fontSize: compact ? 15 : 22, background: c.circleBg, color: c.circleFg, transform: 'rotate(-8deg)', boxShadow: LIFT }}>
               {slide.discount}
             </div>
@@ -286,6 +296,7 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
       return (
         <>
           <div aria-hidden="true" className="absolute" style={{ inset: compact ? 10 : 14, borderRadius: 16, border: `1.5px solid ${c.fg}`, opacity: 0.22 }} />
+          {art('absolute', { right: compact ? 14 : 36, bottom: compact ? 10 : 18, width: compact ? 96 : 170, height: compact ? 96 : 170 })}
           <Column c={c} slide={slide} parts={parts} compact={compact} noText
             style={{ top: compact ? 24 : 40, bottom: compact ? 24 : 40, left: compact ? 24 : 48, right: compact ? 24 : 48 }} />
         </>
@@ -295,6 +306,7 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
       const date = dayMonth(slide.showUntil);
       return (
         <>
+          {compact ? null : art('absolute', { right: 240, top: '50%', width: 150, height: 150, transform: 'translateY(-50%)' })}
           <div className="absolute flex flex-col items-center justify-center gap-1 text-center"
             style={{ top: compact ? 12 : 28, bottom: compact ? 12 : 28, right: compact ? 12 : 28, width: compact ? 104 : 200, borderRadius: 16, background: c.circleBg, color: c.circleFg, boxShadow: LIFT }}>
             {date ? (
@@ -305,16 +317,16 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
             ) : null}
             {slide.discount ? (
               date ? (
-                <span className="mt-1 rounded-[var(--radius-pill)] font-extrabold" style={{ padding: compact ? '0 8px' : '4px 12px', fontSize: compact ? 13 : 18, background: c.circleFg, color: c.circleBg }}>
+                <span data-discount="" className="mt-1 rounded-[var(--radius-pill)] font-extrabold" style={{ padding: compact ? '0 8px' : '4px 12px', fontSize: compact ? 13 : 18, background: c.circleFg, color: c.circleBg }}>
                   {slide.discount}
                 </span>
               ) : (
-                <span className="font-extrabold leading-none tracking-[-0.04em]" style={{ fontSize: compact ? 28 : 52 }}>{slide.discount}</span>
+                <span className="font-extrabold leading-none tracking-[-0.04em]" style={{ fontSize: compact ? 28 : 52 }} data-discount="">{slide.discount}</span>
               )
             ) : null}
           </div>
           <Column c={c} slide={slide} parts={parts} compact={compact}
-            style={{ ...edge, left: pad, right: compact ? 128 : 256 }} />
+            style={{ ...edge, left: pad, right: compact ? 128 : 390 }} />
         </>
       );
     }
@@ -324,16 +336,16 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
       return (
         <>
           <div className="absolute inset-y-0 right-0 overflow-hidden" style={{ width, background: c.panel }}>
-            <Photo src={slide.imageSrc} color={silhouette} className="absolute inset-0 size-full" />
+            <Photo src={slide.imageSrc} color={silhouette} fallback={art()} className="absolute inset-0 size-full" />
             {slide.discount ? (
               <div aria-hidden="true" className="absolute flex items-center justify-center gap-4 whitespace-nowrap font-extrabold tracking-[-0.02em]"
                 style={{ left: '-30%', right: '-30%', top: '50%', height: compact ? 34 : 48, fontSize: compact ? 15 : 22, background: c.circleBg, color: c.circleFg, transform: 'translateY(-50%) rotate(-12deg)', boxShadow: LIFT }}>
-                {Array.from({ length: 6 }, (_, i) => <span key={i}>{slide.discount}</span>)}
+                {Array.from({ length: 6 }, (_, i) => <span key={i} data-discount="">{slide.discount}</span>)}
               </div>
             ) : null}
           </div>
           {/* Скидка на ленте — узор; прочитать её можно здесь. */}
-          {slide.discount ? <span className="sr-only">{slide.discount}</span> : null}
+          {slide.discount ? <span className="sr-only" data-discount="">{slide.discount}</span> : null}
           <Column c={c} slide={slide} parts={parts} compact={compact} narrow
             style={{ ...edge, left: pad, right: compact ? 'calc(42% + 14px)' : 'calc(50% + 28px)' }} />
         </>
@@ -343,6 +355,8 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
     case 'BIG_TITLE': {
       const big = partsFor(c, true);
       return (
+        <>
+        {art('absolute', { right: compact ? -20 : 10, top: compact ? -10 : -20, width: compact ? 130 : 230, height: compact ? 130 : 230, opacity: 0.28 })}
         <div className={cn('absolute flex flex-col', compact ? 'gap-2' : 'gap-3')} style={{ ...edge, left: pad, right: pad }}>
           {slide.badge ? <Chip c={c}>{slide.badge}</Chip> : null}
           {big.title}
@@ -351,6 +365,7 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
             <div className="shrink-0">{big.button}</div>
           </div>
         </div>
+        </>
       );
     }
 
@@ -358,23 +373,21 @@ export function BannerLayout({ slide, c, compact, partsFor, untilLabel }: {
       const size = compact ? 108 : 190;
       return (
         <>
-          <div aria-hidden="true" className="absolute"
-            style={{ borderRadius: 16, width: size * 0.62, height: size * 0.62, right: compact ? 8 : 36, top: compact ? 8 : 18, background: c.stack[0], opacity: 0.55, transform: 'rotate(12deg)' }} />
-          <div aria-hidden="true" className="absolute"
-            style={{ borderRadius: 16, width: size * 0.5, height: size * 0.5, right: compact ? size - 30 : size + 10, bottom: compact ? 10 : 20, background: c.stack[1], opacity: 0.5, transform: 'rotate(-10deg)' }} />
+          {art('absolute', { right: compact ? size - 36 : size + 20, bottom: compact ? -8 : -14, width: compact ? 90 : 150, height: compact ? 90 : 150 })}
           <div className="absolute flex flex-col items-center justify-center gap-1 rounded-full text-center"
             style={{ width: size, height: size, right: compact ? 12 : 48, top: '50%', transform: 'translateY(-50%)', background: c.circleBg, color: c.circleFg, padding: compact ? 8 : 24, boxShadow: LIFT }}>
-            <span className="font-extrabold leading-none tracking-[-0.04em]" style={{ fontSize: compact ? 30 : 56 }}>{slide.discount}</span>
+            <span className="font-extrabold leading-none tracking-[-0.04em]" style={{ fontSize: compact ? 30 : 56 }} data-discount="">{slide.discount}</span>
             {slide.discountNote ? <span className="font-bold leading-[1.25]" style={{ fontSize: compact ? 10 : 13 }}>{slide.discountNote}</span> : null}
           </div>
           <Column c={c} slide={slide} parts={parts} compact={compact}
-            style={{ ...edge, left: pad, right: compact ? size + 24 : size + 88 }} />
+            style={{ ...edge, left: pad, right: compact ? size + 24 : size + 170 }} />
         </>
       );
     }
 
     default:
-      return null;
+      // Тематические шаблоны (праздники и поводы) — отдельным файлом, как у редактора продавца.
+      return <ThemedLayout slide={slide} c={c} compact={compact} parts={parts} />;
   }
 }
 
@@ -387,7 +400,7 @@ function Plaque({ c, compact, discount, note }: { c: SlideColors; compact: boole
         right: compact ? 12 : 28, top: compact ? 12 : 28, width: compact ? 122 : 180, padding: compact ? '12px 8px' : '16px',
         borderRadius: 16, background: c.circleBg, color: c.circleFg, boxShadow: LIFT,
       }}>
-      {discount ? <span className="font-extrabold leading-none tracking-[-0.04em]" style={{ fontSize: compact ? 28 : 44 }}>{discount}</span> : null}
+      {discount ? <span data-discount="" className="font-extrabold leading-none tracking-[-0.04em]" style={{ fontSize: compact ? 28 : 44 }}>{discount}</span> : null}
       {note ? <span className="font-bold leading-[1.3]" style={{ fontSize: compact ? 11 : 14 }}>{note}</span> : null}
     </div>
   );

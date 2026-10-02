@@ -1,6 +1,8 @@
 import { cn } from './cn';
-import framed from '../assets/logo-framed-light.webp';
-import mark from '../assets/logo-mark-light.webp';
+import full from '../assets/logo.svg';
+import mark from '../assets/logo-mark.svg';
+import fullWait from '../assets/logo-wait.svg';
+import markWait from '../assets/logo-mark-wait.svg';
 
 /** Имя системы — оно же подпись знака для экранного читателя; не переводится. */
 export const PRODUCT_NAME = 'Q-Order';
@@ -8,19 +10,25 @@ export const PRODUCT_NAME = 'Q-Order';
 /**
  * Начертание знака: полное и одна «Q».
  *
- * `framed` — знак целиком, со словом «Order» и подложкой-пилюлей. Нужен там,
- * где знак стоит один и лежит прямо на бумаге кабинета: экраны входа и
- * ожидания пусты, назвать систему на них больше нечем, и подложка отделяет
- * знак от полотна.
+ * `full` — два сцепленных звена и слово «Q-Order». Нужен там, где знак стоит
+ * один: экраны входа и ожидания пусты, назвать систему на них больше нечем.
  *
- * `mark` — одна «Q» без слова. Нужна там, где имя системы уже написано рядом
+ * `mark` — одно звено с хвостом, то есть «Q», без слова. Нужна там, где имя системы уже написано рядом
  * словами: в шапке, в рельсе разделов, в выдвижном меню и на экране активации.
- * Полный знак дал бы «Order» дважды подряд — картинкой и подписью, — а прежний
- * знак и был при надписи картинкой без слова.
+ * Полный знак дал бы «Q-Order» дважды подряд — картинкой и подписью.
  */
-export type LogoVariant = 'framed' | 'mark';
+export type LogoVariant = 'full' | 'mark';
 
-const MARKS: Record<LogoVariant, string> = { framed, mark };
+const MARKS: Record<LogoVariant, string> = { full, mark };
+
+/**
+ * Те же знаки с анимацией ожидания: звенья «дышат», по ним пробегает волна.
+ * Знак здесь картинка, и страница до его частей не дотягивается, поэтому
+ * анимация вшита в сам файл — вместе с остановкой для тех, кто попросил
+ * систему не двигать интерфейс. Файлы выгружены из знака web-кабинета
+ * (primitives/Logo.tsx), чтобы движение было одинаковым во всех системах.
+ */
+const WAITING: Record<LogoVariant, string> = { full: fullWait, mark: markWait };
 
 /**
  * Знак продукта: отвечает на вопрос «чья это система» в углу каждого экрана.
@@ -29,8 +37,8 @@ const MARKS: Record<LogoVariant, string> = { framed, mark };
  *
  * Тёмный вариант тут был и оказался ошибкой: выбирала его настройка браузера
  * (`prefers-color-scheme`), а полотно кабинета от неё не зависит — тёмной
- * темы у кабинета нет вовсе. У человека с тёмной системой тёмная плашка
- * знака ложилась на светлую бумагу карточки: единственное место кабинета,
+ * темы у кабинета нет вовсе. У человека с тёмной системой тёмный знак
+ * ложился на светлую бумагу карточки: единственное место кабинета,
  * которое слушало настройку системы, было и единственным, которое из-за неё
  * ломалось.
  *
@@ -46,7 +54,8 @@ const MARKS: Record<LogoVariant, string> = { framed, mark };
 export function Logo({
   height,
   decorative = false,
-  variant = 'framed',
+  variant = 'full',
+  animated = false,
   className,
 }: {
   /**
@@ -59,11 +68,13 @@ export function Logo({
   decorative?: boolean;
   /** См. `LogoVariant`. По умолчанию знак целиком — он нужен там, где стоит один. */
   variant?: LogoVariant;
+  /** Анимация ожидания: вход или первая загрузка данных. */
+  animated?: boolean;
   className?: string;
 }) {
   return (
     <img
-      src={MARKS[variant]}
+      src={(animated ? WAITING : MARKS)[variant]}
       data-qo-logo-variant={variant}
       alt={decorative ? '' : PRODUCT_NAME}
       aria-hidden={decorative || undefined}

@@ -106,6 +106,7 @@ export const rules = {
     targetItemId: { required: false },
     showFrom: { required: false, example: "2026-09-23" },
     showUntil: { required: false, example: "2026-09-30" },
+    animation: { required: false },
   },
   SaveQuickReplyRequest: {
     stage: { required: false },
@@ -272,6 +273,7 @@ export const rules = {
     restock: { required: false },
     restockDate: { required: false },
     substituteItemId: { required: false },
+    note: { required: false, maxLength: 500 },
   },
   StockResponseRequest: {
     comment: { required: false, maxLength: 1000 },
@@ -336,6 +338,9 @@ export const rules = {
   AnswerQuestionRequest: {
     text: { required: true, maxLength: 2000 },
   },
+  CustomerDecisionRequest: {
+    decision: { required: true, example: "ACCEPT" },
+  },
   AssignDraftRequest: {
     expectedAssigneeId: { required: false },
   },
@@ -353,9 +358,12 @@ export const rules = {
     fromTime: { required: true, example: "09:00:00" },
     toTime: { required: true, example: "13:00:00" },
   },
+  CabinetOfferAnswerRequest: {
+
+  },
   IssueInvitationRequest: {
     phone: { required: true, pattern: /^(?:7\d{10})$/, minLength: 1, example: "77010000001" },
-    email: { required: true, maxLength: 255, format: "email", example: "prorab@example.kz" },
+    email: { required: false, maxLength: 255, format: "email", example: "prorab@example.kz" },
     name: { required: false, maxLength: 255, example: "Асхат" },
   },
   AddItemMediaRequest: {

@@ -542,6 +542,16 @@ export const UpdateGeneralSettingsRequestWorkspaceBackground = {
   MINT: 'MINT',
   SAGE: 'SAGE',
   FOG: 'FOG',
+  IVORY: 'IVORY',
+  LEMON: 'LEMON',
+  APRICOT: 'APRICOT',
+  CORAL: 'CORAL',
+  ROSE: 'ROSE',
+  PLUM: 'PLUM',
+  AZURE: 'AZURE',
+  TEAL: 'TEAL',
+  PISTACHIO: 'PISTACHIO',
+  STONE: 'STONE',
 } as const;
 
 /**
@@ -591,6 +601,16 @@ export const GeneralSettingsDtoWorkspaceBackground = {
   MINT: 'MINT',
   SAGE: 'SAGE',
   FOG: 'FOG',
+  IVORY: 'IVORY',
+  LEMON: 'LEMON',
+  APRICOT: 'APRICOT',
+  CORAL: 'CORAL',
+  ROSE: 'ROSE',
+  PLUM: 'PLUM',
+  AZURE: 'AZURE',
+  TEAL: 'TEAL',
+  PISTACHIO: 'PISTACHIO',
+  STONE: 'STONE',
 } as const;
 
 /**
@@ -642,6 +662,16 @@ export const SaveCabinetDesignRequestTemplate = {
   COZY: 'COZY',
   PRO: 'PRO',
   RAINBOW: 'RAINBOW',
+  BLOSSOM: 'BLOSSOM',
+  OCEAN: 'OCEAN',
+  FOREST: 'FOREST',
+  MIDNIGHT: 'MIDNIGHT',
+  SAHARA: 'SAHARA',
+  CANDY: 'CANDY',
+  STEEL: 'STEEL',
+  LAGOON: 'LAGOON',
+  VELVET: 'VELVET',
+  CITRUS: 'CITRUS',
 } as const;
 
 /**
@@ -661,6 +691,16 @@ export const SaveCabinetDesignRequestBackground = {
   MINT: 'MINT',
   SAGE: 'SAGE',
   FOG: 'FOG',
+  IVORY: 'IVORY',
+  LEMON: 'LEMON',
+  APRICOT: 'APRICOT',
+  CORAL: 'CORAL',
+  ROSE: 'ROSE',
+  PLUM: 'PLUM',
+  AZURE: 'AZURE',
+  TEAL: 'TEAL',
+  PISTACHIO: 'PISTACHIO',
+  STONE: 'STONE',
 } as const;
 
 /**
@@ -751,6 +791,16 @@ export const CabinetDesignDtoTemplate = {
   COZY: 'COZY',
   PRO: 'PRO',
   RAINBOW: 'RAINBOW',
+  BLOSSOM: 'BLOSSOM',
+  OCEAN: 'OCEAN',
+  FOREST: 'FOREST',
+  MIDNIGHT: 'MIDNIGHT',
+  SAHARA: 'SAHARA',
+  CANDY: 'CANDY',
+  STEEL: 'STEEL',
+  LAGOON: 'LAGOON',
+  VELVET: 'VELVET',
+  CITRUS: 'CITRUS',
 } as const;
 
 /**
@@ -770,6 +820,16 @@ export const CabinetDesignDtoBackground = {
   MINT: 'MINT',
   SAGE: 'SAGE',
   FOG: 'FOG',
+  IVORY: 'IVORY',
+  LEMON: 'LEMON',
+  APRICOT: 'APRICOT',
+  CORAL: 'CORAL',
+  ROSE: 'ROSE',
+  PLUM: 'PLUM',
+  AZURE: 'AZURE',
+  TEAL: 'TEAL',
+  PISTACHIO: 'PISTACHIO',
+  STONE: 'STONE',
 } as const;
 
 /**
@@ -991,6 +1051,21 @@ export const ShowcaseBannerRequestTarget = {
 } as const;
 
 /**
+ * Анимация появления слайда; пусто — плавное появление
+ */
+export type ShowcaseBannerRequestAnimation = typeof ShowcaseBannerRequestAnimation[keyof typeof ShowcaseBannerRequestAnimation];
+
+
+export const ShowcaseBannerRequestAnimation = {
+  FADE: 'FADE',
+  SLIDE: 'SLIDE',
+  ZOOM: 'ZOOM',
+  RISE: 'RISE',
+  PULSE: 'PULSE',
+  NONE: 'NONE',
+} as const;
+
+/**
  * Слайд баннера, как его сохраняет редактор
  */
 export interface ShowcaseBannerRequest {
@@ -1056,6 +1131,8 @@ export interface ShowcaseBannerRequest {
   showFrom?: string;
   /** Последний день показа */
   showUntil?: string;
+  /** Анимация появления слайда; пусто — плавное появление */
+  animation?: ShowcaseBannerRequestAnimation;
 }
 
 /**
@@ -1171,6 +1248,21 @@ export const ShowcaseBannerDtoTarget = {
 } as const;
 
 /**
+ * Анимация появления слайда; пусто — плавное появление (слайды, сохранённые до появления выбора)
+ */
+export type ShowcaseBannerDtoAnimation = typeof ShowcaseBannerDtoAnimation[keyof typeof ShowcaseBannerDtoAnimation];
+
+
+export const ShowcaseBannerDtoAnimation = {
+  FADE: 'FADE',
+  SLIDE: 'SLIDE',
+  ZOOM: 'ZOOM',
+  RISE: 'RISE',
+  PULSE: 'PULSE',
+  NONE: 'NONE',
+} as const;
+
+/**
  * Слайд баннера на витрине
  */
 export interface ShowcaseBannerDto {
@@ -1212,6 +1304,8 @@ export interface ShowcaseBannerDto {
   showFrom?: string;
   /** Последний день показа; пусто — без срока. После него слайд сам скрывается с витрины */
   showUntil?: string;
+  /** Анимация появления слайда; пусто — плавное появление (слайды, сохранённые до появления выбора) */
+  animation?: ShowcaseBannerDtoAnimation;
 }
 
 /**
@@ -1237,6 +1331,7 @@ export const SaveQuickReplyRequestStage = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   QUESTION: 'QUESTION',
+  ASSEMBLING: 'ASSEMBLING',
   READY_FOR_ISSUE: 'READY_FOR_ISSUE',
   ISSUED: 'ISSUED',
   CLOSED: 'CLOSED',
@@ -1266,6 +1361,7 @@ export const QuickReplyDtoStage = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   QUESTION: 'QUESTION',
+  ASSEMBLING: 'ASSEMBLING',
   READY_FOR_ISSUE: 'READY_FOR_ISSUE',
   ISSUED: 'ISSUED',
   CLOSED: 'CLOSED',
@@ -1896,6 +1992,8 @@ export interface CartSplitDto {
   packPrice: number;
   /** Цена упаковки без скидки распродажи; пусто — скидки на опт нет */
   packListPrice?: number;
+  /** Цена упаковки, когда клиент набирал количество; есть, только если с тех пор изменилась */
+  packPriceAtAdding?: number;
   /** Розничный остаток в штуках — по цене строки */
   rest: number;
 }
@@ -2359,6 +2457,7 @@ export const DraftDetailDtoStatus = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   AWAITING_MANAGER_REPLY: 'AWAITING_MANAGER_REPLY',
+  CUSTOMER_REPLIED: 'CUSTOMER_REPLIED',
   CHANGE_REQUESTED: 'CHANGE_REQUESTED',
   ACCEPTED: 'ACCEPTED',
   DECLINED: 'DECLINED',
@@ -2399,6 +2498,7 @@ export const DraftDetailDtoStage = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   QUESTION: 'QUESTION',
+  ASSEMBLING: 'ASSEMBLING',
   READY_FOR_ISSUE: 'READY_FOR_ISSUE',
   ISSUED: 'ISSUED',
   CLOSED: 'CLOSED',
@@ -2414,6 +2514,18 @@ export const DraftDetailDtoCurrency = {
   UZS: 'UZS',
   KGS: 'KGS',
   EUR: 'EUR',
+} as const;
+
+/**
+ * Решение по ответу клиента: принять, клиент отказался, вернуть на правку
+ */
+export type DraftDetailDtoSuggestedDecision = typeof DraftDetailDtoSuggestedDecision[keyof typeof DraftDetailDtoSuggestedDecision];
+
+
+export const DraftDetailDtoSuggestedDecision = {
+  ACCEPT: 'ACCEPT',
+  DECLINE: 'DECLINE',
+  CHANGE: 'CHANGE',
 } as const;
 
 export type DraftStockConfirmationDtoStatus = typeof DraftStockConfirmationDtoStatus[keyof typeof DraftStockConfirmationDtoStatus];
@@ -2464,6 +2576,7 @@ export interface StockLineAnswerDto {
   substituteItemId?: string;
   substituteName?: string;
   remarks?: StockLineAnswerDtoRemarksItem[];
+  note?: string;
 }
 
 export interface DraftStockConfirmationDto {
@@ -2641,6 +2754,8 @@ export interface DraftDetailDto {
   customerOrdersCount?: number;
   hints?: DraftHintDto[];
   currency: DraftDetailDtoCurrency;
+  /** Решение по ответу клиента: принять, клиент отказался, вернуть на правку */
+  suggestedDecision?: DraftDetailDtoSuggestedDecision;
 }
 
 /**
@@ -4373,6 +4488,11 @@ export interface StockLineAnswerRequest {
   restockDate?: string;
   substituteItemId?: string;
   remarks?: StockLineAnswerRequestRemarksItem[];
+  /**
+     * @minLength 0
+     * @maxLength 500
+     */
+  note?: string;
 }
 
 export interface StockResponseRequest {
@@ -5370,6 +5490,7 @@ export const ConfirmationDtoDraftStatus = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   AWAITING_MANAGER_REPLY: 'AWAITING_MANAGER_REPLY',
+  CUSTOMER_REPLIED: 'CUSTOMER_REPLIED',
   CHANGE_REQUESTED: 'CHANGE_REQUESTED',
   ACCEPTED: 'ACCEPTED',
   DECLINED: 'DECLINED',
@@ -5452,6 +5573,26 @@ export interface AnswerQuestionRequest {
      * @maxLength 2000
      */
   text: string;
+}
+
+/**
+ * Решение по ответу клиента: принять, клиент отказался, вернуть на правку
+ */
+export type CustomerDecisionRequestDecision = typeof CustomerDecisionRequestDecision[keyof typeof CustomerDecisionRequestDecision];
+
+
+export const CustomerDecisionRequestDecision = {
+  ACCEPT: 'ACCEPT',
+  DECLINE: 'DECLINE',
+  CHANGE: 'CHANGE',
+} as const;
+
+/**
+ * Решение сотрудника по ответу клиента
+ */
+export interface CustomerDecisionRequest {
+  /** Решение по ответу клиента: принять, клиент отказался, вернуть на правку */
+  decision: CustomerDecisionRequestDecision;
 }
 
 export interface AssignDraftRequest {
@@ -5560,6 +5701,14 @@ export interface ErasureReport {
 }
 
 /**
+ * Ответ клиента на предложение кабинета, отмеченный менеджером
+ */
+export interface CabinetOfferAnswerRequest {
+  /** Истина — согласен, ложь — отказался, не беспокоить */
+  agreed: boolean;
+}
+
+/**
  * Приглашение клиента в кабинет
  */
 export interface IssueInvitationRequest {
@@ -5570,11 +5719,11 @@ export interface IssueInvitationRequest {
      */
   phone: string;
   /**
-     * Почта клиента: на неё уходит приглашение. Обязательна — приглашение больше не передаётся из рук в руки
+     * Почта клиента: если указана, приглашение уходит и письмом. Необязательна — клиенту, который писал в WhatsApp, приглашение уходит туда
      * @minLength 0
      * @maxLength 255
      */
-  email: string;
+  email?: string;
   /**
      * Имя клиента. Пусто — система возьмёт то, которым он представился в переписке
      * @minLength 0
@@ -5587,14 +5736,16 @@ export interface IssueInvitationRequest {
  * Результат выписки приглашения
  */
 export interface InvitationDto {
-  /** Адрес, на который ушло приглашение */
-  email: string;
+  /** Адрес, на который ушло письмо; пусто — почту не указали */
+  email?: string;
   /** До какого момента приглашение действует */
   expiresAt: string;
   /** Ушло ли письмо. Ложь — приглашение выписано, но доставить его не удалось: выписать повторно */
   delivered: boolean;
   /** Ссылка активации целиком: её менеджер передаёт клиенту, если письмо не дошло */
   activationLink: string;
+  /** Ушло ли приглашение в WhatsApp. Ложь — клиент не писал магазину или писал давно: первыми мы не пишем, ссылку менеджер передаёт сам */
+  whatsappSent: boolean;
 }
 
 /**
@@ -6054,6 +6205,28 @@ export interface ExchangeAckDto {
   fullExportRequested: boolean;
 }
 
+/**
+ * Учётная запись арендатора в карточке платформы
+ */
+export interface TenantAccountDto {
+  /** Учётная запись в realm сотрудников */
+  id: string;
+  /** Номер телефона: он же имя пользователя при входе */
+  phone: string;
+  /** Имя, каким сотрудник виден в очереди и в журнале доступа */
+  name: string;
+  /** Почта: нужна, чтобы восстановить пароль */
+  email?: string;
+  /** Роли: их набор и задаёт видимые разделы */
+  roles: RoleRefDto[];
+  /** Может ли сотрудник войти. Уволенному вход закрывают, а учётную запись оставляют: она подписывает его прошлые действия */
+  enabled: boolean;
+  /** Первый вход не выполнен: временный пароль ещё не сменён. Пока признак стоит, платформа может выдать новый пароль или снять учётную запись */
+  firstLoginPending: boolean;
+  /** Временный пароль первого входа. Есть, только пока человек не вошёл и не сменил его; после входа платформа его забывает */
+  temporaryPassword?: string;
+}
+
 export type PlatformServiceRequestDtoServicePackage = typeof PlatformServiceRequestDtoServicePackage[keyof typeof PlatformServiceRequestDtoServicePackage];
 
 
@@ -6167,6 +6340,16 @@ export const TenantBrandingDtoBackground = {
   MINT: 'MINT',
   SAGE: 'SAGE',
   FOG: 'FOG',
+  IVORY: 'IVORY',
+  LEMON: 'LEMON',
+  APRICOT: 'APRICOT',
+  CORAL: 'CORAL',
+  ROSE: 'ROSE',
+  PLUM: 'PLUM',
+  AZURE: 'AZURE',
+  TEAL: 'TEAL',
+  PISTACHIO: 'PISTACHIO',
+  STONE: 'STONE',
 } as const;
 
 /**
@@ -6186,6 +6369,16 @@ export const TenantBrandingDtoWorkspaceBackground = {
   MINT: 'MINT',
   SAGE: 'SAGE',
   FOG: 'FOG',
+  IVORY: 'IVORY',
+  LEMON: 'LEMON',
+  APRICOT: 'APRICOT',
+  CORAL: 'CORAL',
+  ROSE: 'ROSE',
+  PLUM: 'PLUM',
+  AZURE: 'AZURE',
+  TEAL: 'TEAL',
+  PISTACHIO: 'PISTACHIO',
+  STONE: 'STONE',
 } as const;
 
 /**
@@ -6295,6 +6488,16 @@ export const PortalSupplierDtoBackground = {
   MINT: 'MINT',
   SAGE: 'SAGE',
   FOG: 'FOG',
+  IVORY: 'IVORY',
+  LEMON: 'LEMON',
+  APRICOT: 'APRICOT',
+  CORAL: 'CORAL',
+  ROSE: 'ROSE',
+  PLUM: 'PLUM',
+  AZURE: 'AZURE',
+  TEAL: 'TEAL',
+  PISTACHIO: 'PISTACHIO',
+  STONE: 'STONE',
 } as const;
 
 /**
@@ -6400,6 +6603,18 @@ export interface AwaitingReviewDto {
   itemName: string;
   /** Когда подана самая свежая принятая заявка с этой позицией */
   purchasedAt: string;
+}
+
+/**
+ * Сообщение из переписки клиента с магазином в WhatsApp
+ */
+export interface WhatsappArchiveMessageDto {
+  /** Когда отправлено */
+  at: string;
+  /** Текст сообщения */
+  text: string;
+  /** Истина — написал магазин, ложь — клиент */
+  fromShop: boolean;
 }
 
 /**
@@ -6927,6 +7142,7 @@ export const DraftSummaryDtoStatus = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   AWAITING_MANAGER_REPLY: 'AWAITING_MANAGER_REPLY',
+  CUSTOMER_REPLIED: 'CUSTOMER_REPLIED',
   CHANGE_REQUESTED: 'CHANGE_REQUESTED',
   ACCEPTED: 'ACCEPTED',
   DECLINED: 'DECLINED',
@@ -6970,6 +7186,7 @@ export const DraftSummaryDtoStage = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   QUESTION: 'QUESTION',
+  ASSEMBLING: 'ASSEMBLING',
   READY_FOR_ISSUE: 'READY_FOR_ISSUE',
   ISSUED: 'ISSUED',
   CLOSED: 'CLOSED',
@@ -7017,6 +7234,8 @@ export interface DraftSummaryDto {
   currency: DraftSummaryDtoCurrency;
   /** Клиент сообщил об оплате перевозки — ждёт проверки */
   paymentReview: boolean;
+  /** Склад ответил на последний запрос наличия: после ответа заявка возвращается на этап `NEW`, и без признака её не отличить от нетронутой */
+  stockAnswered: boolean;
 }
 
 /**
@@ -7031,6 +7250,17 @@ export interface PageResponseDraftSummaryDto {
   totalElements?: number;
   /** Элементы страницы */
   items?: DraftSummaryDto[];
+}
+
+/**
+ * Фото клиента из мессенджера
+ */
+export interface CustomerAvatarDto {
+  /**
+     * Временная публичная ссылка на фото в WhatsApp; `null` — фото нет, клиент его скрыл или заявка не из мессенджера. Не хранить: ссылка протухает
+     * @nullable
+     */
+  url?: string | null;
 }
 
 /**
@@ -7077,6 +7307,61 @@ export interface DraftCountersDto {
   late?: number;
   unread?: number;
   unassigned?: number;
+}
+
+/**
+ * Кабинет клиента, если он уже заведён; пусто — ещё не приглашали
+ */
+export type MessengerContactDtoAccountStatus = typeof MessengerContactDtoAccountStatus[keyof typeof MessengerContactDtoAccountStatus];
+
+
+export const MessengerContactDtoAccountStatus = {
+  INVITED: 'INVITED',
+  ACTIVE: 'ACTIVE',
+  BLOCKED: 'BLOCKED',
+} as const;
+
+/**
+ * Предложение кабинета: пусто — не предлагали
+ */
+export type MessengerContactDtoOfferStatus = typeof MessengerContactDtoOfferStatus[keyof typeof MessengerContactDtoOfferStatus];
+
+
+export const MessengerContactDtoOfferStatus = {
+  ASKED: 'ASKED',
+  AGREED: 'AGREED',
+  DECLINED: 'DECLINED',
+  UNCLEAR: 'UNCLEAR',
+} as const;
+
+/**
+ * Клиент, писавший магазину в WhatsApp, — кандидат в кабинет
+ */
+export interface MessengerContactDto {
+  /** Телефон одними цифрами */
+  phone: string;
+  /** Имя из карточки WhatsApp; бывает пустым */
+  name?: string;
+  /** Когда клиент писал последний раз */
+  lastMessageAt?: string;
+  /** Можно ли написать ему сейчас: ложь — писал давно, и приглашение в WhatsApp не уйдёт, только ссылкой вручную */
+  writable: boolean;
+  /** Кабинет клиента, если он уже заведён; пусто — ещё не приглашали */
+  accountStatus?: MessengerContactDtoAccountStatus;
+  /** Предложение кабинета: пусто — не предлагали */
+  offerStatus?: MessengerContactDtoOfferStatus;
+  /** Когда ушёл вопрос */
+  offerAskedAt?: string;
+  /** Что ответил клиент своими словами — показывается при неясном ответе */
+  offerAnswer?: string;
+}
+
+/**
+ * Фото клиента из WhatsApp
+ */
+export interface ContactAvatarDto {
+  /** Временная публичная ссылка на фото; пусто — фото нет. Не хранить: ссылка протухает */
+  url?: string;
 }
 
 /**
@@ -7498,6 +7783,7 @@ export const ListQuickRepliesStage = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   QUESTION: 'QUESTION',
+  ASSEMBLING: 'ASSEMBLING',
   READY_FOR_ISSUE: 'READY_FOR_ISSUE',
   ISSUED: 'ISSUED',
   CLOSED: 'CLOSED',
@@ -7696,6 +7982,7 @@ export const GetDraftQueueStatus = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   AWAITING_MANAGER_REPLY: 'AWAITING_MANAGER_REPLY',
+  CUSTOMER_REPLIED: 'CUSTOMER_REPLIED',
   CHANGE_REQUESTED: 'CHANGE_REQUESTED',
   ACCEPTED: 'ACCEPTED',
   DECLINED: 'DECLINED',
@@ -7715,6 +8002,7 @@ export const GetDraftQueueStageItem = {
   AWAITING_STOCK: 'AWAITING_STOCK',
   AWAITING_CUSTOMER: 'AWAITING_CUSTOMER',
   QUESTION: 'QUESTION',
+  ASSEMBLING: 'ASSEMBLING',
   READY_FOR_ISSUE: 'READY_FOR_ISSUE',
   ISSUED: 'ISSUED',
   CLOSED: 'CLOSED',
@@ -7726,6 +8014,7 @@ export type GetDraftQueueAssignee = typeof GetDraftQueueAssignee[keyof typeof Ge
 export const GetDraftQueueAssignee = {
   ME: 'ME',
   NONE: 'NONE',
+  ME_OR_NONE: 'ME_OR_NONE',
 } as const;
 
 export type GetDraftQueueSource = typeof GetDraftQueueSource[keyof typeof GetDraftQueueSource];
@@ -7769,6 +8058,7 @@ export type GetDraftCountersAssignee = typeof GetDraftCountersAssignee[keyof typ
 export const GetDraftCountersAssignee = {
   ME: 'ME',
   NONE: 'NONE',
+  ME_OR_NONE: 'ME_OR_NONE',
 } as const;
 
 export type GetDraftCountersSource = typeof GetDraftCountersSource[keyof typeof GetDraftCountersSource];
@@ -7787,6 +8077,14 @@ export const GetDraftCountersFlag = {
   UNREAD: 'UNREAD',
   PAYMENT_REVIEW: 'PAYMENT_REVIEW',
 } as const;
+
+export type GetMessengerContactsParams = {
+/**
+ * @minLength 0
+ * @maxLength 100
+ */
+q?: string;
+};
 
 export type LookupCatalogItemsParams = {
 query?: string;
@@ -8877,6 +9175,130 @@ export const useUpdatePlatformTenant = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getUpdatePlatformTenantMutationOptions(options), queryClient);
+    }
+
+export type deletePlatformTenantResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deletePlatformTenantResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePlatformTenantResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePlatformTenantResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type deletePlatformTenantResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePlatformTenantResponseSuccess = (deletePlatformTenantResponse204) & {
+  headers: Headers;
+};
+export type deletePlatformTenantResponseError = (deletePlatformTenantResponse400 | deletePlatformTenantResponse404 | deletePlatformTenantResponse409 | deletePlatformTenantResponse500) & {
+  headers: Headers;
+};
+
+export type deletePlatformTenantResponse = (deletePlatformTenantResponseSuccess | deletePlatformTenantResponseError)
+
+export const getDeletePlatformTenantUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/platform/tenants/${id}`
+}
+
+/**
+ * Удаляет арендатора, которого подключили и так и не начали:
+ * ни одна его учётная запись ещё не входила. Его учётные записи
+ * снимаются из Keycloak вместе с ним — номер телефона
+ * освобождается.
+ *
+ * Если кто-то из людей арендатора уже входил — отказ
+ * `TENANT_ACTIVATED`: с этого момента арендатор работает, и
+ * его вместо удаления блокируют сменой состояния.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Завести арендатора и учётную запись, не входить — `204`,
+ *    арендатора больше нет в списке.
+ * 2. Негативный 409: войти учётной записью и сменить пароль,
+ *    повторить — `TENANT_ACTIVATED`.
+ * 3. Негативный 404: любой другой идентификатор.
+ * @summary Удалить неактивированного арендатора
+ */
+export const deletePlatformTenant = async (id: string, options?: RequestInit): Promise<deletePlatformTenantResponse> => {
+
+  return apiRequest<deletePlatformTenantResponse>(getDeletePlatformTenantUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePlatformTenantMutationKey = () => ['deletePlatformTenant'] as const;
+
+export const getDeletePlatformTenantMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePlatformTenant>>, TError,DeletePlatformTenantMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof deletePlatformTenant>>, TError,DeletePlatformTenantMutationVariables, TContext> => {
+
+const mutationKey = getDeletePlatformTenantMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePlatformTenant>>, DeletePlatformTenantMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deletePlatformTenant(id,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePlatformTenantMutationResult = NonNullable<Awaited<ReturnType<typeof deletePlatformTenant>>>
+
+    export type DeletePlatformTenantMutationError = ErrorResponse
+    export type DeletePlatformTenantMutationVariables = {id: string}
+
+    /**
+ * @summary Удалить неактивированного арендатора
+ */
+export const useDeletePlatformTenant = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePlatformTenant>>, TError,DeletePlatformTenantMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePlatformTenant>>,
+        TError,
+        DeletePlatformTenantMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePlatformTenantMutationOptions(options), queryClient);
     }
 
 export type setPlatformTenantStatusResponse200 = {
@@ -17753,7 +18175,7 @@ export const useCreatePlatformTenant = <TError = ErrorResponse,
     }
 
 export type listPlatformTenantAccountsResponse200 = {
-  data: StaffMemberDto[]
+  data: TenantAccountDto[]
   status: 200
 }
 
@@ -17791,6 +18213,8 @@ export const getListPlatformTenantAccountsUrl = (id: string,) => {
 
 /**
  * Кто у арендатора заведён и в каком состоянии его вход. Только чтение: этого хватает, чтобы разобрать обращение «не могу войти», а менять состав людей внутри чужой фирмы платформе незачем.
+ *
+ * Пока человек не вошёл, у записи есть `temporaryPassword` — его можно передать арендатору в любой момент. После первого входа платформа пароль забывает, и поля больше нет.
  *
  * **Как проверить вручную**
  *
@@ -17931,7 +18355,7 @@ export const getCreatePlatformTenantAccountUrl = (id: string,) => {
 }
 
 /**
- * Заводит первую учётную запись арендатора со встроенной ролью администратора (`builtin = ADMIN`, название по умолчанию «Администратор») и отдаёт временный пароль — **один раз**. Пароль временный: при первом входе Keycloak потребует свой.
+ * Заводит первую учётную запись арендатора со встроенной ролью администратора (`builtin = ADMIN`, название по умолчанию «Администратор») и отдаёт временный пароль. До первого входа он же приходит в списке учётных записей. Пароль временный: при первом входе Keycloak потребует свой.
  *
  * Вторую учётную запись платформа завести не может: отказ `409`. Иначе сотрудник платформы в любой момент выписывал бы себе вход к любому поставщику. Дальше администраторов и остальных заводит сам арендатор.
  *
@@ -18062,8 +18486,8 @@ export const getResetPlatformTenantAccountPasswordUrl = (id: string,
  * Новый временный пароль учётной записи арендатора — пока он
  * не вошёл и не сменил прежний.
  *
- * Пароль показывается один раз и нигде не хранится: потерянный
- * не подглядывают, а заменяют этим методом. После первого входа
+ * Новый пароль заменяет прежний и в списке учётных записей
+ * (`temporaryPassword`) — прежний больше не действует. После первого входа
  * метод отвечает отказом `TENANT_ACCOUNT_ACTIVATED` — с этого
  * момента пароль принадлежит человеку, а не платформе.
  *
@@ -18869,6 +19293,117 @@ export const useAddChannel = <TError = ErrorResponse | ChannelDto,
         TContext
       > => {
       return useMutation(getAddChannelMutationOptions(options), queryClient);
+    }
+
+export type disconnectChannelResponse204 = {
+  data: void
+  status: 204
+}
+
+export type disconnectChannelResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type disconnectChannelResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type disconnectChannelResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type disconnectChannelResponseSuccess = (disconnectChannelResponse204) & {
+  headers: Headers;
+};
+export type disconnectChannelResponseError = (disconnectChannelResponse400 | disconnectChannelResponse404 | disconnectChannelResponse500) & {
+  headers: Headers;
+};
+
+export type disconnectChannelResponse = (disconnectChannelResponseSuccess | disconnectChannelResponseError)
+
+export const getDisconnectChannelUrl = (channelId: string,) => {
+
+
+
+
+  return `/api/tenant/channels/${channelId}/disconnect`
+}
+
+/**
+ * Разлогинивает WhatsApp и останавливает сессию, но номер остаётся в списке в состоянии `DISCONNECTED`. Сообщения с него не приходят, пока номер не привяжут снова тем же `getChannelQr` — заводить его заново не нужно.
+ *
+ * Отказ шлюза — отказ операции: номер с живой сессией нельзя называть отключённым.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отключить подключённый номер — в `listChannels` он остаётся с `DISCONNECTED`, на телефоне пропадает связанное устройство.
+ * 2. Открыть `getChannelQr` и отсканировать — снова `CONNECTED`.
+ * @summary Отключить номер
+ */
+export const disconnectChannel = async (channelId: string, options?: RequestInit): Promise<disconnectChannelResponse> => {
+
+  return apiRequest<disconnectChannelResponse>(getDisconnectChannelUrl(channelId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectChannelMutationKey = () => ['disconnectChannel'] as const;
+
+export const getDisconnectChannelMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectChannel>>, TError,DisconnectChannelMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectChannel>>, TError,DisconnectChannelMutationVariables, TContext> => {
+
+const mutationKey = getDisconnectChannelMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectChannel>>, DisconnectChannelMutationVariables> = (props) => {
+          const {channelId} = props ?? {};
+
+          return  disconnectChannel(channelId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectChannelMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectChannel>>>
+
+    export type DisconnectChannelMutationError = ErrorResponse
+    export type DisconnectChannelMutationVariables = {channelId: string}
+
+    /**
+ * @summary Отключить номер
+ */
+export const useDisconnectChannel = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectChannel>>, TError,DisconnectChannelMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectChannel>>,
+        TError,
+        DisconnectChannelMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDisconnectChannelMutationOptions(options), queryClient);
     }
 
 export type getBusinessDaysResponse200 = {
@@ -27392,6 +27927,133 @@ export const useMarkDraftIssued = <TError = ErrorResponse,
       return useMutation(getMarkDraftIssuedMutationOptions(options), queryClient);
     }
 
+export type decideCustomerReplyResponse200 = {
+  data: DraftDetailDto
+  status: 200
+}
+
+export type decideCustomerReplyResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type decideCustomerReplyResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type decideCustomerReplyResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type decideCustomerReplyResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type decideCustomerReplyResponseSuccess = (decideCustomerReplyResponse200) & {
+  headers: Headers;
+};
+export type decideCustomerReplyResponseError = (decideCustomerReplyResponse400 | decideCustomerReplyResponse404 | decideCustomerReplyResponse409 | decideCustomerReplyResponse500) & {
+  headers: Headers;
+};
+
+export type decideCustomerReplyResponse = (decideCustomerReplyResponseSuccess | decideCustomerReplyResponseError)
+
+export const getDecideCustomerReplyUrl = (id: string,) => {
+
+
+
+
+  return `/api/drafts/${id}/customer-decision`
+}
+
+/**
+ * Ответ клиента на подтверждение состава заявку сам не двигает: разбор ставит её в `CUSTOMER_REPLIED` и оставляет подсказку (`suggestedReply`), а решает сотрудник.
+ *
+ * `ACCEPT` — заявка `ACCEPTED`, заводится заказ; `DECLINE` — клиент отказался, `DECLINED`; `CHANGE` — запрос подтверждения аннулируется, заявка `CHANGE_REQUESTED` и снова правится.
+ *
+ * Клиенту отсюда ничего не уходит: ответ ему пишет сотрудник (`replyToCustomer`). Решает тот, кто ведёт заявку, или администратор.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отправить состав клиенту и ответить из WhatsApp «да» — заявка `CUSTOMER_REPLIED`, `suggestedReply` = `CONFIRM`, заказа нет.
+ * 2. Отправить `{"decision": "ACCEPT"}` — 200, `ACCEPTED`, в карточке появился заказ.
+ * 3. Негативный 409 `DRAFT_NOT_ASSIGNED`: заявку ведёт другой менеджер.
+ * 4. Негативный 409 `CONFIRMATION_NOT_PENDING`: повторить решение.
+ * @summary Решить по ответу клиента
+ */
+export const decideCustomerReply = async (id: string,
+    customerDecisionRequest: CustomerDecisionRequest, options?: RequestInit): Promise<decideCustomerReplyResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<decideCustomerReplyResponse>(getDecideCustomerReplyUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(customerDecisionRequest)
+  }
+);}
+
+
+
+
+
+export const getDecideCustomerReplyMutationKey = () => ['decideCustomerReply'] as const;
+
+export const getDecideCustomerReplyMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideCustomerReply>>, TError,DecideCustomerReplyMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof decideCustomerReply>>, TError,DecideCustomerReplyMutationVariables, TContext> => {
+
+const mutationKey = getDecideCustomerReplyMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideCustomerReply>>, DecideCustomerReplyMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  decideCustomerReply(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideCustomerReplyMutationResult = NonNullable<Awaited<ReturnType<typeof decideCustomerReply>>>
+    export type DecideCustomerReplyMutationBody = CustomerDecisionRequest
+    export type DecideCustomerReplyMutationError = ErrorResponse
+    export type DecideCustomerReplyMutationVariables = {id: string;data: CustomerDecisionRequest}
+
+    /**
+ * @summary Решить по ответу клиента
+ */
+export const useDecideCustomerReply = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideCustomerReply>>, TError,DecideCustomerReplyMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof decideCustomerReply>>,
+        TError,
+        DecideCustomerReplyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDecideCustomerReplyMutationOptions(options), queryClient);
+    }
+
 export type assignDraftResponse200 = {
   data: DraftDetailDto
   status: 200
@@ -29560,6 +30222,233 @@ export const useEraseCustomerData = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getEraseCustomerDataMutationOptions(options), queryClient);
+    }
+
+export type offerCabinetResponse204 = {
+  data: void
+  status: 204
+}
+
+export type offerCabinetResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type offerCabinetResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type offerCabinetResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type offerCabinetResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type offerCabinetResponseSuccess = (offerCabinetResponse204) & {
+  headers: Headers;
+};
+export type offerCabinetResponseError = (offerCabinetResponse400 | offerCabinetResponse404 | offerCabinetResponse409 | offerCabinetResponse500) & {
+  headers: Headers;
+};
+
+export type offerCabinetResponse = (offerCabinetResponseSuccess | offerCabinetResponseError)
+
+export const getOfferCabinetUrl = (phone: string,) => {
+
+
+
+
+  return `/api/customers/messenger-contacts/${phone}/offer`
+}
+
+/**
+ * Отправляет клиенту вопрос «Хотите получить ссылку для входа? Ответьте «Да» или «Нет»». Ответ ловится по переписке и виден в `offerStatus` списка писавших. Только тем, кто писал недавно: первыми WhatsApp писать не разрешает — иначе 409.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Написать на номер магазина с телефона клиента.
+ * 2. Вызвать метод с его номером — 204, клиенту пришёл вопрос, в списке `offerStatus = ASKED`.
+ * 3. Ответить «Да» — через минуту `offerStatus = AGREED`; ответить длинной фразой — `UNCLEAR` и текст в `offerAnswer`.
+ * 4. Негативный 409: номер, который давно не писал.
+ * @summary Предложить клиенту кабинет в WhatsApp
+ */
+export const offerCabinet = async (phone: string, options?: RequestInit): Promise<offerCabinetResponse> => {
+
+  return apiRequest<offerCabinetResponse>(getOfferCabinetUrl(phone),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getOfferCabinetMutationKey = () => ['offerCabinet'] as const;
+
+export const getOfferCabinetMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof offerCabinet>>, TError,OfferCabinetMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof offerCabinet>>, TError,OfferCabinetMutationVariables, TContext> => {
+
+const mutationKey = getOfferCabinetMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof offerCabinet>>, OfferCabinetMutationVariables> = (props) => {
+          const {phone} = props ?? {};
+
+          return  offerCabinet(phone,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type OfferCabinetMutationResult = NonNullable<Awaited<ReturnType<typeof offerCabinet>>>
+
+    export type OfferCabinetMutationError = ErrorResponse
+    export type OfferCabinetMutationVariables = {phone: string}
+
+    /**
+ * @summary Предложить клиенту кабинет в WhatsApp
+ */
+export const useOfferCabinet = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof offerCabinet>>, TError,OfferCabinetMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof offerCabinet>>,
+        TError,
+        OfferCabinetMutationVariables,
+        TContext
+      > => {
+      return useMutation(getOfferCabinetMutationOptions(options), queryClient);
+    }
+
+export type answerCabinetOfferResponse204 = {
+  data: void
+  status: 204
+}
+
+export type answerCabinetOfferResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type answerCabinetOfferResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type answerCabinetOfferResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type answerCabinetOfferResponseSuccess = (answerCabinetOfferResponse204) & {
+  headers: Headers;
+};
+export type answerCabinetOfferResponseError = (answerCabinetOfferResponse400 | answerCabinetOfferResponse404 | answerCabinetOfferResponse500) & {
+  headers: Headers;
+};
+
+export type answerCabinetOfferResponse = (answerCabinetOfferResponseSuccess | answerCabinetOfferResponseError)
+
+export const getAnswerCabinetOfferUrl = (phone: string,) => {
+
+
+
+
+  return `/api/customers/messenger-contacts/${phone}/offer-answer`
+}
+
+/**
+ * Менеджер отмечает ответ сам: клиент ответил неясно или сказал «да» устно. `agreed = false` — «не беспокоить».
+ * @summary Отметить ответ клиента на предложение кабинета
+ */
+export const answerCabinetOffer = async (phone: string,
+    cabinetOfferAnswerRequest: CabinetOfferAnswerRequest, options?: RequestInit): Promise<answerCabinetOfferResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return h;
+  };
+return apiRequest<answerCabinetOfferResponse>(getAnswerCabinetOfferUrl(phone),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(cabinetOfferAnswerRequest)
+  }
+);}
+
+
+
+
+
+export const getAnswerCabinetOfferMutationKey = () => ['answerCabinetOffer'] as const;
+
+export const getAnswerCabinetOfferMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerCabinetOffer>>, TError,AnswerCabinetOfferMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof answerCabinetOffer>>, TError,AnswerCabinetOfferMutationVariables, TContext> => {
+
+const mutationKey = getAnswerCabinetOfferMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof answerCabinetOffer>>, AnswerCabinetOfferMutationVariables> = (props) => {
+          const {phone,data} = props ?? {};
+
+          return  answerCabinetOffer(phone,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnswerCabinetOfferMutationResult = NonNullable<Awaited<ReturnType<typeof answerCabinetOffer>>>
+    export type AnswerCabinetOfferMutationBody = CabinetOfferAnswerRequest
+    export type AnswerCabinetOfferMutationError = ErrorResponse
+    export type AnswerCabinetOfferMutationVariables = {phone: string;data: CabinetOfferAnswerRequest}
+
+    /**
+ * @summary Отметить ответ клиента на предложение кабинета
+ */
+export const useAnswerCabinetOffer = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerCabinetOffer>>, TError,AnswerCabinetOfferMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof answerCabinetOffer>>,
+        TError,
+        AnswerCabinetOfferMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAnswerCabinetOfferMutationOptions(options), queryClient);
     }
 
 export type issuePortalInvitationResponse201 = {
@@ -37309,6 +38198,143 @@ export function useGetPortalItemsAwaitingReview<TData = Awaited<ReturnType<typeo
 
 
 
+export type getWhatsappArchiveResponse200 = {
+  data: WhatsappArchiveMessageDto[]
+  status: 200
+}
+
+export type getWhatsappArchiveResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getWhatsappArchiveResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getWhatsappArchiveResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getWhatsappArchiveResponseSuccess = (getWhatsappArchiveResponse200) & {
+  headers: Headers;
+};
+export type getWhatsappArchiveResponseError = (getWhatsappArchiveResponse400 | getWhatsappArchiveResponse404 | getWhatsappArchiveResponse500) & {
+  headers: Headers;
+};
+
+export type getWhatsappArchiveResponse = (getWhatsappArchiveResponseSuccess | getWhatsappArchiveResponseError)
+
+export const getGetWhatsappArchiveUrl = () => {
+
+
+
+
+  return `/api/portal/questions/whatsapp-archive`
+}
+
+/**
+ * Вся переписка клиента с этим поставщиком в WhatsApp — на случай, если в телефоне она пропала. Только чтение: сообщения клиента и доставленные сообщения магазина, по времени. Номер берётся из учётной записи клиента.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Клиент писал магазину в WhatsApp и вошёл в кабинет этого магазина.
+ * 2. Вызвать метод — его сообщения (`fromShop=false`) и ответы магазина (`fromShop=true`).
+ * 3. Другой клиент того же поставщика — чужой переписки не видит.
+ * @summary Архив переписки в WhatsApp
+ */
+export const getWhatsappArchive = async ( options?: RequestInit): Promise<getWhatsappArchiveResponse> => {
+
+  return apiRequest<getWhatsappArchiveResponse>(getGetWhatsappArchiveUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWhatsappArchiveQueryKey = () => {
+    return [
+    `/api/portal/questions/whatsapp-archive`
+    ] as const;
+    }
+
+
+export const getGetWhatsappArchiveQueryOptions = <TData = Awaited<ReturnType<typeof getWhatsappArchive>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappArchive>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWhatsappArchiveQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWhatsappArchive>>> = ({ signal }) => getWhatsappArchive({ signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWhatsappArchive>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWhatsappArchiveQueryResult = NonNullable<Awaited<ReturnType<typeof getWhatsappArchive>>>
+export type GetWhatsappArchiveQueryError = ErrorResponse
+
+
+export function useGetWhatsappArchive<TData = Awaited<ReturnType<typeof getWhatsappArchive>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappArchive>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWhatsappArchive>>,
+          TError,
+          Awaited<ReturnType<typeof getWhatsappArchive>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWhatsappArchive<TData = Awaited<ReturnType<typeof getWhatsappArchive>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappArchive>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWhatsappArchive>>,
+          TError,
+          Awaited<ReturnType<typeof getWhatsappArchive>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWhatsappArchive<TData = Awaited<ReturnType<typeof getWhatsappArchive>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappArchive>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Архив переписки в WhatsApp
+ */
+
+export function useGetWhatsappArchive<TData = Awaited<ReturnType<typeof getWhatsappArchive>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWhatsappArchive>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWhatsappArchiveQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getPortalPromotionsResponse200 = {
   data: PortalPromotionsDto
   status: 200
@@ -41381,6 +42407,143 @@ export function useGetTransportPayment<TData = Awaited<ReturnType<typeof getTran
 
 
 
+export type getDraftCustomerAvatarResponse200 = {
+  data: CustomerAvatarDto
+  status: 200
+}
+
+export type getDraftCustomerAvatarResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getDraftCustomerAvatarResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getDraftCustomerAvatarResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getDraftCustomerAvatarResponseSuccess = (getDraftCustomerAvatarResponse200) & {
+  headers: Headers;
+};
+export type getDraftCustomerAvatarResponseError = (getDraftCustomerAvatarResponse400 | getDraftCustomerAvatarResponse404 | getDraftCustomerAvatarResponse500) & {
+  headers: Headers;
+};
+
+export type getDraftCustomerAvatarResponse = (getDraftCustomerAvatarResponseSuccess | getDraftCustomerAvatarResponseError)
+
+export const getGetDraftCustomerAvatarUrl = (id: string,) => {
+
+
+
+
+  return `/api/drafts/${id}/customer-avatar`
+}
+
+/**
+ * Временная публичная ссылка на фото профиля клиента в WhatsApp. У нас фото не хранится: браузер грузит его прямо с серверов WhatsApp. Ссылка протухает — запрашивать при показе, не сохранять.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти менеджером (`77010000102`), взять заявку из переписки WhatsApp с клиентом, у которого есть фото профиля.
+ * 2. Вызвать метод — в `url` ссылка, она открывается в браузере.
+ * 3. Заявка из кабинета или клиент без фото — `url` равен `null`, ответ 200.
+ * @summary Фото клиента из мессенджера
+ */
+export const getDraftCustomerAvatar = async (id: string, options?: RequestInit): Promise<getDraftCustomerAvatarResponse> => {
+
+  return apiRequest<getDraftCustomerAvatarResponse>(getGetDraftCustomerAvatarUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDraftCustomerAvatarQueryKey = (id: string,) => {
+    return [
+    `/api/drafts/${id}/customer-avatar`
+    ] as const;
+    }
+
+
+export const getGetDraftCustomerAvatarQueryOptions = <TData = Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDraftCustomerAvatarQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraftCustomerAvatar>>> = ({ signal }) => getDraftCustomerAvatar(id, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDraftCustomerAvatarQueryResult = NonNullable<Awaited<ReturnType<typeof getDraftCustomerAvatar>>>
+export type GetDraftCustomerAvatarQueryError = ErrorResponse
+
+
+export function useGetDraftCustomerAvatar<TData = Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDraftCustomerAvatar>>,
+          TError,
+          Awaited<ReturnType<typeof getDraftCustomerAvatar>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDraftCustomerAvatar<TData = Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDraftCustomerAvatar>>,
+          TError,
+          Awaited<ReturnType<typeof getDraftCustomerAvatar>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDraftCustomerAvatar<TData = Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Фото клиента из мессенджера
+ */
+
+export function useGetDraftCustomerAvatar<TData = Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDraftCustomerAvatar>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDraftCustomerAvatarQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getDraftConsentResponse200 = {
   data: DraftConsentDto
   status: 200
@@ -42076,6 +43239,281 @@ export function useGetDataRequests<TData = Awaited<ReturnType<typeof getDataRequ
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetDataRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getMessengerContactsResponse200 = {
+  data: MessengerContactDto[]
+  status: 200
+}
+
+export type getMessengerContactsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getMessengerContactsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getMessengerContactsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getMessengerContactsResponseSuccess = (getMessengerContactsResponse200) & {
+  headers: Headers;
+};
+export type getMessengerContactsResponseError = (getMessengerContactsResponse400 | getMessengerContactsResponse404 | getMessengerContactsResponse500) & {
+  headers: Headers;
+};
+
+export type getMessengerContactsResponse = (getMessengerContactsResponseSuccess | getMessengerContactsResponseError)
+
+export const getGetMessengerContactsUrl = (params?: GetMessengerContactsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/customers/messenger-contacts?${stringifiedParams}` : `/api/customers/messenger-contacts`
+}
+
+/**
+ * Клиенты, которые писали магазину в WhatsApp, свежие сверху, со статусом кабинета, если он уже заведён. `writable` — можно ли написать сейчас: приглашение в WhatsApp уходит только тем, кто писал недавно.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), написать на номер магазина с телефона клиента.
+ * 2. Вызвать метод — клиент в списке, `writable = true`.
+ * 3. Вызвать с `q` — частью номера или имени — остаются совпавшие.
+ * @summary Писавшие в WhatsApp — кого пригласить
+ */
+export const getMessengerContacts = async (params?: GetMessengerContactsParams, options?: RequestInit): Promise<getMessengerContactsResponse> => {
+
+  return apiRequest<getMessengerContactsResponse>(getGetMessengerContactsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMessengerContactsQueryKey = (params?: GetMessengerContactsParams,) => {
+    return [
+    `/api/customers/messenger-contacts`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMessengerContactsQueryOptions = <TData = Awaited<ReturnType<typeof getMessengerContacts>>, TError = ErrorResponse>(params?: GetMessengerContactsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerContacts>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMessengerContactsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMessengerContacts>>> = ({ signal }) => getMessengerContacts(params, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMessengerContacts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMessengerContactsQueryResult = NonNullable<Awaited<ReturnType<typeof getMessengerContacts>>>
+export type GetMessengerContactsQueryError = ErrorResponse
+
+
+export function useGetMessengerContacts<TData = Awaited<ReturnType<typeof getMessengerContacts>>, TError = ErrorResponse>(
+ params: undefined |  GetMessengerContactsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerContacts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerContacts>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerContacts>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerContacts<TData = Awaited<ReturnType<typeof getMessengerContacts>>, TError = ErrorResponse>(
+ params?: GetMessengerContactsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerContacts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMessengerContacts>>,
+          TError,
+          Awaited<ReturnType<typeof getMessengerContacts>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMessengerContacts<TData = Awaited<ReturnType<typeof getMessengerContacts>>, TError = ErrorResponse>(
+ params?: GetMessengerContactsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerContacts>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Писавшие в WhatsApp — кого пригласить
+ */
+
+export function useGetMessengerContacts<TData = Awaited<ReturnType<typeof getMessengerContacts>>, TError = ErrorResponse>(
+ params?: GetMessengerContactsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMessengerContacts>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMessengerContactsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getContactAvatarResponse200 = {
+  data: ContactAvatarDto
+  status: 200
+}
+
+export type getContactAvatarResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getContactAvatarResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getContactAvatarResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getContactAvatarResponseSuccess = (getContactAvatarResponse200) & {
+  headers: Headers;
+};
+export type getContactAvatarResponseError = (getContactAvatarResponse400 | getContactAvatarResponse404 | getContactAvatarResponse500) & {
+  headers: Headers;
+};
+
+export type getContactAvatarResponse = (getContactAvatarResponseSuccess | getContactAvatarResponseError)
+
+export const getGetContactAvatarUrl = (phone: string,) => {
+
+
+
+
+  return `/api/customers/messenger-contacts/${phone}/avatar`
+}
+
+/**
+ * Временная публичная ссылка на фото профиля; у нас фото не хранится.
+ * @summary Фото клиента из WhatsApp
+ */
+export const getContactAvatar = async (phone: string, options?: RequestInit): Promise<getContactAvatarResponse> => {
+
+  return apiRequest<getContactAvatarResponse>(getGetContactAvatarUrl(phone),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetContactAvatarQueryKey = (phone: string,) => {
+    return [
+    `/api/customers/messenger-contacts/${phone}/avatar`
+    ] as const;
+    }
+
+
+export const getGetContactAvatarQueryOptions = <TData = Awaited<ReturnType<typeof getContactAvatar>>, TError = ErrorResponse>(phone: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getContactAvatar>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetContactAvatarQueryKey(phone);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getContactAvatar>>> = ({ signal }) => getContactAvatar(phone, { signal });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: phone !== null && phone !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getContactAvatar>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetContactAvatarQueryResult = NonNullable<Awaited<ReturnType<typeof getContactAvatar>>>
+export type GetContactAvatarQueryError = ErrorResponse
+
+
+export function useGetContactAvatar<TData = Awaited<ReturnType<typeof getContactAvatar>>, TError = ErrorResponse>(
+ phone: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getContactAvatar>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getContactAvatar>>,
+          TError,
+          Awaited<ReturnType<typeof getContactAvatar>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetContactAvatar<TData = Awaited<ReturnType<typeof getContactAvatar>>, TError = ErrorResponse>(
+ phone: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getContactAvatar>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getContactAvatar>>,
+          TError,
+          Awaited<ReturnType<typeof getContactAvatar>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetContactAvatar<TData = Awaited<ReturnType<typeof getContactAvatar>>, TError = ErrorResponse>(
+ phone: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getContactAvatar>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Фото клиента из WhatsApp
+ */
+
+export function useGetContactAvatar<TData = Awaited<ReturnType<typeof getContactAvatar>>, TError = ErrorResponse>(
+ phone: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getContactAvatar>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetContactAvatarQueryOptions(phone,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -44944,15 +46382,15 @@ export const getRemoveChannelUrl = (channelId: string,) => {
 }
 
 /**
- * Выключает номер и убирает его сессию из шлюза: оставленная продолжает держать соединение и слать вебхуки по каналу, которого у нас больше нет.
+ * Удаляет номер и убирает его сессию из шлюза: оставленная продолжает держать соединение и слать вебхуки по каналу, которого у нас больше нет.
  *
  * Отказ шлюза отключению не мешает — у нас номер уже выключен, а сессию уберут руками. Строка канала при этом остаётся: на неё ссылаются принятые сообщения и заявки.
  *
  * **Как проверить вручную**
  *
- * 1. Отключить номер — он пропадает из `listChannels`.
+ * 1. Удалить номер — он пропадает из `listChannels`; тот же номер можно добавить заново.
  * 2. Прислать вебхук на этот канал: 404 — выключенный канал не принимает.
- * @summary Отключить номер
+ * @summary Удалить номер
  */
 export const removeChannel = async (channelId: string, options?: RequestInit): Promise<removeChannelResponse> => {
 
@@ -45004,7 +46442,7 @@ const {mutation: mutationOptions} = options ?
     export type RemoveChannelMutationVariables = {channelId: string}
 
     /**
- * @summary Отключить номер
+ * @summary Удалить номер
  */
 export const useRemoveChannel = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeChannel>>, TError,RemoveChannelMutationVariables, TContext>, }

@@ -4,6 +4,7 @@ import { useSupplier } from './useSupplier';
 import { resolveDesign } from './cabinetDesign';
 import { designCss } from './supplierTheme';
 import { setSupplierTheme } from '../ui/theme';
+import { dropBootDesign, rememberDesignCss } from './designBoot';
 
 /**
  * Оформление открытого поставщика — на весь кабинет.
@@ -24,6 +25,15 @@ export function SupplierTheme() {
   const design = current ? resolveDesign(current) : null;
   const css = design ? designCss(design) : null;
   const dark = design?.dark;
+
+  // Как только список пришёл, стартовая копия оформления уступает настоящей,
+  // а настоящая запоминается — для следующего открытия кабинета.
+  const loaded = suppliers.data?.status === 200;
+  useEffect(() => {
+    if (!loaded) return;
+    rememberDesignCss(css);
+    dropBootDesign();
+  }, [loaded, css]);
 
   // Пока поставщик не известен, тему не трогаем: скрипт в `index.html` уже
   // поставил ту, что была в прошлый раз, и мигать светлой до ответа незачем.

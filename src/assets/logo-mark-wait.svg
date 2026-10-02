@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="qo-logo-wait" viewBox="0 -4 220 220"><style>
+@keyframes qo-logo-breathe { 0%, 100% { transform: scale(1) } 50% { transform: scale(.96) } }
+@keyframes qo-logo-wave { 0%, 60%, 100% { opacity: 1 } 30% { opacity: .45 } }
+.qo-logo-wait .qo-logo-links { transform-box: fill-box; transform-origin: center; animation: qo-logo-breathe 2.4s ease-in-out infinite }
+.qo-logo-wait .qo-logo-p { animation: qo-logo-wave 1.8s ease-in-out infinite }
+.qo-logo-wait .qo-logo-p2 { animation-delay: .25s }
+.qo-logo-wait .qo-logo-p3 { animation-delay: .5s }
+@media (prefers-reduced-motion: reduce) { .qo-logo-wait * { animation: none !important } }
+</style><mask id="qo-logo_R_0_" mask-type="alpha"><path d="M-50-50h600v600h-600zM64.3 116h83.6l80.5 96h-83.5z" fill-rule="evenodd" fill="currentColor"></path></mask><g class="qo-logo-links"><rect class="qo-logo-p" mask="url(#qo-logo_R_0_)" x="20" y="20" width="180" height="140" rx="40" fill="none" stroke="#015640" stroke-width="40"></rect><polygon class="qo-logo-p qo-logo-p3" points="80,116 132.2,116 212.8,212 160.6,212" fill="#DE5102"></polygon></g></svg>

@@ -64,6 +64,7 @@ describe('вопросы продавцу', () => {
   it('вопрос о товаре уходит вместе с позицией, о которой спрашивают', async () => {
     const { calls } = stubFetch([
       method('POST', '/api/portal/questions', { ...WAITING, itemId: 'item-1', question: 'Сколько сохнет?' }, 201),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', []),
     ]);
 
@@ -92,6 +93,7 @@ describe('вопросы продавцу', () => {
   it('переписка идёт двумя голосами: вопрос клиента и ответ продавца', async () => {
     stubFetch([
       get('/api/portal/catalog/item-1', CARD),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', [ANSWERED, WAITING]),
     ]);
 
@@ -109,9 +111,39 @@ describe('вопросы продавцу', () => {
     expect(screen.getByText('ОБР-12')).toBeInTheDocument();
   });
 
+  it('архив WhatsApp — отдельной вкладкой, только чтение, по дням', async () => {
+    stubFetch([
+      get('/api/portal/questions/whatsapp-archive', [
+        { at: '2026-09-30T09:00:00Z', text: 'Есть цемент?', fromShop: false },
+        { at: '2026-09-30T09:05:00Z', text: 'Есть, 2 500 ₸', fromShop: true },
+      ]),
+      get('/api/portal/catalog/item-1', CARD),
+      get('/api/portal/questions', [ANSWERED]),
+    ]);
+    renderScreen(<QuestionsPage />);
+
+    await userEvent.click(await screen.findByRole('tab', { name: 'Архив WhatsApp' }));
+    expect(screen.getByText('Есть цемент?')).toBeInTheDocument();
+    expect(screen.getByText('Есть, 2 500 ₸')).toBeInTheDocument();
+    expect(screen.getByText(/это архив: отвечать здесь нельзя/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /написать сообщение/i })).not.toBeInTheDocument();
+  });
+
+  it('без переписки в WhatsApp вкладки архива нет', async () => {
+    stubFetch([
+      get('/api/portal/questions/whatsapp-archive', []),
+      get('/api/portal/catalog/item-1', CARD),
+      get('/api/portal/questions', [ANSWERED]),
+    ]);
+    renderScreen(<QuestionsPage />);
+    await screen.findByText('Есть ли доставка до Талгара?');
+    expect(screen.queryByRole('tab', { name: 'Архив WhatsApp' })).not.toBeInTheDocument();
+  });
+
   it('позиция стоит у того сообщения, к которому её прикрепили', async () => {
     stubFetch([
       get('/api/portal/catalog/item-1', CARD),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', [ANSWERED]),
     ]);
 
@@ -128,6 +160,7 @@ describe('вопросы продавцу', () => {
   it('вся переписка идёт одной веткой, а не тремя обращениями подряд', async () => {
     stubFetch([
       get('/api/portal/catalog/item-1', CARD),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', [ANSWERED]),
     ]);
 
@@ -145,6 +178,7 @@ describe('вопросы продавцу', () => {
         ...CARD,
         media: [{ id: 'm-1', kind: 'PHOTO', url: 'https://cdn.example.kz/cement.jpg', position: 0 }],
       }),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', [ANSWERED]),
     ]);
 
@@ -159,6 +193,7 @@ describe('вопросы продавцу', () => {
     const { calls } = stubFetch([
       method('PUT', '/api/portal/cart/lines/item-1', { lines: [], total: 0, skipped: [] }),
       get('/api/portal/catalog/item-1', CARD),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', [ANSWERED]),
     ]);
 
@@ -178,6 +213,7 @@ describe('вопросы продавцу', () => {
   it('в другой валюте магазина цена обсуждаемой позиции — с её знаком', async () => {
     stubFetch([
       get('/api/portal/catalog/item-1', CARD),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', [ANSWERED]),
     ]);
 
@@ -189,6 +225,7 @@ describe('вопросы продавцу', () => {
   it('поле внизу отправляет продавцу новое сообщение', async () => {
     const { calls } = stubFetch([
       method('POST', '/api/portal/questions', { ...WAITING, question: 'Когда привезёте?' }, 201),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', []),
     ]);
 
@@ -210,6 +247,7 @@ describe('вопросы продавцу', () => {
   it('Enter в поле переписки отправляет сообщение, Shift+Enter переносит строку', async () => {
     const { calls } = stubFetch([
       method('POST', '/api/portal/questions', { ...WAITING, question: 'Когда?\nИ сколько?' }, 201),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', []),
     ]);
 
@@ -229,6 +267,7 @@ describe('вопросы продавцу', () => {
   it('Enter в вопросе о товаре отправляет его продавцу', async () => {
     const { calls } = stubFetch([
       method('POST', '/api/portal/questions', { ...WAITING, itemId: 'item-1' }, 201),
+      get('/api/portal/questions/whatsapp-archive', []),
       get('/api/portal/questions', []),
     ]);
 

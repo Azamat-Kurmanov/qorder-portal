@@ -1,13 +1,16 @@
 import { ItemThumb } from '../catalog/ItemThumb';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
 import {
   useGetPortalCatalogItem,
   useGetPortalQuestions,
+  useGetWhatsappArchive,
   type QuestionThreadDto,
 } from '../../api/generated';
 import { useSetCartLine } from '../cart/useCart';
 import { MessageComposer } from './MessageComposer';
+import { WhatsappArchive } from './WhatsappArchive';
 import { shortDate, money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { Button } from '../../ui/Button';
@@ -33,6 +36,12 @@ export function QuestionsPage() {
   const { t } = useTranslation();
   const questions = useGetPortalQuestions();
   const threads = questions.data?.status === 200 ? questions.data.data : [];
+  const archive = useGetWhatsappArchive();
+  const archived = archive.data?.status === 200 ? archive.data.data : [];
+  // Вкладка архива — только тем, кто писал магазину в WhatsApp: остальным пустая вкладка ни к чему.
+  const [tab, setTab] = useState<'questions' | 'archive'>('questions');
+  const showArchive = archived.length > 0;
+  const current = showArchive ? tab : 'questions';
 
   return (
     <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5">
@@ -40,6 +49,29 @@ export function QuestionsPage() {
         <h1 className="qo-page-title">{t('questions.title')}</h1>
         <p className="text-caption text-ink-subtle">{t('questions.subtitle')}</p>
       </header>
+
+      {showArchive ? (
+        <div role="tablist" aria-label={t('questions.title')} className="inline-flex self-start gap-1 rounded-[var(--radius-pill)] bg-sunk p-1">
+          {(['questions', 'archive'] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={current === key}
+              onClick={() => setTab(key)}
+              className={
+                current === key
+                  ? 'h-9 cursor-pointer rounded-[var(--radius-pill)] border-0 bg-surface px-4 text-[0.875rem] font-semibold text-ink shadow-sm'
+                  : 'h-9 cursor-pointer rounded-[var(--radius-pill)] border-0 bg-transparent px-4 text-[0.875rem] text-ink-muted hover:text-ink'
+              }
+            >
+              {key === 'questions' ? t('questions.tabQuestions') : t('questions.archive.title')}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {current === 'archive' ? <WhatsappArchive messages={archived} /> : <>
 
       {questions.isPending ? (
         <div
@@ -63,6 +95,7 @@ export function QuestionsPage() {
       )}
 
       <MessageComposer />
+      </>}
     </div>
   );
 }

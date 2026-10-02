@@ -1,0 +1,19 @@
+{
+  "_comment": "Палитры праздничных сцен кабинета клиента (FestiveScene). У каждого повода своя: сцена рисует праздник, а не перекрашенную полосу. Один и тот же файл лежит в front и portal: правка — в обоих.",
+  "looks": {
+    "NEW_YEAR": { "background": "linear-gradient(135deg, #0B1E4A 0%, #1B3A7A 55%, #0E2A5C 100%)", "title": "#FFFFFF", "subtitle": "#C9D6FF" },
+    "MARCH_8": { "background": "linear-gradient(120deg, #FFE6EE 0%, #FFC9D8 60%, #F9AFC7 100%)", "title": "#8E1F4E", "subtitle": "#9C3F66" },
+    "NAURYZ": { "background": "linear-gradient(120deg, #0B6E78 0%, #12A4A0 60%, #1BB39F 100%)", "title": "#FFFFFF", "subtitle": "#DDFBF4" },
+    "RAMADAN": { "background": "radial-gradient(120% 160% at 85% 0%, #22357A 0%, #111C47 55%, #0A1233 100%)", "title": "#F6D27A", "subtitle": "#C8D0F0" },
+    "SUMMER": { "background": "linear-gradient(180deg, #8FD8F7 0%, #CDF0FF 55%, #FFE7A1 100%)", "title": "#0B3C5D", "subtitle": "#1F5F86" },
+    "BACK_TO_SCHOOL": { "background": "radial-gradient(120% 140% at 30% 20%, #2F5C49 0%, #23483A 60%, #1B3A2F 100%)", "title": "#FFFFFF", "subtitle": "#CFE3D8", "titleShadow": "0 0 1px rgba(255,255,255,.8), 0 0 6px rgba(255,255,255,.25)" },
+    "BLACK_FRIDAY": { "background": "#0B0B0B", "title": "#FFD400", "subtitle": "#BDBDBD", "titleShadow": "0 0 12px rgba(255,212,0,.55)" }
+  },
+  "NEW_YEAR": { "snow": "#FFFFFF", "wire": "#4A5A7A", "bulbs": ["#FF4D4D", "#FFD24A", "#4CD97B", "#5AB0FF"], "trunk": "#5B3A1E", "tree": "#1F7A4D", "snowcap": "#EAF4FF", "star": "#FFD24A" },
+  "MARCH_8": { "petals": ["#FFB3C9", "#F47FA4"], "eight": "#D0487A", "stem": "#3F8A4A", "leaf": "#4FA35B", "tulips": ["#E0245E", "#F2709C", "#B23A8C"], "wrap": "#FFFFFF" },
+  "NAURYZ": { "ornament": "#F2C14E", "rays": "#FFD66B", "sun": "#FFC93C", "sunRing": "#FFF2C2", "shanyrak": "#FFFFFF" },
+  "RAMADAN": { "stars": "#FFF4D6", "moon": "#F6D27A", "glow": "drop-shadow(0 0 6px rgba(246,210,122,.55))", "glowStrong": "drop-shadow(0 0 16px rgba(246,210,122,.9))", "string": "#C9A24A", "cap": "#D9AE4F", "body": "#E8B54F", "light": "#FFCF7A", "mosque": "#070D26" },
+  "SUMMER": { "rays": "#FFB020", "sun": "#FFC93C", "gulls": "#1F5F86", "waveBack": "#5CC1E8", "waveFront": "#2E97CF" },
+  "BACK_TO_SCHOOL": { "frame": "inset 0 0 0 6px #9A6A3A, inset 0 0 0 8px #6E4724", "chalk": "#FFFFFF", "pencil": "#F4C430", "pencilLight": "#F9D86A", "eraser": "#F28CA0", "ferrule": "#C9CBD1", "wood": "#E9C9A0", "lead": "#333333", "plane": "#FFFFFF", "planeFold": "#DDE7E1" },
+  "BLACK_FRIDAY": { "tape": "repeating-linear-gradient(45deg, #FFD400 0 14px, #111111 14px 28px)", "accent": "#FFD400", "percentShadow": "0 0 18px rgba(255,212,0,.35)", "string": "#BDBDBD", "ink": "#0B0B0B" }
+}

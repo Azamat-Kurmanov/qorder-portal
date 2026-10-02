@@ -4,16 +4,13 @@ import { ArrowRight, Box, Clock } from 'lucide-react';
 import type { ShowcaseBannerDto } from '../../api/generated';
 import { cn } from '../../ui/cn';
 import { BannerLayout, type PartsFor } from './BannerLayouts';
+import { ArtSvg } from './bannerArt';
+import { phoneBadgeText, phoneButtonText } from './buttonLabel';
 import { BADGE, SILHOUETTE, STAR_COLOR, slideColors } from './bannerTheme';
 
 /** Силуэты вместо картинки — как в макете: пальто у распродажи, юбка у новинки. */
 const COAT = 'M46 16l14 7 14-7 22 9 10 70-16 4-6-40v76H46V59l-6 40-16-4 10-70z';
 const SKIRT = 'M42 28h36l20 104H22z';
-const STACK = [
-  'M46 20c9 4 19 4 28 0l-2 12H48z M34 36c10-6 42-6 52 0l-3 8c8 20 10 58 6 86-2 8-54 8-56 0-4-28-2-66 6-86z',
-  'M52 14h16v18c0 6 14 12 14 26v76a6 6 0 0 1-6 6H44a6 6 0 0 1-6-6V58c0-14 14-20 14-26z',
-  'M24 58h66v76H24z M24 58l14-18h66l-14 18z M94 58l14-18v76l-14 18z',
-];
 const STAR = 'M12 2l2.4 6.9L21 9.3l-5.3 4.3L17.6 21 12 17l-5.6 4 1.9-7.4L3 9.3l6.6-.4z';
 
 /**
@@ -52,7 +49,7 @@ function Chip({ bg, fg, icon, children }: { bg: string; fg: string; icon: ReactN
  *
  * Первые три шаблона нарисованы здесь, остальные — в `BannerLayouts`.
  */
-export function BannerSlide({ slide, brand, compact, onAction, hidden }: {
+export function BannerSlide({ slide: given, brand, compact, onAction, hidden }: {
   slide: ShowcaseBannerDto;
   brand: string;
   compact: boolean;
@@ -60,26 +57,37 @@ export function BannerSlide({ slide, brand, compact, onAction, hidden }: {
   hidden: boolean;
 }) {
   const { t } = useTranslation();
+  // На телефоне плашка над заголовком — короче, по словам: целиком в узкую
+  // колонку она не влезала и обрезалась многоточием. Одно место на все раскладки.
+  const slide = compact && given.badge ? { ...given, badge: phoneBadgeText(given.badge) } : given;
   const c = slideColors(slide.scheme, brand);
 
   const partsFor: PartsFor = (colors, big) => ({
     button: (
       <button
         type="button"
+        data-rise="3"
+        // Подпись на телефоне укорочена — читалке отдаём полную.
+        aria-label={compact && phoneButtonText(slide.buttonText ?? '') !== slide.buttonText?.trim() ? slide.buttonText : undefined}
         tabIndex={hidden ? -1 : 0}
         onClick={onAction}
         className={cn(
-          'mt-auto flex max-w-full shrink-0 cursor-pointer items-center gap-2.5 self-start rounded-[var(--radius-tile)] border-0 font-bold transition-transform duration-300 hover:scale-[1.03]',
-          compact ? 'h-11 px-4 text-body' : 'h-[50px] px-[22px] text-base',
+          'mt-auto flex max-w-full shrink-0 cursor-pointer items-center rounded-[var(--radius-tile)] border-0 font-bold transition-transform duration-300 hover:scale-[1.03]',
+          // На телефоне — во всю ширину колонки, и подпись переносится на вторую
+          // строку, а не обрезается: «Выбрать одеж…» не говорило, куда ведёт кнопка.
+          compact
+            ? 'min-h-11 w-full justify-between gap-2 self-stretch px-3.5 py-1.5 text-sm leading-tight'
+            : 'h-[50px] gap-2.5 self-start px-[22px] text-base',
         )}
         style={{ background: colors.btnBg, color: colors.btnFg }}
       >
-        <span className="truncate">{slide.buttonText}</span>
+        <span className={compact ? 'line-clamp-2 text-left' : 'truncate'}>{compact ? phoneButtonText(slide.buttonText ?? '') : slide.buttonText}</span>
         <ArrowRight aria-hidden="true" className="size-5 shrink-0" strokeWidth={2.2} />
       </button>
     ),
     title: (
       <div
+        data-rise="1"
         className={cn(
           'font-extrabold [text-wrap:balance]',
           big
@@ -94,7 +102,7 @@ export function BannerSlide({ slide, brand, compact, onAction, hidden }: {
     // На телефоне описания нет, как в макете ClientMobile: в 220 точек высоты
     // оно теснило заголовок и кнопку, а смысл слайда несёт заголовок.
     text: slide.text && !compact ? (
-      <div className="text-body leading-[1.45]" style={{ color: colors.sub }}>
+      <div data-rise="2" className="text-body leading-[1.45]" style={{ color: colors.sub }}>
         {slide.text}
       </div>
     ) : null,
@@ -102,7 +110,10 @@ export function BannerSlide({ slide, brand, compact, onAction, hidden }: {
   const { button, title, text } = partsFor(c);
 
   return (
-    <div className="relative size-full overflow-hidden" style={{ background: c.bg, color: c.fg }}>
+    // Скрытый слайд — без анимации: вернувшись на экран, атрибут появляется
+    // заново, и анимация играет с начала, а не доигрывается за кадром.
+    <div data-anim={hidden ? undefined : slide.animation ?? 'FADE'} className="qo-banner relative size-full overflow-hidden"
+      style={{ backgroundColor: c.bg, backgroundImage: c.paint, color: c.fg }}>
       <div aria-hidden="true" className="absolute rounded-full" style={{ width: 420, height: 420, right: -90, top: -120, background: c.glow }} />
       <div aria-hidden="true" className="absolute rounded-full" style={{ width: 220, height: 220, right: 170, bottom: -150, background: c.glow }} />
 
@@ -112,10 +123,8 @@ export function BannerSlide({ slide, brand, compact, onAction, hidden }: {
             <Picture src={slide.imageSrc} fallback={COAT} color={SILHOUETTE.sale}
               className={cn('absolute right-0 top-0 h-full', compact ? 'w-[38%]' : 'w-[300px]')} />
           ) : (
-            <svg viewBox="0 0 120 150" aria-hidden="true" className="absolute"
-              style={compact ? { right: 4, bottom: -30, width: 150, height: 180 } : { right: 26, bottom: -44, width: 250, height: 290 }}>
-              <path d={COAT} fill={SILHOUETTE.sale} />
-            </svg>
+            <ArtSvg template="SALE" c={c} className="absolute"
+              style={compact ? { right: 0, bottom: -10, width: 150, height: 150 } : { right: 16, bottom: -12, width: 250, height: 250 }} />
           )}
           {slide.discount ? (
             <div
@@ -126,7 +135,7 @@ export function BannerSlide({ slide, brand, compact, onAction, hidden }: {
               }}
             >
               <span className={cn('font-bold', compact ? 'text-2xs' : 'text-caption')}>{t('banners.upTo')}</span>
-              <span className={cn('font-extrabold tracking-[-0.03em]', compact ? 'text-title' : 'text-[2.125rem]')}>{slide.discount}</span>
+              <span className={cn('font-extrabold tracking-[-0.03em]', compact ? 'text-title' : 'text-[2.125rem]')} data-discount="">{slide.discount}</span>
             </div>
           ) : null}
           <div className={cn('absolute flex flex-col', compact ? 'inset-y-4 left-4 right-[34%] gap-2' : 'bottom-7 left-8 top-7 w-[360px] gap-3')}>
@@ -144,12 +153,16 @@ export function BannerSlide({ slide, brand, compact, onAction, hidden }: {
             className={cn('absolute flex items-center justify-center overflow-hidden', compact ? 'inset-y-2.5 left-2.5 w-[38%] rounded-[var(--radius-tile)]' : 'inset-y-3.5 left-3.5 w-[300px] rounded-[calc(var(--radius-tile)*1.125)]')}
             style={{ background: c.panel }}
           >
-            <Picture src={slide.imageSrc} fallback={SKIRT} color={SILHOUETTE.new}
-              className={slide.imageSrc ? 'absolute inset-0 size-full' : compact ? 'h-[140px] w-[112px]' : 'h-[210px] w-[170px]'} />
+            {slide.imageSrc ? (
+              <Picture src={slide.imageSrc} fallback={SKIRT} color={SILHOUETTE.new} className="absolute inset-0 size-full" />
+            ) : (
+              <ArtSvg template="NEW_ITEM" c={c} className={compact ? 'size-[150px]' : 'size-[230px]'} />
+            )}
             {slide.badge ? (
-              <span className="absolute left-3 top-3 flex h-[30px] max-w-[calc(100%-24px)] items-center gap-1.5 rounded-[var(--radius-pill)] px-3 text-caption font-extrabold"
+              <span className={cn('absolute flex max-w-[calc(100%-16px)] items-center rounded-[var(--radius-pill)] font-extrabold',
+                compact ? 'left-2 top-2 h-6 gap-1 px-2 text-2xs' : 'left-3 top-3 h-[30px] gap-1.5 px-3 text-caption')}
                 style={{ background: BADGE.bg, color: BADGE.fg }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" className="shrink-0"><path d={STAR} fill={STAR_COLOR} /></svg>
+                <svg width={compact ? 11 : 14} height={compact ? 11 : 14} viewBox="0 0 24 24" aria-hidden="true" className="shrink-0"><path d={STAR} fill={STAR_COLOR} /></svg>
                 <span className="truncate">{slide.badge}</span>
               </span>
             ) : null}
@@ -164,13 +177,7 @@ export function BannerSlide({ slide, brand, compact, onAction, hidden }: {
 
       {slide.template === 'BULK' ? (
         <>
-          {compact ? null : (
-            <div aria-hidden="true" className="absolute" style={{ right: 196, bottom: -26, width: 296, height: 190 }}>
-              <svg viewBox="0 0 120 150" className="absolute bottom-0" style={{ left: 0, width: 120, height: 150, opacity: 0.55 }}><path d={STACK[0]} fill={c.stack[0]} /></svg>
-              <svg viewBox="0 0 120 150" className="absolute bottom-0" style={{ left: 66, width: 140, height: 175, opacity: 0.8 }}><path d={STACK[1]} fill={c.stack[1]} /></svg>
-              <svg viewBox="0 0 120 150" className="absolute bottom-0" style={{ left: 146, width: 150, height: 190 }}><path d={STACK[2]} fill={c.stack[2]} /></svg>
-            </div>
-          )}
+          {compact ? null : <ArtSvg template="BULK" c={c} className="absolute" style={{ right: 200, bottom: -14, width: 230, height: 230 }} />}
           <div
             className={cn(
               'absolute flex flex-col items-center gap-1 rounded-[calc(var(--radius-tile)*1.25)] text-center shadow-[0_14px_30px_-16px_rgb(0_0_0/0.45)]',
@@ -178,7 +185,7 @@ export function BannerSlide({ slide, brand, compact, onAction, hidden }: {
             )}
             style={{ background: c.circleBg, color: c.circleFg }}
           >
-            <span className={cn('font-extrabold leading-none tracking-[-0.04em]', compact ? 'text-[1.75rem]' : 'text-[2.75rem]')}>{slide.discount}</span>
+            <span className={cn('font-extrabold leading-none tracking-[-0.04em]', compact ? 'text-[1.75rem]' : 'text-[2.75rem]')} data-discount="">{slide.discount}</span>
             <span className={cn('font-bold leading-[1.3]', compact ? 'text-2xs' : 'text-sm')}>{slide.discountNote}</span>
           </div>
           <div className={cn('absolute flex flex-col', compact ? 'inset-y-4 left-4 right-[132px] gap-2' : 'bottom-7 left-8 top-7 w-[330px] gap-3')}>

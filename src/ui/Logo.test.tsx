@@ -15,7 +15,7 @@ describe('Logo', () => {
    * Тёмный вариант тут был и ломал ровно то, ради чего заводился: выбирала
    * его настройка системы (`prefers-color-scheme`), а полотно кабинета
    * от неё не зависит — тёмной темы у кабинета нет. У человека с тёмной
-   * системой тёмная плашка знака ложилась на светлую бумагу карточки.
+   * системой тёмный знак ложился на светлую бумагу карточки.
    */
   it('не подменяется по настройке системы: знак один', () => {
     render(<Logo />);
@@ -35,16 +35,23 @@ describe('Logo', () => {
   it('по умолчанию знак целиком: он стоит там, где стоит один', () => {
     render(<Logo />);
 
-    expect(screen.getByAltText(PRODUCT_NAME)).toHaveAttribute('data-qo-logo-variant', 'framed');
+    expect(screen.getByAltText(PRODUCT_NAME)).toHaveAttribute('data-qo-logo-variant', 'full');
   });
 
   it('рядом с надписью знак берёт другой файл, а не тот же с обрезанным словом', () => {
-    // Иначе слово «Order» читалось бы дважды подряд — картинкой и подписью.
-    const framed = render(<Logo />).container.querySelector('img');
+    // Иначе «Q-Order» читалось бы дважды подряд — картинкой и подписью.
+    const full = render(<Logo />).container.querySelector('img');
     const mark = render(<Logo variant="mark" />).container.querySelector('img');
 
     expect(mark).toHaveAttribute('data-qo-logo-variant', 'mark');
-    expect(mark?.getAttribute('src')).not.toBe(framed?.getAttribute('src'));
+    expect(mark?.getAttribute('src')).not.toBe(full?.getAttribute('src'));
+  });
+
+  it('в ожидании знак берёт анимированный файл', () => {
+    const still = render(<Logo variant="mark" />).container.querySelector('img');
+    const waiting = render(<Logo variant="mark" animated />).container.querySelector('img');
+
+    expect(waiting?.getAttribute('src')).not.toBe(still?.getAttribute('src'));
   });
 
   it('высота задаётся вызывающим, ширина считается по ней', () => {

@@ -10,6 +10,12 @@ import type { ShowcaseBannerDtoScheme } from '../../api/generated';
  */
 export interface SlideColors {
   bg: string;
+  /**
+   * Слои поверх `bg` (`background-image`): цветовые пятна и градиент, а не
+   * плоский цвет — плоский фон делал баннеры бледными. `bg` — основа под ними
+   * (`background-color`) и цвет для смешений.
+   */
+  paint: string;
   fg: string;
   sub: string;
   chipBg: string;
@@ -45,13 +51,23 @@ export function slideColors(scheme: ShowcaseBannerDtoScheme | undefined, brand: 
       // и белые буквы на нём остаются читаемыми. Число — запасное, если
       // токена нет (предпросмотр вне кабинета).
       bg: `var(--color-banner, ${brand})`,
+      paint: brandPaint(brand),
       btnFg: deep,
       circleFg: deep,
       stack: [mix(brand, palette.white, 0.45), mix(brand, palette.white, 0.7), palette.white],
     };
   }
   const fixed = palette.schemes[scheme ?? 'GRAPHITE'] ?? palette.schemes.GRAPHITE;
-  return { ...fixed, stack: fixed.stack as [string, string, string] };
+  return { ...fixed, paint: fixed.paint ?? 'none', stack: fixed.stack as [string, string, string] };
+}
+
+const PAINT_LIGHT = palette.white;
+const PAINT_DEEP = palette.black;
+
+/** Блики «цвета магазина»: светлое пятно и глубокая тень поверх его цвета. */
+function brandPaint(brand: string): string {
+  return `radial-gradient(60% 95% at 90% 6%, ${mix(brand, PAINT_LIGHT, 0.38)}b3 0%, transparent 62%), `
+    + `radial-gradient(52% 85% at 4% 100%, ${mix(brand, PAINT_DEEP, 0.45)}99 0%, transparent 60%)`;
 }
 
 export const STAR_COLOR = palette.star;
