@@ -17,7 +17,7 @@ const cart = {
   skipped: [],
 };
 
-function useCartDrawerState() {
+function cartDrawerState() {
   return renderHook(() => useCartDrawer()).result.current;
 }
 
@@ -32,10 +32,10 @@ describe('полоса корзины на телефоне', () => {
     stubFetch([get('/api/portal/cart', cart)]);
 
     renderScreen(<CartBar />);
-    expect(useCartDrawerState().open).toBe(false);
+    expect(cartDrawerState().open).toBe(false);
     await userEvent.click(await screen.findByRole('button', { name: /в корзине/i }));
 
-    expect(useCartDrawerState().open).toBe(true);
+    expect(cartDrawerState().open).toBe(true);
     // Собственного листа у полосы больше нет: корзину рисует оболочка (CartPanel).
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });

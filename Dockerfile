@@ -26,6 +26,13 @@ RUN npm ci
 
 COPY . .
 
+# ESLint — до тестов и независимо от SKIP_TESTS: идёт меньше минуты, а ошибка
+# правил хуков ломает экран так же, как упавший тест. Предупреждения сборку
+# не останавливают. SKIP_LINT=true — аварийный обход для срочной сборки.
+ARG SKIP_LINT=false
+RUN if [ "$SKIP_LINT" = "true" ]; then echo "ESLint пропущен (SKIP_LINT=true)"; \
+    else npm run lint; fi
+
 # Прогон тестов внутри образа, а не отдельным заданием конвейера. Причины:
 # (1) проверка не зависит от того, что установлено на раннере GitLab;
 # (2) образ, собранный с непрошедшими тестами, не должен существовать вовсе —
@@ -71,7 +78,13 @@ ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 # ($host, $request_uri, $api_upstream). Они превратились бы в пустые строки,
 # и nginx не стартовал бы вовсе — на стенде это CrashLoopBackOff без
 # внятной причины.
-ENV NGINX_ENVSUBST_FILTER='^NGINX_(LOCAL_RESOLVERS|API_UPSTREAM)$'
+ENV NGINX_ENVSUBST_FILTER='^NGINX_(LOCAL_RESOLVERS|API_UPSTREAM|API_DOCS)$'
+
+# Контракт OpenAPI (/v3/api-docs) по умолчанию закрыт (SEC-01); стенд, где
+# он нужен `npm run api:pull`, ставит on в своём ConfigMap. Значение по
+# умолчанию обязательно: без переменной envsubst оставил бы в конфиге
+# ${NGINX_API_DOCS} как есть, и nginx не стартовал бы на неизвестной переменной.
+ENV NGINX_API_DOCS=off
 
 # Настройки стенда в статику. Образ nginx исполняет всё из этого каталога
 # перед запуском сервера; бит исполнения обязателен — без него файл

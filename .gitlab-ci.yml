@@ -27,8 +27,12 @@ build-and-publish:
     # конвейере они отключены: SKIP_TESTS по умолчанию true. Вернуть — задать
     # переменную CI/CD SKIP_TESTS=false (в настройках проекта или при запуске
     # pipeline).
-    - echo "=== Сборка образа (SKIP_TESTS=${SKIP_TESTS:-true}) ==="
-    - docker build --pull --build-arg SKIP_TESTS="${SKIP_TESTS:-true}" -t "$IMAGE" .
+    #
+    # ESLint (npm run lint) Dockerfile гоняет всегда, до тестов: ошибка правил
+    # роняет сборку, предупреждения — нет. Аварийный обход — переменная CI/CD
+    # SKIP_LINT=true.
+    - echo "=== Сборка образа (SKIP_LINT=${SKIP_LINT:-false}, SKIP_TESTS=${SKIP_TESTS:-true}) ==="
+    - docker build --pull --build-arg SKIP_LINT="${SKIP_LINT:-false}" --build-arg SKIP_TESTS="${SKIP_TESTS:-true}" -t "$IMAGE" .
 
     - echo "=== Отправка образа в Nexus ==="
     - docker push "$IMAGE"

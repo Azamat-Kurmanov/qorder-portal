@@ -98,6 +98,7 @@ export function VideoPlayer({
     return () => window.removeEventListener('keydown', onKeyDown);
     // `playing` — через `toggle`: слушатель, замкнувший старое состояние,
     // ставил бы на паузу уже идущий ролик.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `toggle` пересоздаётся каждую отрисовку, его состояние — `playing`
   }, [duration, playing]);
 
   // Панель прячется только у идущего ролика: на паузе прятать нечего —

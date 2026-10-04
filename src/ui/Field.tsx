@@ -28,6 +28,8 @@ export interface FieldFault {
  * диктор. Раньше в формах стоял `role="alert"` без связи с полем, и диктор
  * читал их как два не связанных куска экрана.
  */
+// Примитив оставлен без пользователей намеренно (экспорт снят в 77ae826); удалить или вернуть — решение владельца.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Field({
   name, label, hint, rule, fault, value, onChange, onBlur,
   type = 'text', inputMode, disabled = false,

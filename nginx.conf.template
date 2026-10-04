@@ -112,7 +112,14 @@ server {
     # Им живёт `npm run api:pull`: разработчик забирает контракт со стенда,
     # не поднимая бэкенд у себя. Без этого правила запрос получил бы страницу
     # приложения с кодом 200, и orval упал бы на разборе HTML как JSON.
+    #
+    # Открыт только там, где NGINX_API_DOCS=on (стенд TEST, SEC-01): на
+    # остальных контракт — карта всех операций и схем для постороннего.
     location /v3/api-docs {
+        set $api_docs "${NGINX_API_DOCS}";
+        if ($api_docs != "on") {
+            return 404;
+        }
         set $api_upstream ${NGINX_API_UPSTREAM};
         proxy_pass $api_upstream$request_uri;
 
