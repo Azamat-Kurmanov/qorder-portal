@@ -87,6 +87,33 @@ describe('активация приглашения', () => {
     expect(login).toHaveBeenCalled();
   });
 
+  /**
+   * Клиент другого поставщика узнаёт свой путь до попытки, а не после отказа.
+   * Подсказка одна для всех невошедших и о ссылке ничего не сообщает.
+   */
+  it('до попытки подсказывает войти тем, у кого кабинет Q-Order уже есть', async () => {
+    const login = vi.fn();
+    stubFetch([get('/api/portal/consent-notice', NOTICE)]);
+
+    renderScreen(<ActivationPage />, {
+      route: '/activate?code=abc123',
+      auth: { authenticated: false, token: null, login },
+    });
+
+    expect(await screen.findByText(/Уже работаете в Q-Order с другим поставщиком/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Войти' }));
+    expect(login).toHaveBeenCalled();
+  });
+
+  it('вошедшему подсказку войти не показывает', async () => {
+    stubFetch([get('/api/portal/consent-notice', NOTICE)]);
+
+    renderScreen(<ActivationPage />, { route: '/activate?code=abc123' });
+
+    await screen.findByRole('checkbox');
+    expect(screen.queryByText(/Уже работаете в Q-Order/)).not.toBeInTheDocument();
+  });
+
   /** Вошедшему пароль не нужен: он его уже задал, и второй никто не просит. */
   it('вошедшему поля пароля не показывает', async () => {
     stubFetch([get('/api/portal/consent-notice', NOTICE)]);

@@ -56,7 +56,7 @@ export function DesignHeader({
   const { shop, hours, closedToday, live, tel } = useShopInfo(ready);
 
   return (
-    <header data-testid="design-header" className="sticky top-0 z-20">
+    <header data-testid="design-header" data-shell-header className="sticky top-0 z-20">
       <div className="border-b border-hairline bg-surface">
         <div className="mx-auto flex h-[3.875rem] w-full max-w-[1440px] items-center gap-2.5 px-4 lg:h-[4.25rem] lg:gap-3 lg:px-[22px]">
           {/*

@@ -27,5 +27,6 @@
   "photo": { "fg": "#FFFFFF", "sub": "rgba(255,255,255,.86)", "chipBg": "rgba(255,255,255,.18)", "chipFg": "#FFFFFF", "btnBg": "#FFFFFF", "btnFg": "#1A1917", "shade": "linear-gradient(90deg, rgba(0,0,0,.74) 0%, rgba(0,0,0,.45) 55%, rgba(0,0,0,.12) 100%)" },
   "art": { "white": "#FFFFFF", "ink": "#1A1917", "gold": "#F5B83D", "goldDeep": "#C98A12", "leaf": "#3FA25B", "leafDeep": "#256D3B", "sky": "#7CC4FA", "skyDeep": "#2F7FC1", "pink": "#F47FA4", "red": "#E5484D", "cream": "#FFF4E0", "brown": "#8A5A36", "gray": "#D5D8DE", "grayDeep": "#6B7280", "shadow": "rgba(0,0,0,.16)", "glass": "rgba(255,255,255,.55)" },
   "lift": "0 18px 34px -14px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.35), inset 0 -3px 0 rgba(0,0,0,.12)",
-  "silhouette": { "sale": "#C8B08C", "new": "#6E7A6A" }
+  "silhouette": { "sale": "#C8B08C", "new": "#6E7A6A" },
+  "skins": { "paper": "#FFFFFF", "shade": "#000000", "ink": "#0D1717", "fallback": "#5433EB", "chipOnDark": "rgba(255,255,255,.14)", "chipOnLight": "rgba(13,23,23,.07)", "chipSoft": "rgba(255,255,255,.6)", "prismBg": "#0A1030", "prismFg": "#EEF0FA", "prismSub": "#AEB6D8", "depthBg": "#0F1A2E", "depthSub": "#C9D3E4", "neonBg": "#05060A", "neonFg": "#F1F3F8", "neonSub": "#9AA2B5", "neonPanel": "#0F1117", "softFg": "#2A1E2E", "softSub": "#5D4F5E", "studioSub": "#5F6363", "studioPanel": "#F4F4F2", "lookPhotoBg": "#2F3440", "lookPhotoSub": "#E6E6E2", "lookSub": "#333333", "lookPanel": "#F5F5F2", "seasonBg": "#BADCE4", "seasonPanel": "#F0EFE7" }
 }

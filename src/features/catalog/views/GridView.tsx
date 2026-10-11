@@ -1,5 +1,5 @@
 import type { ShowcaseItemDto } from '../../../api/generated';
-import type { CatalogView, TemplateStyle } from '../../../supplier/cabinetDesign';
+import type { CatalogView, MotionStyle } from '../../../supplier/cabinetDesign';
 import { Reveal } from '../../../ui/Reveal';
 import { cn } from '../../../ui/cn';
 import { TemplateTile } from '../tiles/TemplateTile';
@@ -52,7 +52,7 @@ export function GridView({
 }: {
   items: ShowcaseItemDto[];
   taken: Set<string>;
-  style: TemplateStyle;
+  style: MotionStyle;
   view: CatalogView;
   width: number;
 }) {

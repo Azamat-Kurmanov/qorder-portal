@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { OrderDelivery } from './OrderDelivery';
+
+// Где открывать карту — не забота этих проверок.
+vi.mock('../maps/useMapHome', () => ({ useMapHome: () => null }));
 
 describe('доставка заявки', () => {
   it('способ, адрес, перевозчик с телефоном, кому платить и трек со ссылкой', () => {

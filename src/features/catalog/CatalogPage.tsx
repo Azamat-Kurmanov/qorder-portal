@@ -34,15 +34,13 @@ import { Pagination } from '../../ui/Pagination';
 import { Skeleton } from '../../ui/Skeleton';
 import { cn } from '../../ui/cn';
 import { useColumnWidth } from '../../ui/useColumnWidth';
-import { useCabinetDesign, type CatalogView, type TemplateStyle } from '../../supplier/cabinetDesign';
+import { useCabinetDesign, type CatalogView, type MotionStyle } from '../../supplier/cabinetDesign';
 import { chipClass, type ChipLook } from '../../supplier/templateLook';
 import { CartAction, ItemBadges, ItemFacts, RatingBadge, priceNote, useOpenCard } from './itemParts';
 import { GridView } from './views/GridView';
 import { BentoView } from './views/BentoView';
-import { FeedView } from './views/FeedView';
 import { RowsView } from './views/RowsView';
 import { MasonryView } from './views/MasonryView';
-import { ShelvesView } from './views/ShelvesView';
 import { VolumeHint } from './views/VolumeHint';
 
 // Метки и условия продажи живут в `itemParts`; карточка товара берёт их отсюда.
@@ -292,10 +290,7 @@ export function CatalogPage() {
   }
 
   const gridStart = useRef<HTMLDivElement>(null);
-  // Полки шаблона — обзор витрины по рубрикам, у него страниц нет: каждая
-  // полка ведёт в свою рубрику, а там уже листается.
-  const shelvesOverview = designed && view === 'shelves' && !filtered && !query.trim();
-  const pager = total !== undefined && !shelvesOverview ? (
+  const pager = total !== undefined ? (
     <Pagination
       page={page}
       size={size}
@@ -537,11 +532,6 @@ export function CatalogPage() {
         items={items}
         taken={taken}
         width={columnWidth}
-        // Полки — обзор всей витрины: с поиском или выбранным отбором
-        // полка из одной рубрики была бы той же сеткой, только уже.
-        overview={!filtered && !query.trim()}
-        categories={categoryList}
-        onOpenCategory={(id) => { pickCategory(id); gridStart.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }); }}
       />
     );
   } else {
@@ -572,7 +562,7 @@ export function CatalogPage() {
         <BannerCarousel width={columnWidth} category={openCategory} onAction={openBanner} onSale={openSale} />
         <VolumeHint data={promotions.data?.status === 200 ? promotions.data.data : undefined} compact={!three} />
         <div className={cn('flex gap-x-3 gap-y-3', centered ? 'flex-col items-center' : 'flex-wrap items-center')}>
-          <h1 className={cn('qo-heading mr-3 text-[1.625rem] text-ink', centered ? 'mr-0 lg:text-[2.125rem]' : 'lg:text-[1.625rem]')}>
+          <h1 className={cn('qo-heading qo-display mr-3 text-[1.625rem] text-ink', centered ? 'mr-0 lg:text-[2.125rem]' : 'lg:text-[1.625rem]')}>
             {t('catalog.title')}
           </h1>
           {/* У раскладки «вкладки» рубрики на мониторе — вкладками под шапкой,
@@ -692,6 +682,8 @@ export function ItemTile({
         <ItemThumb
           itemId={item.id}
           src={item.thumbnailUrl}
+          second={item.secondThumbnailUrl}
+          flight
           className={cn('w-full', thumbHeight(roomy, photo))}
         />
         <ItemBadges item={shown} className="absolute left-3 top-3" />
@@ -867,7 +859,7 @@ function ItemRow({ item, taken, wide }: { item: ShowcaseItemDto; taken: boolean;
         wide ? ROW_COLUMNS : 'grid-cols-[3.5rem_minmax(0,1fr)]',
       )}
     >
-      <ItemThumb itemId={item.id} src={item.thumbnailUrl} className="size-14 rounded-[var(--radius-control)]" />
+      <ItemThumb itemId={item.id} src={item.thumbnailUrl} width={64} className="size-14 rounded-[var(--radius-control)]" />
       <div className="flex min-w-0 flex-col gap-0.5">
         {/*
           Метки «Хит» и «Новинка» — рядом с названием, как на карточке:
@@ -993,44 +985,28 @@ function CategoryChip({
   );
 }
 
-/**
- * Витрина шаблона — вид из опубликованного дизайна: плитка сеткой, бенто,
- * лента, строки, мозаика или полки. Полки — только в обзоре всей витрины;
- * с отбором или поиском найденное встаёт обычной сеткой.
- */
+/** Витрина шаблона — вид из опубликованного дизайна: плитка сеткой, бенто, строки или мозаика. */
 function TemplateCatalog({
   view,
   style,
   items,
   taken,
   width,
-  overview,
-  categories,
-  onOpenCategory,
 }: {
   view: CatalogView;
-  style: TemplateStyle;
+  style: MotionStyle;
   items: ShowcaseItemDto[];
   taken: Set<string>;
   width: number;
-  overview: boolean;
-  categories: { id: string; name: string }[];
-  onOpenCategory: (id: string) => void;
 }) {
   const props = { items, taken, style, width };
   switch (view) {
     case 'bento':
       return <BentoView {...props} />;
-    case 'feed':
-      return <FeedView {...props} />;
     case 'rows':
       return <RowsView {...props} />;
     case 'masonry':
       return <MasonryView {...props} />;
-    case 'shelves':
-      return overview
-        ? <ShelvesView {...props} categories={categories} onOpenCategory={onOpenCategory} />
-        : <GridView {...props} view="grid" />;
     default:
       return <GridView {...props} view={view} />;
   }

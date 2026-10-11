@@ -32,6 +32,8 @@ export const CART_TARGET = 'data-cart-target';
 export function flyToCart(source: Element | null | undefined): void {
   if (!source || typeof document === 'undefined') return;
   if (prefersReducedMotion()) return;
+  // Продавец выбрал «спокойно» (или система просит меньше движения) — полёта нет.
+  if (source.closest('[data-motion="calm"]')) return;
 
   const target = visibleCartTarget();
   if (!target) return;

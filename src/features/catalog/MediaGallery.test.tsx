@@ -200,4 +200,11 @@ describe('галерея карточки: все снимки и ролики',
     expect(strip.className).toMatch(/(^|\s)pb-6(\s|$)/);
     expect(strip.className).toMatch(/(^|\s)md:pb-1(\s|$)/);
   });
+
+  it('первое фото — место, куда перелетает фото плитки витрины (тот же снимок, что в плитке)', () => {
+    const { container } = renderGallery([VIDEO, photo(1), photo(2)]);
+    const named = [...container.querySelectorAll('img')].filter((img) => img.style.viewTransitionName === 'qo-item-photo');
+    expect(named).toHaveLength(1);
+    expect(named[0]).toHaveAttribute('src', 'https://cdn.example/1.jpg');
+  });
 });

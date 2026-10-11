@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { refetchStockViews, usePickupPoint } from '../../supplier/pickupPoint';
 import { useTranslation } from 'react-i18next';
-import { MapPin } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { cn } from '../../ui/cn';
 import { Card } from '../../ui/Card';
@@ -20,6 +21,9 @@ import { money } from '../../shared/format';
 import { CarrierChoice } from './CarrierChoice';
 import { paysCarrierDirectly } from './carrier';
 import { LoadersChoice } from './LoadersChoice';
+import { MapPointField } from '../maps/MapPointField';
+import { MapViewButton } from '../maps/MapViewButton';
+import { pointOf } from '../maps/mapProvider';
 import type { LoadersLine } from './loaders';
 
 interface DeliveryBlockProps {
@@ -86,6 +90,21 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
     // onChange — новая функция на каждой отрисовке экрана; выбор нужен один раз.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [only, unchosen]);
+
+  // Точка, выбранная в шапке, подставляется сама: клиент выбирает её один раз.
+  // Ветка считается тем же правилом, что ниже `way`: до раннего выхода хук обязан стоять всегда.
+  const queryClient = useQueryClient();
+  const [savedPoint, setSavedPoint] = usePickupPoint(() => refetchStockViews(queryClient));
+  const chosenMethod = options?.methods.find((candidate) => candidate.id === value.methodId);
+  const pickupWay = !!options && (options.mode === 'PICKUP_ONLY'
+    || (opened ?? (chosenMethod ? (chosenMethod.pickup ? 'PICKUP' : 'DELIVERY') : null)) === 'PICKUP');
+  const savedKnown = !!savedPoint && !!options?.pickupPoints.some((point) => point.id === savedPoint);
+  const pointMissing = !value.pickupPointId;
+  useEffect(() => {
+    if (pickupWay && pointMissing && savedKnown && savedPoint) onChange({ ...value, pickupPointId: savedPoint });
+    // onChange и value — новые на каждой отрисовке; подставить нужно один раз.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickupWay, pointMissing, savedKnown, savedPoint]);
 
   if (!options) return null;
 
@@ -205,30 +224,25 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
                   key={point.id}
                   name="pickup-point"
                   checked={value.pickupPointId === point.id}
-                  onSelect={() => onChange({ ...value, pickupPointId: point.id })}
+                  onSelect={() => {
+                    onChange({ ...value, pickupPointId: point.id });
+                    setSavedPoint(point.id ?? null);
+                  }}
                 >
                   {point.name}, {point.address}
                   {point.workingHours ? ` (${point.workingHours})` : ''}
                 </Choice>
               ))}
               {/*
-                Карта — поиском адреса в 2ГИС, а не точкой: координат пункта
-                продавец не вводит, а адрес ищется и по названию рынка.
-                Ссылка стоит вне пунктов: внутри подписи переключателя она
-                перехватывала бы нажатие, выбирающее пункт.
+                Карта выбранного пункта — вне пунктов: внутри подписи
+                переключателя она перехватывала бы нажатие, выбирающее пункт.
+                Точки продавец не отметил — ищется по тексту адреса.
               */}
               {(() => {
                 const chosen = options.pickupPoints.find((point) => point.id === value.pickupPointId);
-                return chosen?.address ? (
-                  <a
-                    href={`https://2gis.kz/search/${encodeURIComponent(chosen.address)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex min-h-11 items-center gap-2 self-start px-3 text-sm font-semibold text-accent-ink hover:underline"
-                  >
-                    <MapPin aria-hidden="true" className="size-4" />
-                    {t('checkout.delivery.onMap')}
-                  </a>
+                return chosen ? (
+                  <MapViewButton title={chosen.name} address={chosen.address}
+                    point={pointOf(chosen.latitude, chosen.longitude)} className="mt-1" />
                 ) : null;
               })()}
             </fieldset>
@@ -259,6 +273,9 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
                           address: known.address,
                           city: known.city,
                           floor: known.floor,
+                          // Точка прежнего адреса не хранится — отметят заново.
+                          latitude: undefined,
+                          longitude: undefined,
                         })}
                       className={cn(
                         'flex flex-col items-start gap-0.5 rounded-[var(--radius-tile)] border border-hairline',
@@ -284,6 +301,22 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
                   className={FIELD}
                 />
               </Field>
+              {/*
+                Точка необязательна: адрес словами остаётся главным, а точка
+                помогает курьеру найти вход. Найденный картой адрес заменяет
+                набранный — человек видит, что отметил.
+              */}
+              <MapPointField
+                title={t('maps.deliveryTitle')}
+                address={value.address ?? ''}
+                point={pointOf(value.latitude, value.longitude)}
+                onChange={(point, found) => onChange({
+                  ...value,
+                  address: found ?? value.address,
+                  latitude: point?.latitude,
+                  longitude: point?.longitude,
+                })}
+              />
             </>
           )}
 
@@ -429,6 +462,8 @@ function WayButton({
     <button
       type="button"
       aria-pressed={selected}
+      // Карточка выбора — галочка в углу в оформленном кабинете (`liveTheme.css`).
+      data-choice
       disabled={disabled}
       onClick={onSelect}
       className={cn(

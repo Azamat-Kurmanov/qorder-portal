@@ -4,6 +4,34 @@ import { AuthContext, type AuthContextValue } from './AuthContext';
 import { CALLBACK_PATH, DEFAULT_RETURN_TO, getUserManager } from './oidcConfig';
 import { isSessionRejected, setSession, subscribeSessionRejected } from './session';
 
+/** Переход на Keycloak уже запрошен и ещё не начался — общий на вкладку, а не на компонент. */
+let redirecting = false;
+
+/** Пауза перед новой попыткой, если переход на вход не начался. */
+const RETRY_MS = 3000;
+
+/**
+ * Один переход на вход за раз.
+ *
+ * В разработке React вызывает эффект `RequireAuth` дважды, и вход запрашивался
+ * двумя переходами подряд. Firefox обрывал первый вторым (`NS_BINDING_ABORTED`),
+ * второй падал с `NetworkError`, и экран навсегда оставался на «Открываем вход…».
+ * Не начался переход (сеть, Keycloak недоступен) — флаг снимается, и через
+ * паузу пробуем снова, а не висим.
+ */
+function startRedirect(redirect: () => Promise<void>) {
+  if (redirecting) return;
+  redirecting = true;
+  Promise.resolve(redirect()).then(
+    // Браузер уже уходит на Keycloak; флаг нужен лишь против второго вызова в том же такте.
+    () => { redirecting = false; },
+    () => {
+      redirecting = false;
+      window.setTimeout(() => startRedirect(redirect), RETRY_MS);
+    },
+  );
+}
+
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -56,7 +84,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const returnTo = path === CALLBACK_PATH
       ? DEFAULT_RETURN_TO
       : `${path}${window.location.search}`;
-    void userManager.signinRedirect({ state: { returnTo } });
+    startRedirect(() => userManager.signinRedirect({ state: { returnTo } }));
   }, [userManager]);
 
   /**

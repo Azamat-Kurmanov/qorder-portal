@@ -1,6 +1,7 @@
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import type { ComponentProps } from 'react';
+import { Check } from 'lucide-react';
 import { cn } from './cn';
 
 /**
@@ -24,6 +25,12 @@ import { cn } from './cn';
  *
  * Всё движение гасится системной настройкой «меньше движения» — правилом
  * в `index.css`, одним на весь кабинет.
+ *
+ * У живой темы кнопка в её характере: `qo-btn` и `data-variant` читает
+ * `liveTheme.css` по `data-cta` оболочки (пилюля, объём, свечение, желе,
+ * контур). Два состояния действия: `busy` — кружок вместо подписи, ширина та
+ * же, второе нажатие не проходит; `done` — галочка поверх подписи. Подпись при
+ * этом остаётся в разметке — диктор читает её, а не «кружок».
  */
 const button = cva(
   'inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium ' +
@@ -78,8 +85,34 @@ export function Button({
   variant,
   size,
   asChild = false,
+  busy = false,
+  done = false,
+  disabled,
+  children,
   ...props
-}: ComponentProps<'button'> & VariantProps<typeof button> & { asChild?: boolean }) {
+}: ComponentProps<'button'> & VariantProps<typeof button> & {
+  asChild?: boolean;
+  /** Действие идёт: кружок вместо подписи, нажать ещё раз нельзя. */
+  busy?: boolean;
+  /** Действие удалось: галочка поверх подписи (снимает вызывающий). */
+  done?: boolean;
+}) {
   const Component = asChild ? Slot : 'button';
-  return <Component className={cn(button({ variant, size }), className)} {...props} />;
+  const covered = !asChild && (busy || done);
+  return (
+    <Component className={cn('qo-btn', button({ variant, size }), covered && 'relative', className)}
+      data-variant={variant ?? 'primary'} data-done={(!asChild && done) || undefined}
+      aria-busy={busy || undefined} disabled={disabled || busy} {...props}>
+      {covered ? (
+        <>
+          <span className="inline-flex items-center gap-2 opacity-0">{children}</span>
+          <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
+            {busy
+              ? <span data-spinner className="size-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              : <Check data-check className="size-5 animate-pop" strokeWidth={2.6} />}
+          </span>
+        </>
+      ) : children}
+    </Component>
+  );
 }

@@ -27,6 +27,8 @@ import { useCurrentShop } from '../shell/Shops';
 import { telLink } from '../shell/shopHours';
 import { RevisionDiff } from './RevisionDiff';
 import { OrderDelivery } from './OrderDelivery';
+import { MapViewButton } from '../maps/MapViewButton';
+import { pointOf } from '../maps/mapProvider';
 import { TransportPayment } from './TransportPayment';
 import { OrderTotals } from './OrderTotals';
 import { LinkedLineThumb } from '../cart/LineThumb';
@@ -259,6 +261,8 @@ function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: O
                 <span className="text-sm font-semibold text-ink">
                   {[order.pickupPoint.name, order.pickupPoint.address, order.pickupPoint.workingHours].filter(Boolean).join(' · ')}
                 </span>
+                <MapViewButton title={order.pickupPoint.name} address={order.pickupPoint.address}
+                  point={pointOf(order.pickupPoint.latitude, order.pickupPoint.longitude)} className="mt-1.5" />
               </div>
             ) : null}
             {order.pickupCode ? <PickupCode code={order.pickupCode} /> : null}

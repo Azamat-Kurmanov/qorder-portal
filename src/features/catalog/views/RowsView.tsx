@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { ShowcaseItemDto } from '../../../api/generated';
-import type { TemplateStyle } from '../../../supplier/cabinetDesign';
+import type { MotionStyle } from '../../../supplier/cabinetDesign';
 import { Reveal } from '../../../ui/Reveal';
 import { cn } from '../../../ui/cn';
 import { FavoriteButton } from '../../favorites/FavoriteButton';
@@ -23,7 +23,7 @@ export function RowsView({
 }: {
   items: ShowcaseItemDto[];
   taken: Set<string>;
-  style: TemplateStyle;
+  style: MotionStyle;
   width: number;
 }) {
   const two = width >= THREE_FROM;
@@ -41,11 +41,10 @@ export function RowsView({
 function RowCard({ item, taken, style, roomy }: {
   item: ShowcaseItemDto;
   taken: boolean;
-  style: TemplateStyle;
+  style: MotionStyle;
   roomy: boolean;
 }) {
   const openCard = useOpenCard(item.id);
-  const brutal = style.tile === 'brutal';
   return (
     <article
       data-testid="item-tile"
@@ -54,11 +53,11 @@ function RowCard({ item, taken, style, roomy }: {
       className={cn(
         'group/tile grid h-full min-w-0 cursor-pointer gap-4 rounded-[var(--radius-template)] bg-surface p-3',
         roomy ? 'grid-cols-[9.375rem_minmax(0,1fr)]' : 'grid-cols-[6.875rem_minmax(0,1fr)]',
-        brutal ? 'border-2 border-ink shadow-[5px_5px_0_var(--color-ink)]' : 'border border-hairline shadow-[var(--card-shadow)]',
+        'border border-hairline shadow-[var(--card-shadow)]',
       )}
     >
       <div className="relative self-start overflow-hidden rounded-[max(0px,calc(var(--radius-template)-4px))]">
-        <ItemThumb itemId={item.id} src={item.thumbnailUrl} className={cn('w-full', roomy ? 'h-[9.375rem]' : 'h-[6.875rem]')} />
+        <ItemThumb itemId={item.id} src={item.thumbnailUrl} width={320} className={cn('w-full', roomy ? 'h-[9.375rem]' : 'h-[6.875rem]')} />
         <ItemBadges item={item} className="absolute left-2 top-2 [&>span]:h-6 [&>span]:px-2 [&>span]:text-xs" />
       </div>
       <div className="flex min-w-0 flex-col gap-2">
@@ -78,7 +77,7 @@ function RowCard({ item, taken, style, roomy }: {
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2.5">
           <TemplatePrice item={item} look={style.price} size="lg" />
           {taken ? null : (
-            <CartAction item={item} taken={false} roomy={false} look={brutal ? 'brutal' : 'solid'} className="h-10 w-auto px-4 [text-transform:none]" />
+            <CartAction item={item} taken={false} roomy={false} look="solid" className="h-10 w-auto px-4 [text-transform:none]" />
           )}
         </div>
         {taken ? <CartAction item={item} taken roomy={false} look="solid" /> : null}

@@ -167,6 +167,8 @@ export function MediaGallery({
           >
             {media.map((entry, index) => {
               const here = index === at;
+              // Первое фото — тот же снимок, что в плитке витрины: на него перелетает её фото.
+              const landing = entry.id === media.find((one) => one.kind === 'PHOTO')?.id;
               return (
                 // Соседние кадры скрыты от озвучивания: на экране их нет,
                 // а выбирают их миниатюрами, у которых есть имена.
@@ -187,6 +189,7 @@ export function MediaGallery({
                       // и первым, остальные — когда до них долистают.
                       loading={index === 0 ? 'eager' : 'lazy'}
                       fetchPriority={index === 0 ? 'high' : 'auto'}
+                      style={landing ? { viewTransitionName: 'qo-item-photo' } : undefined}
                       className="size-full object-cover"
                     />
                   ) : (

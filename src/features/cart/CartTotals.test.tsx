@@ -19,7 +19,7 @@ function cart(lines: CartLineDto[], vatAmount?: number, vatPayer = true): CartDt
   } as CartDto;
 }
 
-/** Итоги корзины по макету «Каталог v2»: «Товары, N …» и «в т.ч. НДС». */
+/** Итоги корзины по макету «Каталог v2»: «Товары, N …» и «НДС» сверху цены. */
 describe('итоги корзины', () => {
   it('штучные строки складываются в штуки', () => {
     render(<GoodsLine cart={cart([line('шт', 3, 100), line('шт.', 2, 50)])} />);
@@ -32,14 +32,17 @@ describe('итоги корзины', () => {
   });
 
   it('одна ставка у всех строк — с процентом', () => {
-    render(<VatLine cart={cart([line('шт', 5, 2500, 16), line('шт', 1, 100, 16)], 1737.93)} />);
-    expect(screen.getByTestId('cart-vat')).toHaveTextContent(/в т\.ч\. НДС 16%/);
+    render(<VatLine cart={cart([line('шт', 5, 2500, 16), line('шт', 1, 100, 16)], 2016)} />);
+    const vat = screen.getByTestId('cart-vat');
+    expect(vat).toHaveTextContent(/НДС 16%/);
+    // Налог сверху, а не «в т.ч.»: он прибавлен к итогу.
+    expect(vat).not.toHaveTextContent('в т.ч.');
   });
 
   it('разные ставки — без процента', () => {
-    render(<VatLine cart={cart([line('шт', 5, 2500, 16), line('шт', 3, 1200, 12)], 2109.85)} />);
+    render(<VatLine cart={cart([line('шт', 5, 2500, 16), line('шт', 3, 1200, 12)], 2432)} />);
     const vat = screen.getByTestId('cart-vat');
-    expect(vat).toHaveTextContent(/в т\.ч\. НДС/);
+    expect(vat).toHaveTextContent(/НДС/);
     expect(vat).not.toHaveTextContent('%');
   });
 
@@ -54,7 +57,7 @@ describe('итоги корзины', () => {
   });
 
   it('у плательщика — сумма налога, как раньше', () => {
-    render(<VatLine cart={cart([line('шт', 5, 2500, 16), line('шт', 1, 100, 16)], 1737.93, true)} />);
-    expect(screen.getByTestId('cart-vat')).toHaveTextContent(/в т\.ч\. НДС/);
+    render(<VatLine cart={cart([line('шт', 5, 2500, 16), line('шт', 1, 100, 16)], 2016, true)} />);
+    expect(screen.getByTestId('cart-vat')).toHaveTextContent(/НДС 16%.*2\s016/);
   });
 });

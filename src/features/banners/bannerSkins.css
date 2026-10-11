@@ -1,0 +1,163 @@
+/*
+ * Одежды баннеров живых тем (`bannerSkins.tsx`) — по макетам `Motion*.dc.html`.
+ * Один файл в front и portal. Бесконечное движение — только при уровне
+ * «живо» и выше (`data-motion` оболочки кабинета); без уровня (предпросмотр
+ * продавца) и при «спокойно» слои стоят.
+ */
+
+.qo-skin-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.qo-skin-layer > i { position: absolute; display: block; }
+
+/* Пятна: стекло — два крупных размытых, объём — одно глубокое, мягкая — капли. */
+.qo-skin-blob { border-radius: 50%; filter: blur(70px); opacity: 0.55; }
+.qo-skin-blob-1 { width: 420px; height: 420px; left: -80px; top: -140px; background: var(--skin-c1); }
+.qo-skin-blob-2 { width: 360px; height: 360px; right: -60px; bottom: -160px; background: var(--skin-c2); }
+[data-skin-layer='depth'] .qo-skin-blob { opacity: 0.3; filter: blur(90px); }
+[data-skin-layer='depth'] .qo-skin-blob-2 { display: none; }
+[data-skin-layer='soft'] .qo-skin-blob { filter: blur(24px); opacity: 0.45; border-radius: 42% 58% 63% 37% / 45% 38% 62% 55%; }
+[data-skin-layer='soft'][data-skin-alt] .qo-skin-blob { opacity: 0.6; }
+[data-motion='lively'] .qo-skin-blob { animation: qo-skin-drift 28s ease-in-out infinite alternate; }
+[data-motion='vivid'] .qo-skin-blob { animation: qo-skin-drift 14s ease-in-out infinite alternate; }
+[data-motion='lively'] [data-skin-layer='soft'] .qo-skin-blob,
+[data-motion='vivid'] [data-skin-layer='soft'] .qo-skin-blob { animation-name: qo-skin-morph; }
+.qo-skin-blob-2 { animation-delay: -9s; }
+@keyframes qo-skin-drift { to { transform: translate(60px, 30px) scale(1.12); } }
+@keyframes qo-skin-morph { to { transform: rotate(140deg) scale(1.15); } }
+
+/* Неон: сетка-горизонт светящимися линиями цвета схемы. */
+.qo-skin-horizon {
+  left: -30%; right: -30%; bottom: -120px; height: 300px;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--skin-c1) 45%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--skin-c1) 45%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  transform: perspective(380px) rotateX(64deg);
+  transform-origin: 50% 100%;
+  mask-image: linear-gradient(to top, #000 10%, transparent 90%);
+}
+[data-motion='lively'] .qo-skin-horizon { animation: qo-skin-roll 6s linear infinite; }
+[data-motion='vivid'] .qo-skin-horizon { animation: qo-skin-roll 3s linear infinite; }
+@keyframes qo-skin-roll { to { background-position: 0 48px, 0 0; } }
+
+/* Студия: тёплый блик софита в углу. */
+.qo-skin-spot {
+  top: -260px; left: -420px; width: 900px; height: 900px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(255 140 80 / 0.18), transparent);
+}
+[data-skin-alt] .qo-skin-spot { display: none; }
+
+/* Лукбук: на фото — затемнение снизу под подписью. */
+.qo-skin-shade { inset: 0; background: linear-gradient(to top, rgb(0 0 0 / 0.35), transparent 60%); }
+.qo-banner[data-skin='lookbook']:not([data-photo]) .qo-skin-shade { display: none; }
+
+/* Мотивы: заливка (как есть), линия 1,5, светящаяся линия, стекло. */
+.qo-banner[data-art-mode='line'] [data-art] :is(path, circle, rect, polygon, ellipse, line, polyline) {
+  fill: none; stroke: currentColor; stroke-width: 1.5; vector-effect: non-scaling-stroke;
+}
+.qo-banner[data-art-mode='glow'] [data-art] { color: var(--skin-c1); filter: drop-shadow(0 0 6px var(--skin-c1)); }
+.qo-banner[data-art-mode='glow'] [data-art] :is(path, circle, rect, polygon, ellipse, line, polyline) {
+  fill: none; stroke: currentColor; stroke-width: 2; vector-effect: non-scaling-stroke;
+}
+.qo-banner[data-art-mode='glass'] [data-art] :is(path, circle, rect, polygon, ellipse) {
+  fill-opacity: 0.55; stroke: rgb(255 255 255 / 0.9); stroke-width: 1.5; vector-effect: non-scaling-stroke;
+}
+
+/* Кнопка в характере одежды. */
+.qo-banner[data-skin] .qo-skin-cta { border-radius: 999px; }
+.qo-banner[data-skin='neon'] .qo-skin-cta {
+  box-shadow: inset 0 0 0 1.5px currentColor, 0 0 14px color-mix(in srgb, currentColor 45%, transparent);
+}
+.qo-banner[data-skin='neon'] [data-rise='1'] { text-shadow: 0 0 18px color-mix(in srgb, var(--skin-c1) 55%, transparent); }
+.qo-banner[data-skin='soft'] .qo-skin-cta { transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.qo-banner[data-skin='soft'] .qo-skin-cta:active { transform: scale(0.9); }
+.qo-banner[data-skin='studio'] [data-rise='1'] { font-weight: 300; letter-spacing: -0.05em; }
+.qo-banner[data-skin='lookbook'] .qo-skin-cta {
+  border-radius: 4px; box-shadow: inset 0 0 0 1px currentColor;
+  text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500; font-size: 0.8125rem;
+}
+.qo-banner[data-skin='lookbook'] [data-rise='1'] { font-weight: 400; letter-spacing: 0.01em; }
+
+/*
+ * Смена слайда в характере одежды — обёртка слайда карусели
+ * (`data-skin-slide`, `data-on`); только «живо» и выше, при «спокойно» —
+ * прежний наплыв. Неон загорается одной вспышкой за 0,42 с: короче секунды
+ * и не чаще трёх вспышек в секунду.
+ */
+[data-motion='lively'] [data-skin-slide='glass'][data-on], [data-motion='vivid'] [data-skin-slide='glass'][data-on] { animation: qo-skin-unblur 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+[data-motion='lively'] [data-skin-slide='depth'][data-on], [data-motion='vivid'] [data-skin-slide='depth'][data-on] { animation: qo-skin-inz 0.8s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+[data-motion='lively'] [data-skin-slide='neon'][data-on], [data-motion='vivid'] [data-skin-slide='neon'][data-on] { animation: qo-skin-ignite 0.42s linear both; }
+[data-motion='lively'] [data-skin-slide='soft'][data-on], [data-motion='vivid'] [data-skin-slide='soft'][data-on] { animation: qo-skin-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+[data-motion='lively'] [data-skin-slide='studio'][data-on] [data-rise], [data-motion='vivid'] [data-skin-slide='studio'][data-on] [data-rise] { animation: qo-skin-rise 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+[data-skin-slide='studio'][data-on] [data-rise='2'] { animation-delay: 0.09s; }
+[data-skin-slide='studio'][data-on] [data-rise='3'] { animation-delay: 0.25s; }
+[data-motion='lively'] [data-skin-slide='lookbook'][data-on] .qo-banner, [data-motion='vivid'] [data-skin-slide='lookbook'][data-on] .qo-banner { animation: qo-skin-kb 6s ease-out both; }
+[data-skin-slide='lookbook'] { transition-duration: 1s; }
+
+@keyframes qo-skin-unblur { from { filter: blur(12px); opacity: 0; } }
+@keyframes qo-skin-inz { from { transform: scale(0.96) translateY(10px); opacity: 0; } }
+@keyframes qo-skin-ignite { 0% { opacity: 0; } 40% { opacity: 1; } 55% { opacity: 0.35; } 100% { opacity: 1; } }
+@keyframes qo-skin-pop { from { transform: scale(0.9); opacity: 0; } }
+@keyframes qo-skin-rise { from { transform: translateY(14px); opacity: 0; } }
+@keyframes qo-skin-kb { from { transform: scale(1); } to { transform: scale(1.06); } }
+
+/* Глубина, Парение: крупный баннер слоями за курсором («ярко», `data-fx` на обёртке). */
+[data-motion='vivid'] [data-fx-on] .qo-banner[data-skin='depth'] .qo-skin-layer {
+  transform: translate(calc(var(--rx) * -2px), calc(var(--ry) * 2px)); transition: transform 0.2s linear;
+}
+[data-motion='vivid'] [data-fx-on] .qo-banner[data-skin='depth'] [data-art] {
+  transform: translate(calc(var(--rx) * 1.4px), calc(var(--ry) * -1.4px)); transition: transform 0.2s linear;
+}
+
+/* Студия: главная кнопка вспыхивает кольцом при нажатии. */
+.qo-banner[data-skin='studio'] .qo-skin-cta { position: relative; }
+.qo-banner[data-skin='studio'] .qo-skin-cta:active::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  animation: qo-skin-ring 0.38s ease-out forwards;
+}
+@keyframes qo-skin-ring { from { box-shadow: 0 0 0 0 currentColor; } to { box-shadow: 0 0 0 14px transparent; } }
+
+/*
+ * Переход слайдов, выбранный продавцом (`data-slide-fx` на обёртке слайда),
+ * — главнее перехода одежды. Только «живо» и выше: при «спокойно» и системном
+ * «меньше движения» — прежнее проявление. Новый слайд въезжает поверх, старый
+ * держится под ним и гаснет, когда его уже закрыли. Конечное состояние —
+ * обычный слайд (`backwards`): обрезка не остаётся и не срезает тень рамки.
+ */
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx][data-on] { z-index: 1; transition: none; animation-duration: 0.8s; animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1); animation-fill-mode: backwards; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx]:not([data-on]) { transform: none; transition: opacity 0.25s linear 0.65s; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='fade'][data-on] { animation-name: qo-fx-fade; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='slide'][data-on] { animation-name: qo-fx-slide; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='slide_up'][data-on] { animation-name: qo-fx-slide-up; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='zoom_in'][data-on] { animation-name: qo-fx-zoom-in; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='zoom_out'][data-on] { animation-name: qo-fx-zoom-out; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='blur'][data-on] { animation-name: qo-fx-blur; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='flip'][data-on] { animation-name: qo-fx-flip; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='cube'][data-on] { animation-name: qo-fx-cube; transform-origin: left center; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='swing'][data-on] { animation-name: qo-fx-swing; transform-origin: top center; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='wipe'][data-on] { animation-name: qo-fx-wipe; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='split'][data-on] { animation-name: qo-fx-split; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='circle'][data-on] { animation-name: qo-fx-circle; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='diagonal'][data-on] { animation-name: qo-fx-diagonal; }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='bounce'][data-on] { animation-name: qo-fx-bounce; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); }
+:is([data-motion='lively'], [data-motion='vivid']) [data-slide-fx='drop'][data-on] { animation-name: qo-fx-drop; animation-duration: 0.9s; animation-timing-function: ease-out; }
+
+@keyframes qo-fx-fade { from { opacity: 0; } }
+@keyframes qo-fx-slide { from { opacity: 0; transform: translateX(14%); } }
+@keyframes qo-fx-slide-up { from { opacity: 0; transform: translateY(18%); } }
+@keyframes qo-fx-zoom-in { from { opacity: 0; transform: scale(0.82); } }
+@keyframes qo-fx-zoom-out { from { opacity: 0; transform: scale(1.18); } }
+@keyframes qo-fx-blur { from { opacity: 0; filter: blur(16px); } }
+@keyframes qo-fx-flip { from { opacity: 0; transform: perspective(1400px) rotateY(-90deg); } 50% { opacity: 1; } }
+@keyframes qo-fx-cube { from { opacity: 0.2; transform: perspective(1400px) rotateY(80deg); } }
+@keyframes qo-fx-swing { from { opacity: 0; transform: perspective(1400px) rotateX(-85deg); } }
+@keyframes qo-fx-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes qo-fx-split { from { clip-path: inset(0 50%); } to { clip-path: inset(0 0); } }
+@keyframes qo-fx-circle { from { clip-path: circle(0% at 50% 50%); } to { clip-path: circle(75% at 50% 50%); } }
+@keyframes qo-fx-diagonal { from { clip-path: polygon(0 0, 0 0, 0 0); } to { clip-path: polygon(0 0, 200% 0, 0 200%); } }
+@keyframes qo-fx-bounce { from { opacity: 0; transform: scale(0.6); } }
+@keyframes qo-fx-drop {
+  0% { opacity: 0; transform: translateY(-30%); }
+  55% { opacity: 1; transform: translateY(4%); }
+  78% { transform: translateY(-1.5%); }
+  100% { transform: none; }
+}

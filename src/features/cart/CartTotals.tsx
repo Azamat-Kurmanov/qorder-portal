@@ -3,6 +3,7 @@ import type { CartDto } from '../../api/generated';
 import { decimal, money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { isPieceUnit } from '../catalog/soldBy';
+import { useCountUp } from '../../ui/motion/useCountUp';
 
 /**
  * Подпись строки «Товары» по макету «Каталог v2».
@@ -37,11 +38,13 @@ function commonVatRate(cart: CartDto): number | undefined {
 export function GoodsLine({ cart, className }: { cart: CartDto; className?: string }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
+  // Сумма досчитывается до новой — видно, что позиция легла в заявку.
+  const goods = useCountUp(cart.goodsTotal ?? cart.total);
   return (
     <div className={className ?? 'flex justify-between gap-2 text-body text-ink-muted'} data-testid="cart-goods">
       <span>{goodsLabel(cart, t)}</span>
       <span data-testid="goods-total" className="tabular-nums text-ink">
-        {money(cart.goodsTotal ?? cart.total, currency)}
+        {money(goods, currency)}
       </span>
     </div>
   );
@@ -72,7 +75,7 @@ export function VatLine({ cart }: { cart: CartDto }) {
   const rate = commonVatRate(cart);
   return (
     <div className="flex justify-between gap-2 text-body text-ink-muted" data-testid="cart-vat">
-      <span>{rate === undefined ? t('cart.vatIncluded') : t('cart.vatRate', { rate: decimal(rate) })}</span>
+      <span>{rate === undefined ? t('cart.vat') : t('cart.vatRate', { rate: decimal(rate) })}</span>
       <span className="tabular-nums text-ink">{money(cart.vatAmount, currency)}</span>
     </div>
   );

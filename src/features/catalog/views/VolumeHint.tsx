@@ -101,7 +101,7 @@ export function VolumeHint({ data, compact }: { data: PortalPromotionsDto | unde
           className="h-2 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--color-shop)_12%,var(--color-surface))]"
         >
           <span
-            className="block h-full rounded-full bg-[linear-gradient(90deg,var(--color-shop),color-mix(in_srgb,var(--color-shop)_40%,var(--color-accent2)))]"
+            className="block h-full rounded-full bg-shop"
             style={{ width: `${progress}%` }}
           />
         </span>

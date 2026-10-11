@@ -3,23 +3,27 @@ import { useTranslation } from 'react-i18next';
 import { rules } from '../../api/rules.generated';
 import {
   addPortalReviewPhoto,
+  linkPortalReviewPhoto,
   deletePortalReviewPhoto,
   submitPortalReview,
   type ItemReviewDto,
   type ReviewPhotoDto,
   type SubmitReviewRequestTagsItem,
+  useGetReviewPhotoUpload,
 } from '../../api/generated';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { cn } from '../../ui/cn';
+import { compressImage } from '../../api/compressImage';
+import { UploadProgress } from '../../ui/UploadProgress';
 import { Star } from './Stars';
-import { ImagePlus, X } from 'lucide-react';
+import { ImagePlus, Link2, X } from 'lucide-react';
 import {
   MAX_REVIEW_PHOTO_MB,
   MAX_REVIEW_PHOTOS,
   REVIEW_PHOTO_TYPES,
+  cloudPhotoUrl,
   photoProblem,
-  usePhotoUrls,
 } from './ReviewPhotos';
 
 /**
@@ -88,8 +92,17 @@ export function ReviewForm({
   const [picked, setPicked] = useState<PickedPhoto[]>([]);
   const [photoErrors, setPhotoErrors] = useState<string[]>([]);
   const [photosFailed, setPhotosFailed] = useState(false);
-  const keptLinks = usePhotoUrls(kept.map((photo) => photo.url));
+  // Доля отправленного снимка, пока он в пути: снимки уходят по одному.
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  // Ссылка на снимок в облаке клиента — как в кабинете продавца: «Вставить ссылку».
+  const [linking, setLinking] = useState(false);
+  const [link, setLink] = useState('');
+  const keptLinks = kept.map((photo) => photo.url);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Фото уходят в хранилище поставщика. Блок прячется, только когда сервер прямо
+  // сказал «некуда»: без ответа он остаётся, и отказ придёт словами сервера.
+  const photoUpload = useGetReviewPhotoUpload({ query: { retry: false, staleTime: 60_000 } });
+  const photosAllowed = !(photoUpload.data?.status === 200 && photoUpload.data.data.canUploadPhotos === false);
   const room = MAX_REVIEW_PHOTOS - kept.length - picked.length;
 
   // Превью — ссылки на выбранные файлы; ушедшая форма их отпускает.
@@ -120,6 +133,22 @@ export function ReviewForm({
     if (valid > accepted.length) errors.push(t('reviews.photos.tooMany', { count: MAX_REVIEW_PHOTOS }));
     setPicked([...picked, ...accepted]);
     setPhotoErrors(errors);
+  }
+
+  function addLink() {
+    const preview = cloudPhotoUrl(link);
+    if (!preview) {
+      setPhotoErrors([t('reviews.photos.notCloud')]);
+      return;
+    }
+    if (room <= 0) {
+      setPhotoErrors([t('reviews.photos.tooMany', { count: MAX_REVIEW_PHOTOS })]);
+      return;
+    }
+    setPicked([...picked, { key: `link-${Math.random().toString(36).slice(2)}`, link: link.trim(), preview }]);
+    setPhotoErrors([]);
+    setLink('');
+    setLinking(false);
   }
 
   function unpick(one: PickedPhoto) {
@@ -159,7 +188,11 @@ export function ReviewForm({
       const left: PickedPhoto[] = [];
       for (const one of picked) {
         try {
-          const added = await addPortalReviewPhoto(review.id, { file: one.file });
+          setUploadProgress(0);
+          const added = one.file
+            ? await addPortalReviewPhoto(review.id, { file: await compressImage(one.file) },
+              { onUploadProgress: setUploadProgress })
+            : await linkPortalReviewPhoto(review.id, { url: one.link! });
           if (added.status === 201) {
             review = added.data;
             release(one);
@@ -172,6 +205,7 @@ export function ReviewForm({
         photosBroke = true;
       }
 
+      setUploadProgress(null);
       if (photosBroke) {
         // Отзыв записан, снимки — не все. Форма остаётся открытой с тем,
         // что не прошло: закрыть её значило бы потерять выбранное.
@@ -193,6 +227,7 @@ export function ReviewForm({
     } catch {
       setFailed(true);
     } finally {
+      setUploadProgress(null);
       setBusy(false);
     }
   }
@@ -273,6 +308,7 @@ export function ReviewForm({
             ))}
           </ul>
         )}
+        {photosAllowed && (
         <input
           ref={fileInput}
           type="file"
@@ -288,24 +324,46 @@ export function ReviewForm({
             event.currentTarget.value = '';
           }}
         />
+        )}
+        {linking ? (
+          <div className="flex flex-col gap-1">
+            <label htmlFor="review-photo-link" className="text-body font-semibold text-ink">{t('reviews.photos.linkLabel')}</label>
+            <div className="flex flex-wrap gap-2">
+              <input id="review-photo-link" value={link} inputMode="url" autoFocus
+                placeholder="https://drive.google.com/file/d/…"
+                onChange={(event) => setLink(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addLink(); } }}
+                className="h-11 min-w-0 grow rounded-[var(--radius-tile)] border border-line bg-surface px-3 text-body text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" />
+              <Button type="button" disabled={!link.trim()} onClick={addLink}>{t('reviews.photos.linkAdd')}</Button>
+              <Button type="button" variant="ghost" onClick={() => { setLinking(false); setLink(''); setPhotoErrors([]); }}>
+                {t('reviews.cancel')}
+              </Button>
+            </div>
+            <span className="text-caption text-ink-subtle">{t('reviews.photos.linkHint')}</span>
+          </div>
+        ) : (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {photosAllowed && (
           <button
             type="button"
             disabled={room <= 0 || busy}
             onClick={() => fileInput.current?.click()}
-            className={cn(
-              'inline-flex h-11 items-center gap-2 rounded-[var(--radius-tile)] border border-line bg-surface px-4 text-body font-semibold text-ink',
-              'hover:bg-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-            )}
+            className={PHOTO_BUTTON}
           >
             <ImagePlus aria-hidden="true" className="size-[18px]" />
             {t('reviews.photos.add')}
+          </button>
+          )}
+          <button type="button" disabled={room <= 0 || busy} onClick={() => setLinking(true)} className={PHOTO_BUTTON}>
+            <Link2 aria-hidden="true" className="size-[18px]" />
+            {t('reviews.photos.link')}
           </button>
           <span className="text-caption text-ink-subtle">
             {t('reviews.photos.hint', { count: MAX_REVIEW_PHOTOS, mb: MAX_REVIEW_PHOTO_MB })}
           </span>
         </div>
+        )}
+        <UploadProgress fraction={uploadProgress} label={t('reviews.photos.uploading')} />
         {photoErrors.length > 0 && (
           <ul role="alert" className="flex flex-col gap-0.5 text-sm text-gone">
             {photoErrors.map((error) => <li key={error}>{error}</li>)}
@@ -335,7 +393,8 @@ export function ReviewForm({
           )}
           <Button
             type="button"
-            disabled={rating === 0 || busy}
+            disabled={rating === 0}
+            busy={busy}
             onClick={() => void send()}
           >
             {submitLabel ?? t('reviews.leave')}
@@ -346,15 +405,22 @@ export function ReviewForm({
   );
 }
 
-/** Выбранный, но ещё не загруженный снимок и ссылка на его превью. */
+/** Выбранный, но ещё не загруженный снимок — файлом или ссылкой на облако — и его превью. */
 interface PickedPhoto {
   key: string;
-  file: File;
+  file?: File;
+  link?: string;
   preview?: string;
 }
 
+const PHOTO_BUTTON = cn(
+  'inline-flex h-11 items-center gap-2 rounded-[var(--radius-tile)] border border-line bg-surface px-4 text-body font-semibold text-ink',
+  'hover:bg-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+  'disabled:cursor-not-allowed disabled:opacity-50',
+);
+
 function release(one: PickedPhoto) {
-  if (one.preview && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(one.preview);
+  if (one.file && one.preview && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(one.preview);
 }
 
 /** Миниатюра снимка в форме с кнопкой «убрать». */

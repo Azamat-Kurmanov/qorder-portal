@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { PackContents, packMembers } from '../catalog/PackContents';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   downloadMyInvoice,
+  downloadMyVatInvoice,
   getGetMyPortalOrderQueryKey,
   getGetMyPortalOrdersQueryKey,
   useCancelMyPortalOrder,
@@ -21,6 +22,7 @@ import { OrderStateBadge } from './OrderStateBadge';
 import { PickupCode } from './PickupCode';
 import { RevisionDiff } from './RevisionDiff';
 import { OrderDelivery } from './OrderDelivery';
+import { OrderReturns } from './OrderReturns';
 import { TransportPayment } from './TransportPayment';
 import { OrderTotals, type OrderBreakdown } from './OrderTotals';
 import type { Currency } from '../../shared/currency';
@@ -45,6 +47,8 @@ export function OrderPage() {
   const [answered, setAnswered] = useState(false);
   const [invoiceBusy, setInvoiceBusy] = useState(false);
   const [invoiceFailed, setInvoiceFailed] = useState(false);
+  const [vatBusy, setVatBusy] = useState(false);
+  const [vatFailed, setVatFailed] = useState<'requisites' | 'failed' | null>(null);
 
   const response = useGetMyPortalOrder(id);
   const order: PortalOrderDto | undefined =
@@ -84,6 +88,25 @@ export function OrderPage() {
       setInvoiceFailed(true);
     } finally {
       setInvoiceBusy(false);
+    }
+  }
+
+  /** Счёт-фактура — на реквизиты компании из профиля; их нет — подсказка, где заполнить. */
+  async function downloadVatInvoice() {
+    setVatBusy(true);
+    setVatFailed(null);
+    try {
+      const file = await downloadMyVatInvoice(id);
+      if (file.status !== 200) {
+        setVatFailed('failed');
+        return;
+      }
+      await saveFile(file.data, fileNameFrom(file.headers, `vat-invoice-${id}.pdf`));
+    } catch (error) {
+      const code = (error as { info?: { code?: unknown } } | null)?.info?.code;
+      setVatFailed(code === 'VAT_INVOICE_NO_REQUISITES' ? 'requisites' : 'failed');
+    } finally {
+      setVatBusy(false);
     }
   }
 
@@ -158,6 +181,8 @@ export function OrderPage() {
           <OrderDelivery delivery={order.delivery} />
         </Card>
       ) : null}
+
+      {order.issuedAt && order.id ? <OrderReturns orderId={order.id} currency={order.currency} /> : null}
 
       {order.transportPayment ? (
         <Card className="p-4">
@@ -234,6 +259,28 @@ export function OrderPage() {
         <p role="alert" className="text-sm text-gone">
           {t('orders.invoiceFailed')}
         </p>
+      )}
+
+      {/* Счёт-фактура — компании-покупателю: выписывается на реквизиты из профиля. */}
+      {order.invoiceAvailable && (
+        <Button
+          variant="outline"
+          data-testid="order-vat-invoice"
+          disabled={vatBusy}
+          onClick={() => void downloadVatInvoice()}
+        >
+          {vatBusy ? t('orders.invoicePreparing') : t('orders.vatInvoice')}
+        </Button>
+      )}
+
+      {vatFailed === 'requisites' && (
+        <p role="alert" className="text-sm text-ink">
+          {t('orders.vatInvoiceNoRequisites')}{' '}
+          <Link to="/profile" className="font-semibold text-accent-ink underline">{t('orders.vatInvoiceFill')}</Link>
+        </p>
+      )}
+      {vatFailed === 'failed' && (
+        <p role="alert" className="text-sm text-gone">{t('orders.invoiceFailed')}</p>
       )}
 
       {order.cancellable && !order.needsAnswer && (

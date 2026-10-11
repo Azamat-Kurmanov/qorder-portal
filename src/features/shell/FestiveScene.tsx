@@ -8,7 +8,8 @@ import palette from './festiveScenes.json';
  * одинаково: полоса и полоса. Здесь у каждого праздника свой сюжет, палитра,
  * шрифт и движение — ночное небо с гирляндой и снегом у Нового года, букет
  * и лепестки у 8 Марта, орнамент и восход у Наурыза, фонари и полумесяц
- * у Рамадана, волны у лета, школьная доска, чёрная пятница с лентой.
+ * у Рамадана, волны у лета, школьная доска, чёрная пятница с лентой, шарики
+ * и торт у дня рождения, ценник и «%» у распродажи, салют у торжества.
  *
  * Файл самодостаточный — только React и встроенные стили, — и одна и та же
  * копия лежит в кабинете клиента (`portal/src/features/shell`) и в
@@ -20,7 +21,8 @@ import palette from './festiveScenes.json';
  * Движение отключается у тех, кто попросил систему его убрать.
  */
 export type FestiveOccasion =
-  | 'NEW_YEAR' | 'MARCH_8' | 'NAURYZ' | 'RAMADAN' | 'SUMMER' | 'BACK_TO_SCHOOL' | 'BLACK_FRIDAY';
+  | 'NEW_YEAR' | 'MARCH_8' | 'NAURYZ' | 'RAMADAN' | 'SUMMER' | 'BACK_TO_SCHOOL' | 'BLACK_FRIDAY'
+  | 'BIRTHDAY' | 'SALE' | 'CELEBRATION';
 
 const SERIF = "'PT Serif', Georgia, serif";
 
@@ -48,6 +50,9 @@ const RM = palette.RAMADAN;
 const SM = palette.SUMMER;
 const BS = palette.BACK_TO_SCHOOL;
 const BF = palette.BLACK_FRIDAY;
+const BD = palette.BIRTHDAY;
+const SL = palette.SALE;
+const CB = palette.CELEBRATION;
 
 /** Разброс мелких частиц: левый край в процентах, размер, длительность, задержка. */
 const SPREAD: [number, number, number, number][] = [
@@ -68,6 +73,8 @@ const CSS = `
 @keyframes qfs-wave { to { translate: -50% 0; } }
 @keyframes qfs-tape { to { background-position: 56px 0; } }
 @keyframes qfs-fly { 0% { translate: -60px 40px; rotate: -8deg; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { translate: 110vw -30px; rotate: 6deg; opacity: 0; } }
+@keyframes qfs-rise { from { translate: 0 0; } to { translate: 0 -10px; } }
+@keyframes qfs-burst { 0% { scale: .2; opacity: 0; } 30% { opacity: 1; } 100% { scale: 1; opacity: 0; } }
 @keyframes qfs-glow { 0%, 100% { filter: ${RM.glow}; } 50% { filter: ${RM.glowStrong}; } }
 .qfs-fall { animation: qfs-fall linear infinite; }
 .qfs-petal { animation: qfs-petal linear infinite; }
@@ -79,6 +86,8 @@ const CSS = `
 .qfs-tape { animation: qfs-tape 1.4s linear infinite; }
 .qfs-fly { animation: qfs-fly 11s ease-in-out infinite; }
 .qfs-glow { animation: qfs-glow 3.2s ease-in-out infinite; }
+.qfs-rise { animation: qfs-rise 2.2s ease-in-out infinite alternate; }
+.qfs-burst { animation: qfs-burst 2.4s ease-out infinite; transform-origin: center; transform-box: fill-box; }
 /* compact (phone): minor details hide, large ones shrink toward their corner */
 .qfs[data-compact] .qfs-minor { display: none; }
 .qfs[data-compact] .qfs-shrink { scale: .7; }
@@ -284,6 +293,76 @@ function BlackFriday() {
   );
 }
 
+function Birthday() {
+  const colors = BD.confetti;
+  return (
+    <>
+      {SPREAD.map(([left, size, duration, delay], index) => (
+        <span key={index} {...hidden} className="qfs-deco qfs-petal qfs-minor"
+          style={{ left: `${left}%`, top: -8, width: size + 3, height: size, background: colors[index % colors.length], animationDuration: `${duration}s`, animationDelay: `-${delay}s` }} />
+      ))}
+      <svg {...hidden} className="qfs-deco qfs-shrink" viewBox="0 0 180 116" style={{ transformOrigin: '100% 100%', right: `calc(var(--qfs-r) + 10px)`, bottom: 0, width: 180, height: 116 }}>
+        {[[22, 30, 0], [52, 18, 1], [150, 26, 2], [170, 40, 3]].map(([x, y, i]) => (
+          <g key={i} className="qfs-rise" style={{ animationDelay: `-${i * 0.5}s` }}>
+            <path d={`M${x} ${y + 22} q4 10 -2 20 q-4 10 2 20`} fill="none" stroke={BD.string} strokeWidth="1.2" />
+            <ellipse cx={x} cy={y + 10} rx="10" ry="13" fill={BD.balloons[i]} />
+          </g>
+        ))}
+        <ellipse cx="100" cy="112" rx="44" ry="5" fill={BD.plate} />
+        <rect x="64" y="70" width="72" height="40" rx="6" fill={BD.cake} />
+        <path d="M64 80 q9 8 18 0 t18 0 t18 0 t18 0 V70 H64 Z" fill={BD.cream} />
+        {[84, 100, 116].map((x) => (
+          <g key={x}>
+            <rect x={x - 2} y="54" width="4" height="16" fill={BD.cream} />
+            <path d={`M${x} 44 q4 6 0 10 q-4 -4 0 -10z`} fill={BD.flame} className="qfs-blink" />
+          </g>
+        ))}
+      </svg>
+    </>
+  );
+}
+
+function Sale() {
+  return (
+    <>
+      {[[8, 10, 60, 0], [22, 60, 44, 1.2], [36, 4, 34, 2.1], [52, 54, 50, 0.6], [64, 12, 28, 1.6]].map(([left, top, size, delay], index) => (
+        <span key={index} {...hidden} className="qfs-deco qfs-twinkle qfs-minor"
+          style={{ left: `${left}%`, top, fontSize: size, fontWeight: 900, lineHeight: 1, color: SL.percent, opacity: 0.18, animationDelay: `-${delay}s` }}>%</span>
+      ))}
+      <svg {...hidden} className="qfs-deco qfs-sway qfs-shrink" viewBox="0 0 90 120" style={{ right: `calc(var(--qfs-r) + 30px)`, top: 0, width: 90, height: 120 }}>
+        <line x1="45" y1="0" x2="45" y2="22" stroke={SL.string} strokeWidth="1.4" />
+        <path d="M20 22 H70 L82 40 V112 H8 V40 Z" fill={SL.tag} />
+        <circle cx="45" cy="36" r="5" fill={SL.ink} />
+        <text x="45" y="86" textAnchor="middle" fontSize="30" fontWeight="900" fill={SL.ink}>%</text>
+      </svg>
+    </>
+  );
+}
+
+function Celebration() {
+  return (
+    <>
+      <svg {...hidden} className="qfs-deco" viewBox="0 0 1000 116" preserveAspectRatio="xMidYMid slice" style={{ inset: 0, width: '100%', height: '100%' }}>
+        {[[560, 40, 0], [700, 70, 1], [840, 30, 2], [470, 80, 3]].map(([x, y, i]) => (
+          <g key={i} className="qfs-burst" style={{ animationDelay: `-${i * 0.6}s` }}>
+            {Array.from({ length: 12 }, (_, ray) => (
+              <line key={ray} x1={x} y1={y - 10} x2={x} y2={y - 26} stroke={CB.burst[i]} strokeWidth="2.4" strokeLinecap="round"
+                transform={`rotate(${ray * 30} ${x} ${y})`} />
+            ))}
+          </g>
+        ))}
+        {[[400, 20], [620, 100], [760, 14], [900, 90], [950, 50]].map(([x, y], index) => (
+          <circle key={index} cx={x} cy={y} r="2" fill={CB.star} className="qfs-twinkle qfs-minor" style={{ animationDelay: `-${index * 0.5}s` }} />
+        ))}
+      </svg>
+      <svg {...hidden} className="qfs-deco qfs-shrink" viewBox="0 0 60 60" style={{ transformOrigin: '100% 100%', right: `calc(var(--qfs-r) + 20px)`, bottom: 6, width: 60, height: 60 }}>
+        <path d="M6 56 L20 18 L44 42 Z" fill={CB.popper} />
+        <path d="M12 40 L28 30 M9 48 L36 40" stroke={CB.popperStripe} strokeWidth="3" />
+      </svg>
+    </>
+  );
+}
+
 const SCENES: Record<FestiveOccasion, () => ReactNode> = {
   NEW_YEAR: NewYear,
   MARCH_8: March8,
@@ -292,6 +371,9 @@ const SCENES: Record<FestiveOccasion, () => ReactNode> = {
   SUMMER: Summer,
   BACK_TO_SCHOOL: BackToSchool,
   BLACK_FRIDAY: BlackFriday,
+  BIRTHDAY: Birthday,
+  SALE: Sale,
+  CELEBRATION: Celebration,
 };
 
 export function isFestiveOccasion(code: string): code is FestiveOccasion {

@@ -8,6 +8,7 @@ import { bannersFor } from './BannerCarousel';
 import type { ShowcaseBannerDto } from '../../api/generated';
 import { renderScreen } from '../../test/render';
 import { get, stubFetch } from '../../test/http';
+import { MotionLevelContext, type MotionLevel } from '../../ui/motion/motionLevel';
 
 const SALE = {
   id: 's1', visible: true, template: 'SALE', scheme: 'GRAPHITE', badge: 'До 30 сентября',
@@ -32,16 +33,74 @@ function rules(banners: unknown[], dealCount = 3) {
   ];
 }
 
-function renderCatalog() {
+/** Витрина при уровне движения оболочки; вне оболочки он «спокойно», и слайды стоят. */
+function renderCatalog(level: MotionLevel = 'lively') {
   return renderScreen(
+    <MotionLevelContext.Provider value={level}>
     <Routes>
       <Route path="/" element={<CatalogPage />} />
       <Route path="/catalog" element={<CatalogPage />} />
       <Route path="/catalog/:itemId" element={<h1>Карточка позиции</h1>} />
       <Route path="/promotions" element={<h1>Акции</h1>} />
-    </Routes>,
+    </Routes>
+    </MotionLevelContext.Provider>,
   );
 }
+
+/** Продавец с живой темой — правила витрины с его дизайном. */
+function themed(template: string, banners: unknown[]) {
+  return [
+    get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Мухамедиева', brandColor: '#1F5C57',
+      design: { template, theme: 'TEMPLATE', published: true } }]),
+    ...rules(banners),
+  ];
+}
+
+describe('баннеры в одежде темы', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('слайды продавца с темой «Неон» — в неоновой одежде', async () => {
+    stubFetch(themed('NEON', [SALE, BULK]));
+    renderCatalog();
+    const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
+    const skins = [...carousel.querySelectorAll('.qo-banner')].map((node) => node.getAttribute('data-skin'));
+    expect(skins).toEqual(['neon', 'neon']);
+  });
+
+  it('переход слайдов продавца — на каждом слайде; без выбора — как у темы', async () => {
+    stubFetch([
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Мухамедиева', brandColor: '#1F5C57',
+        design: { template: 'NEON', theme: 'TEMPLATE', published: true, slideTransition: 'CIRCLE' } }]),
+      ...rules([SALE, BULK]),
+    ]);
+    renderCatalog();
+    const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
+    const slides = carousel.querySelectorAll('[data-skin-slide]');
+    expect([...slides].map((node) => node.getAttribute('data-slide-fx'))).toEqual(['circle', 'circle']);
+  });
+
+  it('без выбранного перехода атрибута нет — работает переход одежды', async () => {
+    stubFetch(themed('NEON', [SALE, BULK]));
+    renderCatalog();
+    const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
+    expect(carousel.querySelector('[data-slide-fx]')).toBeNull();
+  });
+
+  it('«спокойно» — показ слайдов стоит с самого начала', async () => {
+    stubFetch(themed('NEON', [SALE, BULK]));
+    renderCatalog('calm');
+    await screen.findByRole('region', { name: 'Акции магазина' });
+    // У темы кнопки показа — под баннером, вне его области.
+    expect(screen.getByRole('button', { name: 'Включить показ слайдов' })).toBeInTheDocument();
+  });
+
+  it('без темы — слайды без одежды, как прежде', async () => {
+    stubFetch(rules([SALE, BULK]));
+    renderCatalog();
+    const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
+    expect(carousel.querySelector('.qo-banner[data-skin]')).toBeNull();
+  });
+});
 
 describe('баннеры на витрине', () => {
   afterEach(() => {
@@ -51,7 +110,8 @@ describe('баннеры на витрине', () => {
 
   it('показывает слайды магазина по одному, с точками и паузой', async () => {
     stubFetch(rules([SALE, BULK]));
-    renderCatalog();
+    // «Спокойно»: слайды стоят и скидка видна сразу — под нагрузкой автопрокрутка «живо» успевала сменить слайд.
+    renderCatalog('calm');
 
     const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
     const first = within(carousel).getByRole('group', { name: '1 из 2: Осенняя распродажа' });
@@ -60,11 +120,13 @@ describe('баннеры на витрине', () => {
     // Скрытый слайд убран из дерева доступности — ищется разметкой.
     expect(carousel.querySelector('[aria-label="2 из 2: Берите больше"]')).toHaveAttribute('aria-hidden', 'true');
 
-    await userEvent.click(within(carousel).getByRole('button', { name: 'Слайд 2' }));
-    expect(within(carousel).getByRole('button', { name: 'Слайд 2' })).toHaveAttribute('aria-current', 'true');
+    // Точки и пауза — под слайдом, рядом с областью карусели.
+    const controls = carousel.parentElement!;
+    await userEvent.click(within(controls).getByRole('button', { name: 'Слайд 2' }));
+    expect(within(controls).getByRole('button', { name: 'Слайд 2' })).toHaveAttribute('aria-current', 'true');
 
-    await userEvent.click(within(carousel).getByRole('button', { name: 'Остановить показ слайдов' }));
-    expect(within(carousel).getByRole('button', { name: 'Включить показ слайдов' })).toBeInTheDocument();
+    await userEvent.click(within(controls).getByRole('button', { name: 'Включить показ слайдов' }));
+    expect(within(controls).getByRole('button', { name: 'Остановить показ слайдов' })).toBeInTheDocument();
   });
 
   it('кнопка слайда ведёт в карточку товара', async () => {
@@ -81,7 +143,7 @@ describe('баннеры на витрине', () => {
       id: 's3', visible: true, template: 'LAST_DAYS', scheme: 'NAVY', title: 'Успейте до конца акции',
       buttonText: 'К акции', discount: '−40%', showUntil: '2026-09-30', target: 'ITEM', targetItemId: 'item-1',
     }]));
-    renderCatalog();
+    renderCatalog('calm');
 
     const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
     expect(within(carousel).getByText('30.09')).toBeInTheDocument();
@@ -188,5 +250,80 @@ describe('баннеры в рубрике', () => {
   it('у рубрики без своих баннеров и вне рубрик — все', () => {
     expect(bannersFor(all, { id: 'c-shoes', path: 'c-shoes' })).toBe(all);
     expect(bannersFor(all, undefined)).toBe(all);
+  });
+});
+
+describe('крупный баннер вместо героев', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** Не скрыт ли узел от программы чтения с экрана — ни сам, ни через предка. */
+  const spoken = (node: Element) => node.closest('[aria-hidden="true"]') === null;
+
+  it.each(['GLOW', 'DEPTH', 'NEON', 'BLOBS', 'STUDIO', 'LOOKBOOK'])('%s: слайдов нет, идёт распродажа — крупный баннер распродажи', async (template) => {
+    stubFetch([
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Мухамедиева', brandColor: '#1F5C57',
+        design: { template, theme: 'TEMPLATE', published: true } }]),
+      get('/api/portal/banners', []),
+      get('/api/portal/promotions', { volumeTiers: [], deals: [], dealCount: 3,
+        sale: { title: 'Осенняя распродажа', maxPercent: 30, endsOn: '2099-10-30', countdown: false } }),
+      ...rules([]),
+    ]);
+    renderCatalog();
+
+    const big = await waitFor(() => {
+      const node = document.querySelector('.qo-banner[data-big]');
+      if (!node) throw new Error('нет крупного баннера');
+      return node;
+    });
+    expect(big).toHaveAttribute('data-skin');
+    // Глубина: слои крупного баннера смещаются за курсором и без своих слайдов.
+    expect(!!big.closest('[data-fx]')).toBe(template === 'DEPTH');
+    expect(within(big as HTMLElement).getAllByText(/30/).some(spoken), 'скидка').toBe(true);
+    expect(within(big as HTMLElement).getAllByText(/До 30\.10/).some(spoken), 'срок').toBe(true);
+    expect(within(big as HTMLElement).getByRole('button', { name: /Смотреть товары со скидкой/ })).toBeInTheDocument();
+  });
+
+  it('у продавца с темой все слайды крупные — как в предпросмотре продавца', async () => {
+    stubFetch(themed('NEON', [SALE, BULK]));
+    renderCatalog();
+    await waitFor(() => expect(document.querySelectorAll('.qo-banner[data-big]')).toHaveLength(2));
+  });
+
+  it('на компьютере слайд — 748×360 масштабом во всю ширину, как герой в шаблонах на экране продавца', async () => {
+    stubFetch(rules([SALE, BULK]));
+    renderCatalog();
+    await waitFor(() => expect(document.querySelector('.qo-banner[data-big]')).not.toBeNull());
+    const frame = document.querySelector('.qo-banner')!.parentElement as HTMLElement;
+    expect(frame.style.width).toBe('748px');
+    expect(frame.style.height).toBe('360px');
+    expect(frame.style.transform).toMatch(/^scale\(/);
+  });
+
+  it('без темы слайды тоже крупные — как в шаблонах на экране продавца, но без одежды', async () => {
+    stubFetch(rules([SALE, BULK]));
+    renderCatalog();
+    await waitFor(() => expect(document.querySelectorAll('.qo-banner[data-big]')).toHaveLength(2));
+    expect(document.querySelector('.qo-banner[data-skin]')).toBeNull();
+  });
+
+  it('фирменный слайд продавца с темой — крупный, в одежде', async () => {
+    stubFetch(themed('STUDIO', [BULK]));
+    renderCatalog();
+    await waitFor(() => expect(document.querySelector('.qo-banner[data-big][data-skin="studio"]')).not.toBeNull());
+  });
+});
+
+describe('крупный баннер Глубины под курсором', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([['DEPTH', true], ['FLOAT', true], ['GLOW', false]] as const)('%s: слои смещаются за курсором — %s', async (template, fx) => {
+    stubFetch(themed(template, [BULK]));
+    renderCatalog();
+    const big = await waitFor(() => {
+      const node = document.querySelector('.qo-banner[data-big]');
+      if (!node) throw new Error('нет крупного баннера');
+      return node;
+    });
+    expect(!!big.closest('[data-fx]')).toBe(fx);
   });
 });

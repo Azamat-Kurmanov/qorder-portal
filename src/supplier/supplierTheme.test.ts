@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { darkTokens, designCss, supplierTokens, templateRadii, templateTokens } from './supplierTheme';
-import { CABINET_OCCASIONS, CABINET_TEMPLATES, resolveDesign } from './cabinetDesign';
+import { buttonColors, contrastRatio, darkTokens, designCss, supplierTokens, templateRadii, templateTokens } from './supplierTheme';
+import { CABINET_OCCASIONS, motionTemplateOf, resolveDesign } from './cabinetDesign';
 
 describe('оформление поставщика в кабинете клиента', () => {
   /** Не выбравший ничего поставщик — оформление платформы, без своей таблицы стилей. */
@@ -42,8 +42,10 @@ describe('дизайн кабинета из шаблона', () => {
       brandColor: '#123456',
       design: { template: 'VITRINA', theme: 'TEMPLATE', published: true },
     });
-    expect(vitrina.brand).toBe('#1F5C57');
-    expect(vitrina.background).toBe('SAND');
+    // «Витрина» ведёт на «Глубину»: её цвет, раскладка и крупные плитки.
+    expect(vitrina.template?.id).toBe('DEPTH');
+    expect(vitrina.brand).toBe('#0B4FD6');
+    expect(vitrina.background).toBe('NEUTRAL');
     expect(vitrina.layout).toBe('top');
     expect(vitrina.view).toBe('big');
     expect(vitrina.dark).toBe(false);
@@ -101,17 +103,13 @@ describe('дизайн кабинета из шаблона', () => {
   });
 
   /** Пилюля — по формуле макета: radius >= 12 ? круглая : малый радиус (round(radius*0.6)). */
-  it('пилюли следуют мелкому скруглению шаблона', () => {
-    expect(templateTokens(CABINET_TEMPLATES.MINIMAL)['--radius-pill']).toBe('0px');
-    expect(templateTokens(CABINET_TEMPLATES.BOUTIQUE)['--radius-pill']).toBe('1px');
-    expect(templateTokens(CABINET_TEMPLATES.STRICT)['--radius-pill']).toBe('2px');
-    expect(templateTokens(CABINET_TEMPLATES.SKLAD)['--radius-pill']).toBe('2px');
-    expect(templateTokens(CABINET_TEMPLATES.COMPACT)['--radius-pill']).toBe('5px');
-    expect(templateTokens(CABINET_TEMPLATES.COMPACT)['--radius-small']).toBe('5px');
-    expect(templateTokens(CABINET_TEMPLATES.CLASSIC)['--radius-pill']).toBe('9999px');
-    expect(templateTokens(CABINET_TEMPLATES.SOFT)['--radius-pill']).toBe('9999px');
+  it('пилюли следуют мелкому скруглению темы', () => {
+    expect(templateTokens(motionTemplateOf('LOOKBOOK'))['--radius-pill']).toBe('0px');
+    expect(templateTokens(motionTemplateOf('STUDIO'))['--radius-pill']).toBe('6px');
+    expect(templateTokens(motionTemplateOf('NEON'))['--radius-pill']).toBe('9999px');
+    expect(templateTokens(motionTemplateOf('GLOW'))['--radius-pill']).toBe('9999px');
     // Светлая и тёмная таблицы: пилюля от темы не зависит и стоит на :root.
-    const css = designCss(resolveDesign({ design: { template: 'MINIMAL', theme: 'TEMPLATE', published: true } }))!;
+    const css = designCss(resolveDesign({ design: { template: 'LOOKBOOK', theme: 'TEMPLATE', published: true } }))!;
     expect(css.split("html[data-theme='dark']")[0]).toContain('--radius-pill: 0px');
   });
 
@@ -127,23 +125,23 @@ describe('дизайн кабинета из шаблона', () => {
     expect(dark).toContain('--color-banner: #1E4643');
   });
 
-  /** IBM Plex Mono — только у «Техно», где моноширинный указан шрифтом заголовков. */
-  it('моноширинный шрифт — только у шаблона, который его выбрал', () => {
-    expect(templateTokens(CABINET_TEMPLATES.TECH)['--font-mono']).toContain('IBM Plex Mono');
-    expect(templateTokens(CABINET_TEMPLATES.SKLAD)['--font-mono']).toBeUndefined();
-    expect(templateTokens(CABINET_TEMPLATES.CLASSIC)['--font-mono']).toBeUndefined();
+  /** JetBrains Mono — только у тем с моноширинной ценой: «Неон», «Импульс». */
+  it('моноширинный шрифт — только у темы, которая его выбрала', () => {
+    expect(templateTokens(motionTemplateOf('NEON'))['--font-mono']).toContain('JetBrains Mono');
+    expect(templateTokens(motionTemplateOf('PULSE'))['--font-mono']).toContain('JetBrains Mono');
+    expect(templateTokens(motionTemplateOf('GLOW'))['--font-mono']).toBeUndefined();
   });
 
-  it('шрифты, масштаб и стиль карточек — из шаблона', () => {
-    const boutique = templateTokens(CABINET_TEMPLATES.BOUTIQUE);
-    expect(boutique['--font-heading']).toContain('PT Serif');
-    expect(boutique['--font-sans']).toContain('Inter');
-    expect(boutique['--card-border']).toBe('transparent');
-    expect(boutique['--card-shadow']).toBe('0 0 #0000');
-    expect(templateTokens(CABINET_TEMPLATES.LARGE)['--ui-scale']).toBe('1.18');
-    expect(templateTokens(CABINET_TEMPLATES.CLASSIC)['--ui-scale']).toBeUndefined();
-    expect(templateTokens(CABINET_TEMPLATES.CLASSIC)['--card-shadow']).toBe('var(--shadow-lift)');
-    expect(templateTokens(CABINET_TEMPLATES.COMPACT)['--card-border']).toBe('var(--color-hairline)');
+  it('шрифты, масштаб и стиль карточек — из темы', () => {
+    const studio = templateTokens(motionTemplateOf('STUDIO'));
+    expect(studio['--font-heading']).toContain('Onest');
+    expect(studio['--font-sans']).toContain('Onest');
+    expect(studio['--card-border']).toBe('var(--color-hairline)');
+    const glow = templateTokens(motionTemplateOf('GLOW'));
+    expect(glow['--card-border']).toBe('transparent');
+    expect(glow['--card-shadow']).toBe('0 0 #0000');
+    expect(glow['--ui-scale']).toBeUndefined();
+    expect(templateTokens(motionTemplateOf('DEPTH'))['--card-shadow']).toBe('var(--shadow-lift)');
   });
 
   /** Тёмные оттенки — по формулам макета: кнопка — цвет пополам с белым, тёмная надпись на ней. */
@@ -161,8 +159,23 @@ describe('дизайн кабинета из шаблона', () => {
     const css = designCss(night)!;
     expect(css).toContain(':root {');
     expect(css).toContain("html[data-theme='dark'] {");
-    expect(css).toContain('--radius-card: 36px');
-    expect(css).toContain('--font-sans: \'Onest Variable\'');
+    // «Ночь» ведёт на «Неон»: его скругление 14, шрифт и бумага с чернилами в обеих темах.
+    expect(css).toContain(`--radius-card: ${templateRadii(14)['--radius-card']}`);
+    expect(css).toContain('--font-heading: \'Unbounded Variable\'');
+    const [light, dark] = css.split("html[data-theme='dark']");
+    expect(light).toContain('--color-canvas: #F2F4F8');
+    expect(light).toContain('--color-ink: #0B0D12');
+    expect(dark).toContain('--color-canvas: #07080C');
+    expect(dark).toContain('--color-ink: #F1F3F8');
+  });
+
+  /** Выбранный продавцом фон главнее бумаги темы; ушедший код открывается ближайшей живой темой. */
+  it('свой фон главнее бумаги шаблона, ушедший код ведёт на ближайший', () => {
+    const css = designCss(resolveDesign({ design: { template: 'NIGHT', background: 'SAND', theme: 'TEMPLATE', published: true } }))!;
+    expect(css.split("html[data-theme='dark']")[0]).toContain('--color-canvas: #F2EADB');
+    expect(resolveDesign({ design: { template: 'GLASS', theme: 'TEMPLATE', published: true } }).template?.id).toBe('DEPTH');
+    // Яркий цвет ночью остаётся собой: зелёный «Сцены» не выцветает до мятного.
+    expect(darkTokens('#0AE448', null)['--color-accent']).toBe('#0AE448');
   });
 
   /** Поставщик без дизайна — прежний вид: ни шрифтов, ни скруглений, ни масштаба. */
@@ -204,5 +217,87 @@ describe('праздничное оформление', () => {
       expect(design.occasion).toBeNull();
       expect(design.style).toEqual(plain.style);
     }
+  });
+});
+
+describe('живой фон и движение в дизайне', () => {
+  const shop = (design: Record<string, unknown>) =>
+    resolveDesign({ design: { theme: 'TEMPLATE', published: true, ...design } as never });
+
+  it('без дизайна — без фона, движение «живо», как сейчас', () => {
+    expect(resolveDesign({})).toMatchObject({ backdrop: 'NONE', motion: 'LIVELY' });
+    expect(resolveDesign(null)).toMatchObject({ backdrop: 'NONE', motion: 'LIVELY' });
+  });
+
+  it('старый код — тема, куда он ведёт: её фон, движение и вид', () => {
+    const classic = shop({ template: 'CLASSIC' });
+    expect(classic.template?.id).toBe('GLOW');
+    expect(classic).toMatchObject({ backdrop: 'GLOW', motion: 'LIVELY', layout: 'top', view: 'grid' });
+    expect(shop({ template: 'BOUTIQUE' }).template?.id).toBe('LOOKBOOK');
+    expect(shop({ template: 'FRESH' }).template?.id).toBe('GLOW');
+  });
+
+  it('неизвестный код — «Сияние», кабинет не падает', () => {
+    expect(shop({ template: 'НЕТ ТАКОГО' }).template?.id).toBe('GLOW');
+  });
+
+  it('выбор продавца важнее темы', () => {
+    expect(shop({ template: 'CLASSIC', backdrop: 'HORIZON', motion: 'VIVID' }))
+      .toMatchObject({ backdrop: 'HORIZON', motion: 'VIVID' });
+  });
+
+  it('узор и своё фото — из опубликованного дизайна; без дизайна их нет', () => {
+    const photo = { url: 'https://drive.google.com/thumbnail?id=abc&sz=w2560', veil: 'STRONG' };
+    expect(shop({ template: 'GLOW', pattern: 'FOOD' })).toMatchObject({ pattern: 'FOOD', photo: null });
+    expect(shop({ template: 'GLOW', photo })).toMatchObject({ pattern: null, photo });
+    expect(resolveDesign({ design: { template: 'GLOW', theme: 'TEMPLATE', published: false, pattern: 'FOOD' } as never }))
+      .toMatchObject({ pattern: null, photo: null });
+  });
+
+  it('«по сезону» и праздник на свои даты — узор и живой фон на сегодня', () => {
+    const seasonal = { design: { template: 'GLOW', theme: 'TEMPLATE', published: true, pattern: 'SEASON', backdrop: 'SEASON' } as never };
+    expect(resolveDesign(seasonal, '2027-01-10')).toMatchObject({ pattern: 'WINTER', backdrop: 'SNOW' });
+    expect(resolveDesign(seasonal, '2027-10-10')).toMatchObject({ pattern: 'AUTUMN', backdrop: 'LEAVES' });
+    const birthday = { design: { template: 'GLOW', theme: 'TEMPLATE', published: true, occasion: 'BIRTHDAY',
+      occasionFrom: '2027-05-01', occasionUntil: '2027-05-03' } as never };
+    expect(resolveDesign(birthday, '2027-05-02')).toMatchObject({ pattern: 'BIRTHDAY', backdrop: 'BALLOONS', occasion: 'BIRTHDAY' });
+    expect(resolveDesign(birthday, '2027-05-04')).toMatchObject({ pattern: null, backdrop: 'GLOW', occasion: null });
+  });
+
+  it('новая тема без выбора — её фон и движение; кабинет не падает', () => {
+    expect(shop({ template: 'NEON' })).toMatchObject({ backdrop: 'HORIZON', motion: 'LIVELY' });
+    expect(shop({ template: 'JELLY' })).toMatchObject({ backdrop: 'BLOBS', motion: 'VIVID' });
+  });
+});
+
+describe('кнопка читается на любом цвете бренда', () => {
+  it.each(['#F15730', '#FFC629', '#0AE448', '#E0663C', '#2E8B57', '#CC5500', '#5433EB', '#0A0A0A', '#FFFFFF'])('%s', (brand) => {
+    const { fill, text } = buttonColors(brand);
+    expect(contrastRatio(fill, text)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('цвет, который и так читается, не трогается', () => {
+    expect(buttonColors('#5433EB')).toEqual({ fill: '#5433EB', text: '#FFFFFF' });
+    expect(buttonColors('#FFC629')).toEqual({ fill: '#FFC629', text: '#1A1917' });
+  });
+
+  it('средний тон, где ни белый, ни тёмный текст не читаются, — заливка темнеет до белого текста', () => {
+    // Морская зелень: белый 4,25, тёмный 4,14 — ни один не дотягивает до 4,5.
+    const { fill, text } = buttonColors('#2E8B57');
+    expect(text).toBe('#FFFFFF');
+    expect(fill).not.toBe('#2E8B57');
+  });
+
+  it('кнопка кабинета днём — эти же цвета', () => {
+    const tokens = supplierTokens('#2E8B57', null);
+    expect(tokens['--color-accent']).toBe(buttonColors('#2E8B57').fill);
+    expect(tokens['--color-on-accent']).toBe('#FFFFFF');
+  });
+});
+
+describe('ночная кнопка тоже читается', () => {
+  it.each(['#F15730', '#FFC629', '#0AE448', '#2E8B57', '#CC5500', '#5433EB', '#0A0A0A'])('%s', (brand) => {
+    const tokens = darkTokens(brand, null);
+    expect(contrastRatio(tokens['--color-accent'], tokens['--color-on-accent'])).toBeGreaterThanOrEqual(4.5);
   });
 });

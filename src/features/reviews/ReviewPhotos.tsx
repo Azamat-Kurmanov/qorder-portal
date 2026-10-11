@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiRequest } from '../../api/client';
 import type { ItemMediaDto, ReviewPhotoDto } from '../../api/generated';
 import { MediaLightbox } from '../catalog/MediaLightbox';
 import { cn } from '../../ui/cn';
@@ -14,41 +12,6 @@ export const MAX_REVIEW_PHOTO_MB = 5;
 export const REVIEW_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 /**
- * Снимки отзывов по адресам из ответа сервера — как ссылки для `<img>`.
- *
- * Снимок отдаётся только тому, кто вошёл: видимость у него та же, что
- * у самого отзыва. `<img src>` заголовка с токеном не несёт, поэтому снимок
- * забирается тем же запросом, что и всё остальное (через `apiRequest`, как
- * счёт в заявке), и показывается ссылкой на полученное содержимое.
- *
- * Ключ запроса — адрес: снимок под своим идентификатором не меняется, и
- * повторно открытая карточка берёт его из кеша, а не из сети.
- */
-export function usePhotoUrls(urls: string[]): (string | undefined)[] {
-  const results = useQueries({
-    queries: urls.map((url) => ({
-      queryKey: ['review-photo', url],
-      queryFn: () => apiRequest<{ data: Blob; status: number }>(url),
-      staleTime: Infinity,
-    })),
-  });
-  const blobs = results.map((result) => (result.data?.status === 200 ? result.data.data : undefined));
-
-  // Ссылки на содержимое живут, пока живёт экран: не отпущенная ссылка
-  // держит снимок в памяти до закрытия вкладки.
-  const [links, setLinks] = useState<(string | undefined)[]>([]);
-  const key = blobs.map((blob) => (blob ? `${blob.size}:${blob.type}` : '')).join('|') + urls.join('|');
-  useEffect(() => {
-    const made = blobs.map((blob) => (blob && typeof URL.createObjectURL === 'function'
-      ? URL.createObjectURL(blob) : undefined));
-    setLinks(made);
-    return () => made.forEach((link) => { if (link && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(link); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return links;
-}
-
-/**
  * Фото в карточке отзыва — миниатюрами, с увеличением по нажатию.
  *
  * Увеличение — тем же окном, что снимки товара: второй просмотрщик в кабинете
@@ -56,14 +19,14 @@ export function usePhotoUrls(urls: string[]): (string | undefined)[] {
  */
 export function ReviewPhotoStrip({ photos, author }: { photos: ReviewPhotoDto[]; author?: string }) {
   const { t } = useTranslation();
-  const links = usePhotoUrls(photos.map((photo) => photo.url));
+  // Фото лежит в хранилище поставщика и открывается постоянным адресом без входа.
+  const links = photos.map((photo) => photo.url);
   const [open, setOpen] = useState<number | null>(null);
 
   const media: ItemMediaDto[] = useMemo(() => photos
-    .map((photo, index) => ({ photo, url: links[index], index }))
-    .filter((entry): entry is { photo: ReviewPhotoDto; url: string; index: number } => !!entry.url)
-    .map(({ photo, url, index }) => ({ id: photo.id, kind: 'PHOTO', source: 'UPLOAD', url, sortOrder: index })),
-  [photos, links]);
+    .filter((photo): photo is ReviewPhotoDto & { url: string } => !!photo.url)
+    .map((photo, index) => ({ id: photo.id, kind: 'PHOTO', source: 'UPLOAD', url: photo.url, sortOrder: index })),
+  [photos]);
 
   if (photos.length === 0) return null;
 
@@ -106,4 +69,23 @@ export function photoProblem(file: File): 'badType' | 'tooLarge' | undefined {
   if (!REVIEW_PHOTO_TYPES.includes(file.type)) return 'badType';
   if (file.size > MAX_REVIEW_PHOTO_MB * 1024 * 1024) return 'tooLarge';
   return undefined;
+}
+
+/**
+ * Ссылка на снимок в облаке клиента — адресом самого файла для превью, как её
+ * приведёт сервер: Google Диск — уменьшенной копией, Dropbox и OneDrive — параметром
+ * отдачи файла. Другой сайт — `null`: в отзыв сервер берёт только эти облака.
+ */
+export function cloudPhotoUrl(link: string): string | null {
+  let url: URL;
+  try { url = new URL(link.trim()); } catch { return null; }
+  if (url.protocol !== 'https:') return null;
+  const host = url.hostname.replace(/^www\./, '');
+  if (host === 'drive.google.com') {
+    const id = url.pathname.match(/\/file\/d\/([\w-]{10,})/)?.[1] ?? url.searchParams.get('id');
+    return id && /^[\w-]{10,}$/.test(id) ? `https://drive.google.com/thumbnail?id=${id}&sz=w1600` : null;
+  }
+  if (host === 'dropbox.com') { url.searchParams.delete('dl'); url.searchParams.set('raw', '1'); return url.toString(); }
+  if (host === '1drv.ms' || host === 'onedrive.live.com') { url.searchParams.set('download', '1'); return url.toString(); }
+  return null;
 }

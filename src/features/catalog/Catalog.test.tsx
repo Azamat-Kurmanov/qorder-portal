@@ -333,8 +333,9 @@ describe('витрина кабинета', () => {
     // мелкой строкой под ними: в макете это разные размеры, а не одно предложение.
     expect(within(tile).getByText('2 500 ₸')).toBeInTheDocument();
     expect(within(tile).getByText('за мешок')).toBeInTheDocument();
-    const note = within(tile).getByText(/с НДС/);
-    expect(note).toHaveTextContent('с НДС 12%');
+    // Цена без НДС: налог прибавится сверху при оформлении.
+    const note = within(tile).getByText(/без НДС/);
+    expect(note).toHaveTextContent('без НДС, +12%');
     // Дата актуальности остаётся: цена без неё превращается в бессрочное
     // обещание, а требование о полноте торговой информации действует и здесь.
     expect(note).toHaveTextContent('29.08');
@@ -607,24 +608,6 @@ describe('витрина по макету: порядок, числа, метк
     expect(await screen.findByRole('button', { name: 'Новинки 2' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('раскладка «вкладки»: ниже монитора рубрики чипами', async () => {
-    stubFetch(withCounts([
-      get('/api/portal/suppliers', [
-        { supplierId: 'supplier-1', name: 'СтройБаза', design: { template: 'PASTEL', theme: 'TEMPLATE', published: true } },
-      ]),
-      get('/api/portal/categories', [{ id: 'cat-1', name: 'Сухие смеси', sortOrder: 0 }]),
-      ...catalogRules(),
-    ]));
-    renderScreen(<CatalogPage />);
-
-    await screen.findByTestId('catalog-designed');
-    const group = await screen.findByRole('group', { name: 'Рубрики' });
-    expect(within(group).getByRole('button', { name: /^Сухие смеси/ })).toBeInTheDocument();
-    expect(within(group).getByRole('button', { name: /^Новинки/ })).toBeInTheDocument();
-    // На мониторе рубрики — вкладками под шапкой, чипы прячутся.
-    expect(group.closest('.lg\\:hidden')).not.toBeNull();
-  });
-
   describe('витрина по страницам, а не первые пятьдесят', () => {
     /** Шестьдесят позиций у продавца — две страницы по сорок восемь. */
     function longCatalog(extra: StubbedResponse[] = []) {
@@ -847,7 +830,7 @@ describe('витрина по макету: порядок, числа, метк
   it('подзаголовок называет общую ставку НДС, а при разных — нет', async () => {
     stubFetch(catalogRules([CEMENT, SAND]));
     const first = renderScreen(<CatalogPage />);
-    expect(await screen.findByText('2 товара · цены с НДС 12%, рядом указано — за штуку, мешок или ящик'))
+    expect(await screen.findByText('2 товара · цены без НДС, НДС 12% прибавится при оформлении; рядом указано — за штуку, мешок или ящик'))
       .toBeInTheDocument();
     first.unmount();
     vi.unstubAllGlobals();
@@ -876,77 +859,6 @@ describe('витрина по макету: порядок, числа, метк
 
 describe('витрина таблицей', () => {
   afterEach(() => vi.unstubAllGlobals());
-
-  /** «Склад» — таблица с артикулами: оптовик ищет код и цену, а не снимок. */
-  it('шаблон со списком показывает строки с артикулом, ценой и кнопкой', async () => {
-    stubFetch([
-      get('/api/portal/suppliers', [
-        { supplierId: 'supplier-1', name: 'СтройБаза', design: { template: 'SKLAD', theme: 'TEMPLATE', published: true } },
-      ]),
-      ...catalogRules([{ ...CEMENT, sku: 'CEM-400', oldPrice: 3000, discountPercent: 17 }, SAND]),
-    ]);
-
-    renderScreen(<CatalogPage />);
-
-    const list = await screen.findByTestId('item-list');
-    const rows = await within(list).findAllByTestId('item-row');
-    expect(rows).toHaveLength(2);
-    expect(screen.queryByTestId('item-grid')).not.toBeInTheDocument();
-
-    const cement = rows[0];
-    // Артикул — моноширинным: коды встают ровным столбцом.
-    expect(within(cement).getByText('CEM-400')).toHaveClass('font-mono');
-    expect(within(cement).getByRole('link', { name: 'Цемент М400' })).toBeInTheDocument();
-    // Цена со скидкой — рядом с зачёркнутой прежней.
-    expect(cement.querySelector('s')).toBeInTheDocument();
-    expect(within(cement).getByRole('button', { name: /В корзину/ })).toBeInTheDocument();
-    // Позиция без артикула не выдумывает его.
-    expect(within(rows[1]).getByText('без артикула')).toBeInTheDocument();
-  });
-
-  /** Скидка в таблице — как в макете: «скидка N%» под именем, прежняя цена под новой. */
-  it('строка таблицы: «скидка N%» под именем, старая цена под ценой, метка 21+', async () => {
-    stubFetch([
-      get('/api/portal/suppliers', [
-        { supplierId: 'supplier-1', name: 'СтройБаза', design: { template: 'SKLAD', theme: 'TEMPLATE', published: true } },
-      ]),
-      ...catalogRules([
-        { ...CEMENT, oldPrice: 3000, discountPercent: 17, terms: { hit: false, novelty: false, ageRestricted: true } },
-      ]),
-    ]);
-
-    renderScreen(<CatalogPage />);
-
-    const [row] = await within(await screen.findByTestId('item-list')).findAllByTestId('item-row');
-    expect(within(row).getByText('скидка 17%')).toHaveClass('text-sale');
-    expect(within(row).getByText('21+')).toBeInTheDocument();
-    const old = row.querySelector('s')!;
-    const now = within(row).getByText(/2\s500\s₸/);
-    // Прежняя цена стоит ПОД новой — в столбце, после неё.
-    expect(now.compareDocumentPosition(old) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(old.parentElement).toHaveClass('flex-col');
-  });
-
-  /** Метки продавца видны и в таблице — рядом с названием, как на карточке. */
-  it('строка таблицы показывает метки «Хит продаж» и «Новинка»', async () => {
-    stubFetch([
-      get('/api/portal/suppliers', [
-        { supplierId: 'supplier-1', name: 'СтройБаза', design: { template: 'SKLAD', theme: 'TEMPLATE', published: true } },
-      ]),
-      ...catalogRules([
-        { ...CEMENT, terms: { hit: true, novelty: false, ageRestricted: false } },
-        { ...SAND, terms: { hit: false, novelty: true, ageRestricted: false } },
-      ]),
-    ]);
-
-    renderScreen(<CatalogPage />);
-
-    const rows = await within(await screen.findByTestId('item-list')).findAllByTestId('item-row');
-    expect(within(rows[0]).getByText('Хит продаж')).toBeInTheDocument();
-    expect(within(rows[0]).queryByText('Новинка')).not.toBeInTheDocument();
-    expect(within(rows[1]).getByText('Новинка')).toBeInTheDocument();
-    expect(within(rows[1]).queryByText('Хит продаж')).not.toBeInTheDocument();
-  });
 
   it('без дизайна витрина остаётся карточками', async () => {
     stubFetch([
@@ -1161,20 +1073,32 @@ describe('оценка товара на плитке', () => {
     expectRating(screen.getAllByTestId('item-tile'));
   });
 
-  it('строка таблицы тоже показывает оценку', async () => {
+  /** «Склад» ведёт на «Импульс»: плотные строки — артикул, цена со старой, метки, оценка и кнопка. */
+  it('строки «Импульса»: артикул, цена со старой, метки, оценка и кнопка', async () => {
     stubFetch([
       get('/api/portal/suppliers', [
         { supplierId: 'supplier-1', name: 'СтройБаза', design: { template: 'SKLAD', theme: 'TEMPLATE', published: true } },
       ]),
-      ...catalogRules([RATED, SAND]),
+      ...catalogRules([
+        { ...RATED, sku: 'CEM-400', oldPrice: 3000, discountPercent: 17, terms: { hit: true, novelty: false, ageRestricted: false } },
+        SAND,
+      ]),
     ]);
+
     renderScreen(<CatalogPage />);
 
-    const rows = await within(await screen.findByTestId('item-list')).findAllByTestId('item-row');
+    const rows = (await screen.findAllByTestId('item-tile')).filter((tile) => tile.dataset.tile === 'row');
+    expect(rows).toHaveLength(2);
+    const cement = rows[0];
+    expect(within(cement).getByText('CEM-400')).toHaveClass('font-mono');
+    expect(within(cement).getByRole('link', { name: RATED.name })).toBeInTheDocument();
+    expect(cement.querySelector('s')).toBeInTheDocument();
+    expect(within(cement).getByText('Хит продаж')).toBeInTheDocument();
+    expect(within(cement).getByRole('button', { name: /В корзину/ })).toBeInTheDocument();
     expectRating(rows);
   });
 
-  it.each(['CLASSIC', 'ATELIER', 'LOFT', 'AURORA', 'KRAFT'])('плитка шаблона %s показывает оценку', async (template) => {
+  it.each(['CLASSIC', 'ATELIER', 'VITRINA', 'MARKET', 'FARM', 'TECH'])('плитка шаблона %s показывает оценку', async (template) => {
     stubFetch([
       get('/api/portal/suppliers', [
         { supplierId: 'supplier-1', name: 'СтройБаза', design: { template, theme: 'TEMPLATE', published: true } },
@@ -1188,7 +1112,7 @@ describe('оценка товара на плитке', () => {
     expectRating(screen.getAllByTestId('item-tile'));
   });
 
-  it.each(['soft', 'overlay', 'plain', 'frame', 'sticker', 'brutal', 'glass'] as const)(
+  it.each(['glass', 'tilt', 'float', 'glow', 'jelly', 'outline', 'swap', 'plain'] as const)(
     'характер плитки %s показывает оценку',
     (tile) => {
       stubFetch(catalogRules([]));

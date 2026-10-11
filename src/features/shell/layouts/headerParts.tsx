@@ -19,6 +19,7 @@ import { ThemeToggle } from '../ThemeToggle';
 import { ViewerBadge } from '../ViewerBadge';
 import { hoursNow, hoursText, telLink, whatsappLink, type HoursNow } from '../shopHours';
 import { useSupplier } from '../../../supplier/useSupplier';
+import { PickupPointPicker } from './PickupPointPicker';
 
 /*
  * Части шапки кабинета с опубликованным дизайном: поиск, корзина, значки,
@@ -246,6 +247,8 @@ export function HeaderTools({ activated, ready, chip = true, initialsOnly = fals
 }) {
   return (
     <>
+      {/* Точка самовывоза: по её складу витрина считает наличие — и у клиента, и у сотрудника в просмотре. */}
+      <PickupPointPicker ready={ready} />
       {/* Тема — значком рядом с корзиной; язык и размер шрифта — в полосе графика. */}
       <div data-testid="header-settings" className="hidden items-center gap-0.5 lg:flex">
         <ThemeToggle compact className="size-[2.625rem] justify-center rounded-[var(--radius-small)] px-0" />

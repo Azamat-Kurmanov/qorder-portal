@@ -3,6 +3,7 @@
     "tagline": "Smart order intake system"
   },
   "common": {
+    "uploadSaving": "Saving…",
     "retry": "Try again",
     "positions_one": "item",
     "positions_other": "items",
@@ -41,6 +42,8 @@
     "light": "Light"
   },
   "shell": {
+    "scrollUp": "Back to top",
+    "scrollDown": "To the bottom",
     "occasionFrom": "Greetings from {{shop}}",
     "occasionHide": "Hide greeting until tomorrow",
     "occasion": {
@@ -50,7 +53,10 @@
       "RAMADAN": "Blessed Ramadan!",
       "SUMMER": "Summer season in the shop",
       "BACK_TO_SCHOOL": "Back to school — all for study",
-      "BLACK_FRIDAY": "Black Friday in the shop"
+      "BLACK_FRIDAY": "Black Friday in the shop",
+      "BIRTHDAY": "It’s the shop’s birthday — let’s celebrate together!",
+      "SALE": "Sale in the shop — don’t miss it!",
+      "CELEBRATION": "We’re celebrating — join us!"
     },
     "sections": {
       "catalog": "Catalogue",
@@ -113,7 +119,15 @@
     "switchShop": "Switch shop · {{count}}",
     "youAreIn": "You are in",
     "closedNote": "Closed today — orders are accepted and will be processed on the next working day",
-    "closedShort": "Closed today · orders accepted"
+    "closedShort": "Closed today · orders accepted",
+    "announce": {
+      "label": "Shop announcements",
+      "sale": "{{title}} — up to {{percent}}% off",
+      "saleUntil": "{{title}} — until {{date}}",
+      "freeDelivery": "Free delivery from {{amount}}",
+      "volume": "{{percent}}% off orders from {{amount}}",
+      "firstOrder": "−{{percent}}% on your first order"
+    }
   },
   "auth": {
     "appName": "Customer account",
@@ -147,6 +161,34 @@
       "downloadAria": "Download the document, version {{version}}",
       "preparing": "Preparing…",
       "failed": "Could not get the document. Please try again."
+    },
+    "company": {
+      "title": "Company details",
+      "lead": "If you buy on behalf of a company, fill in its details — the supplier will issue the VAT invoice to them.",
+      "fill": "Fill in details",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Details saved. The VAT invoice will be issued to them.",
+      "failed": "Could not save — check the fields and try again.",
+      "binInvalid": "The BIN/IIN fails the check digit — please check the number.",
+      "fields": {
+        "bin": "BIN/IIN",
+        "name": "Name",
+        "address": "Address",
+        "iik": "IIK (account)",
+        "bankName": "Bank",
+        "bic": "BIC",
+        "kbe": "Kbe"
+      },
+      "examples": {
+        "bin": "12 digits",
+        "name": "Stroytorg LLP",
+        "address": "Astana, Abay Ave 51",
+        "iik": "KZ123456789012345678",
+        "bankName": "Halyk Bank JSC",
+        "bic": "HSBKKZKX",
+        "kbe": "17"
+      }
     }
   },
   "notifications": {
@@ -162,6 +204,7 @@
       "ORDER_ANSWERED": "The seller replied about the request",
       "TRANSPORT_RECEIPT_SENT": "The seller sent a transport payment receipt",
       "TRANSPORT_PAYMENT_REJECTED": "Transport payment not confirmed",
+      "INVOICE_SENT": "An invoice was issued",
       "transportRejectedWith": "Transport payment not confirmed: {{reason}}",
       "fallback": "There is news about the request"
     }
@@ -187,14 +230,14 @@
     "alreadyHaveAccount": "This link did not open the cabinet. If you already had one, sign in and open the link again.",
     "passwordRequired": "Choose a password — without it there is no way to sign in.",
     "tooManyAttempts": "Too many attempts. Please wait and try again later.",
-    "unavailable": "The service is unavailable right now. The link is still valid — try again later."
+    "unavailable": "The service is unavailable right now. The link is still valid — try again later.",
+    "existingCustomerHint": "Already use Q-Order with another supplier? Sign in with your password — no need to create a new one."
   },
   "cart": {
     "sheetTitle": "Basket",
     "panelTitle": "Basket",
     "goodsPieces": "Products, {{amount}} pcs",
-    "vatRate": "incl. VAT {{rate}}%",
-    "vatIncluded": "incl. VAT",
+    "vatRate": "VAT {{rate}}%",
     "noVat": "VAT not charged",
     "empty": "The basket is empty. Pick items in the catalogue.",
     "panelEmpty": "Press “Add to basket” under a product — it will show up here.",
@@ -243,7 +286,10 @@
       "hint": "Add {{amount}} more — {{packs}} at {{price}}, you save {{saving}}",
       "packWord": "pack"
     },
-    "withoutDiscount": "without discount"
+    "withoutDiscount": "without discount",
+    "vat": "VAT",
+    "breakdownShow": "Details",
+    "breakdownHide": "Hide"
   },
   "checkout": {
     "title": "Place your request",
@@ -274,7 +320,11 @@
       "deliveryDirect": "Delivery — paid to the carrier: {{amount}}",
       "deliveryInfo": "{{amount}}, to the carrier",
       "goodsCount_one": "Products, {{count}} item",
-      "goodsCount_other": "Products, {{count}} items"
+      "goodsCount_other": "Products, {{count}} items",
+      "vat": "VAT",
+      "deliveryVatOnTop": "VAT on delivery {{rate}}%",
+      "loadersVatOnTop": "VAT on loaders {{rate}}%",
+      "vatInside": "incl. VAT {{amount}}"
     },
     "sending": "Sending…",
     "send": "Send the request to the seller",
@@ -303,7 +353,6 @@
       "priceNegotiable": " — cost by arrangement",
       "priceFree": " — free",
       "freeFrom": "{{amount}} short of free delivery",
-      "onMap": "Show on the map",
       "loaders": {
         "included": "Loaders are included in delivery",
         "need": "I need loaders",
@@ -312,7 +361,11 @@
         "cost": "Loaders cost",
         "later": "the seller will confirm the loaders cost",
         "direct": "You pay the loaders directly — not included in the total",
-        "provider": { "OWN": "loaded by the seller's staff", "CARRIER": "loaded by the carrier's loaders", "CREW": "loaded by a separate crew" }
+        "provider": {
+          "OWN": "loaded by the seller's staff",
+          "CARRIER": "loaded by the carrier's loaders",
+          "CREW": "loaded by a separate crew"
+        }
       },
       "carrier": "Carrier",
       "chooseCarrier": "Choose a carrier",
@@ -394,25 +447,27 @@
       "outOfStock": "Out of stock",
       "unclear": "Stock is being confirmed",
       "unclearShort": "To be confirmed",
-      "available": "Available: {{amount}}"
+      "available": "Available: {{amount}}",
+      "fromOther": "To order from another warehouse",
+      "fromOtherShort": "To order"
     },
     "priceNote": {
       "perUnit": "per {{unit}}",
-      "vat": "incl. VAT {{rate}}%",
+      "vat": "excl. VAT, +{{rate}}%",
       "asOf": "price as of {{date}}"
     },
     "videoNumbered": "Video {{number}}",
     "photoNumbered": "Photo {{number}}",
     "frameNumbered": "Frame {{number}}",
     "mediaTitle": "Photos and videos: {{name}}",
-    "vat": "including VAT {{rate}}%",
+    "vat": "excl. VAT, {{rate}}% VAT added on top",
     "asOf": "price as of {{date}}",
     "field": {
       "yes": "Yes",
       "no": "No"
     },
     "lead": "Next to each price it says what it is for: per piece, per sack, per box.",
-    "leadVat": "prices include {{rate}}% VAT, next to each one — per piece, sack or box",
+    "leadVat": "prices exclude VAT, {{rate}}% VAT is added at checkout; next to each one — per piece, sack or box",
     "nothingTitle": "Nothing found",
     "showAll": "Show all products",
     "resetSection": "Reset section",
@@ -685,7 +740,18 @@
       "comment": "Comment",
       "send": "Send",
       "failed": "Couldn't send — try again"
-    }
+    },
+    "returns": {
+      "title": "Return {{no}}",
+      "date": "Registered {{date}}",
+      "line": "{{qty}} · {{name}}",
+      "amount": "Refund: {{amount}}",
+      "refunded": "Money refunded {{date}}",
+      "pending": "Money not refunded yet"
+    },
+    "vatInvoice": "VAT invoice",
+    "vatInvoiceNoRequisites": "To get a VAT invoice, fill in your company details.",
+    "vatInvoiceFill": "Fill in in profile"
   },
   "templates": {
     "title": "Templates",
@@ -780,7 +846,13 @@
       "tooMany": "You can attach at most {{count}} photos — the extra ones were not added.",
       "tooLarge": "“{{name}}” is larger than {{mb}} MB — choose a smaller one.",
       "badType": "“{{name}}” is not supported: use JPEG, PNG or WebP photos.",
-      "uploadFailed": "The review is saved, but not all photos were uploaded. Press “Send” again — the selected photos are still here."
+      "uploadFailed": "The review is saved, but not all photos were uploaded. Press “Send” again — the selected photos are still here.",
+      "uploading": "Uploading photo",
+      "link": "Paste a link",
+      "linkLabel": "Link to the photo",
+      "linkAdd": "Add",
+      "linkHint": "Google Drive, Dropbox or OneDrive: open the photo → Share → Anyone with the link → Copy link.",
+      "notCloud": "Use a link to a photo in Google Drive, Dropbox or OneDrive — open the photo itself and copy its link."
     },
     "word": {
       "1": "Terrible",
@@ -1200,7 +1272,12 @@
     "saleText": "The discount is already in the price.",
     "goDeals": "View discounted products",
     "categories": "Categories",
-    "allCategories": "All products"
+    "allCategories": "All products",
+    "receipt": "Your savings",
+    "discount": "Discount",
+    "timeLeft": "Time left",
+    "leftValue": "{{days}} d {{hours}} h",
+    "receiptThanks": "Thank you for your order"
   },
   "pager": {
     "nav": "Pages",
@@ -1218,5 +1295,41 @@
     "inPack": "What is in the pack",
     "total": "Total",
     "size": "press · {{amount}}"
+  },
+  "maps": {
+    "pick": "Set on the map",
+    "set": "Point on the map is set",
+    "change": "Change",
+    "remove": "Remove",
+    "dialogTitle": "{{title}} — on the map",
+    "search": "Address or place",
+    "find": "Find",
+    "searching": "Searching…",
+    "results": "Places found",
+    "nothing": "Nothing found — click the right spot on the map",
+    "hint": "Find the address or click the right spot on the map",
+    "done": "Done",
+    "cancel": "Cancel",
+    "coordinates": "Latitude, longitude: {{value}}",
+    "show": "Show",
+    "approximate": "The point was found from the address text and may be inaccurate",
+    "notFound": "This address was not found on the map",
+    "close": "Close",
+    "choose_one": "Found {{count}} address — click the right one",
+    "choose_few": "Found {{count}} addresses — click the right one",
+    "choose_many": "Found {{count}} addresses — click the right one",
+    "choose_other": "Found {{count}} addresses — click the right one",
+    "viewLabel": "{{title}} — open the map",
+    "openMap": "Open the map",
+    "findOnMap": "Find on the map",
+    "expand": "Expand to full screen",
+    "restore": "Restore size",
+    "deliveryTitle": "Delivery address"
+  },
+  "pickupPoint": {
+    "label": "Pick up at: {{name}}",
+    "none": "Where will you pick up?",
+    "all": "All points",
+    "title": "Pickup point"
   }
 }

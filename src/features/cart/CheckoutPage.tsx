@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { rules } from '../../api/rules.generated';
 import { Link, useNavigate } from 'react-router-dom';
@@ -7,35 +7,14 @@ import { useAuth } from '../../auth/useAuth';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { cn } from '../../ui/cn';
-import { useQueryClient } from '@tanstack/react-query';
-import {
-  useSubmitPortalOrder,
-  type CartDto,
-  type CartStaleResponse,
-  type SubmitOrderDelivery,
-  type PortalDraftCreated,
-} from '../../api/generated';
-import { getGetPortalCartQueryKey, getGetPortalSuppliersQueryKey } from '../../api/generated';
 import { cartOf, useCart } from './useCart';
 import { CartLines, SkippedNotice } from './CartLines';
-import { DeliveryBlock, deliveryPrice, useDeliveryOptions } from './DeliveryBlock';
-import { phone as formatPhone, money } from '../../shared/format';
-import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
+import { DeliveryBlock } from './DeliveryBlock';
+import { phone as formatPhone } from '../../shared/format';
 import { CartSavings } from './CartSavings';
-import { GoodsLine, VatLine } from './CartTotals';
-import { paysCarrierDirectly } from './carrier';
-import { chosenLoaders, type LoadersLine } from './loaders';
 import { AdultNotice } from './AdultNotice';
-
-/**
- * Выбор по доставке или его отсутствие.
- *
- * Пустой объект отправлять нельзя: он означал бы «клиент выбрал», а выбора
- * не было, и заявка ушла бы менеджеру с видом сделанного решения.
- */
-function chosen(delivery: SubmitOrderDelivery): SubmitOrderDelivery | undefined {
-  return delivery.methodId || delivery.pickupPointId ? delivery : undefined;
-}
+import { useCheckout } from './useCheckout';
+import { CheckoutBreakdown, CheckoutTotal } from './CheckoutBreakdown';
 
 /**
  * Оформление — одна страница и ничего лишнего.
@@ -50,57 +29,13 @@ function chosen(delivery: SubmitOrderDelivery): SubmitOrderDelivery | undefined 
  */
 export function CheckoutPage() {
   const { t } = useTranslation();
-  const currency = useSupplierCurrency();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  // Перед заявкой знак валюты — свежий: продавец мог сменить валюту, пока
-  // список поставщиков лежал в кеше (staleTime минута).
-  useEffect(() => {
-    void queryClient.invalidateQueries({ queryKey: getGetPortalSuppliersQueryKey() });
-  }, [queryClient]);
-  const cart = cartOf(useCart().data);
   const { phone: viewerPhone } = useAuth();
-  const [note, setNote] = useState('');
-  const [delivery, setDelivery] = useState<SubmitOrderDelivery>({});
-  const [submitted, setSubmitted] = useState<string | null>(null);
-  const [stale, setStale] = useState<CartStaleResponse | null>(null);
+  const checkout = useCheckout();
+  const { cart, lines, goodsTotal, loadersLines, delivery, setDelivery, note, setNote, submitted, stale, closed } = checkout;
+  const { shipping, direct } = checkout.totals;
   /** Расчёт в липкой сводке на телефоне — по нажатию «Подробнее». */
   const [details, setDetails] = useState(false);
-  // Поставщик приостановлен платформой: заявку не примут, корзина остаётся.
-  const [closed, setClosed] = useState(false);
-  // Условия доставки спрашиваются до всякого ветвления экрана: хук, стоящий
-  // после раннего возврата, вызывается не на каждый отрисовке, и React такое
-  // дерево не собирает.
-  const options = useDeliveryOptions();
-  // Товары — до скидки на заявку: скидка стоит отдельной строкой ниже,
-  // и сумма к оплате складывается у человека на глазах.
-  const goodsTotal = cart?.goodsTotal ?? cart?.total ?? 0;
-  const payForGoods = cart?.total ?? 0;
-
-  const submit = useSubmitPortalOrder({
-    mutation: {
-      onSuccess: (response) => {
-        if (response.status !== 200) return;
-        setStale(null);
-        setClosed(false);
-        setSubmitted((response.data as PortalDraftCreated).draftId);
-        void queryClient.invalidateQueries({ queryKey: getGetPortalCartQueryKey() });
-      },
-      onError: (error) => {
-        const info = (error as { info?: CartStaleResponse }).info;
-        setClosed(info?.code === 'TENANT_INTAKE_CLOSED');
-        if (info?.code === 'CART_STALE') {
-          setStale(info);
-          // Корзина в теле отказа — уже пересчитанная: кладём её в кеш,
-          // чтобы экран показал то же, что увидел сервер.
-          queryClient.setQueryData<{ data: CartDto }>(getGetPortalCartQueryKey(), {
-            ...(queryClient.getQueryData(getGetPortalCartQueryKey()) as { data: CartDto }),
-            data: info.cart,
-          });
-        }
-      },
-    },
-  });
 
   if (submitted) {
     return (
@@ -121,21 +56,6 @@ export function CheckoutPage() {
       </div>
     );
   }
-
-  const lines = cart?.lines ?? [];
-  const method = options?.methods.find((candidate) => candidate.id === delivery.methodId);
-  // Пусто означает «стоимость пока неизвестна», а не «бесплатно»: у зонального
-  // и договорного тарифа её называет поставщик, и показать вместо неё ноль
-  // значило бы пообещать за него.
-  const shipping = deliveryPrice(method, goodsTotal, delivery.zoneId);
-  // Доставку, оплачиваемую перевозчику напрямую, клиент видит, но в итог она не входит.
-  const direct = paysCarrierDirectly(method);
-  const shippingInTotal = direct ? 0 : shipping ?? 0;
-  // Корзина считается в штуках: по ним и вес, и «за количество».
-  const loadersLines: LoadersLine[] = lines.map((line) => ({ quantity: line.quantity ?? 0, unitWeightKg: line.unitWeightKg }));
-  // Грузчики продавцу входят в итог; «напрямую» — строкой под итогом, в сумму не входят.
-  const loaders = chosenLoaders(method?.loaders, delivery, loadersLines);
-  const loadersInTotal = loaders && !loaders.direct ? loaders.amount ?? 0 : 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -300,81 +220,23 @@ export function CheckoutPage() {
             {t('checkout.editGoods')}
           </Link>
 
-          <div id="checkout-breakdown" className={cn('flex flex-col gap-2 border-t border-hairline pt-3.5', !details && 'max-lg:hidden')}>
-            {/* Пустая корзина — без «Товары, 0 позиций · 0 тенге» и без НДС: нулевые строки читаются как посчитанное. */}
-            {cart && lines.length > 0 && <GoodsLine cart={cart} />}
-            {/*
-              НДС — сразу под товарами, а не над «К оплате»: сервер считает
-              налог по товарам, и под суммой с доставкой строка «в т.ч.»
-              утверждала бы, что налог внутри доставки уже посчитан.
-            */}
-            {cart && lines.length > 0 && <VatLine cart={cart} />}
-            <div className="flex justify-between gap-2 text-body text-ink-muted">
-              <span>{t('checkout.summary.delivery')}</span>
-              <span data-testid="delivery-total" className="tabular-nums text-ink">
-                {direct
-                  ? (shipping === undefined
-                    ? t('checkout.delivery.carrierTariff')
-                    : t('checkout.summary.deliveryInfo', { amount: money(shipping, currency) }))
-                  : (shipping === undefined ? t('checkout.summary.negotiable') : money(shipping, currency))}
-              </span>
-            </div>
-            {loaders && !loaders.direct && (
-              <div className="flex justify-between gap-2 text-body text-ink-muted">
-                <span>{t('checkout.summary.loaders')}</span>
-                <span data-testid="loaders-total" className="tabular-nums text-ink">
-                  {loaders.amount === undefined ? t('checkout.summary.loadersLater') : money(loaders.amount, currency)}
-                </span>
-              </div>
-            )}
-          </div>
+          <CheckoutBreakdown checkout={checkout} details={details} />
 
           <div className={cn(!details && 'max-lg:hidden')}>
             <CartSavings cart={cart} withTier={false} />
           </div>
 
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="flex items-baseline gap-3">
-              <span className="text-lg font-bold text-ink">{t('checkout.summary.toPay')}</span>
-              <button
-                type="button"
-                aria-expanded={details}
-                aria-controls="checkout-breakdown"
-                onClick={() => setDetails((open) => !open)}
-                className="text-sm font-semibold text-accent-ink underline underline-offset-[3px] lg:hidden"
-              >
-                {details ? t('checkout.summary.less') : t('checkout.summary.more')}
-              </button>
-            </span>
-            <span data-testid="total" className="text-[1.75rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink">
-              {money(payForGoods + shippingInTotal + loadersInTotal, currency)}
-            </span>
-          </div>
-          {direct && shipping !== undefined && (
-            <p data-testid="delivery-direct" className="text-caption text-ink-muted">
-              {t('checkout.summary.deliveryDirect', { amount: money(shipping, currency) })}
-            </p>
-          )}
-          {loaders?.direct && (
-            <p data-testid="loaders-direct" className="text-caption text-ink-muted">
-              {t('checkout.summary.loadersDirect', {
-                amount: loaders.amount === undefined ? t('checkout.summary.loadersLater') : money(loaders.amount, currency),
-              })}
-            </p>
-          )}
+          <CheckoutTotal checkout={checkout} details={details} onToggle={() => setDetails((open) => !open)} />
 
           <Button
             variant="accent"
             size="xl"
             className="h-15 w-full rounded-[calc(var(--radius-tile)*1.125)] text-lg"
-            disabled={lines.length === 0 || submit.isPending}
-            onClick={() =>
-              submit.mutate({
-                data: { note: note.trim() || undefined, delivery: chosen(delivery) },
-              })
-            }
+            disabled={lines.length === 0}
+            busy={checkout.sending}
+            onClick={checkout.send}
           >
-            {submit.isPending ? t('checkout.sending') : t('checkout.send')}
+            {checkout.sending ? t('checkout.sending') : t('checkout.send')}
           </Button>
 
           {shipping === undefined && !direct && (
@@ -407,3 +269,4 @@ function SkippedLines() {
   const cart = cartOf(useCart().data);
   return <SkippedNotice skipped={cart?.skipped ?? []} />;
 }
+

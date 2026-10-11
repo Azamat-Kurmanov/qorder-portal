@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { useGetPortalSuppliers } from '../../api/generated';
 import { useSupplier } from '../../supplier/useSupplier';
 import { ProfilePage } from './ProfilePage';
@@ -41,16 +42,37 @@ export function RequireSupplier({ children }: RequireSupplierProps) {
   // успевает отдать список.
   const refused = supplierId !== null && (suppliers.error as { status?: number } | null)?.status === 403;
 
+  // Ссылка из QR этикетки товара несёт продавца: `?supplier=`. Доступ к нему есть —
+  // кабинет переходит в его магазин сам; нет — обычный выбор поставщика, без ошибки.
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get('supplier');
+  const allowed = wanted !== null && list.some((supplier) => supplier.supplierId === wanted);
+  useEffect(() => {
+    if (!wanted || !answered) return;
+    select(allowed ? wanted : null);
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('supplier');
+      return next;
+    }, { replace: true });
+  }, [wanted, allowed, answered, select, setParams]);
+
   useEffect(() => {
     // Выбранный ранее поставщик мог отозвать доступ: тогда сохранённый выбор
     // указывает в никуда, и держаться за него значит показывать отказы.
     // Держаться нечем и в буквальном смысле: пока выбор жив, он уходит
     // заголовком `X-Supplier-Id` в каждом запросе кабинета — и каждый
     // получает отказ.
+    // Отвергнутый выбор сбрасывается и при ссылке с поставщиком: без этого список так и
+    // отвечал бы отказом, и ссылка ждала бы его вечно.
+    if (wanted) {
+      if (refused) select(null);
+      return;
+    }
     if (stale && onlyOne) select(onlyOne);
     else if (stale || refused) select(null);
     else if (supplierId === null && onlyOne) select(onlyOne);
-  }, [stale, refused, onlyOne, supplierId, select]);
+  }, [wanted, stale, refused, onlyOne, supplierId, select]);
 
   // Сбой списка экран не пропускает. Экран внутри спросил бы список ещё раз,
   // упавший запрос на это время снова уходит в ожидание, и проверка сняла бы

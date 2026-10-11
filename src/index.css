@@ -85,7 +85,6 @@
   --color-accent2: #D5963A;
   --color-accent2-ink: #16171A;
   --color-brand-deep: #013C2D;
-  --color-glow: #C9D6CD;
   --color-in-stock: #2E7D4F;
   --color-unclear: #C2820A;
   /* Текст «уточняется» — тот же янтарь, притемнённый до 4,5:1: сам `unclear` годится только для заливок и значков. */
@@ -151,7 +150,7 @@
    */
   --font-heading: var(--font-sans);
   /*
-   * Моноширинный — системный стек. IBM Plex Mono ставит только шаблон,
+   * Моноширинный — системный стек. JetBrains Mono ставит только шаблон,
    * у которого моноширинный указан шрифтом («Техно», src/supplier/supplierTheme.ts):
    * у остальных артикулы набраны тем же системным шрифтом, что и раньше.
    */
@@ -684,6 +683,30 @@ html[data-theme='dark'] body::before {
   transition: opacity 340ms cubic-bezier(0.22, 0.61, 0.36, 1), transform 340ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .qo-reveal[data-shown] { opacity: 1; transform: none; }
+/* «Спокойно»: плитки просто стоят на месте — появление тоже движение. */
+[data-motion="calm"] .qo-reveal { opacity: 1; transform: none; transition: none; }
+
+/*
+ * Полоса объявлений (`features/shell/AnnounceBar.tsx`) — тёмная полоса
+ * над шапкой, как `.announce` макетов Вспышки и Лукбука. Несколько строк
+ * бегут («живо» и выше), наведение останавливает; «спокойно» — стоят.
+ */
+.qo-announce {
+  height: 36px; overflow: hidden; display: flex; align-items: center;
+  background: var(--color-ink); color: var(--color-surface);
+  font-size: 12px; letter-spacing: 0.04em;
+}
+.qo-announce-track { display: flex; width: max-content; }
+.qo-announce-row { display: flex; gap: 64px; padding: 0 16px; white-space: nowrap; }
+.qo-announce:not([data-ticker]) .qo-announce-track { width: 100%; justify-content: center; }
+.qo-announce[data-ticker] .qo-announce-row { padding-right: 64px; }
+[data-motion="lively"] .qo-announce[data-ticker] .qo-announce-track,
+[data-motion="vivid"] .qo-announce[data-ticker] .qo-announce-track { animation: qo-announce-run 30s linear infinite; }
+.qo-announce:hover .qo-announce-track { animation-play-state: paused; }
+/* «Спокойно»: бегущей строки нет — видна первая строка, копия убрана. */
+[data-motion="calm"] .qo-announce-row[aria-hidden] { display: none; }
+@keyframes qo-announce-run { to { transform: translateX(-50%); } }
+
 
 /*
  * Движение уважает настройку системы: этого требуют от всех
@@ -704,7 +727,8 @@ html[data-theme='dark'] body::before {
    * уменьшенная и бледная подложка. Поэтому им не короткая длительность,
    * а отсутствие анимации: пусть стоят там, где нарисованы.
    */
-  .animate-shimmer, .animate-sheen, body::before {
+  .animate-shimmer, .animate-sheen, body::before, .qo-backdrop::before, .qo-backdrop::after,
+  .qo-tile-float, .qo-tile-glow, .qo-tile-glass, .qo-announce-track, .qo-badges > *, .qo-display {
     animation: none !important;
   }
 

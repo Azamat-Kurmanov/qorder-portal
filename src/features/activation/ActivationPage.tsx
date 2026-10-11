@@ -256,6 +256,25 @@ export function ActivationPage() {
           )}
 
           {/*
+            Подсказка до попытки, а не только после отказа: клиент, у которого
+            кабинет Q-Order уже есть у другого поставщика, иначе придумывал бы
+            пароль и упирался в «недействительно». Показывается всем невошедшим
+            одинаково — от ссылки не зависит и о ней ничего не сообщает.
+          */}
+          {!authenticated && refusal === null && (
+            <p className="flex flex-wrap items-center gap-x-2 text-sm text-ink-muted">
+              <span>{t('activation.existingCustomerHint')}</span>
+              <button
+                type="button"
+                onClick={login}
+                className="cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline"
+              >
+                {t('activation.signIn')}
+              </button>
+            </p>
+          )}
+
+          {/*
             Пароль спрашивается только у невошедшего: вошедший его уже задал —
             Keycloak требует смены при первом входе, — и придумывать второй,
             чтобы сервер его выбросил, никого просить не за что.

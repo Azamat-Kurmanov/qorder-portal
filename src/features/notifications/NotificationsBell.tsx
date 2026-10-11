@@ -34,6 +34,7 @@ const KNOWN_REASONS = [
   'ORDER_ANSWERED',
   'TRANSPORT_RECEIPT_SENT',
   'TRANSPORT_PAYMENT_REJECTED',
+  'INVOICE_SENT',
 ];
 
 function reasonOf(kind: string, t: TFunction, detail?: string): string {

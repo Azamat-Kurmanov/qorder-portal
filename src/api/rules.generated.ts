@@ -16,8 +16,14 @@ export interface FieldRule {
 }
 
 export const rules = {
+  ChooseStorageRequest: {
+    provider: { required: true },
+  },
   UpdateStaffRolesRequest: {
 
+  },
+  MediaLinkRequest: {
+    url: { required: true, maxLength: 2048, example: "https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view?usp=sharing" },
   },
   UpdateSellerDetailsRequest: {
     name: { required: true, maxLength: 255, example: "ТОО «Стройбаза»" },
@@ -28,10 +34,10 @@ export const rules = {
     phone: { required: false, maxLength: 32, example: "+7 701 000 00 01" },
     whatsapp: { required: false, maxLength: 32, example: "+7 701 000 00 01" },
     tagline: { required: false, maxLength: 64, example: "Магазин одежды" },
-    logoUrl: { required: false, pattern: /^(?:^\s*$|^https?:\/\/\S+$)$/, maxLength: 2048, example: "https://cdn.example.kz/stroybaza.png" },
+    logoUrl: { required: false, pattern: /^(?:^\s*$|^https:\/\/\S+$|^\/api\/files\/[0-9a-fA-F-]{36}$)$/, maxLength: 2048, example: "https://cdn.example.kz/stroybaza.png" },
     bankName: { required: false, maxLength: 255, example: "АО «Народный Банк Казахстана»" },
     bankBic: { required: false, maxLength: 16, example: "HSBKKZKX" },
-    bankAccount: { required: false, maxLength: 34, example: "KZ123456789012345678" },
+    bankAccount: { required: false, pattern: /^(?:^\s*$|^KZ\d{2}[0-9A-Z]{16}$)$/, maxLength: 34, example: "KZ123456789012345678" },
     bankKbe: { required: false, pattern: /^(?:^\s*$|^\d{2}$)$/, example: "17" },
   },
   SaveRoleRequest: {
@@ -60,6 +66,9 @@ export const rules = {
   UpdateWhatsappPackageRequest: {
 
   },
+  UpdateMessengerRulesRequest: {
+
+  },
   UpdateMyProfileRequest: {
     name: { required: true, pattern: /^(?:^(?=.*[\p{L}\p{N}])[^<>&"'$%!#?§;*~/\\|^=\[\]{}()\p{Cc}]+$)$/u, maxLength: 100, example: "Асхат Курманов" },
   },
@@ -76,6 +85,10 @@ export const rules = {
     occasion: { required: false, example: "NAURYZ" },
     occasionFrom: { required: false, example: "2027-03-14" },
     occasionUntil: { required: false, example: "2027-03-23" },
+    backdrop: { required: false, example: "GLOW" },
+    motion: { required: false, example: "LIVELY" },
+    slideTransition: { required: false, example: "WIPE" },
+    pattern: { required: false, example: "FOOD" },
   },
   BusinessDayHoursRequest: {
     opensAt: { required: false, example: "09:00" },
@@ -85,6 +98,29 @@ export const rules = {
   },
   UpdateBusinessHoursRequest: {
     timezone: { required: false, maxLength: 64, example: "Asia/Almaty" },
+  },
+  SaveWarehouseRequest: {
+    name: { required: true, maxLength: 255 },
+    address: { required: false, maxLength: 500, example: "Алматы, ул. Райымбека, 212" },
+  },
+  SaveFloorRequest: {
+
+  },
+  SaveStorageUnitRequest: {
+    kind: { required: true },
+    code: { required: true, maxLength: 16, example: "A" },
+  },
+  SaveKeeperRequest: {
+
+  },
+  SaveDocumentRequest: {
+    type: { required: true },
+    warehouseId: { required: true },
+    targetWarehouseId: { required: false },
+    comment: { required: false, maxLength: 512 },
+  },
+  SaveCellRequest: {
+    purpose: { required: true },
   },
   SaveShowcaseBannersRequest: {
 
@@ -140,6 +176,9 @@ export const rules = {
   TrackingRequest: {
     trackingNumber: { required: false, maxLength: 64, example: "AB123456" },
   },
+  LineWarehouseRequest: {
+    warehouseId: { required: true },
+  },
   UpdateDraftRequest: {
     customerName: { required: false },
     deliveryAddress: { required: false },
@@ -159,6 +198,7 @@ export const rules = {
     workingHours: { required: false, maxLength: 255, example: "пн-сб 9:00-18:00" },
     opensAt: { required: false, example: "09:00:00" },
     closesAt: { required: false, example: "18:00:00" },
+    warehouseId: { required: false },
   },
   DeliveryModeRequest: {
     mode: { required: true },
@@ -167,6 +207,8 @@ export const rules = {
     name: { required: true, maxLength: 255, example: "Доставка по Алматы" },
     type: { required: true },
     tariffRule: { required: true },
+    deliveryVatMode: { required: false },
+    loadersVatMode: { required: false },
   },
   CarrierRequest: {
     name: { required: true, maxLength: 255, example: "СДЭК" },
@@ -267,6 +309,26 @@ export const rules = {
     closesAt: { required: false, example: "16:00" },
     title: { required: false, maxLength: 128, example: "Инвентаризация" },
   },
+  FoundRequest: {
+    warehouseId: { required: true },
+    itemId: { required: true },
+    cellId: { required: false },
+  },
+  ResolveConflictRequest: {
+    decision: { required: true },
+    reason: { required: false, maxLength: 512 },
+  },
+  CellMoveRequest: {
+    fromCellId: { required: true },
+    itemId: { required: true },
+    toCellId: { required: false },
+    targetWarehouseId: { required: false },
+  },
+  AdjustRequest: {
+    itemId: { required: true },
+    warehouseId: { required: true },
+    reason: { required: false, maxLength: 512 },
+  },
   StockLineAnswerRequest: {
     lineId: { required: true },
     answer: { required: true },
@@ -320,6 +382,9 @@ export const rules = {
     consentVersion: { required: true, example: "2026-09-10" },
     password: { required: false, maxLength: 128 },
   },
+  CreateOrderReturnRequest: {
+    reason: { required: true, maxLength: 500, example: "Клиент не подошёл цвет" },
+  },
   ReopenOrderRequest: {
     reason: { required: true, maxLength: 512 },
   },
@@ -370,6 +435,12 @@ export const rules = {
     kind: { required: true },
     url: { required: true, maxLength: 2048, example: "https://drive.google.com/file/d/1AbC_dEfG-42/view?usp=sharing" },
     title: { required: false, maxLength: 255, example: "Мешок 50 кг" },
+  },
+  AddBarcodeRequest: {
+    code: { required: true, pattern: /^(?:\s*[0-9A-Za-z\-._]+\s*)$/, maxLength: 48, example: "4870000000017" },
+  },
+  GenerateBarcodeRequest: {
+
   },
   ApplyIndustryRequest: {
 

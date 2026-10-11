@@ -6,9 +6,11 @@ import { ProfilePage } from '../features/profile/ProfilePage';
 import { renderScreen, renderWithRealSupplier } from '../test/render';
 import { get, method, stubFetch } from '../test/http';
 import { setCurrentSupplierId } from '../supplier/supplier';
+import { setPickupPoint } from '../supplier/pickupPoint';
 import { markSigninCompleted, setSession } from '../auth/session';
 import { apiRequest, ReauthenticationRequiredError } from './client';
 import i18n from '../i18n';
+import { FakeXhr } from '../test/fakeXhr';
 
 const emptyCatalog = [
   get('/api/portal/categories', []),
@@ -36,6 +38,21 @@ describe('поставщик в запросах кабинета', () => {
       const headers = new Headers(call.init?.headers);
       expect(headers.get('X-Supplier-Id')).toBe('supplier-1');
     });
+  });
+
+  it('выбранная точка самовывоза уходит заголовком, без выбора — заголовка нет', async () => {
+    setCurrentSupplierId('supplier-1');
+    setPickupPoint('point-1');
+    const first = stubFetch(emptyCatalog);
+    renderScreen(<CatalogPage />);
+    await waitFor(() => expect(first.calls.length).toBeGreaterThan(0));
+    first.calls.forEach((call) => expect(new Headers(call.init?.headers).get('X-Pickup-Point')).toBe('point-1'));
+
+    setPickupPoint(null);
+    const result = await apiRequest<{ status: number }>('/api/portal/cart', { method: 'GET' });
+    expect(result.status).toBe(200);
+    const last = first.calls[first.calls.length - 1];
+    expect(new Headers(last.init?.headers).has('X-Pickup-Point')).toBe(false);
   });
 
   it('без выбранного поставщика заголовка нет вовсе', async () => {
@@ -169,3 +186,54 @@ describe('отказ 401 в запросах кабинета', () => {
     expect(failure).toMatchObject({ status: 401, info: refusal });
   });
 });
+
+describe('apiRequest: загрузка файла с прогрессом', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function fileBody() {
+    const body = new FormData();
+    body.append('file', new Blob([new Uint8Array([1, 2, 3])]), 'a.png');
+    return body;
+  }
+
+  it('сообщает долю отправленного, несёт поставщика и отдаёт ответ той же формы', async () => {
+    setCurrentSupplierId('sup-1');
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+    const progress = vi.fn();
+
+    const pending = apiRequest<{ status: number; data: unknown }>('/api/portal/reviews/r1/photos',
+      { method: 'POST', body: fileBody(), onUploadProgress: progress });
+    FakeXhr.last.progress(1, 2);
+    FakeXhr.last.respond(201, { id: 'r1' });
+    const result = await pending;
+
+    expect(progress).toHaveBeenCalledWith(0.5);
+    expect(result).toMatchObject({ status: 201, data: { id: 'r1' } });
+    expect(FakeXhr.last.headers.get('x-supplier-id')).toBe('sup-1');
+  });
+
+  it('отказ — та же ошибка с телом', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+    const pending = apiRequest('/api/portal/reviews/r1/photos',
+      { method: 'POST', body: fileBody(), onUploadProgress: () => {} });
+    FakeXhr.last.respond(415, { detail: 'Не снимок' });
+
+    await expect(pending).rejects.toMatchObject({ status: 415, info: { detail: 'Не снимок' } });
+  });
+
+  it('уже отменённый запрос не уходит вовсе', async () => {
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+    const controller = new AbortController();
+    controller.abort();
+    FakeXhr.all = [];
+    const body = new FormData();
+    body.append('file', new Blob([new Uint8Array([1])]), 'a.png');
+
+    await expect(apiRequest('/api/x', { method: 'PUT', body, signal: controller.signal, onUploadProgress: () => {} }))
+      .rejects.toMatchObject({ name: 'AbortError' });
+    expect(FakeXhr.all.every((xhr) => xhr.body === undefined)).toBe(true);
+  });
+});
+

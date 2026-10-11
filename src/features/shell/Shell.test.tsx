@@ -1088,6 +1088,28 @@ function designRules(template: string, theme: 'TEMPLATE' | 'LIGHT' | 'DARK' = 'T
 describe('раскладка оболочки по шаблону продавца', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it('уровень движения — атрибутом на оболочке: по умолчанию «живо»', async () => {
+    stubFetch(designRules('CLASSIC'));
+    await renderShell({ route: '/catalog' });
+    expect(await screen.findByTestId('shell')).toHaveAttribute('data-motion', 'lively');
+  });
+
+  it('«ярко» продавца — на витрине ярко, на странице заказов не выше «живо»', async () => {
+    const vivid = [
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза Алматы', currency: 'KZT',
+        design: { template: 'CLASSIC', theme: 'TEMPLATE', published: true, motion: 'VIVID' } }]),
+      ...shellRules(),
+    ];
+    stubFetch(vivid);
+    const { unmount } = await renderShell({ route: '/catalog' });
+    expect(await screen.findByTestId('shell')).toHaveAttribute('data-motion', 'vivid');
+    unmount();
+
+    stubFetch(vivid);
+    await renderShell({ route: '/orders' });
+    expect(await screen.findByTestId('shell')).toHaveAttribute('data-motion', 'lively');
+  });
+
   /** «Витрина»: меню разделов строкой под шапкой, колонки слева нет. */
   it('меню сверху — строкой под шапкой вместо колонки', async () => {
     stubWideScreen();
@@ -1105,22 +1127,6 @@ describe('раскладка оболочки по шаблону продавц
     expect(await screen.findByRole('dialog', { name: 'Меню' })).toBeInTheDocument();
   });
 
-  /** «Строгий»: узкая рейка со значками и короткими подписями. */
-  it('узкая рейка — значки с короткими подписями', async () => {
-    stubWideScreen();
-    stubFetch(designRules('STRICT'));
-
-    await renderShell({ route: '/orders' });
-
-    const slim = await screen.findByTestId('slim-rail');
-    expect(within(slim).getByRole('link', { name: 'Заявки' })).toHaveAttribute('aria-current', 'page');
-    // Полное имя раздела — подсказкой: коротких подписей мало тому, кто здесь впервые.
-    expect(within(slim).getByRole('link', { name: 'Каталог' })).toHaveAttribute('title', 'Каталог товаров');
-    expect(screen.queryByTestId('rail')).not.toBeInTheDocument();
-    expect(screen.getByTestId('shell-grid').className).toContain('lg:grid-cols-[72px_minmax(0,1fr)]');
-  });
-
-  /** «Как приложение»: на мониторе нижнего меню нет — разделы в строке под шапкой, колонки нет. */
   it('у «Как приложение» нижнее меню только на телефоне', async () => {
     stubWideScreen();
     stubFetch(designRules('APP'));
@@ -1182,7 +1188,8 @@ describe('шапка с опубликованным дизайном', () => {
     supplierId: 'supplier-1', name: 'ИП «Мухамедиева»', currency: 'KZT',
     address: 'Кенжехан-2', phone: '+7 778 622 65 23', whatsapp: '87786226523',
     hours: { timezone: 'Asia/Almaty', exceptions: [], days: [1, 2, 3, 4, 5, 6, 7].map((d) => ({ dayOfWeek: d, closed: true })) },
-    design: { template: 'CLASSIC', theme: 'TEMPLATE', published: true },
+    // «Призма» — меню колонкой слева, как у прежней «Классики».
+    design: { template: 'PRISM', theme: 'LIGHT', published: true },
   };
 
   /** Праздник продавца — плашкой под шапкой, только в его дни. */

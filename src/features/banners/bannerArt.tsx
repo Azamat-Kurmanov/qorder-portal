@@ -625,7 +625,7 @@ export function ArtSvg({ template, c, className, style }: {
   style?: CSSProperties;
 }) {
   return (
-    <svg viewBox="0 0 200 200" aria-hidden="true" className={className} style={style}>
+    <svg viewBox="0 0 200 200" aria-hidden="true" data-art="" className={className} style={style}>
       <Art template={template} c={c} />
     </svg>
   );

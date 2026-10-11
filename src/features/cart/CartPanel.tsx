@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
-import { AlertCircle, ArrowRight, Info, ShoppingCart, X } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, ArrowRight, ChevronDown, Info, Maximize2, Minimize2, ShoppingCart, X } from 'lucide-react';
 import { cartOf, useCart, useClearCart } from './useCart';
 import { CartLines } from './CartLines';
 import { closeCart, openCart, useCartDrawer } from './cartDrawer';
@@ -36,6 +37,8 @@ export function CartPanel({ active = true }: { active?: boolean }) {
   const clear = useClearCart();
   const shop = useCurrentShop();
   const lines = cart?.lines ?? [];
+  // Развернуть корзину на всю страницу и вернуть прежний размер — как окно с картой.
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <Dialog.Root open={open} onOpenChange={(next) => { if (!next) closeCart(); }}>
@@ -44,12 +47,17 @@ export function CartPanel({ active = true }: { active?: boolean }) {
         <Dialog.Content
           data-testid="cart-panel"
           aria-describedby={undefined}
+          // Фокус при открытии — на саму панель, а не на первую кнопку: иначе
+          // «Очистить» встречала бы рамкой фокуса, будто её предлагают нажать.
+          // Tab по-прежнему ведёт по кнопкам, Esc закрывает.
+          onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).focus(); }}
           className={cn(
             // Телефон — нижний лист до 85% высоты с ручкой, как в макете
             // «Карточка товара (телефон)»: витрина остаётся видна над ним.
-            'qo-drawer fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] w-full flex-col rounded-t-[24px] border-t border-hairline bg-surface pt-3 shadow-float',
+            'qo-drawer fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] w-full flex-col outline-none rounded-t-[24px] border-t border-hairline bg-surface pt-3 shadow-float',
             // С `sm` — выдвижная панель справа во всю высоту.
             'sm:inset-y-3 sm:left-auto sm:right-3 sm:max-h-none sm:w-[28.75rem] sm:rounded-[var(--radius-gallery)] sm:border-t-0 sm:pt-0',
+            expanded && 'inset-0 max-h-none rounded-none border-t-0 sm:inset-0 sm:w-full sm:rounded-none',
           )}
         >
           <div data-testid="sheet-handle" aria-hidden="true" className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-hairline sm:hidden" />
@@ -77,6 +85,19 @@ export function CartPanel({ active = true }: { active?: boolean }) {
                   {t('cart.clear')}
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setExpanded(!expanded)}
+                aria-label={expanded ? t('maps.restore') : t('maps.expand')}
+                title={expanded ? t('maps.restore') : t('maps.expand')}
+                className={cn(
+                  'flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border-[1.5px] border-line bg-surface text-ink sm:size-12',
+                  'transition-colors duration-200 hover:border-ink',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                )}
+              >
+                {expanded ? <Minimize2 aria-hidden="true" className="size-5" /> : <Maximize2 aria-hidden="true" className="size-5" />}
+              </button>
               <Dialog.Close
                 aria-label={t('cart.close')}
                 className={cn(
@@ -108,31 +129,70 @@ export function CartPanel({ active = true }: { active?: boolean }) {
             </div>
           ) : (
             <>
+              {/*
+                Прокручивается всё, кроме подсказки до скидки, итога и главной
+                кнопки: «Продолжить покупки» и пометка об оплате идут после товаров.
+                Раньше они стояли внизу намертво и на ноутбуке съедали больше
+                половины панели — на сам список оставалась полоска.
+              */}
               <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6">
                 <CartLines />
+                <div className="flex flex-col gap-3.5 pb-5 pt-1">
+                  <AdultNotice cart={cart} />
+                  <Dialog.Close
+                    className={cn(
+                      'h-12 w-full rounded-[var(--radius-control)] border-[1.5px] border-line text-body font-semibold text-ink',
+                      'hover:bg-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                    )}
+                  >
+                    {t('cart.continue')}
+                  </Dialog.Close>
+                  <p className="flex gap-2.5 text-caption leading-[1.45] text-ink-muted">
+                    <Info aria-hidden="true" className="mt-px size-4 shrink-0" />
+                    {t('cart.payLater')}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex flex-col gap-3.5 border-t border-hairline px-4 pb-4 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
+              <div className="flex flex-col gap-3 border-t border-hairline px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4">
+                {/* «Ещё N — и скидка больше» — строкой над итогом: работает, пока заявка не отправлена. */}
+                <CartSavings cart={cart} tierOnly />
                 {/*
-                  Итоги по макету «Каталог v2»: товары, скидки, налог, итог.
-                  НДС — последним перед «Итого»: он «в том числе» именно
-                  в итоге, уже после скидки на заявку.
+                  Итог — одной строкой; из чего он сложился (товары, скидки,
+                  налог) раскрывается нажатием на неё. НДС — последним: он
+                  «в том числе» именно в итоге, уже после скидки на заявку.
                 */}
-                {cart && <GoodsLine cart={cart} />}
-                <CartSavings cart={cart} />
-                {cart && <VatLine cart={cart} />}
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-lg font-bold text-ink">{t('cart.total')}</span>
-                  <Bump value={cart?.total ?? 0} className="text-[1.75rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink">
-                    {money(cart?.total ?? 0, currency)}
-                  </Bump>
-                </div>
+                <details className="group" data-testid="cart-breakdown">
+                  <summary
+                    className={cn(
+                      'flex cursor-pointer list-none items-baseline justify-between gap-2 rounded-[var(--radius-control)] [&::-webkit-details-marker]:hidden',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                    )}
+                  >
+                    <span className="flex items-baseline gap-2">
+                      <span className="text-lg font-bold text-ink">{t('cart.total')}</span>
+                      <span className="flex items-center gap-1 text-caption font-semibold text-ink-muted">
+                        <span className="group-open:hidden">{t('cart.breakdownShow')}</span>
+                        <span className="hidden group-open:inline">{t('cart.breakdownHide')}</span>
+                        <ChevronDown aria-hidden="true" className="size-4 transition-transform duration-200 group-open:rotate-180" />
+                      </span>
+                    </span>
+                    <Bump value={cart?.total ?? 0} className="text-[1.5rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink sm:text-[1.75rem]">
+                      {money(cart?.total ?? 0, currency)}
+                    </Bump>
+                  </summary>
+                  <div className="flex flex-col gap-2.5 pt-3">
+                    {cart && <GoodsLine cart={cart} />}
+                    <CartSavings cart={cart} withTier={false} />
+                    {cart && <VatLine cart={cart} />}
+                  </div>
+                </details>
                 {/* Единственное главное действие панели — крупное и цветом магазина. */}
                 <Link
                   to="/checkout"
                   onClick={closeCart}
                   className={cn(
-                    'flex h-14 w-full items-center justify-center gap-2.5 rounded-[var(--radius-tile)] bg-accent',
+                    'flex h-13 w-full items-center justify-center gap-2.5 rounded-[var(--radius-tile)] bg-accent',
                     'text-lead font-bold text-on-accent transition-colors duration-200 hover:bg-accent-hover',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
                   )}
@@ -140,19 +200,6 @@ export function CartPanel({ active = true }: { active?: boolean }) {
                   {t('cart.checkoutFull')}
                   <ArrowRight aria-hidden="true" className="size-5" />
                 </Link>
-                <Dialog.Close
-                  className={cn(
-                    'h-12 w-full rounded-[var(--radius-control)] border-[1.5px] border-line text-body font-semibold text-ink',
-                    'hover:bg-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                  )}
-                >
-                  {t('cart.continue')}
-                </Dialog.Close>
-                <AdultNotice cart={cart} />
-                <p className="flex gap-2.5 text-caption leading-[1.45] text-ink-muted">
-                  <Info aria-hidden="true" className="mt-px size-4 shrink-0" />
-                  {t('cart.payLater')}
-                </p>
               </div>
             </>
           )}

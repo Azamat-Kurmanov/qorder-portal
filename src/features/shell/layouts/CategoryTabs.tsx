@@ -87,6 +87,7 @@ export function CategoryTabs({ ready }: { ready: boolean }) {
             <ItemThumb
               itemId={tab.item?.id ?? tab.key}
               src={tab.item?.thumbnailUrl}
+              width={64}
               className="size-10 rounded-[max(4px,calc(var(--radius-small)-2px))]"
             />
             {tab.label}

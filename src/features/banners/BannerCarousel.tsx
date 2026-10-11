@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
-import { useGetPortalBanners, useGetPortalPromotions, useGetPortalSuppliers, type ShowcaseBannerDto } from '../../api/generated';
+import { useGetPortalBanners, useGetPortalPromotions, useGetPortalSuppliers, type PortalPromoSale, type ShowcaseBannerDto } from '../../api/generated';
+import type { TFunction } from 'i18next';
+import { shortDate } from '../../shared/format';
 import { useSupplier } from '../../supplier/useSupplier';
 import { resolveDesign } from '../../supplier/cabinetDesign';
 import { cn } from '../../ui/cn';
 import { prefersReducedMotion } from '../../ui/reducedMotion';
+import { useMotion } from '../../ui/motion/motionLevel';
+import { useColumnWidth } from '../../ui/useColumnWidth';
+import { skinOf } from './bannerSkins';
 import { BannerSlide } from './BannerSlide';
-import { Hero } from './heroes/Hero';
-import { saleHero, slideHero, useHeroSource } from './heroes/heroData';
 
 /** Сколько слайд стоит на витрине — столько же обещает продавцу редактор. */
 const SLIDE_MS = 7000;
@@ -81,18 +84,17 @@ export function BannerCarousel({ width, category, onAction, onSale }: {
   // фирменный цвет, и баннер в чужом цвете выбивался бы из кабинета.
   const design = resolveDesign(supplier);
   const brand = design.brand ?? PLATFORM_BRAND;
-  // Характер шаблона: фирменные слайды рисуются баннером шаблона (`style.hero`),
-  // слайды со своей схемой цвета — как их собрал продавец.
-  const hero = design.style?.hero;
-  const source = useHeroSource(!!hero);
-  // Баннер шаблона выше или ниже слайда в 264 точки — у «историй» над плашкой
-  // кружки рубрик, у «строгой ленты» нет фона вовсе. Поэтому у дизайна
-  // слайды лежат стопкой в одной ячейке сетки, и высоту даёт самый высокий,
-  // а рамку и тень рисует каждый слайд сам. Точки и пауза — под ними.
-  const stacked = !!hero;
+  // Одежда баннеров — из темы кабинета; без живой темы слайды как прежде.
+  // У живой темы все слайды — в крупном варианте одежды, как в предпросмотре продавца (решение владельца 2026-10-10).
+  const look = skinOf(design.template?.id);
+  // Переход слайдов продавца главнее перехода одежды; пусто — как у темы.
+  const fx = supplier?.design?.published ? supplier.design.slideTransition?.toLowerCase() : undefined;
+  const level = useMotion();
+  const sale = promotions.data?.status === 200 ? promotions.data.data.sale : undefined;
 
   const [current, setCurrent] = useState(0);
-  const [paused, setPaused] = useState(prefersReducedMotion);
+  // «Спокойно» (и системное «меньше движения») — слайды листают только кнопками.
+  const [paused, setPaused] = useState(() => prefersReducedMotion() || level === 'calm');
   const [held, setHeld] = useState(false);
   // Карусель за краем экрана не листается: слайд, сменившийся, пока его
   // никто не видел, — лишняя работа телефона и пропущенный баннер.
@@ -132,9 +134,13 @@ export function BannerCarousel({ width, category, onAction, onSale }: {
   if (count === 0) {
     // Слайдов нет, а распродажа идёт — у шаблона она и есть главный баннер,
     // как в предпросмотре продавца. Без шаблона витрина остаётся прежней.
-    return hero && source.sale && onSale
-      ? <Hero hero={hero} data={saleHero(source.sale, source, t)} compact={width > 0 && width < COMPACT_BELOW} onAction={onSale} />
-      : null;
+    const narrow = width > 0 && width < COMPACT_BELOW;
+    return look && sale && onSale ? (
+      <SlideFrame compact={narrow} depth={look.skin === 'depth'}>
+        <BannerSlide slide={saleSlide(sale, t)} brand={brand} compact={narrow} hidden={false} onAction={onSale}
+          skin={look.skin} alt={look.alt} big endsAt={sale.countdown ? sale.endsAt : undefined} />
+      </SlideFrame>
+    ) : null;
   }
 
   const compact = width > 0 && width < COMPACT_BELOW;
@@ -142,17 +148,15 @@ export function BannerCarousel({ width, category, onAction, onSale }: {
     spent.current = { slide: -1, ms: 0 };
     setCurrent((index + count) % count);
   };
-  const isHero = (slide: ShowcaseBannerDto) => stacked && slide.scheme === 'BRAND';
 
   /*
-   * Точки и пауза. На мониторе — поверх слайда в правом нижнем углу, где
-   * нет ни текста, ни кнопки. На телефоне слайду тесно, и поверх он закрыл
-   * бы кнопку, — там они стоят под слайдом.
+   * Точки и пауза — под слайдом: крупный слайд занят текстом и картинкой
+   * целиком, поверх них точки закрыли бы кнопку.
    */
   const controls = count > 1 ? (
     <div className={cn(
       'flex h-10 items-center gap-2 rounded-[var(--radius-pill)] bg-[rgb(20_20_18/0.42)] pl-3.5 pr-1.5 backdrop-blur-md',
-      compact || stacked ? 'self-center' : 'absolute bottom-3.5 right-3.5 z-[2]',
+      'self-center',
     )}>
       {slides.map((slide, index) => {
         const on = index === shown;
@@ -201,12 +205,10 @@ export function BannerCarousel({ width, category, onAction, onSale }: {
         onMouseLeave={() => setHeld(false)}
         onFocus={() => setHeld(true)}
         onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setHeld(false); }}
-        className={cn(
-          'group relative shrink-0',
-          stacked
-            ? 'grid'
-            : cn('overflow-hidden rounded-[var(--radius-gallery)] shadow-[0_18px_40px_-24px_rgb(26_25_23/0.45)]', compact ? 'h-[220px]' : 'h-[264px]'),
-        )}
+        // Все слайды крупные — как в шаблонах на экране продавца, с темой и без
+        // (решение владельца 2026-10-10); без темы — без одежды. Слайды лежат стопкой
+        // в одной ячейке сетки: высоту даёт самый высокий, рамку и тень рисует каждый слайд сам.
+        className="group relative grid shrink-0"
       >
         {slides.map((slide, index) => {
           const on = index === shown;
@@ -217,21 +219,21 @@ export function BannerCarousel({ width, category, onAction, onSale }: {
               aria-roledescription={t('banners.slide')}
               aria-label={t('banners.slideLabel', { n: index + 1, total: count, title: slide.title })}
               aria-hidden={!on}
+              // Смена слайда в характере одежды (`bannerSkins.css`, `.qo-skin-slide`).
+              data-skin-slide={look?.skin}
+              data-slide-fx={fx}
+              data-on={on || undefined}
               className={cn(
                 'transition-[opacity,transform] duration-700 ease-out motion-reduce:transition-none',
-                stacked ? '[grid-area:1/1] self-start' : 'absolute inset-0',
+                '[grid-area:1/1] self-start',
                 on ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-[1.04] opacity-0',
               )}
             >
-              {isHero(slide) ? (
-                <Hero hero={hero!} data={slideHero(slide, source, t)} compact={compact} hidden={!on} onAction={() => onAction(slide)} />
-              ) : stacked ? (
-                <div className={cn('overflow-hidden rounded-[var(--radius-template)] shadow-[0_18px_40px_-24px_rgb(26_25_23/0.45)]', compact ? 'h-[220px]' : 'h-[264px]')}>
-                  <BannerSlide slide={slide} brand={brand} compact={compact} hidden={!on} onAction={() => onAction(slide)} />
-                </div>
-              ) : (
-                <BannerSlide slide={slide} brand={brand} compact={compact} hidden={!on} onAction={() => onAction(slide)} />
-              )}
+              <SlideFrame compact={compact} depth={look?.skin === 'depth'}>
+                <BannerSlide slide={slide} brand={brand} compact={compact} hidden={!on} onAction={() => onAction(slide)}
+                  skin={look?.skin} alt={look?.alt} big
+                  endsAt={slide.template === 'SALE' && sale?.countdown ? sale.endsAt : undefined} />
+              </SlideFrame>
             </div>
           );
         })}
@@ -250,11 +252,50 @@ export function BannerCarousel({ width, category, onAction, onSale }: {
                 </button>
               </>
             )}
-            {compact || stacked ? null : controls}
           </>
         ) : null}
       </section>
-    {compact || stacked ? controls : null}
+    {controls}
     </div>
   );
+}
+
+/** Крупный слайд в шаблонах на экране продавца: 748×360, масштабом во всю ширину. */
+const SLIDE_WIDTH = 748;
+const SLIDE_HEIGHT = 360;
+
+/**
+ * Рамка слайда. На компьютере — как герой в шаблонах на экране продавца
+ * (решение владельца 2026-10-10): слайд 748×360 масштабом во всю ширину,
+ * пропорции и крупность те же, что в предпросмотре. На телефоне — высота
+ * 260 своей раскладкой: в масштабе текст стал бы мелким.
+ * ponytail: масштаб без потолка — на очень широком экране баннер растёт вместе с колонкой.
+ */
+function SlideFrame({ compact, depth, children }: { compact: boolean; depth: boolean; children: ReactNode }) {
+  const [box, width] = useColumnWidth<HTMLDivElement>();
+  const scale = width > 0 ? width / SLIDE_WIDTH : 1;
+  return (
+    <div ref={box} data-fx={depth || undefined}
+      className={cn('relative overflow-hidden rounded-[var(--radius-gallery)] shadow-[0_18px_40px_-24px_rgb(26_25_23/0.45)]', compact && 'h-[260px]')}
+      style={compact ? undefined : { height: Math.round(SLIDE_HEIGHT * scale) }}>
+      {compact ? children : (
+        <div className="absolute left-0 top-0"
+          style={{ width: SLIDE_WIDTH, height: SLIDE_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Идущая распродажа — слайдом «Распродажа» в цвете магазина: главный баннер темы, когда своих слайдов нет. */
+function saleSlide(sale: PortalPromoSale, t: TFunction): ShowcaseBannerDto {
+  return {
+    id: 'sale', visible: true, template: 'SALE', scheme: 'BRAND', target: 'CATALOG',
+    badge: sale.endsOn ? t('design.saleUntil', { date: shortDate(sale.endsOn) }) : t('design.saleBadge'),
+    title: sale.title,
+    text: sale.text ?? t('design.saleText'),
+    discount: sale.maxPercent ? `−${sale.maxPercent}%` : undefined,
+    buttonText: t('design.goDeals'),
+  };
 }

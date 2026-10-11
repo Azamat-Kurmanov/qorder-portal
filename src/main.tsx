@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
+import './ui/motion/liveTheme.css';
 // Язык поднимается до первого рендера: подпись, нарисованная раньше, чем
 // известен язык, мигнула бы русским текстом на казахском экране.
 import './i18n';
@@ -10,14 +11,23 @@ import '@fontsource-variable/inter';
 // Шрифты шаблонов кабинета (src/supplier/cabinetTemplates.json). Подключение
 // объявляет только начертания: файл шрифта браузер скачает, лишь когда
 // продавец выбрал шаблон, где он нужен.
-import '@fontsource-variable/manrope';
+import '@fontsource-variable/golos-text';
+import '@fontsource-variable/wix-madefor-display';
+import '@fontsource-variable/wix-madefor-text';
+import '@fontsource-variable/geologica';
+import '@fontsource-variable/oswald';
+import '@fontsource-variable/caveat';
+import '@fontsource/yeseva-one/400.css';
+import '@fontsource-variable/commissioner';
+import '@fontsource-variable/unbounded';
+import '@fontsource-variable/literata';
+import '@fontsource-variable/tektur';
+import '@fontsource-variable/nunito';
+import '@fontsource-variable/rubik';
+import '@fontsource-variable/jetbrains-mono';
+// Поздравление праздника (`FestiveScene`) набрано PT Serif.
 import '@fontsource/pt-serif/400.css';
 import '@fontsource/pt-serif/700.css';
-import '@fontsource/ibm-plex-sans/400.css';
-import '@fontsource/ibm-plex-sans/600.css';
-import '@fontsource/ibm-plex-sans/700.css';
-import '@fontsource/ibm-plex-mono/400.css';
-import '@fontsource/ibm-plex-mono/600.css';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthProvider';
 import { rememberViewer } from './auth/oidcConfig';

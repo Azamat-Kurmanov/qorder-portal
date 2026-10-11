@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { ShowcaseItemDto } from '../../../api/generated';
-import type { TemplateStyle } from '../../../supplier/cabinetDesign';
+import type { MotionStyle } from '../../../supplier/cabinetDesign';
 import { Reveal } from '../../../ui/Reveal';
 import { cn } from '../../../ui/cn';
 import { FavoriteButton } from '../../favorites/FavoriteButton';
@@ -25,7 +25,7 @@ export function BentoView({
 }: {
   items: ShowcaseItemDto[];
   taken: Set<string>;
-  style: TemplateStyle;
+  style: MotionStyle;
   width: number;
 }) {
   const wide = width >= THREE_FROM;
@@ -60,7 +60,7 @@ export function BentoView({
 function BentoFeature({ item, taken, price, wide }: {
   item: ShowcaseItemDto;
   taken: boolean;
-  price: TemplateStyle['price'];
+  price: MotionStyle['price'];
   wide: boolean;
 }) {
   const { t } = useTranslation();
@@ -82,7 +82,7 @@ function BentoFeature({ item, taken, price, wide }: {
         favorite={item.favorite}
         className="absolute right-3 top-3 size-10 rounded-full bg-surface shadow-[0_4px_10px_-6px_rgb(22_23_26/0.8)]"
       />
-      <div className="qo-glass absolute inset-x-4 bottom-4 flex flex-col gap-3 rounded-[max(8px,var(--radius-small))] p-[18px]">
+      <div className="absolute inset-x-4 bottom-4 flex flex-col gap-3 rounded-[max(8px,var(--radius-small))] bg-surface p-[18px] text-ink">
         <div className="flex items-end justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1.5">
             <span className="text-2xs font-extrabold uppercase tracking-[0.12em] text-accent">{t('design.pick')}</span>

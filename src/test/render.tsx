@@ -22,7 +22,7 @@ import type { Currency } from '../shared/currency';
  * не сохраняет, и тест смены поставщика доказывал бы только то, что кнопка
  * нажимается.
  */
-export function renderWithRealSupplier(ui: ReactElement) {
+export function renderWithRealSupplier(ui: ReactElement, path = '/') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -41,7 +41,7 @@ export function renderWithRealSupplier(ui: ReactElement) {
 
   function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>
         <AuthContext.Provider value={auth}>
           <QueryClientProvider client={queryClient}>
             <SupplierProvider>{children}</SupplierProvider>

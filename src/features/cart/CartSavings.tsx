@@ -10,7 +10,15 @@ import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
  * Подсказка стоит и тогда, когда скидки ещё нет: «ещё 50 000 — и 3%»
  * работает только до того, как человек нажал «Отправить».
  */
-export function CartSavings({ cart, withTier = true }: { cart: CartDto | undefined; withTier?: boolean }) {
+export function CartSavings({ cart, withTier = true, tierOnly = false }: {
+  cart: CartDto | undefined;
+  withTier?: boolean;
+  /**
+   * Только подсказка до порога — одной строкой с тонкой полосой, без строк
+   * скидки и выгоды: так она стоит над итогом панели и не съедает место списка.
+   */
+  tierOnly?: boolean;
+}) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   if (!cart || cart.lines.length === 0) return null;
@@ -22,6 +30,23 @@ export function CartSavings({ cart, withTier = true }: { cart: CartDto | undefin
   const next = cart.nextTier && (!discount || cart.nextTier.percent > discount.percent) ? cart.nextTier : undefined;
   const saved = (cart.saleSavings ?? 0) + (discount?.amount ?? 0);
   const reached = next ? Math.min(100, Math.round(((next.from - next.missing) / next.from) * 100)) : 100;
+
+  if (tierOnly) {
+    if (!next) return null;
+    return (
+      <div className="flex flex-col gap-1.5" data-testid="cart-tier">
+        <p className="text-caption leading-[1.35] text-sale-text">
+          <b className="text-sale-ink">{t('cart.tier.more', { amount: money(next.missing, currency) })}</b>{' '}
+          {discount?.kind === 'VOLUME'
+            ? t('cart.tier.andMore', { percent: next.percent })
+            : t('cart.tier.andFirst', { percent: next.percent })}
+        </p>
+        <div className="h-1 overflow-hidden rounded-full bg-sale-line" aria-hidden="true">
+          <div className="h-1 rounded-full bg-sale" style={{ width: `${reached}%` }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -38,7 +63,7 @@ export function CartSavings({ cart, withTier = true }: { cart: CartDto | undefin
           </div>
         </div>
       ) : null}
-      {discount ? (
+      {discount && !tierOnly ? (
         <div className="flex justify-between gap-2 text-body font-semibold text-sale-ink" data-testid="cart-discount">
           <span>
             {t(`cart.discount.${discount.kind}`, { percent: discount.percent })}
@@ -48,7 +73,7 @@ export function CartSavings({ cart, withTier = true }: { cart: CartDto | undefin
           <span className="tabular-nums">−{money(discount.amount, currency)}</span>
         </div>
       ) : null}
-      {saved > 0 ? (
+      {saved > 0 && !tierOnly ? (
         <div className="flex justify-between gap-2 text-body font-bold text-in-stock" data-testid="cart-saved">
           <span>{t('cart.saved')}</span>
           <span className="tabular-nums">{money(saved, currency)}</span>

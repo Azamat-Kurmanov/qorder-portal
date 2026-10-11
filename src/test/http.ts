@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { FetchBackedXhr } from './fakeXhr';
 
 /** Что вернуть на запрос: тело, статус и признак совпадения по адресу. */
 export interface StubbedResponse {
@@ -46,6 +47,8 @@ export function stubFetch(rules: StubbedResponse[]) {
   });
 
   vi.stubGlobal('fetch', fetchMock);
+  // Файлы с прогрессом уходят через XMLHttpRequest — он идёт в ту же подмену fetch.
+  vi.stubGlobal('XMLHttpRequest', FetchBackedXhr);
   return { calls, fetchMock };
 }
 

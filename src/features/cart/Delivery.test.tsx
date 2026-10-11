@@ -137,6 +137,37 @@ describe('доставка при оформлении', () => {
     });
   });
 
+  /**
+   * НДС доставки у плательщика — по режиму способа, той же формулой, что сервер:
+   * товары 10 000 + НДС 1 600 уже в итоге корзины; доставка 5 000 при 16 %.
+   */
+  it('НДС доставки «сверху» прибавляется к итогу, «внутри» — только подписан', async () => {
+    const payerCart = { ...cart, total: 11600, goodsTotal: 10000, vatAmount: 1600, vatPayer: true, shopVatRate: 16 };
+    stubFetch([
+      get('/api/portal/cart', payerCart),
+      get('/api/portal/delivery', { mode: 'ENABLED', pickupPoints: [],
+        methods: [{ ...fixedMethod, requiresAddress: false, price: 5000, deliveryVatMode: 'ON_TOP' }] }),
+    ]);
+    const first = renderScreen(<CheckoutPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Доставка' }));
+
+    await waitFor(() => expect(screen.getByTestId('delivery-vat')).toHaveTextContent(/НДС на доставку 16%.*800/));
+    expect(screen.getByTestId('total')).toHaveTextContent('17 400');
+    first.unmount();
+    vi.unstubAllGlobals();
+
+    stubFetch([
+      get('/api/portal/cart', payerCart),
+      get('/api/portal/delivery', { mode: 'ENABLED', pickupPoints: [],
+        methods: [{ ...fixedMethod, requiresAddress: false, price: 5000, deliveryVatMode: 'INCLUDED' }] }),
+    ]);
+    renderScreen(<CheckoutPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Доставка' }));
+
+    await waitFor(() => expect(screen.getByTestId('delivery-vat')).toHaveTextContent(/в т\.ч\. НДС 689,66/));
+    expect(screen.getByTestId('total')).toHaveTextContent('16 600');
+  });
+
   /** Несколько способов доставки — обычный список внутри ветки «Доставка». */
   it('способ выбирается списком, когда их несколько', async () => {
     stubFetch([

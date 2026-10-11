@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { ShowcaseItemDto } from '../../../api/generated';
-import type { TemplateStyle } from '../../../supplier/cabinetDesign';
+import type { MotionStyle } from '../../../supplier/cabinetDesign';
 import { FavoriteButton } from '../../favorites/FavoriteButton';
 import { ColourCountBadge } from '../ColourCountBadge';
 import { ItemThumb } from '../ItemThumb';
@@ -12,24 +12,27 @@ import { useTileVariant } from '../TileVariants';
 import { cn } from '../../../ui/cn';
 
 /**
- * Карточка товара шаблона — семь характеров, как в предпросмотре продавца
- * (`Tile` в `front/src/features/cabinetDesign/CabinetPreview.tsx`):
+ * Карточка товара живой темы — восемь характеров, как в макетах
+ * (`Motion*.dc.html` в канве):
  *
- * — `soft` — фото внутри карточки с отступом, круглый «+» рядом с ценой;
- * — `overlay` — снимок на всю карточку, имя и цена поверх затемнения;
- * — `frame` — карточка в рамке, подпись по центру, кнопка-рамка;
- * — `sticker` — наклейка скидки вторым цветом, кнопка во всю ширину;
- * — `brutal` — толстая рамка цвета текста и жёсткая тень без размытия;
- * — `glass` — матовое стекло поверх подсвеченного фона;
- * — `plain` — без подложки: снимок, имя, цена и «Добавить» словом.
+ * — `glass` — матовое стекло, мягкое свечение под курсором (Сияние, Призма);
+ * — `tilt` — объёмная карточка, наклоняется за курсором (Глубина);
+ * — `float` — та же карточка, слегка покачивается (Парение);
+ * — `glow` — тонкая рамка, светится цветом магазина при наведении (Неон, Импульс);
+ * — `jelly` — упругая: подпрыгивает при наведении, сжимается при нажатии (Капли, Леденец);
+ * — `outline` — рамка цвета магазина прорисовывается по контуру (Студия, Вспышка);
+ * — `swap` — снимок без подложки, медленное приближение, «В корзину» выезжает снизу (Лукбук, Сезон);
+ * — `plain` — запасная: снимок, имя, цена и «Добавить» словом.
  *
- * Данные и действия у всех одни и те же, что у прежней плитки: снимок,
- * избранное, метки продавца, цена со старой, наличие, условия продажи
- * и «В корзину», которая после нажатия становится счётчиком. Нажимается
- * карточка целиком (`useOpenCard`), имя остаётся настоящей ссылкой.
+ * Вид и движение — классы `qo-tile-*` в `index.css` под уровнем движения
+ * оболочки. Данные и действия у всех одни: снимок, избранное, метки, цена
+ * со старой, наличие, условия продажи и «В корзину», которая после нажатия
+ * становится счётчиком. Нажимается карточка целиком (`useOpenCard`).
  */
-/** Наименьшая высота снимка у плитки с подписью поверх — в `rem` (288 точек). */
-const OVERLAY_MIN_PHOTO = 18;
+/** Плитки с эффектом под курсором (`ui/motion/pointerFx.ts`): свечение или наклон. */
+const WITH_FX = new Set<MotionStyle['tile']>(['glass', 'glow', 'tilt']);
+/** Снимок лукбука выше обычного — в `rem` (300 точек в макете). */
+const SWAP_MIN_PHOTO = 18.75;
 
 export function TemplateTile({
   item,
@@ -42,8 +45,8 @@ export function TemplateTile({
   item: ShowcaseItemDto;
   /** Взятые позиции: плитка сама смотрит, взят ли выбранный на ней вариант. */
   taken: ReadonlySet<string>;
-  tile: TemplateStyle['tile'];
-  price: TemplateStyle['price'];
+  tile: MotionStyle['tile'];
+  price: MotionStyle['price'];
   /** Высота снимка в `rem` — от вида витрины и ширины колонки. */
   photo?: number;
   className?: string;
@@ -68,7 +71,7 @@ export function TemplateTile({
   // и классом её не задать — Tailwind находит классы по тексту исходника.
   const thumb = (classes: string, height = photo) => (
     <div className={cn('w-full shrink-0 overflow-hidden', classes)} style={{ height: `${height}rem` }}>
-      <ItemThumb itemId={item.id} src={item.thumbnailUrl} className="size-full" />
+      <ItemThumb itemId={item.id} src={item.thumbnailUrl} second={item.secondThumbnailUrl} flight className="size-full" />
     </div>
   );
   const heart = (
@@ -79,7 +82,7 @@ export function TemplateTile({
     />
   );
   const badges = (square = false, framed = false) => (
-    <div className="absolute left-2 top-2 flex max-w-[calc(100%-3rem)] flex-wrap gap-1.5">
+    <div className="qo-badges absolute left-2 top-2 flex max-w-[calc(100%-3rem)] flex-wrap gap-1.5">
       {sale && (
         <span
           className={cn(
@@ -114,129 +117,85 @@ export function TemplateTile({
     <article
       data-testid="item-tile"
       data-tile={tile}
+      data-fx={WITH_FX.has(tile) || undefined}
       onClick={openCard}
-      className={cn('group/tile flex h-full min-w-0 cursor-pointer flex-col', classes, className)}
+      className={cn('group/tile flex h-full min-w-0 cursor-pointer flex-col', `qo-tile-${tile}`, classes, className)}
     >
       {children}
     </article>
   );
 
+  // Подпись под снимком — общая у карточек с подложкой: имя, оценка, условия, цена и действие.
+  const body = (look: CartLook, pad = 'px-1 pb-1') => (
+    <div className={cn('flex flex-1 flex-col gap-1.5', pad)}>
+      {name()}
+      {stars()}
+      {facts()}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-1">
+        <TemplatePrice item={shown} look={price} />
+        {inline(look)}
+      </div>
+      {counter}
+    </div>
+  );
+  const photo3 = (classes = 'rounded-[var(--radius-small)]', height = photo) => (
+    <div className="relative">
+      {thumb(classes, height)}
+      {badges()}
+      {heart}
+      {colours}
+    </div>
+  );
+
   switch (tile) {
-    case 'overlay':
-      return shell('qo-tile relative overflow-hidden rounded-[var(--radius-template)]', (
+    case 'tilt':
+    case 'float':
+      // Объём: белая карточка с длинной мягкой тенью; наклон (Глубина) или покачивание (Парение).
+      return shell('gap-3 rounded-[var(--radius-template)] bg-surface p-3', (
         <>
-          {/*
-            Снимок выше, чем у соседей, на высоту подписи, которая ляжет поверх (как в макете, +90).
-            Но не ниже 18rem: у узких видов на телефоне снимок 8.5rem, и подпись (название в две
-            строки, цена, наличие) вместе с плашками в три строки «−10% · Хит продаж · Новинка»
-            ложились друг на друга.
-          */}
-          {thumb('', Math.max(photo + 5.625, OVERLAY_MIN_PHOTO))}
-          {badges()}
-          {heart}
-          <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-[linear-gradient(transparent,rgb(22_23_26/0.88))] px-3.5 pb-3.5 pt-11">
-            <div className="flex items-end gap-2.5">
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                {name('text-white hover:text-white/85')}
-                {stars('text-white/85')}
-                <TemplatePrice item={shown} look={price} onImage />
-                <StockNote stock={shown.stock} available={shown.available} short className="mt-0 text-xs text-white/85" />
-              </div>
-              {inline('roundLight')}
-            </div>
-            {counter}
-          </div>
+          {photo3()}
+          {body('solid')}
         </>
       ));
-    case 'frame':
-      return shell('gap-2.5 rounded-[var(--radius-template)] border border-hairline bg-surface p-2.5', (
+    case 'glow':
+      // Неон: тонкая рамка цвета линий, свечение цветом магазина при наведении.
+      return shell('gap-3 rounded-[var(--radius-template)] border border-hairline bg-surface p-3', (
         <>
-          <div className="relative">
-            {thumb('rounded-[var(--radius-small)]')}
-            {badges(true, true)}
-            {heart}
-            {colours}
-          </div>
-          <div className="flex flex-1 flex-col items-center gap-1 px-1 text-center">
-            {shown.sku ? (
-              <span className="text-2xs uppercase tracking-[0.14em] text-ink-muted">{shown.sku}</span>
-            ) : null}
-            {name('font-heading text-[0.9375rem] leading-[1.3] [font-weight:var(--heading-weight)]')}
-            {stars()}
-            <TemplatePrice item={shown} look={price} size="sm" className="justify-center" />
-            {facts()}
-          </div>
-          {action('outline')}
+          {photo3()}
+          {body('glow')}
         </>
       ));
-    case 'sticker':
-      return shell('qo-tile overflow-hidden rounded-[var(--radius-template)] bg-surface', (
+    case 'jelly':
+      return shell('gap-3 rounded-[var(--radius-template)] bg-surface p-3', (
         <>
-          <div className="relative">
-            {thumb('')}
-            <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">
-              <ItemBadges item={shown} hideDiscount className="contents" />
-            </div>
-            {heart}
-            {colours}
-            {sale && (
-              // Наклейка скидки — вторым цветом и чуть набок, как ценник на рынке.
-              <span className="absolute -bottom-[18px] right-2.5 z-[1] flex size-[62px] -rotate-10 items-center justify-center rounded-full bg-accent2 text-[1.1875rem] font-black text-accent2-ink shadow-[0_8px_16px_-8px_rgb(22_23_26/0.8)]">
-                −{shown.discountPercent}%
-              </span>
-            )}
-          </div>
-          <div className="flex flex-1 flex-col gap-1.5 px-3 pb-3 pt-3.5">
-            {name(sale ? 'pr-14' : undefined)}
-            {stars()}
-            <TemplatePrice item={shown} look={price} />
-            {facts()}
-            <div className="mt-auto pt-1">{action('solid')}</div>
-          </div>
+          {photo3()}
+          {body('jelly')}
         </>
       ));
-    case 'brutal':
-      return shell('overflow-hidden rounded-[var(--radius-template)] border-2 border-ink bg-surface shadow-[6px_6px_0_var(--color-ink)]', (
+    case 'outline':
+      // Студия: без тени; рамка 1,5 точки цвета магазина рисуется по контуру при наведении.
+      return shell('gap-3 rounded-[var(--radius-template)] bg-surface p-3', (
         <>
-          <div className="relative border-b-2 border-ink">
-            {thumb('')}
-            <div className="absolute left-2.5 top-2.5 flex flex-wrap gap-1.5">
-              {sale && (
-                <span className="border-2 border-[#16171A] bg-accent2 px-2 py-0.5 font-mono text-caption font-extrabold text-[#16171A]">
-                  −{shown.discountPercent}%
-                </span>
-              )}
-              <ItemBadges item={shown} hideDiscount className="contents" />
-            </div>
-            {heart}
-            {colours}
-          </div>
-          <div className="flex flex-1 flex-col gap-2 p-3">
-            {name('font-extrabold [text-transform:var(--heading-case)]')}
-            {stars()}
-            <TemplatePrice item={shown} look={price} />
-            {facts()}
-            <div className="mt-auto pt-1">{action('brutal')}</div>
-          </div>
+          {photo3()}
+          {body('pill')}
         </>
       ));
-    case 'glass':
-      return shell('qo-glass qo-glass-still gap-2.5 rounded-[var(--radius-template)] p-2 shadow-[var(--card-shadow)]', (
+    case 'swap':
+      // Лукбук: снимок на всю ширину без подложки; «В корзину» — маленькая, выезжает снизу на снимке.
+      return shell('gap-2.5', (
         <>
-          <div className="relative">
-            {thumb('rounded-[max(0px,calc(var(--radius-template)-6px))]')}
-            {badges()}
+          <div className="qo-swap-photo relative overflow-hidden">
+            {thumb('', Math.max(photo + 6, SWAP_MIN_PHOTO))}
+            {badges(true)}
             {heart}
             {colours}
+            {taken ? null : <div className="qo-swap-add absolute bottom-2.5 right-2.5">{action('ghost')}</div>}
           </div>
-          <div className="flex flex-1 flex-col gap-2 px-1.5 pb-1.5">
-            {name()}
+          <div className="flex flex-1 flex-col gap-1">
+            {name('font-normal [text-transform:var(--heading-case)] [letter-spacing:var(--heading-tracking)]')}
             {stars()}
+            <TemplatePrice item={shown} look={price} size="sm" />
             {facts()}
-            <div className="mt-auto flex items-center justify-between gap-2">
-              <TemplatePrice item={shown} look={price} />
-              {inline('gradient')}
-            </div>
             {counter}
           </div>
         </>
@@ -244,12 +203,7 @@ export function TemplateTile({
     case 'plain':
       return shell('gap-2.5', (
         <>
-          <div className="relative">
-            {thumb('rounded-[var(--radius-template)]')}
-            {badges(true)}
-            {heart}
-            {colours}
-          </div>
+          {photo3('rounded-[var(--radius-template)]')}
           {name()}
           {stars()}
           {facts()}
@@ -261,24 +215,11 @@ export function TemplateTile({
         </>
       ));
     default:
-      return shell('qo-tile gap-2.5 rounded-[var(--radius-template)] bg-surface p-2', (
+      // Стекло: полупрозрачная панель с размытием; свечение под курсором; у Призмы — радужная рамка.
+      return shell('gap-3 rounded-[var(--radius-template)] p-3', (
         <>
-          <div className="relative">
-            {thumb('rounded-[max(0px,calc(var(--radius-template)-6px))]')}
-            {badges()}
-            {heart}
-            {colours}
-          </div>
-          <div className="flex flex-1 flex-col gap-2 px-1.5 pb-1.5">
-            {name()}
-            {stars()}
-            {facts()}
-            <div className="mt-auto flex items-center justify-between gap-2">
-              <TemplatePrice item={shown} look={price} />
-              {inline('round')}
-            </div>
-            {counter}
-          </div>
+          {photo3()}
+          {body('pill')}
         </>
       ));
   }

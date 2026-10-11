@@ -1,6 +1,7 @@
 import { getConfig } from '../config';
 import { getSessionToken, requestReauthentication } from '../auth/session';
 import { currentSupplierId } from '../supplier/supplier';
+import { currentPickupPoint } from '../supplier/pickupPoint';
 import { currentLanguage } from '../i18n';
 
 const NO_BODY_STATUSES = new Set([204, 205, 304]);
@@ -35,8 +36,22 @@ export class ReauthenticationRequiredError extends Error {
  * Успешный ответ отдаётся обёрткой `{ data, status, headers }`: такую форму
  * объявляет генерация, и экраны различают ветки по `status`.
  */
-export async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const headers = new Headers(options.headers);
+/** Доля отправленного тела запроса: от 0 до 1. */
+export type UploadProgress = (fraction: number) => void;
+
+/** Опции запроса: то, что понимает fetch, и прогресс отправки файла. */
+export type ApiRequestOptions = RequestInit & {
+  /**
+   * Задан — файл (тело `FormData`) уходит через XMLHttpRequest: fetch не
+   * сообщает, сколько уже отправлено, а снимок с телефона на мобильной связи
+   * грузится долго, и человеку нужен процент.
+   */
+  onUploadProgress?: UploadProgress;
+};
+
+export async function apiRequest<T>(url: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { onUploadProgress, ...init } = options;
+  const headers = new Headers(init.headers);
 
   // Тексты ошибок приходят с сервера уже на языке заголовка: расхождение
   // с языком интерфейса выглядело бы как чужая ошибка на чужом экране.
@@ -47,8 +62,14 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
 
   const supplier = currentSupplierId();
   if (supplier) headers.set(SUPPLIER_HEADER, supplier);
+  // Точка самовывоза из шапки: по её складу сервер считает наличие витрины и корзины.
+  const point = currentPickupPoint();
+  if (point) headers.set('X-Pickup-Point', point);
 
-  const response = await fetch(`${getConfig().API_URL}${url}`, { ...options, headers });
+  const target = `${getConfig().API_URL}${url}`;
+  const response = onUploadProgress && init.body instanceof FormData
+    ? await sendWithProgress(target, init, headers, onUploadProgress)
+    : await fetch(target, { ...init, headers });
 
   // Новый вход лечит только истёкшую сессию. Анонимный запрос (активация
   // приглашения) получает 401 как отказ по существу: его тело разбирается
@@ -97,3 +118,48 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
 
   return { data, status: response.status, headers: response.headers } as T;
 }
+
+/**
+ * Тот же запрос через XMLHttpRequest — ради события отправки `upload.onprogress`.
+ * Ответ собирается в обычный Response: дальше он разбирается тем же путём,
+ * что и ответ fetch, и правила отказов и входа не расходятся.
+ */
+function sendWithProgress(target: string, init: RequestInit, headers: Headers,
+                          onProgress: UploadProgress): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    // Отменённый до отправки не уходит вовсе — как и у fetch.
+    if (init.signal?.aborted) {
+      reject(new DOMException('The operation was aborted.', 'AbortError'));
+      return;
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open(init.method ?? 'POST', target);
+    headers.forEach((value, name) => xhr.setRequestHeader(name, value));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
+    };
+    xhr.onload = () => {
+      const empty = NO_BODY_STATUSES.has(xhr.status) || xhr.responseText === '';
+      resolve(new Response(empty ? null : xhr.responseText,
+        { status: xhr.status, headers: responseHeaders(xhr.getAllResponseHeaders()) }));
+    };
+    // Обрыв сети — тем же TypeError, каким его отдаёт fetch.
+    xhr.onerror = () => reject(new TypeError('Failed to fetch'));
+    xhr.onabort = () => reject(new DOMException('The operation was aborted.', 'AbortError'));
+    const abort = () => xhr.abort();
+    init.signal?.addEventListener('abort', abort, { once: true });
+    // Запрос завершён — слушатель отмены больше не нужен и не держит xhr в памяти.
+    xhr.onloadend = () => init.signal?.removeEventListener('abort', abort);
+    xhr.send(init.body as FormData);
+  });
+}
+
+function responseHeaders(raw: string): Headers {
+  const headers = new Headers();
+  for (const line of raw.trim().split(/[\r\n]+/)) {
+    const colon = line.indexOf(':');
+    if (colon > 0) headers.append(line.slice(0, colon).trim(), line.slice(colon + 1).trim());
+  }
+  return headers;
+}
+

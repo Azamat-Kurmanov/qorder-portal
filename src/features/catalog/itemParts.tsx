@@ -130,7 +130,7 @@ export function CartAction({
   if (look) {
     // Короткая подпись шаблона («В корзину», «Добавить») — только когда
     // кладётся единица: минимум в десять мешков кнопка обязана назвать.
-    const short = first > 1 ? label : look === 'gradient' || look === 'link' ? t('design.add') : t('design.toCartShort');
+    const short = first > 1 ? label : look === 'pill' || look === 'link' ? t('design.add') : t('design.toCartShort');
     const round = look === 'round' || look === 'roundLight';
     return (
       <button
@@ -146,7 +146,7 @@ export function CartAction({
           className,
         )}
       >
-        {look === 'link' || look === 'feed' || look === 'outline' ? null : (
+        {look === 'link' || look === 'outline' ? null : (
           <Plus aria-hidden="true" className={round ? 'size-[1.125rem]' : 'size-[0.9375rem]'} strokeWidth={2.4} />
         )}
         {round ? null : short}
@@ -177,21 +177,27 @@ export function CartAction({
 /**
  * Кнопка «В корзину» в характере карточки шаблона — как в предпросмотре
  * продавца: круглый «+» у мягкой карточки, белый круг на снимке, рамка
- * у карточки «в рамке», сплошная заливка у стикера, второй цвет с жёсткой
- * рамкой у брутальной, градиент у стеклянной, подчёркнутое слово у простой
- * и строчными буквами под снимком в ленте.
+ * у карточки «в рамке», сплошная заливка у ценника, тонкая рамка чертежа,
+ * пилюля цвета магазина у парящей карточки и подчёркнутое слово у простой.
  */
-export type CartLook = 'round' | 'roundLight' | 'outline' | 'solid' | 'brutal' | 'gradient' | 'link' | 'feed';
+export type CartLook = 'round' | 'roundLight' | 'outline' | 'solid' | 'drawing' | 'pill' | 'link' | 'glow' | 'jelly' | 'ghost';
 
 const CART_LOOKS: Record<CartLook, string> = {
-  round: 'size-9 rounded-[var(--radius-chip)] bg-accent text-on-accent shadow-[0_8px_14px_-8px_var(--color-brand-deep)] hover:bg-accent-hover',
+  round: 'size-9 rounded-[var(--radius-chip)] bg-accent text-on-accent hover:bg-accent-hover',
   roundLight: 'size-10 rounded-[var(--radius-chip)] bg-white text-[#16171A] hover:bg-white/90',
   outline: 'h-[2.375rem] w-full rounded-[var(--radius-small)] border border-ink text-xs font-semibold uppercase tracking-[0.08em] text-ink hover:bg-ink hover:text-surface',
   solid: 'h-[2.375rem] w-full rounded-[var(--radius-small)] bg-accent text-sm font-extrabold text-on-accent [text-transform:var(--heading-case)] hover:bg-accent-hover',
-  brutal: 'h-[2.375rem] w-full rounded-[var(--radius-small)] border-2 border-ink bg-accent2 text-caption font-black uppercase tracking-[0.04em] text-accent2-ink',
-  gradient: 'h-[2.125rem] rounded-[var(--radius-chip)] bg-[linear-gradient(135deg,var(--color-shop),color-mix(in_srgb,var(--color-shop),var(--color-accent2)))] px-3.5 text-caption font-bold text-white',
-  link: 'h-auto border-b-[1.5px] border-accent pb-px text-caption font-semibold text-accent',
-  feed: 'h-auto self-start border-b border-ink pb-[3px] text-xs font-semibold uppercase tracking-[0.14em] text-ink',
+  drawing: 'h-[2.375rem] w-full rounded-[var(--radius-small)] border border-ink font-mono text-caption font-bold uppercase tracking-[0.06em] text-ink hover:bg-shop hover:text-on-shop hover:border-shop',
+  // Заливка — цвет кнопки (`buttonColors`): у среднего тона бренда он темнее, иначе надпись не читается.
+  pill: 'h-[2.375rem] rounded-full bg-accent px-4 text-caption font-semibold text-on-accent hover:bg-accent-hover',
+  // Текст — чернилами, цвет магазина — подчёркиванием: светлый цвет (жёлтый мел, яркий зелёный) буквами не читается.
+  link: 'h-auto border-b-[1.5px] border-accent pb-px text-caption font-semibold text-ink hover:text-accent',
+  // Живые темы: свечение (Неон) — заливка днём, ночью рамка со свечением (`.qo-cta-glow` в index.css).
+  glow: 'qo-cta-glow h-[2.375rem] rounded-[var(--radius-small)] bg-accent px-4 text-caption font-semibold text-on-accent',
+  // Упругая (Капли, Леденец): крупная пилюля, сжимается пружиной при нажатии.
+  jelly: 'qo-cta-jelly h-12 rounded-full bg-accent px-5 text-sm font-extrabold text-on-accent hover:bg-accent-hover',
+  // Лукбук: маленькая залитая чернилами, подпись прописными.
+  ghost: 'h-11 rounded-[min(var(--radius-small),4px)] bg-ink px-4 text-2xs font-medium uppercase tracking-[0.06em] text-surface hover:opacity-90',
 };
 
 /**

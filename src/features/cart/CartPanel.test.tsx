@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { CartPanel } from './CartPanel';
 import { closeCart, openCart } from './cartDrawer';
 import { renderScreen } from '../../test/render';
@@ -45,5 +45,23 @@ describe('корзина на телефоне — нижний лист', () =>
     const title = within(sheet).getByRole('heading', { name: 'Корзина' });
     expect(title).toHaveClass('text-base', 'sm:text-[1.625rem]');
     expect(await within(sheet).findByText('Цемент М400')).toBeInTheDocument();
+  });
+
+  it('разворачивается на всю страницу и возвращается к прежнему размеру', async () => {
+    stubFetch([
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза' }]),
+      get('/api/portal/cart', cart),
+    ]);
+    renderScreen(<CartPanel />);
+    act(() => openCart());
+
+    const sheet = await screen.findByTestId('cart-panel');
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Развернуть на весь экран' }));
+    expect(sheet).toHaveClass('inset-0', 'sm:inset-0', 'sm:w-full');
+    expect(sheet).not.toHaveClass('sm:w-[28.75rem]');
+
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Вернуть прежний размер' }));
+    expect(sheet).toHaveClass('sm:w-[28.75rem]', 'max-h-[85dvh]');
+    expect(sheet).not.toHaveClass('inset-0');
   });
 });

@@ -1,0 +1,108 @@
+/*
+ * Карта в стиле кабинета: метка-капля цвета магазина, подпись и кнопки
+ * масштаба — как всплывающие поверхности кабинета, а не стандартный Leaflet.
+ */
+.qo-map {
+  font-family: inherit;
+  cursor: crosshair;
+}
+.qo-map.leaflet-dragging,
+.qo-map .leaflet-grab:active {
+  cursor: grabbing;
+}
+
+/* Метка: капля с белой серединой и мягкой тенью на земле. */
+.qo-map-pin {
+  position: relative;
+}
+.qo-map-pin span {
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--color-accent);
+  border: 3px solid #fff;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.28);
+  animation: qo-map-drop 0.28s ease-out;
+}
+.qo-map-pin span::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: #fff;
+}
+.qo-map-pin::after {
+  content: '';
+  position: absolute;
+  left: 11px;
+  bottom: -6px;
+  width: 14px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.22);
+  filter: blur(1px);
+}
+@keyframes qo-map-drop {
+  from { transform: translateY(-14px) rotate(-45deg); opacity: 0; }
+  to { transform: translateY(0) rotate(-45deg); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qo-map-pin span { animation: none; }
+}
+
+/* Подпись на метке: поверхность системы. */
+.qo-map .leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-float);
+}
+.qo-map .leaflet-popup-tip {
+  background: var(--color-surface);
+  box-shadow: none;
+}
+.qo-map .leaflet-popup-content {
+  margin: 12px 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.qo-map .leaflet-popup-content b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.qo-map .qo-map-coordinates {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.qo-map a.leaflet-popup-close-button {
+  top: 6px;
+  right: 6px;
+  color: var(--color-ink-muted);
+}
+
+/* Кнопки масштаба: круглые плавающие, как остальные кнопки системы. */
+.qo-map .leaflet-bar {
+  border: none;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-float);
+}
+.qo-map .leaflet-bar a {
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-hairline);
+}
+.qo-map .leaflet-bar a:last-child {
+  border-bottom: none;
+}

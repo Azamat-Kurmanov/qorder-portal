@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, Box, Clock } from 'lucide-react';
 import type { ShowcaseBannerDto } from '../../api/generated';
@@ -7,6 +7,10 @@ import { BannerLayout, type PartsFor } from './BannerLayouts';
 import { ArtSvg } from './bannerArt';
 import { phoneBadgeText, phoneButtonText } from './buttonLabel';
 import { BADGE, SILHOUETTE, STAR_COLOR, slideColors } from './bannerTheme';
+import { ART_MODE, SkinLayer, skinColors, type BannerSkin } from './bannerSkins';
+import { Countdown } from './Countdown';
+import { useMotion } from '../../ui/motion/motionLevel';
+import { useCountUp } from '../../ui/motion/useCountUp';
 
 /** Силуэты вместо картинки — как в макете: пальто у распродажи, юбка у новинки. */
 const COAT = 'M46 16l14 7 14-7 22 9 10 70-16 4-6-40v76H46V59l-6 40-16-4 10-70z';
@@ -49,20 +53,52 @@ function Chip({ bg, fg, icon, children }: { bg: string; fg: string; icon: ReactN
  *
  * Первые три шаблона нарисованы здесь, остальные — в `BannerLayouts`.
  */
-export function BannerSlide({ slide: given, brand, compact, onAction, hidden }: {
+/**
+ * Скидка досчитывается от нуля, когда слайд показался («живо» и выше): видно,
+ * что цифра настоящая и только что «случилась». Текст с одним числом
+ * («−20%», «до 30%») — иначе как есть; «спокойно» — сразу своё число.
+ */
+function useCountedText(text: string | undefined, hidden: boolean): string | undefined {
+  const level = useMotion();
+  const numbers = text?.match(/\d+/g);
+  const target = numbers?.length === 1 ? Number(numbers[0]) : null;
+  const [started, setStarted] = useState(false);
+  useEffect(() => setStarted(!hidden), [hidden]);
+  const shown = useCountUp(target !== null && started ? target : 0, 700);
+  if (target === null || level === 'calm') return text;
+  return text!.replace(/\d+/, String(Math.round(shown)));
+}
+
+export function BannerSlide({ slide: given, brand, compact, onAction, hidden, skin, alt = false, big: large = false, endsAt }: {
   slide: ShowcaseBannerDto;
   brand: string;
   compact: boolean;
   onAction: () => void;
   hidden: boolean;
+  /** Одежда темы кабинета (`bannerSkins.tsx`); пусто — слайд как прежде. */
+  skin?: BannerSkin;
+  /** Вторая тема направления — свой оттенок одежды. */
+  alt?: boolean;
+  /** Крупный вариант — главный баннер темы (фирменный слайд, распродажа) вместо прежних героев. */
+  big?: boolean;
+  /** Конец распродажи — отсчёт на крупном баннере. */
+  endsAt?: string;
 }) {
   const { t } = useTranslation();
   // На телефоне плашка над заголовком — короче, по словам: целиком в узкую
   // колонку она не влезала и обрезалась многоточием. Одно место на все раскладки.
-  const slide = compact && given.badge ? { ...given, badge: phoneBadgeText(given.badge) } : given;
-  const c = slideColors(slide.scheme, brand);
+  const discount = useCountedText(given.discount, hidden);
+  const shortened = compact && given.badge ? { ...given, badge: phoneBadgeText(given.badge) } : given;
+  const slide = discount === given.discount ? shortened : { ...shortened, discount };
+  const scheme = slideColors(slide.scheme, brand);
+  // Одежда пересчитывает цвета схемы: на тёмной основе неона текст светлый и т. п.
+  const c = skin ? skinColors(skin, alt, scheme, !!slide.imageSrc) : scheme;
 
-  const partsFor: PartsFor = (colors, big) => ({
+  // Светлый текст — тёмные ячейки отсчёта, тёмный — светлые.
+  const lightText = /^#[0-9A-F]{6}$/i.test(c.fg) && parseInt(c.fg.slice(1, 3), 16) + parseInt(c.fg.slice(3, 5), 16) + parseInt(c.fg.slice(5, 7), 16) > 382;
+  const partsFor: PartsFor = (colors, wide) => {
+    const big = wide || large;
+    return {
     button: (
       <button
         type="button"
@@ -72,7 +108,7 @@ export function BannerSlide({ slide: given, brand, compact, onAction, hidden }: 
         tabIndex={hidden ? -1 : 0}
         onClick={onAction}
         className={cn(
-          'mt-auto flex max-w-full shrink-0 cursor-pointer items-center rounded-[var(--radius-tile)] border-0 font-bold transition-transform duration-300 hover:scale-[1.03]',
+          'qo-skin-cta mt-auto flex max-w-full shrink-0 cursor-pointer items-center rounded-[var(--radius-tile)] border-0 font-bold transition-transform duration-300 hover:scale-[1.03]',
           // На телефоне — во всю ширину колонки, и подпись переносится на вторую
           // строку, а не обрезается: «Выбрать одеж…» не говорило, куда ведёт кнопка.
           compact
@@ -106,14 +142,22 @@ export function BannerSlide({ slide: given, brand, compact, onAction, hidden }: 
         {slide.text}
       </div>
     ) : null,
-  });
+    };
+  };
   const { button, title, text } = partsFor(c);
 
   return (
     // Скрытый слайд — без анимации: вернувшись на экран, атрибут появляется
     // заново, и анимация играет с начала, а не доигрывается за кадром.
     <div data-anim={hidden ? undefined : slide.animation ?? 'FADE'} className="qo-banner relative size-full overflow-hidden"
-      style={{ backgroundColor: c.bg, backgroundImage: c.paint, color: c.fg }}>
+      data-skin={skin} data-skin-alt={(skin && alt) || undefined} data-art-mode={skin ? ART_MODE[skin] : undefined}
+      data-photo={slide.imageSrc ? '' : undefined}
+      data-big={large || undefined}
+      style={{
+        backgroundColor: c.bg, backgroundImage: c.paint, color: c.fg,
+        ...(skin ? { '--skin-c1': scheme.btnBg, '--skin-c2': scheme.circleBg } as CSSProperties : null),
+      }}>
+      {skin ? <SkinLayer skin={skin} alt={alt} /> : null}
       <div aria-hidden="true" className="absolute rounded-full" style={{ width: 420, height: 420, right: -90, top: -120, background: c.glow }} />
       <div aria-hidden="true" className="absolute rounded-full" style={{ width: 220, height: 220, right: 170, bottom: -150, background: c.glow }} />
 
@@ -142,6 +186,7 @@ export function BannerSlide({ slide: given, brand, compact, onAction, hidden }: 
             {slide.badge ? <Chip bg={c.chipBg} fg={c.chipFg} icon={<Clock aria-hidden="true" className="size-[15px] shrink-0" strokeWidth={2.2} />}>{slide.badge}</Chip> : null}
             {title}
             {text ? <div className="max-w-[330px]">{text}</div> : null}
+            {endsAt ? <Countdown endsAt={endsAt} tone={lightText ? 'dark' : 'light'} small={compact} /> : null}
             {button}
           </div>
         </>

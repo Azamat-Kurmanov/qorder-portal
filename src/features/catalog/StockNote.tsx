@@ -41,6 +41,10 @@ export function StockNote({
   if (stock === 'IN_STOCK') {
     return <StockLine tone="in-stock" className={className}>{t('catalog.stock.inStock')}</StockLine>;
   }
+  // Нет в выбранной точке, но есть на другом складе: продавец привезёт, заказать можно.
+  if (stock === 'FROM_OTHER_WAREHOUSE') {
+    return <StockLine tone="unclear" className={className}>{t(short ? 'catalog.stock.fromOtherShort' : 'catalog.stock.fromOther')}</StockLine>;
+  }
   if (stock === 'OUT_OF_STOCK') {
     return <StockLine tone="subtle" className={className}>{t('catalog.stock.outOfStock')}</StockLine>;
   }

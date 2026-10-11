@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReviewsBlock } from './ReviewsBlock';
 import { renderScreen } from '../../test/render';
+import { FakeXhr } from '../../test/fakeXhr';
 import { get, method, stubFetch, type StubbedResponse } from '../../test/http';
 
-const PHOTO_URL = '/api/portal/reviews/r1/photos/p1';
+const PHOTO_URL = '/api/files/f1';
 
 const PUBLISHED = {
   id: 'r1',
@@ -61,12 +62,10 @@ describe('фото и размер в отзыве', () => {
     expect(within(review).getByText(/12 сентября · размер M/)).toBeInTheDocument();
 
     const strip = within(review).getByTestId('review-photos');
-    await waitFor(() => expect(strip.querySelector('img')).toHaveAttribute('src', 'blob:photo-1'));
-    // Снимок забирается запросом кабинета (тем же мутатором, что ставит
-    // вход и поставщика), а не голым <img src>: заголовков картинка не несёт.
-    const fetched = calls.find((call) => call.url.includes(PHOTO_URL));
-    expect(new Headers(fetched?.init?.headers).get('Accept-Language')).toBeTruthy();
-    expect(created[0].type).toBe('image/jpeg');
+    // Фото лежит в хранилище поставщика и открывается постоянным адресом без входа:
+    // картинка рисуется прямо по нему, без запроса с токеном и без ссылки на содержимое.
+    expect(strip.querySelector('img')).toHaveAttribute('src', PHOTO_URL);
+    expect(calls.some((call) => call.url.includes(PHOTO_URL))).toBe(false);
 
     // По нажатию — увеличение тем же окном, что снимки товара; курсор — лупа.
     expect(within(strip).getByRole('button', { name: /Фото 1 из 1/ })).toHaveClass('cursor-zoom-in');
@@ -134,6 +133,80 @@ describe('фото и размер в отзыве', () => {
     // Отзыв встал в список уже со снимком.
     const review = await screen.findByTestId('review');
     expect(await within(review).findByTestId('review-photos')).toBeInTheDocument();
+  });
+
+  it('пока снимок уходит на сервер, видна полоса с процентом', async () => {
+    const saved = { ...PUBLISHED, status: 'PENDING', mine: true, size: undefined, photos: [] };
+    stubFetch([
+      photo(PHOTO_URL),
+      get('/api/portal/items/item-1/reviews', []),
+      method('POST', '/api/portal/items/item-1/reviews', saved, 201),
+    ]);
+    FakeXhr.all = [];
+    vi.stubGlobal('XMLHttpRequest', FakeXhr);
+
+    renderScreen(<ReviewsBlock itemId="item-1" canReview sizeTags />);
+    await userEvent.click(await screen.findByRole('radio', { name: /^Оценка 5 из 5/ }));
+    await userEvent.upload(screen.getByTestId('review-photo-input') as HTMLInputElement,
+      new File(['jpeg'], 'shot.jpg', { type: 'image/jpeg' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить отзыв' }));
+
+    await waitFor(() => expect(FakeXhr.all).toHaveLength(1));
+    act(() => FakeXhr.all[0].progress(3, 4));
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '75');
+
+    act(() => FakeXhr.all[0].respond(201, { ...saved, photos: [{ id: 'p1', url: PHOTO_URL }] }));
+    await waitFor(() => expect(screen.queryByRole('progressbar')).toBeNull());
+  });
+
+  it('без хранилища у поставщика кнопки фото нет, а отзыв отправляется', async () => {
+    const saved = { ...PUBLISHED, status: 'PENDING', mine: true, size: undefined, photos: [] };
+    const { calls } = stubFetch([
+      get('/api/portal/reviews/photo-upload', { canUploadPhotos: false }),
+      get('/api/portal/items/item-1/reviews', []),
+      method('POST', '/api/portal/items/item-1/reviews', saved, 201),
+    ]);
+
+    renderScreen(<ReviewsBlock itemId="item-1" canReview />);
+    await userEvent.click(await screen.findByRole('radio', { name: /^Оценка 5 из 5/ }));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Добавить фото' })).not.toBeInTheDocument());
+    expect(screen.queryByTestId('review-photo-input')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить отзыв' }));
+    await waitFor(() => expect(calls.some((call) =>
+      call.url.endsWith('/api/portal/items/item-1/reviews') && call.init?.method === 'POST')).toBe(true));
+  });
+
+  it('фото ссылкой на облако — и без хранилища: уходит после отзыва, другой сайт отклоняется', async () => {
+    const saved = { ...PUBLISHED, status: 'PENDING', mine: true, size: undefined, photos: [] };
+    const thumb = 'https://drive.google.com/thumbnail?id=1AbC_dEfG-42xyz&sz=w1600';
+    const { calls } = stubFetch([
+      get('/api/portal/reviews/photo-upload', { canUploadPhotos: false }),
+      get('/api/portal/items/item-1/reviews', []),
+      method('POST', '/api/portal/items/item-1/reviews', saved, 201),
+      method('POST', '/api/portal/reviews/r1/photos/link', { ...saved, photos: [{ id: 'p1', url: thumb }] }, 201),
+    ]);
+
+    renderScreen(<ReviewsBlock itemId="item-1" canReview />);
+    await userEvent.click(await screen.findByRole('radio', { name: /^Оценка 5 из 5/ }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Добавить фото' })).not.toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: 'Вставить ссылку' }));
+    await userEvent.type(screen.getByLabelText('Ссылка на фото'), 'https://example.com/me.jpg');
+    await userEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Google Диске, Dropbox или OneDrive');
+
+    await userEvent.clear(screen.getByLabelText('Ссылка на фото'));
+    await userEvent.type(screen.getByLabelText('Ссылка на фото'), 'https://drive.google.com/file/d/1AbC_dEfG-42xyz/view');
+    await userEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+    expect([...screen.getByTestId('review-form-photos').querySelectorAll('img')].map((img) => img.getAttribute('src')))
+      .toContain(thumb);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить отзыв' }));
+    await waitFor(() => {
+      const sent = calls.find((call) => call.url.endsWith('/api/portal/reviews/r1/photos/link'));
+      expect(sent && JSON.parse(String(sent.init?.body))).toEqual({ url: 'https://drive.google.com/file/d/1AbC_dEfG-42xyz/view' });
+    });
   });
 
   it('не тот файл и лишние снимки отклоняются понятными словами', async () => {

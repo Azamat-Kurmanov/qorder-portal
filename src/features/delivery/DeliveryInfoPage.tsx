@@ -2,6 +2,8 @@ import { CircleCheck, MapPin, Package } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Method, PickupPoint } from '../../api/generated';
+import { MapViewButton } from '../maps/MapViewButton';
+import { pointOf } from '../maps/mapProvider';
 import { slotLabel, useDeliveryOptions } from '../cart/DeliveryBlock';
 import { money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
@@ -154,7 +156,7 @@ function PickupRow({ point }: { point: PickupPoint }) {
   return (
     <div className="flex gap-3 p-3.5">
       <MapPin className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden="true" />
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 grow flex-col gap-1">
         <span className="text-body font-medium text-ink">{point.name}</span>
         {/*
           Адрес и часы одной строкой: по ним приезжают вместе, и разнесённые
@@ -164,6 +166,8 @@ function PickupRow({ point }: { point: PickupPoint }) {
           {point.address}
           {point.workingHours ? ` · ${point.workingHours}` : ''}
         </span>
+        <MapViewButton title={point.name} address={point.address}
+          point={pointOf(point.latitude, point.longitude)} className="mt-1.5" />
       </div>
     </div>
   );

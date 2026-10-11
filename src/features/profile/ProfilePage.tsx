@@ -4,6 +4,7 @@ import { Card } from '../../ui/Card';
 import { useGetPortalSuppliers, useGetPortalUnreadSummary } from '../../api/generated';
 import { useSupplier } from '../../supplier/useSupplier';
 import { useAuth } from '../../auth/useAuth';
+import { CompanyBlock } from './CompanyBlock';
 import { ConsentsBlock } from './ConsentsBlock';
 import { ShopTile } from '../shell/Shops';
 
@@ -82,6 +83,8 @@ export function ProfilePage() {
         за которой приходят раз в год, и место в постоянной навигации она
         занимала бы у экранов, которыми пользуются каждый день.
       */}
+      <CompanyBlock />
+
       <ConsentsBlock />
 
       <Button variant="ghost" onClick={logout}>{t('profile.logout')}</Button>

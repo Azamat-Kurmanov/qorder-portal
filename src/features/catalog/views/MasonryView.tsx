@@ -1,5 +1,5 @@
 import type { ShowcaseItemDto } from '../../../api/generated';
-import type { TemplateStyle } from '../../../supplier/cabinetDesign';
+import type { MotionStyle } from '../../../supplier/cabinetDesign';
 import { cn } from '../../../ui/cn';
 import { TemplateTile } from '../tiles/TemplateTile';
 import { THREE_FROM } from './GridView';
@@ -28,7 +28,7 @@ export function MasonryView({
 }: {
   items: ShowcaseItemDto[];
   taken: Set<string>;
-  style: TemplateStyle;
+  style: MotionStyle;
   width: number;
 }) {
   const columns = width >= FOUR_FROM ? 'columns-4 gap-[18px]' : width >= THREE_FROM ? 'columns-3 gap-[18px]' : 'columns-2 gap-3';

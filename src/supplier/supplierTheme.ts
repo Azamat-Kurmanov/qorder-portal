@@ -14,7 +14,7 @@
  * растворённый в панели, кнопка — цвет, разбавленный белым наполовину).
  */
 
-import { TEMPLATE_FONTS, type CabinetTemplate, type ResolvedDesign, type TemplateStyle } from './cabinetDesign';
+import { TEMPLATE_FONTS, type MotionStyle, type MotionTemplate, type ResolvedDesign, type TemplateInks } from './cabinetDesign';
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const WHITE = '#FFFFFF';
@@ -54,15 +54,38 @@ function channels(hex: string): [number, number, number] {
   return [0, 2, 4].map((at) => parseInt(value.slice(at, at + 2), 16)) as [number, number, number];
 }
 
-/** Надпись, читаемая на цвете: белая или почти чёрная — у какой контраст выше. */
-function readableOn(hex: string): string {
+function luminanceOf(hex: string): number {
   const [r, g, b] = channels(hex).map((v) => {
     const c = v / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   });
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Надпись, читаемая на цвете: белая или почти чёрная — у какой контраст выше. */
+function readableOn(hex: string): string {
+  const luminance = luminanceOf(hex);
   // Контраст с белым (1.05 / (L + .05)) против контраста с #1A1917 (≈ L 0.01).
   return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / 0.06 ? WHITE : '#1A1917';
+}
+
+/** Контраст двух цветов #RRGGBB по WCAG: 1 — одинаковые, 21 — чёрный на белом. */
+export function contrastRatio(a: string, b: string): number {
+  const [x, y] = [luminanceOf(a), luminanceOf(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/**
+ * Заливка и надпись кнопки для цвета бренда. Надпись — белая или тёмная,
+ * какая читается лучше; у среднего тона не читается ни одна (контраст ниже
+ * 4,5:1) — тогда заливка темнеет до белой надписи с контрастом 4,5:1.
+ */
+export function buttonColors(brand: string): { fill: string; text: string } {
+  const text = readableOn(brand);
+  if (contrastRatio(brand, text) >= 4.5) return { fill: brand, text };
+  let fill = brand;
+  for (let k = 0.04; contrastRatio(fill, WHITE) < 4.5 && k < 1; k += 0.04) fill = mix(brand, BLACK, k);
+  return { fill, text: WHITE };
 }
 
 function mix(from: string, to: string, t: number): string {
@@ -84,17 +107,19 @@ export function supplierTokens(brandColor: string | null | undefined, background
 
   if (brand) {
     const [r, g, b] = channels(brand);
-    tokens['--color-accent'] = brand;
-    // Светлый фирменный цвет (жёлтый, мятный) под белыми буквами не читается —
-    // надпись на кнопке, полосе шапки и баннере становится тёмной.
-    tokens['--color-on-accent'] = readableOn(brand);
+    // Кнопка — цвет бренда с читаемой надписью; средний тон темнеет (`buttonColors`).
+    const button = buttonColors(brand);
+    tokens['--color-accent'] = button.fill;
+    tokens['--color-on-accent'] = button.text;
     tokens['--color-on-brand'] = readableOn(brand);
     tokens['--color-accent-top'] = mix(brand, WHITE, 0.12);
     // Баннеры и распродажа днём — сам фирменный цвет (макет: banner = brand).
     tokens['--color-banner'] = brand;
     tokens['--color-accent-soft'] = mix(brand, WHITE, 0.86);
     // Текст на мягкой подложке и заливка под курсором — как в макете.
-    tokens['--color-accent-ink'] = mix(brand, BLACK, 0.22);
+    // У светлого цвета (жёлтый мел) текст на светлом уводится глубже в чёрный — иначе не читается.
+    const ink = mix(brand, BLACK, 0.22);
+    tokens['--color-accent-ink'] = (1.05 / (luminanceOf(ink) + 0.05)) >= 4.5 ? ink : mix(brand, BLACK, 0.62);
     tokens['--color-accent-hover'] = mix(brand, BLACK, 0.18);
     tokens['--shadow-accent'] = `0 4px 10px -4px rgb(${r} ${g} ${b} / 0.4), 0 14px 28px -14px rgb(${r} ${g} ${b} / 0.55)`;
     // Шапка — как у сотрудников: цвет, почти растворённый в белом, и линия под ней.
@@ -150,18 +175,27 @@ export function darkTokens(brandColor: string | null | undefined, background: st
   Record<string, string> {
   const brand = brandColor && HEX.test(brandColor) ? brandColor.toUpperCase() : PLATFORM_BRAND;
   const [r, g, b] = channels(brand);
-  const button = mix(brand, WHITE, 0.5);
+  // Светлый и яркий цвет (жёлтый мел «Лавки», зелёный «Сцены») и ночью
+  // читается как кнопка сам — разбавлять его белым значит выцветить шаблон.
+  const bright = (luminanceOf(brand) + 0.05) / (luminanceOf(DARK_PANEL) + 0.05) >= 4.5;
+  // Надпись — по контрасту к ночной заливке; средний тон темнеет (`buttonColors`).
+  const night = buttonColors(bright ? brand : mix(brand, WHITE, 0.5));
+  const button = night.fill;
+  // Полоса и баннер у яркого цвета — сам цвет с тёмной надписью: притушенный
+  // панелью жёлтый или зелёный становится грязно-оливковым.
+  const strip = bright ? brand : mix(brand, DARK_PANEL, 0.35);
   const tokens: Record<string, string> = {
     '--color-accent': button,
+    '--color-on-accent': night.text,
     '--color-accent-top': mix(button, WHITE, 0.12),
     '--color-accent-hover': mix(button, WHITE, 0.18),
-    '--color-accent-soft': mix(brand, DARK_PANEL, 0.62),
+    '--color-accent-soft': mix(brand, DARK_PANEL, bright ? 0.8 : 0.62),
     '--color-accent-ink': mix(brand, WHITE, 0.7),
-    '--color-strip': mix(brand, DARK_PANEL, 0.35),
-    '--color-on-brand': readableOn(mix(brand, DARK_PANEL, 0.35)),
+    '--color-strip': strip,
+    '--color-on-brand': readableOn(strip),
     // Баннер ночью — цвет, притушенный панелью (макет: mix(brand, #1B1C1F, .35)):
     // светлая кнопочная заливка под белыми буквами баннера не читается.
-    '--color-banner': mix(brand, DARK_PANEL, 0.35),
+    '--color-banner': strip,
     '--color-bar': mix(brand, DARK_PANEL, 0.9),
     '--color-bar-wide': mix(brand, DARK_PANEL, 0.9),
     '--color-bar-line': mix(brand, DARK_LINE, 0.8),
@@ -236,7 +270,7 @@ const CARD_STYLES: Record<string, Record<string, string>> = {
 };
 
 /** Шрифты, скругления, масштаб и карточки шаблона — от темы не зависят. */
-export function templateTokens(template: CabinetTemplate): Record<string, string> {
+export function templateTokens(template: MotionTemplate): Record<string, string> {
   const tokens: Record<string, string> = {
     ...templateRadii(template.radius),
     ...(CARD_STYLES[template.card] ?? {}),
@@ -245,14 +279,14 @@ export function templateTokens(template: CabinetTemplate): Record<string, string
   const heading = TEMPLATE_FONTS[template.heading];
   if (sans) tokens['--font-sans'] = sans;
   if (heading) tokens['--font-heading'] = heading;
-  // Моноширинный шрифт — только у шаблона, который его указал («Техно»):
-  // остальным артикулы остаются системным моноширинным стеком `index.css`.
-  if (template.font === 'mono' || template.heading === 'mono') tokens['--font-mono'] = TEMPLATE_FONTS.mono;
+  // Моноширинный шрифт — у шаблонов с моноширинной ценой и у тех, что
+  // его указали: остальным артикулы остаются системным стеком `index.css`.
+  if (template.font === 'mono' || template.heading === 'mono' || template.style?.price === 'mono') tokens['--font-mono'] = TEMPLATE_FONTS.mono;
+  // Почерк для цены маркером и надписей мелом.
+  tokens['--font-hand'] = TEMPLATE_FONTS.caveat;
   // Множитель к размеру корня: ступени «крупный шрифт» покупателя умножаются
   // на него, а не заменяются им (см. `index.css`).
   if (template.scale !== 1) tokens['--ui-scale'] = String(template.scale);
-  // «Фермерский» — кремовые карточки вместо белых, как в макете.
-  if (template.id === 'FARM') tokens['--color-surface'] = '#FFFDF6';
   // Манера заголовков: насыщенность, разрядка и регистр шаблона. Применяются
   // правилом к заголовкам экранов (`designCss`) и классом `qo-heading`.
   const style = template.style;
@@ -279,19 +313,17 @@ const ACCENT2_INK_DARK = '#141414';
  * в тёмной теме светилось бы дневное пятно. Узор — готовым значением
  * `background`: слои градиентов не собрать утилитами.
  */
-function styleTokens(style: TemplateStyle, brand: string, canvas: string, dark: boolean): Record<string, string> {
+function styleTokens(style: MotionStyle, brand: string, canvas: string, dark: boolean): Record<string, string> {
   const accent2 = HEX.test(style.accent2) ? style.accent2.toUpperCase() : brand;
   const second = dark ? accent2 : mix(accent2, BLACK, 0.08);
-  const glow = mix(brand, canvas, dark ? 0.72 : 0.82);
   const faint = dark ? FAINT_DARK : FAINT_LIGHT;
-  const layers: Record<TemplateStyle['pattern'], string> = {
+  const layers: Record<MotionStyle['pattern'], string> = {
     none: canvas,
     dots: `radial-gradient(${faint} 1.2px, ${canvas} 1.6px) 0 0 / 18px 18px, ${canvas}`,
     grid: `linear-gradient(${mix(faint, canvas, 0.55)} 1px, ${canvas} 1px) 0 0 / 100% 28px, `
       + `linear-gradient(90deg, ${mix(faint, canvas, 0.55)} 1px, ${canvas} 1px) 0 0 / 28px 100%`,
     grain: `repeating-linear-gradient(45deg, ${mix(faint, canvas, 0.8)} 0 1px, ${canvas} 1px 7px)`,
-    glow: `radial-gradient(60% 50% at 85% 0%, ${glow}, transparent 70%), `
-      + `radial-gradient(50% 40% at 0% 100%, ${mix(accent2, canvas, dark ? 0.8 : 0.85)}, transparent 70%), ${canvas}`,
+    ornament: `${ornamentLayer(mix(faint, canvas, 0.35))} 0 0 / 56px 56px, ${canvas}`,
   };
   return {
     // Фирменный цвет как есть — в обеих темах: градиенты баннеров и колонки
@@ -303,8 +335,40 @@ function styleTokens(style: TemplateStyle, brand: string, canvas: string, dark: 
     // и прежний «всегда тёмный» текст на нём не читался.
     '--color-accent2-ink': readableOn(second) === WHITE ? WHITE : dark ? ACCENT2_INK_DARK : ACCENT2_INK_LIGHT,
     '--color-brand-deep': mix(brand, BLACK, dark ? 0.35 : 0.3),
-    '--color-glow': glow,
     '--canvas-bg': layers[style.pattern] ?? canvas,
+  };
+}
+
+/**
+ * Орнамент «қошқар мүйіз» — бараньи рога казахского узора, бледной линией.
+ * Тот же рисунок, что у предпросмотра продавца (`ornamentLayer` в `designModel.ts`).
+ */
+export function ornamentLayer(color: string): string {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56' fill='none' stroke='${color}' stroke-width='1.4' stroke-linecap='round'>`
+    + '<path d=\'M28 40V31M28 31C28 22 20 16 15 20C11 23 14 29 18 27M28 31C28 22 36 16 41 20C45 23 42 29 38 27\'/>'
+    + '<path d=\'M0 8h4M52 8h4M28 50v6\'/></svg>';
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+
+/**
+ * Бумага, панель, линии и чернила шаблона. Бумага — только когда продавец
+ * не выбрал свой фон: выбранный фон главнее шаблона.
+ */
+function inkTokens(inks: TemplateInks, canvas: string): Record<string, string> {
+  return {
+    '--color-canvas': canvas,
+    '--color-surface': inks.surface,
+    '--color-sunk': mix(inks.surface, inks.canvas, 0.5),
+    '--color-hairline': mix(inks.line, inks.surface, 0.35),
+    '--color-line': inks.line,
+    '--color-ink': inks.ink,
+    '--color-ink-muted': inks.muted,
+    '--color-ink-subtle': inks.muted,
+    '--color-ink-faint': inks.muted,
+    // Шапка — на панели шаблона, а не цветом, растворённым в белом.
+    '--color-bar': inks.surface,
+    '--color-bar-wide': inks.surface,
+    '--color-bar-line': inks.line,
   };
 }
 
@@ -326,14 +390,19 @@ export function designCss(design: ResolvedDesign): string | null {
   if (!hasOwn) return null;
   const dark = darkTokens(design.brand, design.background);
   const darkBlock: Record<string, string> = { ...dark };
-  // Кремовую поверхность «Фермерского» тёмная тема возвращает к своей панели.
-  if (shared['--color-surface']) darkBlock['--color-surface'] = DARK_PANEL;
   const lightBlock: Record<string, string> = { ...light, ...shared };
+  const inks = design.template?.palette;
+  const lightCanvas = light['--color-canvas'] ?? inks?.light.canvas ?? CANVAS;
+  const darkCanvas = dark['--color-canvas'] ?? inks?.dark.canvas ?? DARK_CANVAS;
+  if (inks) {
+    Object.assign(lightBlock, inkTokens(inks.light, lightCanvas));
+    Object.assign(darkBlock, inkTokens(inks.dark, darkCanvas));
+  }
   const style = design.template?.style;
   if (style) {
     const brand = design.brand ?? PLATFORM_BRAND;
-    Object.assign(lightBlock, styleTokens(style, brand, light['--color-canvas'] ?? CANVAS, false));
-    Object.assign(darkBlock, styleTokens(style, brand, dark['--color-canvas'] ?? DARK_CANVAS, true));
+    Object.assign(lightBlock, styleTokens(style, brand, lightCanvas, false));
+    Object.assign(darkBlock, styleTokens(style, brand, darkCanvas, true));
   }
   return [
     block(':root', lightBlock),

@@ -5,7 +5,7 @@
 // Контракт не экспортирует общую именованную схему `Currency`: orval
 // инлайнит один и тот же набор в каждый DTO отдельно (`PortalSupplierDtoCurrency`,
 // `PortalOrderDtoCurrency`, `PlatformTenantDtoCurrency`, …) — тот же случай,
-// что описан в `.superpowers/sdd/2026-09-27-currency-3-front-seller/…` для
+// что описан в `.superpowers/archive/sdd-2026-10-11/2026-09-27-currency-3-front-seller/…` для
 // кабинета продавца. Здесь заведён единственный тип для фронта; он структурно
 // совпадает с любым из `<Dto>Currency`, сгенерированных orval (тот же
 // литеральный union шести кодов), поэтому взаимозаменим с ними без приведения

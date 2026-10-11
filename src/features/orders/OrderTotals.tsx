@@ -6,7 +6,7 @@ import { cn } from '../../ui/cn';
 
 /** Из чего сложился итог отправленной редакции: её снимок, подтверждённый клиентом. */
 export type OrderBreakdown = Pick<
-  PortalOrderDto, 'goodsTotal' | 'discount' | 'deliveryPrice' | 'loadersPrice' | 'loadersPayee'
+  PortalOrderDto, 'goodsTotal' | 'discount' | 'deliveryPrice' | 'loadersPrice' | 'loadersPayee' | 'vatAmount'
 >;
 
 /**
@@ -18,6 +18,7 @@ export type OrderBreakdown = Pick<
  * продавец, сервер её не хранит, и там остаётся одна строка «Итого».
  * Доставка с нулём — «0 тенге», как в оформлении; не названа — строки нет.
  * Грузчики продавцу — строкой под доставкой; «напрямую» — под итогом: в сумму не входят.
+ * НДС — последней строкой перед «Итого»: налог на товары прибавлен к итогу сверху.
  */
 export function OrderTotals({ total, breakdown, currency, className }: {
   total: number;
@@ -52,6 +53,12 @@ export function OrderTotals({ total, breakdown, currency, className }: {
         <div data-testid="order-loaders" className="flex justify-between gap-2 text-ink-muted">
           <span>{t('checkout.summary.loaders')}</span>
           <span className="tabular-nums text-ink">{money(breakdown.loadersPrice, currency)}</span>
+        </div>
+      ) : null}
+      {breakdown?.vatAmount != null ? (
+        <div data-testid="order-vat" className="flex justify-between gap-2 text-ink-muted">
+          <span>{t('checkout.summary.vat')}</span>
+          <span className="tabular-nums text-ink">{money(breakdown.vatAmount, currency)}</span>
         </div>
       ) : null}
       <div data-testid="order-total" className="flex items-baseline justify-between gap-2">

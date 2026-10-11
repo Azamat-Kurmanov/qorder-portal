@@ -74,8 +74,8 @@ export function chipClass(chip: ChipLook, selected: boolean, sale = false): stri
 export type PriceLook = TemplateStyle['price'];
 
 /**
- * Цифра цены: крупно (`plain`), ценником второго цвета (`tag`) или
- * моноширинно (`mono`). `sale` — цена со скидкой, `onImage` — поверх снимка.
+ * Цифра цены: крупно (`plain`), ценником второго цвета (`tag`),
+ * моноширинно (`mono`) или от руки (`hand`). `sale` — цена со скидкой, `onImage` — поверх снимка.
  */
 export function priceClass(price: PriceLook, sale: boolean, onImage = false): string {
   if (price === 'tag') {
@@ -83,6 +83,10 @@ export function priceClass(price: PriceLook, sale: boolean, onImage = false): st
       'rounded-[var(--radius-chip)] px-[0.45em] py-[0.15em] leading-[1.2]',
       sale ? 'bg-accent2 text-accent2-ink' : 'bg-accent-soft text-accent-ink',
     );
+  }
+  if (price === 'hand') {
+    // Цена маркером — как на рыночной картонке: рукописная, крупнее цифры набором.
+    return cn('text-[1.4em] font-bold leading-none [font-family:var(--font-hand)]', onImage ? 'text-white' : sale ? 'text-sale' : 'text-ink');
   }
   return cn(
     'tracking-[-0.02em]',

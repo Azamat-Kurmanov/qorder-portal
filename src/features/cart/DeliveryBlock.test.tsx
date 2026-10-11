@@ -6,6 +6,8 @@ import { DeliveryBlock } from './DeliveryBlock';
 import type { SubmitOrderDelivery } from '../../api/generated';
 import { renderScreen } from '../../test/render';
 import { get, stubFetch } from '../../test/http';
+import { currentPickupPoint, setPickupPoint } from '../../supplier/pickupPoint';
+import { setCurrentSupplierId } from '../../supplier/supplier';
 
 /** Способ доставки, у которого спрашивают и адрес, и этаж. */
 const deliveryOptions = {
@@ -269,5 +271,54 @@ describe('единственный способ получения', () => {
 
     expect(await screen.findByRole('button', { name: 'Доставка' })).toHaveAttribute('aria-pressed', 'false');
     expect(onChangeSpy).not.toHaveBeenCalled();
+  });
+});
+
+/** Точка, выбранная в шапке, подставляется сама; выбор в блоке возвращается в шапку. */
+describe('точка самовывоза из шапки', () => {
+  const pickupOnly = {
+    ...deliveryOptions,
+    mode: 'PICKUP_ONLY',
+    methods: [{ ...deliveryOptions.methods[0], id: 'pickup-1', name: 'Самовывоз', pickup: true, requiresAddress: false, requiresFloor: false }],
+    pickupPoints: [{ id: 'p1', name: 'Абая', address: 'Абая 1' }, { id: 'p2', name: 'Райымбека', address: 'Райымбека 5' }],
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    setPickupPoint(null);
+    setCurrentSupplierId(null);
+    window.localStorage.clear();
+  });
+
+  function serve(options: unknown) {
+    stubFetch([get('/api/portal/delivery', options), get('/api/portal/suppliers', suppliers), get('/api/portal/addresses', [])]);
+  }
+
+  it('подставляет точку, выбранную в шапке', async () => {
+    setCurrentSupplierId('supplier-1');
+    setPickupPoint('p2');
+    const onChangeSpy = vi.fn();
+    serve(pickupOnly);
+    renderScreen(<Harness initial={{ methodId: 'pickup-1' }} onChangeSpy={onChangeSpy} />, { supplierId: 'supplier-1' });
+    await vi.waitFor(() => expect(onChangeSpy).toHaveBeenCalledWith({ methodId: 'pickup-1', pickupPointId: 'p2' }));
+  });
+
+  it('выбор точки в блоке меняет выбор в шапке', async () => {
+    setCurrentSupplierId('supplier-1');
+    serve(pickupOnly);
+    renderScreen(<Harness initial={{ methodId: 'pickup-1' }} />, { supplierId: 'supplier-1' });
+    await userEvent.click(await screen.findByRole('radio', { name: /Абая/ }));
+    expect(currentPickupPoint()).toBe('p1');
+  });
+
+  it('при доставке точка из шапки не трогается', async () => {
+    setCurrentSupplierId('supplier-1');
+    setPickupPoint('p2');
+    const onChangeSpy = vi.fn();
+    serve({ ...deliveryOptions, pickupPoints: pickupOnly.pickupPoints });
+    renderScreen(<Harness onChangeSpy={onChangeSpy} />, { supplierId: 'supplier-1' });
+    await screen.findByRole('button', { name: 'Доставка' });
+    expect(onChangeSpy).not.toHaveBeenCalled();
+    expect(currentPickupPoint()).toBe('p2');
   });
 });

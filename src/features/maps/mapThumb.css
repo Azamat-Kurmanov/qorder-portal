@@ -1,0 +1,32 @@
+/* Миниатюра карты у сохранённого адреса: метка-капля и условная карта без точки. */
+.qo-thumb-pin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  translate: -50% -100%;
+  rotate: -45deg;
+  border-radius: 50% 50% 50% 0;
+  border: 2px solid #fff;
+  background: var(--color-accent);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+}
+.qo-thumb-placeholder {
+  position: absolute;
+  inset: 0;
+  background-color: var(--color-hairline);
+  background-image:
+    linear-gradient(28deg, transparent 46%, var(--color-surface) 46%, var(--color-surface) 54%, transparent 54%),
+    linear-gradient(118deg, transparent 62%, var(--color-surface) 62%, var(--color-surface) 67%, transparent 67%),
+    linear-gradient(0deg, transparent 30%, var(--color-sunk) 30%, var(--color-sunk) 34%, transparent 34%);
+}
+/* Тайлы полосы: рисунок шире рамки, посередине — точка. */
+.qo-thumb-tiles {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 720px;
+  height: 96px;
+  margin-left: -360px;
+}

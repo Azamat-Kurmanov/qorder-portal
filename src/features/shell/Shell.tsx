@@ -41,12 +41,10 @@ import { AgeGateDialog } from '../cart/ageGate';
 import { InvitesCard, usePendingInvitations } from './Invitations';
 import { StaffBanner } from './StaffBanner';
 import { ViewerBadge } from './ViewerBadge';
+import { PickupPointPicker } from './layouts/PickupPointPicker';
 import { hoursText, telLink, whatsappLink } from './shopHours';
 import { MORE_SECTIONS, isActive, useMainSections, type Section } from './sections';
 import { DesignHeader } from './layouts/DesignHeader';
-import { FloatingHeader } from './layouts/FloatingHeader';
-import { Dock, DockHeader } from './layouts/DockLayout';
-import { SplitTopBar, StoryColumn } from './layouts/SplitLayout';
 import { CenterHeader } from './layouts/CenterHeader';
 import { CategoryTabs } from './layouts/CategoryTabs';
 import { useHeaderSearch } from './layouts/headerParts';
@@ -55,6 +53,11 @@ import { useSupplierAccess } from '../../supplier/useSupplierAccess';
 import { SupplierCurrencyScope, useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { SupplierTheme } from '../../supplier/SupplierTheme';
 import { useCabinetDesign, type CabinetLayout, type TemplateStyle } from '../../supplier/cabinetDesign';
+import { MotionLevelContext, useMotionLevel } from '../../ui/motion/motionLevel';
+import { Backdrop } from '../../ui/motion/Backdrop';
+import { BackgroundLayer } from '../../ui/motion/BackgroundLayer';
+import { attachPointerFx, pointerFxEnabled } from '../../ui/motion/pointerFx';
+import { ShopAnnounceBar } from './AnnounceBar';
 import { OccasionRibbon } from './OccasionRibbon';
 import { navItemClass } from '../../supplier/templateLook';
 import { Logo } from '../../ui/Logo';
@@ -62,6 +65,7 @@ import { Sheet } from '../../ui/Sheet';
 import { CART_TARGET } from '../../ui/flyToCart';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { cn } from '../../ui/cn';
+import { ScrollJumps } from './ScrollJumps';
 
 /*
  * Разделы, кроме витрины, грузятся отдельными частями при первом переходе:
@@ -136,8 +140,16 @@ export function Shell() {
   // Раскладка меню на мониторе — из шаблона продавца. На телефоне она
   // не меняется: нижнее меню под большим пальцем удобнее любой другой.
   const design = useCabinetDesign();
+  const motion = useMotionLevel(design.motion);
   // Тот же запрос и тот же кеш, что у дизайна: лишнего похода на сервер нет.
   const suppliersPending = useGetPortalSuppliers({ query: { refetchOnMount: false, retryOnMount: false } }).isPending;
+  // Эффекты под курсором (свечение, наклон карточек) — один слушатель на весь кабинет;
+  // корень появляется, когда список поставщиков пришёл.
+  const shellRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = shellRef.current;
+    return root ? attachPointerFx(root, () => pointerFxEnabled(root)) : undefined;
+  }, [suppliersPending]);
   const { layout, style } = design;
   // Новая шапка макета — только у опубликованного дизайна. Без него кабинет
   // остаётся прежним целиком, как и обещано в `cabinetDesign.ts`: молча
@@ -148,7 +160,7 @@ export function Shell() {
   // Колонку складывает «Меню» только там, где колонка есть; в остальных
   // раскладках та же кнопка открывает лист со всеми разделами — иначе
   // редкие разделы на мониторе было бы не найти.
-  const hasColumn = layout === 'side' || layout === 'rail' || layout === 'right';
+  const hasColumn = layout === 'side' || layout === 'rail';
   // Раскладки со своей шапкой вместо обычной — только на мониторе и только
   // у дизайна: на телефоне у всех шаблонов одна шапка и нижнее меню.
   const own = designed && wide ? layout : null;
@@ -188,15 +200,29 @@ export function Shell() {
     // чтобы им пользовался любой экран внутри, без нового useGetPortalSuppliers
     // в каждом листе.
     <SupplierCurrencyScope>
+    <MotionLevelContext.Provider value={motion}>
     <div
+      ref={shellRef}
       data-testid="shell"
+      // Уровень движения — для правил CSS (`index.css`) и полёта в корзину.
+      data-motion={motion}
+      // Тема — для её особенностей в CSS (радужная рамка Призмы и т. п.).
+      data-template={design.template?.id}
+      // Вид кнопок темы (`liveTheme.css`, `.qo-btn`).
+      data-cta={design.style?.cta}
       // Подложка шаблона — с фактурой (точки, сетка, подсветка); без
       // дизайна — прежняя бумага.
-      className={cn('min-h-screen', designed ? 'qo-canvas' : 'bg-canvas')}
+      // `isolate` — своя стековая группа: слой живого фона (z-index: -1)
+      // ложится над подложкой оболочки, а не под ней.
+      className={cn('relative min-h-screen isolate', designed ? 'qo-canvas' : 'bg-canvas')}
       // Строка разделов под шапкой делает шапку выше, и всё, что липнет
       // под ней (колонка оформления), должно знать её настоящую высоту.
       style={headerHeight(designed, own ?? (hasTopNav ? 'top' : 'side'), layout)}
     >
+      {/* Узор или фото продавца — под живым фоном, позади всего содержимого. */}
+      <BackgroundLayer pattern={design.pattern} photo={design.photo} />
+      {/* Живой фон — позади всего содержимого оболочки. */}
+      <Backdrop code={design.backdrop} level={motion} season={design.template?.id === 'SEASON'} />
       {/* Цвет шапки и фон подложки задаёт поставщик в своих реквизитах. */}
       <SupplierTheme />
       {/*
@@ -205,6 +231,8 @@ export function Shell() {
       */}
       <LanguageAsk />
 
+      {/* Полоса объявлений — у тем, где она есть (Вспышка, Лукбук, Сезон). */}
+      <ShopAnnounceBar enabled={!!design.style?.announce} />
       {designed ? (
         <ShellHeader
           layout={own}
@@ -243,7 +271,7 @@ export function Shell() {
         <OccasionRibbon occasion={design.occasion} shop={list.find((supplier) => supplier.supplierId === supplierId)?.name} />
       )}
 
-      <Sheet open={opened && !(wide && (layout === 'side' || layout === 'right'))} onOpenChange={setOpened} title={t('shell.menu')} side="left">
+      <Sheet open={opened && !(wide && layout === 'side')} onOpenChange={setOpened} title={t('shell.menu')} side="left">
         {/*
           Язык и размер шрифта — первой строкой: на телефоне фирменной полосы
           шапки нет, и другого места для переключателей там не остаётся.
@@ -314,23 +342,14 @@ export function Shell() {
             nav={style?.nav}
           />
         )}
-        {own === 'split' && (
-          <StoryColumn ready={ready} othersUnread={others} onOpenShops={() => setShopsOpen(true)} onMore={() => setOpened(true)} />
-        )}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          {own === 'split' && <SplitTopBar activated={activated} ready={ready} />}
           <main
             className={cn(
-              'min-w-0 flex-1 px-4 pt-4 lg:px-8 lg:pb-10 lg:pt-7',
-              // Запас снизу — под нижнее меню телефона: без него последняя
-              // строка любого экрана остаётся под ним и до неё не долистать.
-              'pb-[calc(6rem+env(safe-area-inset-bottom))]',
-              // Под плавающей панелью и доком — свои отступы, как в макете:
-              // док закрывал бы последнюю строку витрины.
-              own === 'floating' && 'lg:pt-6',
-              own === 'dock' && 'lg:pb-32 lg:pt-4',
-              own === 'split' && 'lg:pt-1',
+              'min-w-0 flex-1 px-4 pt-4 lg:px-8 lg:pb-24 lg:pt-7',
+              // Запас снизу — под нижнее меню телефона и стрелку «наверх» над ним:
+              // без него последняя строка экрана остаётся под ними и до неё не долистать.
+              'pb-[calc(10rem+env(safe-area-inset-bottom))]',
             )}
           >
             {/*
@@ -365,23 +384,7 @@ export function Shell() {
             </div>
           </main>
         </div>
-
-        {/* Колонка разделов справа — раскладка «Лофт» и «Моно». */}
-        {railOpen && layout === 'right' && (
-          <Rail
-            current={location.pathname}
-            others={others}
-            cartActive={ready}
-            onOpenShops={() => setShopsOpen(true)}
-            onSwitch={switchShop}
-            designed={designed}
-            nav={style?.nav}
-            right
-          />
-        )}
       </div>
-
-      {own === 'dock' && <Dock ready={ready} onMore={() => setOpened(true)} others={others} />}
 
       {/*
         Корзина — выдвижной панелью по кнопке в шапке, а не колонкой: витрине
@@ -397,6 +400,8 @@ export function Shell() {
         onMore={() => setOpened(true)}
       />
 
+      <ScrollJumps content={shellRef} />
+
       {toast && (
         <div
           role="status"
@@ -411,6 +416,7 @@ export function Shell() {
         </div>
       )}
     </div>
+    </MotionLevelContext.Provider>
     </SupplierCurrencyScope>
   );
 }
@@ -433,10 +439,6 @@ function headerHeight(designed: boolean, own: CabinetLayout, layout: CabinetLayo
   if (!designed) return undefined;
   const heights: Partial<Record<CabinetLayout, string>> = {
     top: 'calc(6.375rem + 3.25rem)',
-    // Плавающая панель висит в 16 точках от края и сама 64 точки.
-    floating: '5rem',
-    dock: '4.25rem',
-    split: '4.5rem',
     center: '7.5rem',
     tabs: 'calc(6.375rem + 5.25rem)',
   };
@@ -477,14 +479,8 @@ function ShellHeader({
   const location = useLocation();
   const common = { activated, ready, othersUnread: others, onOpenShops };
   switch (layout) {
-    case 'floating':
-      return <FloatingHeader {...common} onMore={onMore} />;
-    case 'dock':
-      return <DockHeader {...common} />;
     case 'center':
       return <CenterHeader {...common} onMore={onMore} />;
-    case 'split':
-      return null;
     default:
       return (
         <DesignHeader
@@ -511,10 +507,6 @@ function gridColumns(layout: CabinetLayout, railOpen: boolean, designed: boolean
     return designed ? 'lg:grid-cols-[232px_minmax(0,1fr)]' : 'lg:grid-cols-[256px_minmax(0,1fr)]';
   }
   if (railOpen && layout === 'rail') return 'lg:grid-cols-[72px_minmax(0,1fr)]';
-  // Колонка справа — та же, что слева, только по другую сторону витрины.
-  if (railOpen && layout === 'right' && designed) return 'lg:grid-cols-[minmax(0,1fr)_232px]';
-  // «Разворот» — колонка-история магазина в 360 точек.
-  if (layout === 'split' && designed) return 'lg:grid-cols-[360px_minmax(0,1fr)]';
   return 'lg:grid-cols-[minmax(0,1fr)]';
 }
 
@@ -719,7 +711,6 @@ function Rail({
   onSwitch,
   designed = false,
   nav = 'pill',
-  right = false,
 }: {
   current: string;
   others: number;
@@ -735,8 +726,6 @@ function Rail({
   designed?: boolean;
   /** Вид пункта меню по шаблону: подложка, подчёркивание или полоса у края. */
   nav?: TemplateStyle['nav'];
-  /** Колонка справа от витрины — линия отделяет её слева. */
-  right?: boolean;
 }) {
   const { t } = useTranslation();
   const lines = cartOf(useCart(cartActive).data)?.lines.length ?? 0;
@@ -765,8 +754,7 @@ function Rail({
     <div
       data-testid="rail"
       className={cn(
-        'hidden flex-col gap-1.5 border-hairline lg:flex',
-        right ? 'border-l' : 'border-r',
+        'hidden flex-col gap-1.5 border-r border-hairline lg:flex',
         designed ? 'bg-surface px-3 pb-5 pt-[18px]' : 'bg-sunk px-4 pb-5 pt-4',
         'lg:sticky lg:top-[var(--header-h)] lg:h-[calc(100dvh-var(--header-h))] lg:overflow-y-auto',
       )}
@@ -878,7 +866,7 @@ function Rail({
         className={cn(
           'flex flex-col gap-1.5 p-4',
           designed
-            ? 'rounded-[var(--radius-template)] bg-[linear-gradient(135deg,var(--color-glow),color-mix(in_srgb,var(--color-accent2)_20%,var(--color-surface)))]'
+            ? 'rounded-[var(--radius-template)] border border-hairline bg-canvas'
             : 'rounded-[calc(var(--radius-tile)*1.125)] bg-surface shadow-[0_0_0_1px_var(--color-hairline)]',
           !(helpTel || helpWa) && 'mt-auto',
         )}
@@ -968,7 +956,7 @@ function Header({
   const hasShopInfo = !!(shop?.address || hours);
 
   return (
-    <header className="sticky top-0 z-20">
+    <header data-shell-header className="sticky top-0 z-20">
       <div className="hidden bg-strip text-on-brand lg:block">
         <div className="mx-auto flex h-12 w-full max-w-[1440px] items-center gap-1 pl-4 pr-4 text-sm font-medium">
           {hasShopInfo ? (
@@ -1130,6 +1118,12 @@ function Header({
                 <span aria-hidden="true" className="w-1" />
               )}
             </button>
+
+            {/* Точка самовывоза: по её складу витрина и корзина считают наличие. */}
+            <PickupPointPicker
+              ready={ready}
+              className="max-lg:max-w-[9rem] max-lg:border-transparent max-lg:bg-white/15 max-lg:text-white lg:h-13 lg:rounded-[var(--radius-tile)] lg:border-[1.5px] lg:border-bar-line lg:bg-surface"
+            />
 
             {/*
               В неоткрытом кабинете колокольчика нет: новостям взяться неоткуда,
