@@ -37,6 +37,7 @@ import { FontScalePicker } from './FontScale';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguagePicker } from './LanguagePicker';
 import { HelpGuide } from './HelpGuide';
+import { FirstSteps } from './FirstSteps';
 import { MyShopsBlock, ShopTile, ShopsDialog, useShops } from './Shops';
 import { AgeGateDialog } from '../cart/ageGate';
 import { InvitesCard, usePendingInvitations } from './Invitations';
@@ -266,6 +267,9 @@ export function Shell() {
 
       {/* Полоса о неоткрытом кабинете — единственное, что клиенту без поставщика есть смысл показывать. */}
       {!activated && <ActivationBanner />}
+
+      {/* Первый заказ — три шага, пока продавец не ответил на первую заявку. Сотруднику в просмотре не нужен. */}
+      {currentViewer() !== 'staff' && <FirstSteps active={activated && ready} />}
 
       {/* Праздник продавца — только в его дни, решает `resolveDesign`. */}
       {design.occasion && (

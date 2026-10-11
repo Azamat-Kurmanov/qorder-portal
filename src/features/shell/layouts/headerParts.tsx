@@ -7,6 +7,7 @@ import { useGetPortalDeliveryOptions } from '../../../api/generated';
 import { toggleCart, useCartDrawer } from '../../cart/cartDrawer';
 import { cartOf, useCart } from '../../cart/useCart';
 import { NotificationsBell } from '../../notifications/NotificationsBell';
+import { HelpGuide } from '../HelpGuide';
 import { money, phone as formatPhone } from '../../../shared/format';
 import { useSupplierCurrency } from '../../../supplier/SupplierCurrency';
 import { CART_TARGET } from '../../../ui/flyToCart';
@@ -253,6 +254,7 @@ export function HeaderTools({ activated, ready, chip = true, initialsOnly = fals
       <div data-testid="header-settings" className="hidden items-center gap-0.5 lg:flex">
         <ThemeToggle compact className="size-[2.625rem] justify-center rounded-[var(--radius-small)] px-0" />
       </div>
+      <HelpGuide className="size-10 rounded-[var(--radius-small)] border border-line text-ink-muted hover:border-accent hover:text-ink lg:size-[2.625rem]" />
       {activated && (
         <NotificationsBell
           active={ready}
