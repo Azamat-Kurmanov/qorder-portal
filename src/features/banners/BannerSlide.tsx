@@ -186,9 +186,16 @@ export function BannerSlide({ slide: given, brand, compact, onAction, hidden, sk
             {slide.badge ? <Chip bg={c.chipBg} fg={c.chipFg} icon={<Clock aria-hidden="true" className="size-[15px] shrink-0" strokeWidth={2.2} />}>{slide.badge}</Chip> : null}
             {title}
             {text ? <div className="max-w-[330px]">{text}</div> : null}
-            {endsAt ? <Countdown endsAt={endsAt} tone={lightText ? 'dark' : 'light'} small={compact} /> : null}
+            {endsAt && compact ? <Countdown endsAt={endsAt} tone={lightText ? 'dark' : 'light'} small /> : null}
             {button}
           </div>
+          {/* На мониторе отсчёт — в углу, как в предпросмотре продавца: в колонке
+              он выталкивал кнопку за край слайда при заголовке длиннее строки. */}
+          {endsAt && !compact ? (
+            <span className="absolute bottom-4 right-4">
+              <Countdown endsAt={endsAt} tone={lightText ? 'dark' : 'light'} />
+            </span>
+          ) : null}
         </>
       ) : null}
 

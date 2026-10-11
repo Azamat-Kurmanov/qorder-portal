@@ -28,8 +28,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     // Свой порт: рядом поднято рабочее место менеджера, и два приложения
     // на одном порту означали бы, что кто-то из них не запустится.
-    server: { port: 5174, proxy },
-    preview: { port: 5174, proxy },
+    server: { port: 5174, strictPort: true, proxy },
+    preview: { port: 5174, strictPort: true, proxy },
     test: {
       testTimeout: 15000,
       environment: 'jsdom',
