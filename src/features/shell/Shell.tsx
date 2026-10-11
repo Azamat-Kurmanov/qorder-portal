@@ -36,6 +36,7 @@ import { ActivationBanner } from './ActivationBanner';
 import { FontScalePicker } from './FontScale';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguagePicker } from './LanguagePicker';
+import { HelpGuide } from './HelpGuide';
 import { MyShopsBlock, ShopTile, ShopsDialog, useShops } from './Shops';
 import { AgeGateDialog } from '../cart/ageGate';
 import { InvitesCard, usePendingInvitations } from './Invitations';
@@ -1129,6 +1130,15 @@ function Header({
               В неоткрытом кабинете колокольчика нет: новостям взяться неоткуда,
               а запрос за ними вернул бы отказ.
             */}
+            {/* «Как этим пользоваться» — инструкция к текущему экрану; там, где её нет, кнопки нет. */}
+            <HelpGuide
+              className={cn(
+                'bg-white/15 text-white hover:bg-white/25',
+                'lg:size-13 lg:rounded-[var(--radius-tile)] lg:border-[1.5px] lg:border-bar-line lg:bg-surface lg:text-ink',
+                'lg:hover:border-accent lg:hover:bg-surface',
+              )}
+            />
+
             {activated && (
               <NotificationsBell
                 active={ready}

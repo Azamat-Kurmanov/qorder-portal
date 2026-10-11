@@ -1331,5 +1331,131 @@
     "none": "Where will you pick up?",
     "all": "All points",
     "title": "Pickup point"
+  },
+  "guide": {
+    "button": "How to use this",
+    "title": "How to use: {{screen}}",
+    "flow": "Overview",
+    "show": "Show on screen",
+    "catalog": {
+      "title": "Catalogue",
+      "s1": "All the shop’s products. Next to the price it says what it is for: a piece, a bag or a box.",
+      "s2": "Like a product? Click “Add to basket”. Click the photo to open the product card.",
+      "s3": "Know what you need? Click “Quick order” and add it without searching.",
+      "s4": "Done choosing? Open the basket and click “Check out the request”.",
+      "f1": "Products",
+      "f2": "Basket",
+      "f3": "Quick",
+      "f4": "Check out"
+    },
+    "item": {
+      "title": "Product",
+      "s1": "Everything about the product: photos, price, stock and reviews.",
+      "s2": "Choose the quantity and click “Add to basket”.",
+      "s3": "No need to pay now. The seller checks stock and confirms the request.",
+      "s4": "A question about the product? Click “Ask the seller”.",
+      "f1": "Product",
+      "f2": "Basket",
+      "f3": "No payment",
+      "f4": "Question"
+    },
+    "checkout": {
+      "title": "Place your request",
+      "s1": "Your request: what is in it and what it costs.",
+      "s2": "Choose how to get the order: delivery or pickup. For delivery enter the address.",
+      "s3": "All correct? Click “Send the request to the seller”.",
+      "s4": "No need to pay now. The seller checks stock and answers in “My requests”.",
+      "f1": "Request",
+      "f2": "Getting it",
+      "f3": "Send",
+      "f4": "No payment"
+    },
+    "orders": {
+      "title": "My requests",
+      "s1": "All your requests and where each one is now. On the right it explains each status.",
+      "s2": "See “Your answer needed”? The seller changed something. Click the request, then “Open order” — and answer: “I agree” or “Cancel”.",
+      "s3": "Click a request to see details. A question — click “Ask a question”.",
+      "s4": "Request finished and you need more? Click “Order the same again”.",
+      "f1": "Requests",
+      "f2": "Answer",
+      "f3": "Question",
+      "f4": "Repeat"
+    },
+    "order": {
+      "title": "Request",
+      "s1": "Everything about the request: what you sent and what the seller offers.",
+      "s2": "The seller suggested changes? Look and click “I agree”. Not suitable — “Cancel”.",
+      "s3": "Need an invoice? Click “Download the invoice”.",
+      "s4": "Questions about a request are asked in the list: click “To all requests”, then the request and “Ask a question”.",
+      "f1": "Request",
+      "f2": "I agree",
+      "f3": "Invoice",
+      "f4": "Question"
+    },
+    "favorites": {
+      "title": "Favourites",
+      "s1": "Products you marked with a heart in the catalogue.",
+      "s2": "Click “Add what is available to the request” — everything in stock goes to the basket.",
+      "f1": "Favourites",
+      "f2": "Basket"
+    },
+    "promotions": {
+      "title": "Offers and discounts",
+      "s1": "All the shop’s discounts.",
+      "s2": "The discount is applied in the basket automatically — nothing to enter.",
+      "s3": "There is an offer? Click the “See…” button under it — discounted products open.",
+      "f1": "Discounts",
+      "f2": "Automatic",
+      "f3": "Choose"
+    },
+    "templates": {
+      "title": "Templates",
+      "s1": "A template is a saved basket. Handy if you often order the same things.",
+      "s2": "Need your last order? Click “Repeat the previous order”.",
+      "s3": "To save the basket, enter a name in “Save the current basket” and click “Save”.",
+      "s4": "Next time click “To the basket” on the template — everything is added at once.",
+      "f1": "Template",
+      "f2": "Repeat",
+      "f3": "Save",
+      "f4": "Basket"
+    },
+    "questions": {
+      "title": "Questions to seller",
+      "s1": "Your conversation with the seller: about products, timing and delivery.",
+      "s2": "Type your question in the “Write a message” field and press the send button.",
+      "s3": "You can also ask about a product on its card — with “Ask the seller”.",
+      "s4": "The seller’s answer appears right here.",
+      "f1": "Questions",
+      "f2": "Write",
+      "f3": "Product",
+      "f4": "Answer"
+    },
+    "reviews": {
+      "title": "My reviews",
+      "s1": "Reviews you wrote about products.",
+      "s2": "Other customers see a review once the seller publishes it.",
+      "s3": "You can edit or delete a review.",
+      "f1": "Reviews",
+      "f2": "Check",
+      "f3": "Edit"
+    },
+    "delivery": {
+      "title": "Delivery and pickup",
+      "s1": "All the ways to get your order: delivery and pickup.",
+      "s2": "Each way shows what you will be asked at checkout — for example, the address.",
+      "s3": "Choose the pickup point at the top of the page — it shows what is in stock.",
+      "f1": "Ways",
+      "f2": "Asked",
+      "f3": "Point"
+    },
+    "profile": {
+      "title": "Suppliers",
+      "s1": "The shops you buy from.",
+      "s2": "Buying for a company? Click “Fill in details”, enter the data and click “Save”. The seller issues the VAT invoice to it.",
+      "s3": "Your consents are in “Personal data consents”.",
+      "f1": "Shops",
+      "f2": "Details",
+      "f3": "Consents"
+    }
   }
 }
