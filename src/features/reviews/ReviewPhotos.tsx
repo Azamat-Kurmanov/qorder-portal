@@ -25,7 +25,7 @@ export function ReviewPhotoStrip({ photos, author }: { photos: ReviewPhotoDto[];
 
   const media: ItemMediaDto[] = useMemo(() => photos
     .filter((photo): photo is ReviewPhotoDto & { url: string } => !!photo.url)
-    .map((photo, index) => ({ id: photo.id, kind: 'PHOTO', source: 'UPLOAD', url: photo.url, sortOrder: index })),
+    .map((photo, index) => ({ id: photo.id, kind: 'PHOTO', source: 'UPLOAD', url: photo.url, sortOrder: index, processing: false, failed: false })),
   [photos]);
 
   if (photos.length === 0) return null;

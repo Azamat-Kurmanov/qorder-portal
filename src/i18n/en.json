@@ -739,7 +739,9 @@
       "paidAt": "Payment date",
       "comment": "Comment",
       "send": "Send",
-      "failed": "Couldn't send — try again"
+      "failed": "Couldn't send — try again",
+      "files": "Receipt from the seller:",
+      "file": "open file {{index}}"
     },
     "returns": {
       "title": "Return {{no}}",

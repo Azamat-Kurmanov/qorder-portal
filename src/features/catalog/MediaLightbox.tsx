@@ -225,7 +225,8 @@ function Slide({ entry, itemName }: { entry: ItemMediaDto; itemName: string }) {
 function VideoSlide({ entry, itemName }: { entry: ItemMediaDto; itemName: string }) {
   const { t } = useTranslation();
   const [broken, setBroken] = useState(false);
-  const embed = entry.source === 'LINK' ? embedUrl(entry.url) : undefined;
+  // Загруженный ролик лежит на Диске арендатора и узнаётся по адресу, как и ссылка на Диск.
+  const embed = embedUrl(entry.url);
   const label = entry.title ?? itemName;
 
   if (embed) {
@@ -297,6 +298,11 @@ function embedUrl(url: string): string | undefined {
   }
 
   if (host === 'vimeo.com') return path[0] ? `https://player.vimeo.com/video/${path[0]}` : undefined;
+
+  if (host === 'drive.google.com') {
+    const id = path[0] === 'file' && path[1] === 'd' ? path[2] : parsed.searchParams.get('id');
+    return id ? `https://drive.google.com/file/d/${id}/preview` : undefined;
+  }
 
   return undefined;
 }

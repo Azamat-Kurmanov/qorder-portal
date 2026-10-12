@@ -5,6 +5,9 @@ import { TransportPayment } from './TransportPayment';
 import { renderScreen } from '../../test/render';
 import { method, stubFetch } from '../../test/http';
 
+/** Квитанции файлом нет: только переписка и кабинет — как у большинства заказов. */
+const NO_FILES = { receiptFiles: [], fileToChat: false, fileToCabinet: true };
+
 describe('оплата перевозки у клиента', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -13,7 +16,7 @@ describe('оплата перевозки у клиента', () => {
   it('квитанция видна, «Я оплатил» уходит с номером операции', async () => {
     const { calls } = stubFetch([method('POST', '/api/portal/orders/draft-1/transport-payment', { id: 'draft-1' })]);
     renderScreen(<TransportPayment orderId="draft-1" currency="KZT" payment={{
-      status: 'AWAITING_PAYMENT', control: 'MARK', shipmentBlocked: false,
+      status: 'AWAITING_PAYMENT', control: 'MARK', shipmentBlocked: false, ...NO_FILES,
       receipt: { id: 'r1', amount: 4500, payee: 'ТОО «СДЭК»', requisites: 'KZ12 3456',
         payUrl: 'https://pay.example/abc', dueDate: '2026-10-05', createdAt: '2026-09-29T10:00:00Z' },
     }} />);
@@ -32,7 +35,7 @@ describe('оплата перевозки у клиента', () => {
 
   it('отклонённая оплата — с причиной и кнопкой сообщить снова', () => {
     renderScreen(<TransportPayment orderId="draft-1" currency="KZT" payment={{
-      status: 'REJECTED', control: 'MARK', shipmentBlocked: false, rejectionReason: 'Платёж не найден',
+      status: 'REJECTED', control: 'MARK', shipmentBlocked: false, ...NO_FILES, rejectionReason: 'Платёж не найден',
       receipt: { id: 'r1', amount: 4500, payee: 'СДЭК', createdAt: '2026-09-29T10:00:00Z' },
     }} />);
 
@@ -40,9 +43,19 @@ describe('оплата перевозки у клиента', () => {
     expect(screen.getByRole('button', { name: 'Я оплатил' })).toBeInTheDocument();
   });
 
+  it('квитанция посредника файлом открывается, и по ней можно сообщить об оплате', () => {
+    renderScreen(<TransportPayment orderId="draft-1" currency="KZT" payment={{
+      status: 'AWAITING_PAYMENT', control: 'BLOCK_SHIPMENT', shipmentBlocked: true, ...NO_FILES,
+      receiptFiles: ['/api/files/f1'],
+    }} />);
+
+    expect(screen.getByRole('link', { name: 'открыть файл 1' })).toHaveAttribute('href', '/api/files/f1');
+    expect(screen.getByRole('button', { name: 'Я оплатил' })).toBeInTheDocument();
+  });
+
   it('до квитанции — только ожидание', () => {
     renderScreen(<TransportPayment orderId="draft-1" currency="KZT"
-      payment={{ status: 'AWAITING_RECEIPT', control: 'MARK', shipmentBlocked: false }} />);
+      payment={{ status: 'AWAITING_RECEIPT', control: 'MARK', shipmentBlocked: false, ...NO_FILES }} />);
 
     expect(screen.getByText('Продавец пришлёт квитанцию на оплату перевозки')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Я оплатил' })).not.toBeInTheDocument();
@@ -52,7 +65,7 @@ describe('оплата перевозки у клиента', () => {
     stubFetch([method('POST', '/api/portal/orders/draft-1/transport-payment',
       { detail: 'Сообщать об оплате сейчас нечего' }, 409)]);
     renderScreen(<TransportPayment orderId="draft-1" currency="KZT" payment={{
-      status: 'AWAITING_PAYMENT', control: 'MARK', shipmentBlocked: false,
+      status: 'AWAITING_PAYMENT', control: 'MARK', shipmentBlocked: false, ...NO_FILES,
       receipt: { id: 'r1', amount: 4500, payee: 'СДЭК', createdAt: '2026-09-29T10:00:00Z' },
     }} />);
 

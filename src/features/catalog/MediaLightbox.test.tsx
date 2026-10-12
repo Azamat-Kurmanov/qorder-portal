@@ -11,6 +11,8 @@ const PHOTO_ONE: ItemMediaDto = {
   url: 'https://cdn.example/cement-1.jpg',
   title: 'Мешок 50 кг',
   sortOrder: 10,
+  processing: false,
+  failed: false,
 };
 
 const PHOTO_TWO: ItemMediaDto = {
@@ -19,6 +21,8 @@ const PHOTO_TWO: ItemMediaDto = {
   source: 'LINK',
   url: 'https://cdn.example/cement-2.jpg',
   sortOrder: 20,
+  processing: false,
+  failed: false,
 };
 
 const UPLOADED_VIDEO: ItemMediaDto = {
@@ -27,6 +31,8 @@ const UPLOADED_VIDEO: ItemMediaDto = {
   source: 'UPLOAD',
   url: 'https://cdn.example/cement.mp4',
   sortOrder: 30,
+  processing: false,
+  failed: false,
 };
 
 function renderGallery(media: ItemMediaDto[]) {
@@ -108,6 +114,15 @@ describe('снимки и ролики во весь экран', () => {
 
     expect(within(dialog).getByTestId('lightbox-embed'))
       .toHaveAttribute('src', expect.stringContaining('youtube.com/embed/abc123XYZ_1'));
+  });
+
+  it('ролик, загруженный на Google Диск продавца, показывается плеером Диска', async () => {
+    const dialog = await openFromVideo([
+      { ...UPLOADED_VIDEO, url: 'https://drive.google.com/file/d/drive-id_1/preview' },
+    ]);
+
+    expect(within(dialog).getByTestId('lightbox-embed'))
+      .toHaveAttribute('src', 'https://drive.google.com/file/d/drive-id_1/preview');
   });
 
   /**

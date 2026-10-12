@@ -52,7 +52,10 @@ export function TransportPayment({ orderId, payment, currency }: {
     },
   });
   const receipt = payment.receipt;
-  const canReport = !!receipt && (payment.status === 'AWAITING_PAYMENT' || payment.status === 'REJECTED');
+  // Квитанция бывает и файлом посредника (снимок бумажной или PDF): по ней тоже платят.
+  const files = payment.receiptFiles ?? [];
+  const canReport = (!!receipt || files.length > 0)
+    && (payment.status === 'AWAITING_PAYMENT' || payment.status === 'REJECTED');
   const limits = rules.PaymentReportRequest;
   const blank = (value: string) => value.trim() || undefined;
 
@@ -75,6 +78,17 @@ export function TransportPayment({ orderId, payment, currency }: {
             <a href={receipt.payUrl} target="_blank" rel="noopener noreferrer"
               className="font-semibold text-accent-ink hover:underline">{t('orders.payment.payOnline')}</a>
           ) : null}
+        </div>
+      ) : null}
+      {files.length ? (
+        <div data-testid="transport-receipt-files" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-ink-muted">{t('orders.payment.files')}</span>
+          {files.map((url, index) => (
+            <a key={url} href={url} target="_blank" rel="noopener noreferrer"
+              className="font-semibold text-accent-ink hover:underline">
+              {t('orders.payment.file', { index: index + 1 })}
+            </a>
+          ))}
         </div>
       ) : null}
       {canReport && !open ? (

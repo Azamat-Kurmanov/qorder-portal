@@ -3867,6 +3867,12 @@ export interface TransportPaymentDto {
   lastReport?: PaymentReportDto;
   /** Выдать заказ нельзя, пока оплата не подтверждена */
   shipmentBlocked: boolean;
+  /** Квитанции перевозчика, отправленные клиенту файлом, — копии в хранилище арендатора */
+  receiptFiles: string[];
+  /** У заявки есть переписка: квитанцию можно отправить клиенту файлом. У заказа из кабинета клиента её нет — квитанцию прикладывают полями */
+  fileToChat: boolean;
+  /** Хранилище арендатора подключено: у заказа без переписки квитанцию файлом клиент увидит в своём кабинете. Из переписки файл уходит только в WhatsApp */
+  fileToCabinet: boolean;
 }
 
 export type PickupPointRequestWorkingDaysItem = typeof PickupPointRequestWorkingDaysItem[keyof typeof PickupPointRequestWorkingDaysItem];
@@ -4760,17 +4766,6 @@ export interface ModelVariantsResult {
 }
 
 /**
- * Порядок показа медиа позиции
- */
-export interface ReorderItemMediaRequest {
-  /**
-     * Идентификаторы медиа в порядке показа
-     * @minItems 1
-     */
-  mediaIds: string[];
-}
-
-/**
  * Снимок или ролик
  */
 export type ItemMediaDtoKind = typeof ItemMediaDtoKind[keyof typeof ItemMediaDtoKind];
@@ -4810,6 +4805,21 @@ export interface ItemMediaDto {
   title?: string;
   /** Место в карточке. Меньшее значение показывается раньше */
   sortOrder: number;
+  /** Ролик, загруженный файлом, ещё готовится у Google к показу: клиентам он не виден, плеер Диска пока покажет «still being processed» */
+  processing: boolean;
+  /** Google не смог подготовить загруженный ролик к показу: его стоит удалить и загрузить заново в MP4. Клиентам такой ролик не виден */
+  failed: boolean;
+}
+
+/**
+ * Порядок показа медиа позиции
+ */
+export interface ReorderItemMediaRequest {
+  /**
+     * Идентификаторы медиа в порядке показа
+     * @minItems 1
+     */
+  mediaIds: string[];
 }
 
 /**
@@ -8309,6 +8319,7 @@ export const PortalNotificationDtoKind = {
   STOCK_SYNC_CONFLICT: 'STOCK_SYNC_CONFLICT',
   STOCK_CELLS_REDUCED: 'STOCK_CELLS_REDUCED',
   STOCK_RECEIPT_ASKED: 'STOCK_RECEIPT_ASKED',
+  CATALOG_VIDEO_FAILED: 'CATALOG_VIDEO_FAILED',
 } as const;
 
 /**
@@ -8753,6 +8764,7 @@ export const NotificationDtoKind = {
   STOCK_SYNC_CONFLICT: 'STOCK_SYNC_CONFLICT',
   STOCK_CELLS_REDUCED: 'STOCK_CELLS_REDUCED',
   STOCK_RECEIPT_ASKED: 'STOCK_RECEIPT_ASKED',
+  CATALOG_VIDEO_FAILED: 'CATALOG_VIDEO_FAILED',
 } as const;
 
 /**
@@ -21021,6 +21033,150 @@ export const useSaveCatalogModelVariants = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSaveCatalogModelVariantsMutationOptions(options), queryClient);
+    }
+
+export type uploadItemVideoResponse201 = {
+  data: ItemMediaDto
+  status: 201
+}
+
+export type uploadItemVideoResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type uploadItemVideoResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type uploadItemVideoResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type uploadItemVideoResponse413 = {
+  data: ErrorResponse
+  status: 413
+}
+
+export type uploadItemVideoResponse415 = {
+  data: ErrorResponse
+  status: 415
+}
+
+export type uploadItemVideoResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type uploadItemVideoResponseSuccess = (uploadItemVideoResponse201) & {
+  headers: Headers;
+};
+export type uploadItemVideoResponseError = (uploadItemVideoResponse400 | uploadItemVideoResponse404 | uploadItemVideoResponse409 | uploadItemVideoResponse413 | uploadItemVideoResponse415 | uploadItemVideoResponse500) & {
+  headers: Headers;
+};
+
+export type uploadItemVideoResponse = (uploadItemVideoResponseSuccess | uploadItemVideoResponseError)
+
+export const getUploadItemVideoUrl = (itemId: string,) => {
+
+
+
+
+  return `/api/catalog/items/${itemId}/media/video`
+}
+
+/**
+ * Ролик уходит в хранилище арендатора (Google Диск, папка «Каталог/<артикул>») потоком, а в карточку встаёт медиа с `kind` = `VIDEO`, `source` = `UPLOAD` и `url` — адресом просмотрщика Диска `https://drive.google.com/file/d/…/preview`: так же, как ролик, вставленный ссылкой на Диск.
+ *
+ * Тело запроса — сам файл, без `multipart`: ролик весит сотни мегабайт, и разбор формы держал бы его на сервере целиком. Обязателен `Content-Length`. До 200 МБ, только MP4, MOV и WebM — по первым байтам файла, а не по заголовку. Google показывает ролик через несколько минут после загрузки, пока готовит его к показу.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), взять идентификатор позиции.
+ * 2. Отправить `PUT` с телом — файлом MP4 и `Content-Type: video/mp4`. Ответ 201: `kind` = `VIDEO`, `source` = `UPLOAD`.
+ * 3. Негативный 415 `CATALOG_VIDEO_UNSUPPORTED`: текстовый файл с заголовком `video/mp4`.
+ * 4. Негативный 413 `CATALOG_VIDEO_TOO_LARGE`: файл больше 200 МБ.
+ * 5. Негативный 409 `STORAGE_NOT_CONFIGURED`: у арендатора не выбрано хранилище.
+ * @summary Загрузить ролик позиции файлом
+ */
+export const uploadItemVideo = async (itemId: string,
+    uploadItemVideoBody: Blob, options?: Parameters<typeof apiRequest>[1]): Promise<uploadItemVideoResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<uploadItemVideoResponse>(getUploadItemVideoUrl(itemId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'video/mp4', ...getHeaders(options?.headers) },
+    body: uploadItemVideoBody
+  }
+);}
+
+
+
+
+
+export const getUploadItemVideoMutationKey = () => ['uploadItemVideo'] as const;
+
+export const getUploadItemVideoMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadItemVideo>>, TError,UploadItemVideoMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadItemVideo>>, TError,UploadItemVideoMutationVariables, TContext> => {
+
+const mutationKey = getUploadItemVideoMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadItemVideo>>, UploadItemVideoMutationVariables> = (props) => {
+          const {itemId,data} = props ?? {};
+
+          return  uploadItemVideo(itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadItemVideoMutationResult = NonNullable<Awaited<ReturnType<typeof uploadItemVideo>>>
+    export type UploadItemVideoMutationBody = Blob
+    export type UploadItemVideoMutationError = ErrorResponse
+    export type UploadItemVideoMutationVariables = {itemId: string;data: Blob}
+
+    /**
+ * @summary Загрузить ролик позиции файлом
+ */
+export const useUploadItemVideo = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadItemVideo>>, TError,UploadItemVideoMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof uploadItemVideo>>,
+        TError,
+        UploadItemVideoMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUploadItemVideoMutationOptions(options), queryClient);
     }
 
 export type reorderItemMediaResponse200 = {

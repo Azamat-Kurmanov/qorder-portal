@@ -10,6 +10,8 @@ const photo = (n: number): ItemMediaDto => ({
   source: 'LINK',
   url: `https://cdn.example/${n}.jpg`,
   sortOrder: n * 10,
+  processing: false,
+  failed: false,
 });
 
 const VIDEO: ItemMediaDto = {
@@ -18,6 +20,8 @@ const VIDEO: ItemMediaDto = {
   source: 'UPLOAD',
   url: 'https://cdn.example/clip.mp4',
   sortOrder: 1000,
+  processing: false,
+  failed: false,
 };
 
 const EIGHT_PHOTOS = [1, 2, 3, 4, 5, 6, 7, 8].map(photo);
