@@ -741,7 +741,8 @@
       "send": "Send",
       "failed": "Couldn't send — try again",
       "files": "Receipt from the seller:",
-      "file": "open file {{index}}"
+      "file": "download file {{index}}",
+      "fileFailed": "Could not download the receipt. Please try again."
     },
     "returns": {
       "title": "Return {{no}}",

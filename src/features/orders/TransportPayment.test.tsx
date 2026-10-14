@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TransportPayment } from './TransportPayment';
 import { renderScreen } from '../../test/render';
-import { method, stubFetch } from '../../test/http';
+import { file, method, stubFetch } from '../../test/http';
 
 /** Квитанции файлом нет: только переписка и кабинет — как у большинства заказов. */
 const NO_FILES = { receiptFiles: [], fileToChat: false, fileToCabinet: true };
@@ -11,6 +11,9 @@ const NO_FILES = { receiptFiles: [], fileToChat: false, fileToCabinet: true };
 describe('оплата перевозки у клиента', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(URL, 'createObjectURL');
+    Reflect.deleteProperty(URL, 'revokeObjectURL');
   });
 
   it('квитанция видна, «Я оплатил» уходит с номером операции', async () => {
@@ -43,14 +46,39 @@ describe('оплата перевозки у клиента', () => {
     expect(screen.getByRole('button', { name: 'Я оплатил' })).toBeInTheDocument();
   });
 
-  it('квитанция посредника файлом открывается, и по ней можно сообщить об оплате', () => {
+  it('квитанция посредника файлом скачивается через свой заказ, и по ней можно сообщить об оплате', async () => {
+    const link = '/api/portal/orders/draft-1/transport-receipts/f1';
+    const { calls } = stubFetch([file(link, '%PDF-1.4 квитанция', 'f1.pdf')]);
+    const saved: string[] = [];
+    URL.createObjectURL = vi.fn(() => 'blob:receipt');
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function click(this: HTMLAnchorElement) {
+      saved.push(this.download);
+    });
     renderScreen(<TransportPayment orderId="draft-1" currency="KZT" payment={{
       status: 'AWAITING_PAYMENT', control: 'BLOCK_SHIPMENT', shipmentBlocked: true, ...NO_FILES,
-      receiptFiles: ['/api/files/f1'],
+      receiptFiles: [link],
     }} />);
 
-    expect(screen.getByRole('link', { name: 'открыть файл 1' })).toHaveAttribute('href', '/api/files/f1');
+    // Квитанция — персональные данные: ссылкой без токена её не открыть.
+    expect(screen.queryByRole('link', { name: 'скачать файл 1' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'скачать файл 1' }));
+
+    await waitFor(() => expect(saved).toEqual(['f1.pdf']));
+    expect(calls.some((call) => call.url.includes(link))).toBe(true);
     expect(screen.getByRole('button', { name: 'Я оплатил' })).toBeInTheDocument();
+  });
+
+  it('не скачалась квитанция — отказ виден', async () => {
+    stubFetch([{ match: (url) => url.includes('/transport-receipts/'), status: 404, body: {} }]);
+    renderScreen(<TransportPayment orderId="draft-1" currency="KZT" payment={{
+      status: 'AWAITING_PAYMENT', control: 'MARK', shipmentBlocked: false, ...NO_FILES,
+      receiptFiles: ['/api/portal/orders/draft-1/transport-receipts/f1'],
+    }} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'скачать файл 1' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось скачать квитанцию');
   });
 
   it('до квитанции — только ожидание', () => {

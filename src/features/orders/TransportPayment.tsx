@@ -7,7 +7,9 @@ import {
   useReportPortalTransportPayment,
   type TransportPaymentDto,
 } from '../../api/generated';
+import { apiRequest } from '../../api/client';
 import { rules } from '../../api/rules.generated';
+import { fileNameFrom, saveFile } from '../../shared/download';
 import type { Currency } from '../../shared/currency';
 import { money } from '../../shared/format';
 
@@ -36,6 +38,17 @@ export function TransportPayment({ orderId, payment, currency }: {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ paymentRef: '', paidAt: '', comment: '' });
   const [failed, setFailed] = useState<string | null>(null);
+  const [fileFailed, setFileFailed] = useState(false);
+
+  async function openFile(url: string, index: number) {
+    setFileFailed(false);
+    try {
+      const file = await apiRequest<{ data: Blob; headers: Headers }>(url);
+      await saveFile(file.data, fileNameFrom(file.headers, `receipt-${index + 1}`));
+    } catch {
+      setFileFailed(true);
+    }
+  }
   const report = useReportPortalTransportPayment({
     mutation: {
       onMutate: () => setFailed(null),
@@ -83,12 +96,15 @@ export function TransportPayment({ orderId, payment, currency }: {
       {files.length ? (
         <div data-testid="transport-receipt-files" className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-ink-muted">{t('orders.payment.files')}</span>
+          {/* Квитанция — персональные данные: файл отдаётся только через свой заказ
+              с токеном, поэтому скачивается вызовом, а не переходом по ссылке. */}
           {files.map((url, index) => (
-            <a key={url} href={url} target="_blank" rel="noopener noreferrer"
-              className="font-semibold text-accent-ink hover:underline">
+            <button key={url} type="button" onClick={() => void openFile(url, index)}
+              className="cursor-pointer border-0 bg-transparent p-0 font-semibold text-accent-ink hover:underline">
               {t('orders.payment.file', { index: index + 1 })}
-            </a>
+            </button>
           ))}
+          {fileFailed ? <p role="alert" className="m-0 w-full text-sm text-gone">{t('orders.payment.fileFailed')}</p> : null}
         </div>
       ) : null}
       {canReport && !open ? (
