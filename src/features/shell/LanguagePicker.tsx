@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, Globe } from 'lucide-react';
+import { Check, ChevronDown, Globe } from '../../ui/icons';
 import { SUPPORTED_LANGUAGES, currentLanguage, type Language } from '../../i18n';
 import { cn } from '../../ui/cn';
 

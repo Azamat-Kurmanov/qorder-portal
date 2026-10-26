@@ -33,7 +33,9 @@ describe('избранное', () => {
 
     // «Сколько я отложил» — первый вопрос на этом экране, и мерить длину
     // списка прокруткой клиент не должен.
-    expect(await screen.findByText('2 позиции · отложено вами')).toBeInTheDocument();
+    // Число — в заголовке, как в макете: «Избранное · 2».
+    expect(await screen.findByRole('heading', { level: 1, name: /^Избранное\s*·\s*2$/ })).toBeInTheDocument();
+    expect(screen.getByText('отложено вами')).toBeInTheDocument();
   });
 
   it('«Очистить» снимает отметку с каждой позиции', async () => {

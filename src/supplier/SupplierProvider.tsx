@@ -20,6 +20,9 @@ export function SupplierProvider({ children }: SupplierProviderProps) {
   const [supplierId, setSupplierId] = useState<string | null>(currentSupplierId);
 
   const select = useCallback((next: string | null) => {
+    // Тот же поставщик — не смена. Сброс кеша здесь перезапрашивал бы список,
+    // проверка ссылки с `?supplier=` выбирала бы снова, и так по кругу.
+    if (next === supplierId) return;
     setCurrentSupplierId(next);
     setSupplierId(next);
     // Открытый магазин встаёт первым в «Недавно открывали».
@@ -27,7 +30,7 @@ export function SupplierProvider({ children }: SupplierProviderProps) {
     // Именно clear, а не invalidate: данные прежнего поставщика не должны
     // мелькнуть на экране, пока грузятся новые.
     queryClient.clear();
-  }, [queryClient]);
+  }, [queryClient, supplierId]);
 
   const value = useMemo<SupplierContextValue>(() => ({ supplierId, select }), [supplierId, select]);
 

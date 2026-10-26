@@ -68,12 +68,14 @@ function refusalCodeOf(error: unknown): string {
   return typeof info?.code === 'string' ? info.code : REFUSAL_UNKNOWN;
 }
 
-/** Текст отказа: свой у тех трёх, что человеку есть чем исправить. */
+/** Текст отказа: свой у тех, что человеку есть чем исправить. */
 function refusalTextKey(code: string): string {
   switch (code) {
     case 'PORTAL_PASSWORD_REQUIRED': return 'activation.passwordRequired';
     case 'PORTAL_TOO_MANY_ATTEMPTS': return 'activation.tooManyAttempts';
     case 'PORTAL_REALM_UNAVAILABLE': return 'activation.unavailable';
+    // Текст согласия сменился, пока страница была открыта: тот же ответ, что у ссылки поставщика.
+    case 'CONSENT_OUTDATED': return 'join.consentOutdated';
     default: return 'activation.failed';
   }
 }

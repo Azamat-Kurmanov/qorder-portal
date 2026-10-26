@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, Check, ThumbsUp } from 'lucide-react';
+import { AlertCircle, Check, ThumbsUp } from '../../ui/icons';
 import {
   getGetPortalItemReviewsQueryKey,
   useGetPortalItemReviews,

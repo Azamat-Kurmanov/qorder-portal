@@ -39,7 +39,8 @@ export function stubFetch(rules: StubbedResponse[]) {
     // перестало бы быть содержимым файла, и проверка скачивания доказывала бы
     // только то, что заглушка умеет кавычки.
     const json = headers.get('content-type')?.includes('json') ?? false;
-    const body = rule.body === undefined
+    // У 204 тела не бывает: Response с телом на 204 падает.
+    const body = rule.body === undefined || status === 204
       ? null
       : json ? JSON.stringify(rule.body) : String(rule.body);
 

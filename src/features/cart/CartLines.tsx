@@ -2,7 +2,7 @@ import { cartOf, useCart, useSetCartLine } from './useCart';
 import { PackContents, packMembers } from '../catalog/PackContents';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
+import { X } from '../../ui/icons';
 import type { TFunction } from 'i18next';
 import { Link } from 'react-router-dom';
 import { LineThumb } from './LineThumb';
@@ -317,7 +317,8 @@ function amountLine(line: CartLineDto, editable: boolean, currency: Currency | u
       : `${quantityWithUnit(line.quantity, line.unit)} × ${money(line.price, currency)}`;
   // Вариант — перед ценой: у близнецов одно название, и строки «Худи» чёрного
   // и белого без него читались бы одной позицией, положенной дважды.
-  return line.variantLabel ? `${line.variantLabel} · ${amount}` : amount;
+  const priced = line.yourPrice ? `${amount} · ${t('cart.yourPrice')}` : amount;
+  return line.variantLabel ? `${line.variantLabel} · ${priced}` : priced;
 }
 
 function splitText(line: CartLineDto, split: CartSplitDto, currency: Currency | undefined, t: TFunction): string {

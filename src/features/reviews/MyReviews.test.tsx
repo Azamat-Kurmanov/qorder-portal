@@ -138,7 +138,8 @@ describe('мои отзывы', () => {
 
     expect(await screen.findByText('Брали для фундамента, всё подошло')).toBeInTheDocument();
     expect(screen.getByText('Позиция снята с продажи')).toBeInTheDocument();
-    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    // Единственная ссылка — «Назад» в «Ещё» у заголовка раздела.
+    expect(screen.queryAllByRole('link').filter((link) => link.getAttribute('href') !== '/more')).toHaveLength(0);
   });
 
   it('пустой список объясняет, зачем раздел, а не показывает пустоту', async () => {
@@ -167,7 +168,9 @@ describe('мои отзывы', () => {
     expect(await screen.findByText(/ждут вашей оценки/i)).toBeInTheDocument();
     expect(screen.getByText('Гвозди 100')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('radio', { name: /^Оценка 4 из 5/ }));
+    // Звезда в строке раскрывает форму уже с этой оценкой; отправляет её «Оценить».
+    await userEvent.click(screen.getAllByRole('button', { name: 'Поставить 4 из 5' })[0]);
+    expect(screen.getByRole('radio', { name: /^Оценка 4 из 5/ })).toBeChecked();
     await userEvent.click(screen.getByRole('button', { name: 'Оценить' }));
 
     // Отправлять человека за оценкой обратно в карточку незачем: он дошёл
@@ -239,7 +242,9 @@ describe('мои отзывы', () => {
     awaitingRule.body = [];
     reviewsRule.body = [SAVED_AWAITING_REVIEW];
 
-    await userEvent.click(screen.getByRole('radio', { name: /^Оценка 4 из 5/ }));
+    // Звезда в строке раскрывает форму уже с этой оценкой; отправляет её «Оценить».
+    await userEvent.click(screen.getAllByRole('button', { name: 'Поставить 4 из 5' })[0]);
+    expect(screen.getByRole('radio', { name: /^Оценка 4 из 5/ })).toBeChecked();
     await userEvent.click(screen.getByRole('button', { name: 'Оценить' }));
 
     await waitFor(() => {

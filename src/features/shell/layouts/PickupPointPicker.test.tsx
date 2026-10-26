@@ -51,4 +51,14 @@ describe('точка самовывоза в шапке', () => {
     await screen.findByRole('button', { name: 'Где заберёте?' });
     expect(currentPickupPoint()).toBeNull();
   });
+
+  it('в листе «Ещё» под выбранной точкой — карта с её адресом', async () => {
+    setCurrentSupplierId('supplier-1');
+    stubFetch([options([ABAYA, { ...RAIYMBEK, latitude: 43.25, longitude: 76.9 }])]);
+    renderScreen(<PickupPointPicker ready withMap />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Где заберёте?' }));
+    expect(screen.queryByTestId('map-thumbnail')).toBeNull();
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /Райымбека/ }));
+    expect(screen.getByRole('button', { name: 'Райымбека — открыть карту' })).toBeInTheDocument();
+  });
 });

@@ -68,7 +68,8 @@
       "reviews": "My reviews",
       "delivery": "Delivery and pickup",
       "profile": "Suppliers",
-      "promotions": "Offers"
+      "promotions": "Offers",
+      "newArrivals": "New arrivals"
     },
     "sectionsTitle": "Sections",
     "menu": "Menu",
@@ -99,7 +100,9 @@
     "less": "Less",
     "bottomNav": "Main menu",
     "tabs": {
+      "home": "Home",
       "catalog": "Catalogue",
+      "newArrivals": "New",
       "promotions": "Deals",
       "checkout": "Basket",
       "orders": "Requests",
@@ -127,7 +130,9 @@
       "freeDelivery": "Free delivery from {{amount}}",
       "volume": "{{percent}}% off orders from {{amount}}",
       "firstOrder": "−{{percent}}% on your first order"
-    }
+    },
+    "arrivals_one": "{{count}} new product",
+    "arrivals_other": "{{count}} new products"
   },
   "auth": {
     "appName": "Customer account",
@@ -153,6 +158,7 @@
     "looking": "Checking who you work with…",
     "failed": "Couldn't find out who you work with. Please reload the page.",
     "logout": "Sign out",
+    "switchCabinet": "Switch account type",
     "consents": {
       "title": "Personal data consents",
       "empty": "No consents yet: they are given by whoever signs in through a supplier's invitation.",
@@ -189,6 +195,15 @@
         "bic": "HSBKKZKX",
         "kbe": "17"
       }
+    },
+    "count_one": "{{count}} shop you buy from",
+    "count_other": "{{count}} shops you buy from",
+    "filters": {
+      "label": "Which suppliers to show",
+      "all": "All",
+      "open": "Open now",
+      "news": "With news",
+      "cart": "With a cart"
     }
   },
   "notifications": {
@@ -206,7 +221,16 @@
       "TRANSPORT_PAYMENT_REJECTED": "Transport payment not confirmed",
       "INVOICE_SENT": "An invoice was issued",
       "transportRejectedWith": "Transport payment not confirmed: {{reason}}",
-      "fallback": "There is news about the request"
+      "fallback": "There is news about the request",
+      "NEW_ARRIVALS": "New arrivals in the shop",
+      "NEW_ARRIVALS_count_one": "New arrivals: {{count}} product",
+      "NEW_ARRIVALS_count_other": "New arrivals: {{count}} products",
+      "PROMO_STARTED": "A sale has started",
+      "PROMO_STARTED_count_one": "A sale has started: {{count}} discounted product",
+      "PROMO_STARTED_count_other": "A sale has started: {{count}} discounted products",
+      "ORDER_ON_ROUTE": "Your order is on the way",
+      "ORDER_DELIVERED": "Your order has been delivered",
+      "TEMPLATE_READY": "Your template order is in the cart — check it and send"
     }
   },
   "activation": {
@@ -289,7 +313,12 @@
     "withoutDiscount": "without discount",
     "vat": "VAT",
     "breakdownShow": "Details",
-    "breakdownHide": "Hide"
+    "breakdownHide": "Hide",
+    "yourPrice": "your price",
+    "positions_one": "{{count}} item",
+    "positions_other": "{{count}} items",
+    "vatInside": "incl. VAT {{rate}}%",
+    "vatInsideAny": "incl. VAT"
   },
   "checkout": {
     "title": "Place your request",
@@ -324,7 +353,8 @@
       "vat": "VAT",
       "deliveryVatOnTop": "VAT on delivery {{rate}}%",
       "loadersVatOnTop": "VAT on loaders {{rate}}%",
-      "vatInside": "incl. VAT {{amount}}"
+      "vatInside": "incl. VAT {{amount}}",
+      "vatIncluded": "incl. VAT"
     },
     "sending": "Sending…",
     "send": "Send the request to the seller",
@@ -395,7 +425,8 @@
       "check": "The seller checks that everything is in stock.",
       "change": "If anything changes, you will see it and decide yourself whether to agree.",
       "pickup": "When the request is ready, the seller hands over the goods the way you chose."
-    }
+    },
+    "payLater": "No payment now — the seller will check stock and confirm the order"
   },
   "favorites": {
     "title": "Favourites",
@@ -454,7 +485,8 @@
     "priceNote": {
       "perUnit": "per {{unit}}",
       "vat": "excl. VAT, +{{rate}}%",
-      "asOf": "price as of {{date}}"
+      "asOf": "price as of {{date}}",
+      "vatIncluded": "incl. {{rate}}% VAT"
     },
     "videoNumbered": "Video {{number}}",
     "photoNumbered": "Photo {{number}}",
@@ -523,9 +555,30 @@
     },
     "wholesale": {
       "from": "Wholesale: {{price}} per {{unit}} — in packs of {{amount}}"
-    }
+    },
+    "yourPrice": "your price",
+    "yourPriceNote": "Your price as agreed with the supplier",
+    "back": "Back",
+    "cheaper": "Cheaper",
+    "show": "Show",
+    "sortShort": {
+      "POPULAR": "Popular",
+      "CHEAPEST": "Cheaper",
+      "DEAREST": "Pricier",
+      "NAME": "By name",
+      "DISCOUNT": "On sale"
+    },
+    "channel": {
+      "label": "How it is sold",
+      "ALL": "All",
+      "RETAIL": "Retail",
+      "WHOLESALE": "Wholesale"
+    },
+    "vatIncluded": "incl. {{rate}}% VAT, tax is already in the price",
+    "leadVatIncluded": "prices include {{rate}}% VAT; next to each one — per piece, sack or box"
   },
   "orders": {
+    "expectedOn": "arrives {{date}}",
     "delivery": {
       "title": "Delivery",
       "terminal": "To the carrier terminal — you pick it up",
@@ -719,7 +772,11 @@
       "today": "today",
       "rate": "Rate the product",
       "rateWhich": "Which product to rate",
-      "rateItem": "Rate: {{name}}"
+      "rateItem": "Rate: {{name}}",
+      "groups": {
+        "waiting": "Waiting for you",
+        "rest": "Others"
+      }
     },
     "payment": {
       "title": "Transport payment",
@@ -754,12 +811,18 @@
     },
     "vatInvoice": "VAT invoice",
     "vatInvoiceNoRequisites": "To get a VAT invoice, fill in your company details.",
-    "vatInvoiceFill": "Fill in in profile"
+    "vatInvoiceFill": "Fill in in profile",
+    "way": {
+      "pickup": "pickup",
+      "delivery": "delivery"
+    },
+    "realization1c": "1C sales document No. {{number}} of {{day}}",
+    "realization1cNoNumber": "1C sales document of {{day}}"
   },
   "templates": {
     "title": "Templates",
     "empty": "No templates yet. Fill the basket and save it under a name.",
-    "saveCurrent": "Save the current basket",
+    "saveCurrent": "Save the cart as a template",
     "name": "Name",
     "namePlaceholder": "For example: the site on Abay",
     "saving": "Saving…",
@@ -767,7 +830,8 @@
     "adding": "Adding…",
     "toCart": "To the basket",
     "lineCount": "items: {{count}}",
-    "deleteAria": "Delete the template {{name}}"
+    "deleteAria": "Delete the template {{name}}",
+    "subtitle": "Repeat a purchase in one tap"
   },
   "questions": {
     "tabQuestions": "Questions to the seller",
@@ -796,7 +860,17 @@
     "sendMessage": "Send the message",
     "messageFailed": "The message was not sent. Try again.",
     "aboutItem": "What would you like to know about “{{name}}”?",
-    "sellerAnswer": "The seller's reply"
+    "sellerAnswer": "The seller's reply",
+    "answered": "Answered",
+    "waitingShort": "Awaiting reply",
+    "subtitleThreads": "Each question is its own thread; the answer arrives as a notification",
+    "general": "General question",
+    "you": "You",
+    "seller": "Seller",
+    "unread_one": "{{count}} new answer",
+    "unread_other": "{{count}} new answers",
+    "notFound": "No such conversation.",
+    "newQuestion": "New question to the seller"
   },
   "reviews": {
     "rejectReasons": {
@@ -899,7 +973,9 @@
       "shopReply": "Shop’s reply",
       "helpful": "Helpful · {{count}}",
       "dateWithSize": "{{date}} · size {{size}}"
-    }
+    },
+    "rateItem": "Rate {{name}}",
+    "rateWith": "Give {{rating}} out of 5"
   },
   "delivery": {
     "title": "Delivery and pickup",
@@ -943,6 +1019,16 @@
     }
   },
   "shops": {
+    "page": {
+      "title": "Suppliers",
+      "note_one": "{{count}} shop you buy from",
+      "note_other": "{{count}} shops you buy from",
+      "search": "Find a supplier",
+      "filters": "Filter",
+      "openNow": "Open now",
+      "noneOpen": "All shops are closed right now. You can still send a request — the seller will reply once they open.",
+      "showAll": "All suppliers on one page"
+    },
     "title": "My shops",
     "hint": "pinned and recent",
     "youAreHere": "You are here",
@@ -1064,9 +1150,9 @@
       }
     },
     "subscription": {
-      "title": "Hear about offers first",
-      "on": "Done — we'll let you know",
-      "off": "Tell me about offers"
+      "title": "New arrivals and promotions first",
+      "on": "Done — we will let you know",
+      "off": "Notify me about new arrivals and promotions"
     },
     "deals": {
       "title": "Discounted products",
@@ -1143,18 +1229,7 @@
         }
       },
       "sub": {
-        "exampleLabel": "Example WhatsApp message",
-        "exampleSale": "“{{title}}” has started — up to −{{percent}}%.",
-        "exampleUntil": "Valid until {{date}}.",
-        "exampleGeneric": "The shop’s new discounts and items — straight to WhatsApp.",
-        "toPhone": "To {{phone}}",
-        "toPhoneLine": "To {{phone}} · {{promise}}",
-        "viaWhatsapp": "On WhatsApp, {{promise}}",
-        "promise": {
-          "WEEKLY": "no more than once a week",
-          "MONTHLY": "no more than once a month",
-          "SALES_ONLY": "only about sales"
-        }
+        "where": "A notification in the cabinet and the app — when the shop brings something new or starts a sale"
       },
       "fromEditor": "Banners from the shop editor",
       "slides": "Slides",
@@ -1164,6 +1239,7 @@
     }
   },
   "item": {
+    "article": "Art. {{article}}",
     "back": "Back to catalogue",
     "crumbs": "You are here",
     "noReviews": "No reviews yet",
@@ -1249,6 +1325,28 @@
       "perPiece": "· {{price}} per {{unit}}",
       "belowMin": "Smaller quantities — retail price {{price}} per {{unit}}",
       "onlyPacks": "Sold in packs only, minimum {{amount}}"
+    },
+    "deal": {
+      "delivery": "Delivery",
+      "pickup": "Pickup",
+      "freeFrom": "free from {{amount}}",
+      "priceFrom": "from {{amount}}",
+      "negotiable": "price by agreement"
+    },
+    "inCartSum": "In cart · {{sum}}",
+    "addSum": "Add · {{sum}}",
+    "sizes": {
+      "title": "Several sizes at once",
+      "oneEach": "1 of each size",
+      "size": "Size",
+      "price": "Price",
+      "quantity": "Qty, {{unit}}",
+      "quantityOf": "Quantity of size {{size}}",
+      "put": "To cart: {{amount}} · {{sum}}",
+      "putEmpty": "Enter quantities",
+      "done": "Cart updated",
+      "failed": "Size {{size}}: {{reason}}",
+      "hint": "What is already in the cart is shown here too. The cart works out wholesale packs and discounts for each size itself."
     }
   },
   "design": {
@@ -1696,5 +1794,113 @@
     "hide": "Hide",
     "done": "— done",
     "todo": "— not done"
+  },
+  "referral": {
+    "promo": "Ordering from someone else too? Suggest your supplier work through Q-Order — all your purchasing in one account",
+    "invite": "Invite a supplier",
+    "shopsItem": "Invite your supplier",
+    "title": "Invite a supplier",
+    "nameLabel": "How to introduce you to the supplier",
+    "showLabel": "Show the supplier who is inviting — name and number",
+    "showNote": "The supplier will recognise you and can open an account for you right away",
+    "labelLabel": "Label in your list",
+    "labelHint": "Just for you, the supplier won’t see it. For example, “Bread supplier”",
+    "send": "Send via WhatsApp",
+    "copy": "Copy link",
+    "copied": "Link copied",
+    "sending": "Preparing the link…",
+    "ready": "The invitation is ready. If WhatsApp didn’t open, copy the link and send it yourself.",
+    "dailyLimit": "You’ve sent many invitations today. Continue tomorrow.",
+    "liveLimit": "Too many invitations are waiting for an answer. Remove the ones you don’t need in “My invitations”.",
+    "failed": "Couldn’t create the invitation. Please try again.",
+    "message": "Hello! We order from our suppliers through Q-Order — the catalogue, prices and stock are all there, and an order takes two taps. Join so we can order from you the same way: {{link}}",
+    "mine": "My invitations",
+    "noLabel": "No label",
+    "remove": "Remove invitation",
+    "state": {
+      "SENT": "Sent",
+      "OPENED": "Opened",
+      "LEAD": "Supplier sent a request",
+      "CONTACTED": "Supplier sent a request",
+      "CONNECTED": "Connected",
+      "REJECTED": "Not connected",
+      "EXPIRED": "Link expired",
+      "INVITED": "You’ve been invited"
+    },
+    "cardTitle": "Handy? Bring your other suppliers here too",
+    "cardInvite": "Invite",
+    "cardClose": "Close",
+    "poweredBy": "Powered by Q-Order",
+    "subtitle": "We'll send them a link on WhatsApp",
+    "shopsItemNote": "All your purchasing in one account"
+  },
+  "join": {
+    "titleBy": "{{name}} invites you to take orders through Q-Order",
+    "titleHidden": "One of your customers invites you to take orders through Q-Order",
+    "titleGeneric": "Take orders through Q-Order",
+    "expired": "This invitation is no longer valid. Leave a request — we’ll connect you anyway.",
+    "benefit1": "Orders arrive without back-and-forth messages",
+    "benefit2": "Customers see the catalogue, prices and stock themselves",
+    "benefit3": "Request, order and invoice in one place",
+    "name": "Company name",
+    "bin": "BIN or IIN",
+    "phone": "Phone",
+    "city": "City",
+    "consentTitle": "Consent to personal data processing",
+    "consentAccept": "I have read the text and consent to data processing",
+    "send": "Send request",
+    "sending": "Sending…",
+    "thanks": "Thank you! We’ll contact you within one business day.",
+    "tooOften": "Too many requests. Please try later.",
+    "consentOutdated": "The consent text has been updated. Reload the page and tick the consent again.",
+    "failed": "Couldn’t send the request. Please try again."
+  },
+  "arrivals": {
+    "title": "New arrivals",
+    "lead": "Products the shop has just brought in. The “New” label stays for the period the shop has set.",
+    "empty": "No new arrivals right now — check back later.",
+    "strip": "New arrivals",
+    "stripAction": "View",
+    "today": "Today",
+    "week": "This week",
+    "earlier": "Earlier"
+  },
+  "phoneCountry": {
+    "KG": "Kyrgyzstan"
+  },
+  "home": {
+    "title": "Home",
+    "sections": "Sections",
+    "hits": "Ordered often",
+    "repeat": "Repeat order",
+    "allItems": "All products",
+    "waiting": "Waiting for you",
+    "answer": "The seller changed the order",
+    "answerHint": "No. {{number}} · your answer is needed",
+    "answerGo": "Answer",
+    "ready": "Ready for pickup",
+    "readyHint": "No. {{number}}",
+    "readyCode": "No. {{number}} · code {{code}}",
+    "templates": "Templates",
+    "questions": "Questions to the seller",
+    "delivery": "Delivery",
+    "shop": "Shop",
+    "call": "Call",
+    "badge_one": "{{count}} new",
+    "badge_other": "{{count}} new"
+  },
+  "more": {
+    "buysFrom": "Buys from {{shop}}",
+    "invite": "Invite",
+    "language": "Language",
+    "fontSize": "Text size",
+    "theme": "Theme",
+    "groups": {
+      "buy": "Purchases",
+      "talk": "Messages",
+      "suppliers": "Suppliers",
+      "settings": "Settings"
+    },
+    "inviteSupplier": "Invite a supplier"
   }
 }

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, MoreHorizontal } from 'lucide-react';
+import { ChevronDown, MoreHorizontal } from '../../../ui/icons';
 import { NavLink } from 'react-router-dom';
 import { openCart } from '../../cart/cartDrawer';
 import { cn } from '../../../ui/cn';

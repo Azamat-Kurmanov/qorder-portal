@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { PromotionsPage } from './PromotionsPage';
 import { CartSavings } from '../cart/CartSavings';
 import { renderScreen } from '../../test/render';
-import { get, stubFetch, type StubbedResponse } from '../../test/http';
+import { get, method, stubFetch, type StubbedResponse } from '../../test/http';
 import type { CartDto } from '../../api/generated';
 
 const COAT = {
@@ -34,6 +34,7 @@ function rules(extra: StubbedResponse[] = [], promotions: unknown = PROMOTIONS):
     get('/api/portal/promotions', promotions),
     get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'ИП «Мухамедиева»' }]),
     get('/api/portal/cart', { lines: [], total: 0, skipped: [] }),
+    get('/api/portal/notifications', []),
   ];
 }
 
@@ -68,8 +69,20 @@ describe('акции и скидки в кабинете', () => {
     expect(within(card).getByRole('button', { name: /В корзину/ })).toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: 'Как работают скидки' })).toBeInTheDocument();
-    expect(screen.getByText('Пример сообщения в WhatsApp')).toBeInTheDocument();
-    expect(screen.getByText(/Началась «Осенняя распродажа верхней одежды» — до −20%/)).toBeInTheDocument();
+    // Согласие на уведомления — и здесь, не только в профиле (новинки, §4.4).
+    expect(screen.getByRole('switch', { name: 'Сообщать о новинках и акциях' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('открытый раздел гасит уведомление о начале распродажи', async () => {
+    const started = { id: 'n-sale', kind: 'PROMO_STARTED', createdAt: '2026-10-22T05:00:00Z', detail: '45' };
+    const { calls } = stubFetch(rules([
+      get('/api/portal/notifications', [started]),
+      method('POST', '/api/portal/notifications/n-sale/read', null, 204),
+    ]));
+    renderScreen(<PromotionsPage />);
+
+    await waitFor(() => expect(calls.some((call) =>
+      call.url.includes('/api/portal/notifications/n-sale/read') && call.init?.method === 'POST')).toBe(true));
   });
 
   it('чипы рубрик — из рубрик распродажи с сервера: «Все · N» и названия по порядку', async () => {
@@ -201,26 +214,6 @@ describe('акции и скидки в кабинете', () => {
     expect(screen.getByText(/осталось 8\s000 ₸/)).toBeInTheDocument();
   });
 
-  it('у переключателя подписки — что обещает магазин', async () => {
-    stubFetch(rules([], { ...PROMOTIONS, subscription: { subscribed: false, promise: 'MONTHLY' } }));
-    renderScreen(<PromotionsPage />);
-
-    // Номер профиля не пришёл — обещание стоит одно, с заглавной.
-    expect(await screen.findByText('Не чаще раза в месяц')).toBeInTheDocument();
-  });
-
-  it('под переключателем — номер и обещание одной строкой, в пузыре — время', async () => {
-    stubFetch(rules([get('/api/portal/me', { phone: '77750943537' })],
-      { ...PROMOTIONS, subscription: { subscribed: false, promise: 'WEEKLY' } }));
-    renderScreen(<PromotionsPage />);
-
-    expect(await screen.findByText('На номер +7 775 094 35 37 · не чаще раза в неделю')).toBeInTheDocument();
-    // Пример сообщения — без лишнего абзаца над ним и со временем «ЧЧ:ММ» в пузыре.
-    expect(screen.queryByText(/Пришлём сообщение в WhatsApp/)).not.toBeInTheDocument();
-    const bubble = screen.getByText(/Началась «Осенняя распродажа верхней одежды»/);
-    expect(within(bubble).getByText(/^\d{2}:\d{2}$/)).toBeInTheDocument();
-  });
-
   /** «Сейчас в магазине»: распродажа первым слайдом, за ней баннеры из редактора. */
   it('в «Сейчас в магазине» за распродажей идут баннеры магазина', async () => {
     stubFetch(rules([get('/api/portal/banners', [{
@@ -269,19 +262,6 @@ describe('акции и скидки в кабинете', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: /Посмотреть/ }));
     expect(await screen.findByRole('heading', { name: `Каталог${search}` })).toBeInTheDocument();
-  });
-
-  it('подписка на акции включается переключателем', async () => {
-    const { fetchMock } = stubFetch(rules([{
-      match: (url, init) => url.includes('/api/portal/promotions/subscription') && init?.method === 'PUT',
-      body: { ...PROMOTIONS, subscription: { subscribed: true } },
-    }]));
-    renderScreen(<PromotionsPage />);
-
-    await userEvent.click(await screen.findByRole('switch', { name: 'Сообщать мне об акциях' }));
-    expect(await screen.findByText('Готово — будем сообщать')).toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(([url, init]) =>
-      String(url).includes('/subscription') && (init as RequestInit | undefined)?.body === '{"subscribed":true}')).toBe(true);
   });
 });
 
@@ -348,7 +328,7 @@ describe('акции и скидки на телефоне', () => {
     })], {
       ...PROMOTIONS,
       firstOrder: { percent: 5, status: 'ELIGIBLE' },
-      subscription: { subscribed: false, promise: 'WEEKLY' },
+      subscription: { subscribed: false },
     }));
     renderScreen(<PromotionsPage />);
 
@@ -373,8 +353,6 @@ describe('акции и скидки на телефоне', () => {
     const deals = screen.getByRole('region', { name: 'Товары со скидкой' });
     expect(within(deals).getByRole('link', { name: 'Все' })).toHaveAttribute('href', '/catalog?sale=1');
     expect(within(deals).queryByText(/^Выгода/)).not.toBeInTheDocument();
-
-    expect(screen.getByText('В WhatsApp, не чаще раза в неделю')).toBeInTheDocument();
   });
 
   it('без оптовой билет не говорит о несложении', async () => {
@@ -424,7 +402,7 @@ describe('выгода в корзине', () => {
     const cart: CartDto = {
       lines: [{ itemId: 'a', name: 'Цемент', quantity: 80, unit: 'мешок', priceAtAdding: 2500, price: 2500, priceChanged: false, total: 200000,
         terms: { hit: false, novelty: false, ageRestricted: false } }],
-      total: 194000, skipped: [], goodsTotal: 200000, volumeGoods: 200000, saleSavings: 0, ageConfirmed: false, vatPayer: true,
+      total: 194000, skipped: [], goodsTotal: 200000, volumeGoods: 200000, saleSavings: 0, ageConfirmed: false, vatPayer: true, vatIncluded: false,
       discount: { kind: 'VOLUME', percent: 3, amount: 6000 },
       nextTier: { from: 400000, percent: 5, missing: 200000 },
     };
@@ -440,7 +418,7 @@ describe('выгода в корзине', () => {
       total: 200000, terms: { hit: false, novelty: false, ageRestricted: false } };
     const cart: CartDto = {
       lines: [retail, { ...retail, itemId: 'b', quantity: 60, total: 5400, split: { packs: 3, packUnit: 'упаковка', packQty: 20, packPrice: 1800, rest: 0 } }],
-      total: 199400, skipped: [], goodsTotal: 205400, volumeGoods: 200000, saleSavings: 0, ageConfirmed: false, vatPayer: true,
+      total: 199400, skipped: [], goodsTotal: 205400, volumeGoods: 200000, saleSavings: 0, ageConfirmed: false, vatPayer: true, vatIncluded: false,
       discount: { kind: 'VOLUME', percent: 3, amount: 6000 },
     };
     const { unmount } = renderScreen(<CartSavings cart={cart} />);
@@ -455,7 +433,7 @@ describe('выгода в корзине', () => {
     const cart: CartDto = {
       lines: [{ itemId: 'a', name: 'Цемент', quantity: 20, unit: 'мешок', priceAtAdding: 2500, price: 2500, priceChanged: false, total: 50000,
         terms: { hit: false, novelty: false, ageRestricted: false } }],
-      total: 47500, skipped: [], goodsTotal: 50000, volumeGoods: 50000, saleSavings: 0, ageConfirmed: false, vatPayer: true,
+      total: 47500, skipped: [], goodsTotal: 50000, volumeGoods: 50000, saleSavings: 0, ageConfirmed: false, vatPayer: true, vatIncluded: false,
       discount: { kind: 'FIRST_ORDER', percent: 5, amount: 2500 },
       nextTier: { from: 100000, percent: 3, missing: 50000 },
     };

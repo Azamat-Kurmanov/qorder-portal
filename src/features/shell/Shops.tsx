@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Check, ChevronRight, Clock, Search, Star, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Clock, Search, Star, X, Plus } from '../../ui/icons';
+import { useWideScreen } from '../../ui/useWideScreen';
 import {
   useGetPortalSuppliers,
   useGetPortalUnreadSummary,
@@ -155,10 +156,16 @@ export function ShopsDialog({
   open,
   onOpenChange,
   onSwitch,
+  onInvite,
+  onShowAll,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSwitch: (supplierId: string) => void;
+  /** «Пригласить своего поставщика» — последним пунктом; нет — пункта нет. */
+  onInvite?: () => void;
+  /** «Все поставщики страницей» — под заголовком; нет — ссылки нет. */
+  onShowAll?: () => void;
 }) {
   const { t } = useTranslation();
   const { list, supplierId, unreadOf } = useShops();
@@ -167,6 +174,8 @@ export function ShopsDialog({
   // «Все» — по умолчанию: фильтр по виду товаров не выбран, пока клиент
   // не нажал чип сам.
   const [kind, setKind] = useState<string>('all');
+  // Телефон — экраном по макету «Мои магазины»: во весь экран, «Назад» слева; монитор — окном.
+  const wide = useWideScreen();
 
   const needle = query.trim().toLowerCase();
   const searching = needle !== '';
@@ -292,21 +301,48 @@ export function ShopsDialog({
         <Dialog.Content
           aria-describedby="shops-dialog-note"
           className={cn(
-            'qo-dialog fixed left-1/2 top-1/2 z-50 flex max-h-[min(49rem,calc(100dvh-2rem))] w-[min(45rem,calc(100vw-2rem))]',
-            '-translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[calc(var(--radius-gallery)*7/6)] bg-surface shadow-float',
+            'fixed z-50 flex flex-col overflow-hidden',
+            wide
+              ? cn(
+                'qo-dialog left-1/2 top-1/2 max-h-[min(49rem,calc(100dvh-2rem))] w-[min(45rem,calc(100vw-2rem))]',
+                '-translate-x-1/2 -translate-y-1/2 rounded-[calc(var(--radius-gallery)*7/6)] bg-surface shadow-float',
+              )
+              : 'inset-0 bg-canvas',
           )}
         >
-          <div className="flex flex-col gap-3.5 border-b border-hairline px-5 pb-4 pt-5 lg:px-6 lg:pt-6">
+          <div
+            className={cn(
+              'flex flex-col gap-3.5 px-5 pb-4 lg:px-6 lg:pt-6',
+              wide ? 'border-b border-hairline pt-5' : 'bg-surface px-4 pt-[calc(0.875rem+env(safe-area-inset-top))] shadow-[0_4px_16px_rgba(58,48,30,.06)]',
+            )}
+          >
             <div className="flex items-start justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <Dialog.Title className="text-[1.625rem] font-extrabold tracking-[-0.02em] text-ink">
+              {!wide && (
+                <Dialog.Close
+                  aria-label={t('catalog.back')}
+                  className="flex size-11 shrink-0 items-center justify-center rounded-[0.875rem] bg-canvas text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <ChevronLeft aria-hidden="true" className="size-[1.375rem]" />
+                </Dialog.Close>
+              )}
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <Dialog.Title className={wide ? 'text-[1.625rem] font-extrabold tracking-[-0.02em] text-ink' : 'text-[1.375rem] font-black tracking-[-0.02em] text-ink'}>
                   {t('shops.title')}
                 </Dialog.Title>
-                <p id="shops-dialog-note" className="text-body text-ink-muted">
+                <p id="shops-dialog-note" className={wide ? 'text-body text-ink-muted' : 'text-[0.8125rem] text-ink-muted'}>
                   {t('shops.note', { count: list.length })}
                 </p>
+                {onShowAll && (
+                  <button
+                    type="button"
+                    onClick={onShowAll}
+                    className="self-start text-sm font-bold text-accent-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    {t('shops.page.showAll')}
+                  </button>
+                )}
               </div>
-              <Dialog.Close
+              {wide && <Dialog.Close
                 aria-label={t('shops.close')}
                 className={cn(
                   'flex size-12 shrink-0 items-center justify-center rounded-full bg-canvas text-ink',
@@ -314,7 +350,7 @@ export function ShopsDialog({
                 )}
               >
                 <X aria-hidden="true" className="size-5" />
-              </Dialog.Close>
+              </Dialog.Close>}
             </div>
 
             <label
@@ -429,6 +465,36 @@ export function ShopsDialog({
             </section>
 
             {!searching && <p className="px-1 text-caption text-ink-subtle">{t('shops.pinHint')}</p>}
+
+            {onInvite && (wide ? (
+              <button
+                type="button"
+                onClick={onInvite}
+                className={cn(
+                  'flex min-h-12 items-center gap-2 rounded-[calc(var(--radius-tile)*1.125)] border-[1.5px] border-dashed border-line px-4',
+                  'text-body font-semibold text-ink hover:border-ink',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                )}
+              >
+                <Plus aria-hidden="true" className="size-5" />
+                {t('referral.shopsItem')}
+              </button>
+            ) : (
+              // Как в макете: приглашение — мягкой зелёной карточкой с объяснением, зачем.
+              <button
+                type="button"
+                onClick={onInvite}
+                className="flex items-center gap-3 rounded-[1.375rem] bg-accent-soft p-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-[0.875rem] bg-accent text-on-accent">
+                  <Plus className="size-[1.375rem]" />
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-[0.9375rem] font-bold text-accent-ink">{t('referral.shopsItem')}</span>
+                  <span className="text-[0.8125rem] text-ink-muted">{t('referral.shopsItemNote')}</span>
+                </span>
+              </button>
+            ))}
           </div>
         </Dialog.Content>
       </Dialog.Portal>

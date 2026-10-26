@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Maximize2, Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { Maximize2, Pause, Play, Volume2, VolumeX } from '../../ui/icons';
 import { cn } from '../../ui/cn';
 
 /**

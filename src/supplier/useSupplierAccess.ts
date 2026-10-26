@@ -1,4 +1,5 @@
 import { useGetPortalSuppliers } from '../api/generated';
+import { useSupplier } from './useSupplier';
 
 /** Открыт ли кабинет поставщиком — и знаем ли мы это уже наверняка. */
 export interface SupplierAccess {
@@ -13,7 +14,7 @@ export interface SupplierAccess {
    */
   activated: boolean;
   /**
-   * Кабинет открыт и это подтверждено ответом сервера.
+   * Кабинет открыт, это подтверждено ответом сервера, и магазин уже выбран из этого списка.
    *
    * По этому признаку включаются запросы оболочки — заявка и уведомления.
    * Уйди они раньше ответа, клиент без поставщика получал бы отказ на каждый:
@@ -41,5 +42,11 @@ export function useSupplierAccess(): SupplierAccess {
   const list = suppliers.data?.status === 200 ? suppliers.data.data : [];
   const activated = !(answered && list.length === 0);
 
-  return { answered, activated, ready: answered && activated };
+  // Магазин выбирается шагом позже прихода списка (RequireSupplier): без этой проверки
+  // оболочка успевала отправить запросы без `X-Supplier-Id` и получала отказы
+  // «Поставщик недоступен» — экран каталога в этот момент показывал «Не удалось загрузить».
+  const { supplierId } = useSupplier();
+  const chosen = supplierId !== null && list.some((supplier) => supplier.supplierId === supplierId);
+
+  return { answered, activated, ready: answered && activated && chosen };
 }

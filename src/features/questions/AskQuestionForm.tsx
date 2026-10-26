@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { rules } from '../../api/rules.generated';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,6 +38,19 @@ export function AskQuestionForm({
   const [text, setText] = useState('');
   const [sent, setSent] = useState(false);
   const [failed, setFailed] = useState(false);
+  const field = useRef<HTMLTextAreaElement | null>(null);
+
+  // Поле открыто кнопкой извне (карточка товара, окно «Как подобрать размер»):
+  // оно может оказаться ниже экрана — подводим к нему и ставим курсор. Ждём
+  // такт: закрывающееся окно сначала вернёт фокус на свою кнопку.
+  useEffect(() => {
+    if (!startOpened) return undefined;
+    const timer = window.setTimeout(() => {
+      field.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      field.current?.focus({ preventScroll: true });
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [startOpened]);
 
   const ask = useAskPortalQuestion({
     mutation: {
@@ -89,6 +102,7 @@ export function AskQuestionForm({
       <label className="flex flex-col gap-1.5 text-sm text-ink-muted">
         {t('questions.question')}
         <textarea
+          ref={field}
           autoFocus
           value={text}
           rows={3}

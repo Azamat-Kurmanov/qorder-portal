@@ -1,4 +1,4 @@
-import { TriangleAlert } from 'lucide-react';
+import { TriangleAlert } from '../../ui/icons';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../ui/cn';
 

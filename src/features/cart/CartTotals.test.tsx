@@ -15,7 +15,7 @@ function line(unit: string, quantity: number, price: number, vatRate?: number): 
 function cart(lines: CartLineDto[], vatAmount?: number, vatPayer = true): CartDto {
   const total = lines.reduce((sum, l) => sum + l.total, 0);
   return {
-    lines, total, goodsTotal: total, volumeGoods: total, saleSavings: 0, skipped: [], ageConfirmed: false, vatAmount, vatPayer,
+    lines, total, goodsTotal: total, volumeGoods: total, saleSavings: 0, skipped: [], ageConfirmed: false, vatAmount, vatPayer, vatIncluded: false,
   } as CartDto;
 }
 
@@ -59,5 +59,10 @@ describe('итоги корзины', () => {
   it('у плательщика — сумма налога, как раньше', () => {
     render(<VatLine cart={cart([line('шт', 5, 2500, 16), line('шт', 1, 100, 16)], 2016, true)} />);
     expect(screen.getByTestId('cart-vat')).toHaveTextContent(/НДС 16%.*2\s016/);
+  });
+
+  it('НДС в цене — «в т.ч.», сумма выделена из цены', () => {
+    render(<VatLine cart={{ ...cart([line('шт', 1, 135000, 16)], 18620.69), vatIncluded: true }} />);
+    expect(screen.getByTestId('cart-vat')).toHaveTextContent(/в т\.ч\. НДС 16%.*18\s620/);
   });
 });

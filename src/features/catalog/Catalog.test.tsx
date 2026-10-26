@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { stubWideScreen } from '../../test/wideScreen';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CatalogPage } from './CatalogPage';
@@ -77,27 +78,6 @@ function catalogRules(items: unknown[] = [CEMENT], cart: unknown = emptyCart) {
     get('/api/portal/catalog', { page: 0, size: 50, totalElements: items.length, items }),
     get('/api/portal/cart', cart),
   ];
-}
-
-/**
- * Монитор: широкая ОБОЛОЧКА.
- *
- * Отвечает за то, где живёт поиск, — в верхней полосе или в самой витрине.
- * Раскладку витрины этот признак больше не выбирает: между окном и витриной
- * стоят колонка разделов и панель корзины, и на 1024 точках окна витрине
- * достаётся меньше четырёхсот.
- */
-function stubWideScreen() {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: query.includes('1024'),
-    media: query,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }));
 }
 
 /**
@@ -291,7 +271,8 @@ describe('витрина кабинета', () => {
 
     renderScreen(<CatalogPage />);
 
-    expect(await screen.findByText('В наличии')).toBeInTheDocument();
+    // «В наличии» плитка молчит (макеты «Кабинет клиента 2.0») — и не выдумывает «Свободно: 0».
+    await screen.findByTestId('item-tile');
     expect(screen.queryByText(/Свободно/)).not.toBeInTheDocument();
   });
 
@@ -373,14 +354,14 @@ describe('витрина кабинета', () => {
     }, { timeout: 3000 });
   });
 
-  it('наличие показывается словами поставщика, а не числом остатка', async () => {
+  it('«Уточняется» на витрине не пишется — только то, что что-то говорит', async () => {
     stubFetch(catalogRules([{ ...CEMENT, stock: 'UNKNOWN' }]));
     renderScreen(<CatalogPage />);
 
-    // «Уточняется» — не «нет в наличии»: система не знает, что товара
-    // нет, она знает, что не может подтвердить. На витрине — коротко, как
-    // в макете; полностью — в карточке товара.
-    expect(await screen.findByText('Уточняется')).toBeInTheDocument();
+    // У каждой позиции «Уточняется» было шумом (макеты «Кабинет клиента 2.0»);
+    // полностью наличие сказано в карточке товара.
+    const tile = await screen.findByTestId('item-tile');
+    expect(within(tile).queryByText('Уточняется')).not.toBeInTheDocument();
     expect(screen.queryByText(/нет в наличии/i)).not.toBeInTheDocument();
   });
 
@@ -404,7 +385,7 @@ describe('витрина кабинета', () => {
     stubFetch(catalogRules([{ ...CEMENT, stock: 'IN_STOCK', available: null }]));
     renderScreen(<CatalogPage />);
 
-    expect(await screen.findByText(/в наличии/i)).toBeInTheDocument();
+    await screen.findByTestId('item-tile');
     expect(screen.queryByText(/свободно/i)).not.toBeInTheDocument();
   });
 
@@ -459,7 +440,7 @@ describe('витрина кабинета', () => {
     expect(screen.getAllByTestId('item-tile')).toHaveLength(2);
   });
 
-  it('на мониторе витрина встаёт в три карточки, а рубрики переносятся строками', async () => {
+  it('на мониторе витрина встаёт в три карточки, а рубрики стоят колонкой слева', async () => {
     stubWideScreen();
     stubColumnWidth(812);
     stubFetch([
@@ -473,7 +454,6 @@ describe('витрина кабинета', () => {
     expect(screen.getAllByTestId('item-tile')).toHaveLength(2);
 
     const rubrics = screen.getByRole('group', { name: 'Рубрики' });
-    expect(rubrics.className).toContain('flex-wrap');
     expect(within(rubrics).getByRole('button', { name: 'Все товары' })).toHaveAttribute('aria-pressed', 'true');
 
     // Выбранная рубрика названа выбранной, а не только залита цветом.
@@ -661,28 +641,64 @@ describe('витрина по макету: порядок, числа, метк
     });
   });
 
-  it('«Сортировка» меняет порядок витрины — и на мониторе, и компактным списком на телефоне', async () => {
+  it('«Сортировка» на мониторе меняет порядок витрины', async () => {
+    stubWideScreen();
     const { calls } = stubFetch(withCounts(catalogRules()));
 
     renderScreen(<CatalogPage />);
     await screen.findByText('Цемент М400');
     expect(calls.some((call) => call.url.includes('sort=POPULAR'))).toBe(true);
 
-    // Два списка: у монитора подпись видна, у телефона — только для диктора.
-    const [phone, wide] = screen.getAllByLabelText('Сортировка');
-    expect(wide.closest('.lg\\:flex')).not.toBeNull();
-    expect(phone.closest('label')?.className).toContain('lg:hidden');
-
-    await userEvent.selectOptions(wide, 'Сначала дешевле');
+    await userEvent.click(within(screen.getByRole('group', { name: 'Сортировка' })).getByRole('button', { name: 'Дешевле' }));
     await waitFor(() => expect(calls.some((call) => call.url.includes('sort=CHEAPEST'))).toBe(true));
-    // Выбор общий: телефонный список показывает тот же порядок.
-    expect(phone).toHaveValue('CHEAPEST');
+  });
 
-    await userEvent.selectOptions(phone, 'Сначала дороже');
-    await waitFor(() => expect(calls.some((call) => call.url.includes('sort=DEAREST'))).toBe(true));
+  it('«Розница / Опт»: выбор уходит на сервер и в список, и в числа разделов', async () => {
+    stubWideScreen();
+    const { calls } = stubFetch(withCounts(catalogRules(), { ...COUNTS, retail: 10, wholesale: 4 }));
+
+    renderScreen(<CatalogPage />);
+    await screen.findByText('Цемент М400');
+    const group = screen.getByRole('group', { name: 'Как продаётся' });
+    expect(within(group).getByRole('button', { name: 'Все' })).toHaveAttribute('aria-pressed', 'true');
+
+    await userEvent.click(within(group).getByRole('button', { name: 'Опт' }));
+    await waitFor(() => expect(calls.some((call) => call.url.includes('/api/portal/catalog?') && call.url.includes('channel=WHOLESALE'))).toBe(true));
+    expect(calls.some((call) => call.url.includes('/api/portal/catalog/counts') && call.url.includes('channel=WHOLESALE'))).toBe(true);
+    expect(within(screen.getByRole('group', { name: 'Как продаётся' })).getByRole('button', { name: 'Опт' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('все товары и в розницу, и оптом — переключателя нет: выбор ничего бы не менял', async () => {
+    stubWideScreen();
+    stubFetch(withCounts(catalogRules(), { ...COUNTS, retail: 12, wholesale: 12 }));
+
+    renderScreen(<CatalogPage />);
+    await screen.findByText('Цемент М400');
+    expect(screen.queryByRole('group', { name: 'Как продаётся' })).not.toBeInTheDocument();
+  });
+
+  it('у магазина без опта переключателя «Розница / Опт» нет', async () => {
+    stubWideScreen();
+    stubFetch(withCounts(catalogRules(), { ...COUNTS, retail: 12, wholesale: 0 }));
+
+    renderScreen(<CatalogPage />);
+    await screen.findByText('Цемент М400');
+    expect(screen.queryByRole('group', { name: 'Как продаётся' })).not.toBeInTheDocument();
+  });
+
+  it('на телефоне порядок — одной кнопкой у заголовка, а не чипом (макет К2.2)', async () => {
+    const { calls } = stubFetch(withCounts(catalogRules()));
+
+    renderScreen(<CatalogPage />);
+    await screen.findByText('Цемент М400');
+    expect(screen.queryByRole('button', { name: 'Дешевле' })).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText('Сортировка'), 'CHEAPEST');
+    await waitFor(() => expect(calls.some((call) => call.url.includes('sort=CHEAPEST'))).toBe(true));
   });
 
   it('«Сначала со скидкой» — в списке, только пока идёт распродажа', async () => {
+    stubWideScreen();
     const { calls } = stubFetch([
       get('/api/portal/promotions', { volumeTiers: [], deals: [], dealCount: 3 }),
       ...withCounts(catalogRules()),
@@ -690,13 +706,13 @@ describe('витрина по макету: порядок, числа, метк
     renderScreen(<CatalogPage />);
     await screen.findByText('Цемент М400');
 
-    const [, wide] = screen.getAllByLabelText('Сортировка');
-    await waitFor(() => expect(within(wide).getByRole('option', { name: 'Сначала со скидкой' })).toBeInTheDocument());
-    await userEvent.selectOptions(wide, 'Сначала со скидкой');
+    const wide = screen.getByRole('group', { name: 'Сортировка' });
+    await userEvent.click(await within(wide).findByRole('button', { name: 'Со скидкой' }));
     await waitFor(() => expect(calls.some((call) => call.url.includes('sort=DISCOUNT'))).toBe(true));
   });
 
   it('без распродажи пункта «Сначала со скидкой» нет', async () => {
+    stubWideScreen();
     stubFetch([
       get('/api/portal/promotions', { volumeTiers: [], deals: [], dealCount: 0 }),
       ...withCounts(catalogRules()),
@@ -785,16 +801,16 @@ describe('витрина по макету: порядок, числа, метк
     // Озвучивает постоянная живая область, а кнопка стоит на видимой плашке.
     expect(await screen.findByRole('status')).toHaveTextContent('Добавлено: Цемент М400');
     expect(screen.getByRole('button', { name: 'Открыть корзину' })).toBeInTheDocument();
-    // Счётчик взятой позиции говорит, что она в корзине.
-    expect(await screen.findByText(/мешок в корзине/)).toBeInTheDocument();
+    // Взятая позиция — счётчиком с единицей вместо круглой «+».
+    expect(await screen.findByLabelText(/^Количество, /)).toHaveValue(1);
   });
 
-  it('единица у счётчика склоняется по числу: «20 мешков в корзине»', async () => {
+  it('единица у счётчика склоняется по числу: «20 мешков»', async () => {
     stubFetch(catalogRules([CEMENT], cartWith('item-1', 20)));
     renderScreen(<CatalogPage />);
 
     expect(await screen.findByLabelText(/^Количество, /)).toHaveValue(20);
-    expect(screen.getByText('мешков в корзине')).toBeInTheDocument();
+    expect(screen.getByText('мешков')).toBeInTheDocument();
   });
 
   it('рубрики без товаров свёрнуты в «Пустые разделы» и раскрываются по нажатию', async () => {
@@ -815,6 +831,7 @@ describe('витрина по макету: порядок, числа, метк
   });
 
   it('«Быстрый заказ» открывается кнопкой', async () => {
+    stubWideScreen();
     stubFetch(withCounts(catalogRules()));
     renderScreen(<CatalogPage />);
 
@@ -828,16 +845,18 @@ describe('витрина по макету: порядок, числа, метк
 
   /** Ставка НДС в подзаголовке — из товаров, и только когда она у всех одна. */
   it('подзаголовок называет общую ставку НДС, а при разных — нет', async () => {
+    stubWideScreen();
     stubFetch(catalogRules([CEMENT, SAND]));
     const first = renderScreen(<CatalogPage />);
-    expect(await screen.findByText('2 товара · цены без НДС, НДС 12% прибавится при оформлении; рядом указано — за штуку, мешок или ящик'))
+    expect(await screen.findByText('цены без НДС, НДС 12% прибавится при оформлении; рядом указано — за штуку, мешок или ящик'))
       .toBeInTheDocument();
     first.unmount();
     vi.unstubAllGlobals();
 
+    stubWideScreen();
     stubFetch(catalogRules([CEMENT, { ...SAND, vatRate: 0 }]));
     renderScreen(<CatalogPage />);
-    expect(await screen.findByText('2 товара · Рядом с ценой написано, за что она: за штуку, мешок, ящик.'))
+    expect(await screen.findByText('Рядом с ценой написано, за что она: за штуку, мешок, ящик.'))
       .toBeInTheDocument();
   });
 
@@ -1005,6 +1024,7 @@ describe('выбор варианта на карточке витрины', () 
   });
 
   it('плитка шаблона продавца тоже выбирает цвет на месте', async () => {
+    stubWideScreen();
     stubFetch([
       get('/api/portal/suppliers', [
         { supplierId: 'supplier-1', name: 'СтройБаза', design: { template: 'CLASSIC', theme: 'TEMPLATE', published: true } },
@@ -1044,6 +1064,8 @@ describe('выбор варианта на карточке витрины', () 
  * ничего: «0» на плитке читался бы как плохая оценка, а не как её отсутствие.
  */
 describe('оценка товара на плитке', () => {
+  // Плитки шаблонов — тема продавца, а она действует только на компьютере.
+  beforeEach(stubWideScreen);
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();

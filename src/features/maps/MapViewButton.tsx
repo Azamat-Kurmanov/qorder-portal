@@ -1,4 +1,4 @@
-import { MapPin } from 'lucide-react';
+import { MapPin } from '../../ui/icons';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { searchPortalMapPlaces } from '../../api/generated';

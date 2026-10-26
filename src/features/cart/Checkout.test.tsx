@@ -36,9 +36,8 @@ describe('оформление заявки', () => {
 
     renderScreen(<CheckoutPage />);
 
-    const empty = await screen.findAllByText(/Корзина пуста/);
-    expect(empty.length).toBeGreaterThan(0);
-    empty.forEach((text) => expect(text).toHaveClass('text-sm', 'text-ink-subtle'));
+    // Сводка о пустоте молчит; пустой состав — обычная подпись корзины.
+    expect((await screen.findAllByText(/Корзина пуста/)).length).toBeGreaterThan(0);
     expect(screen.queryByTestId('cart-goods')).not.toBeInTheDocument();
     expect(screen.queryByTestId('cart-vat')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /отправить заявку/i })).toBeDisabled();
@@ -57,6 +56,8 @@ describe('оформление заявки', () => {
     // поэтому ждать надо значения, а не элемента.
     await waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('12 500'));
 
+    // Пожелание свёрнуто в строку и раскрывается по нажатию.
+    await userEvent.click(screen.getByRole('button', { name: /пожелания продавцу/i }));
     await userEvent.type(screen.getByLabelText(/пожелания продавцу/i), 'позвоните за час');
     await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
 
@@ -162,10 +163,9 @@ describe('оформление заявки', () => {
 
     renderScreen(<CheckoutPage />);
 
-    const summary = await screen.findByTestId('checkout-summary');
-    const line = await within(summary).findByTestId('cart-line');
+    const block = await screen.findByRole('region', { name: 'Состав заявки' });
+    const line = await within(block).findByTestId('cart-line');
     expect(line).toHaveTextContent('Цемент М400');
-    expect(line).toHaveTextContent('5 мешков × 2 500 ₸');
     expect(within(line).getByTestId('line-total')).toHaveTextContent('12 500 ₸');
   });
 
@@ -183,12 +183,12 @@ describe('оформление заявки', () => {
 
     const { rerender } = renderScreen(<CheckoutPage />);
 
-    const summary = await screen.findByTestId('checkout-summary');
-    const before = (await within(summary).findByTestId('line-thumb')).getAttribute('style');
+    const block = await screen.findByRole('region', { name: 'Состав заявки' });
+    const before = (await within(block).findByTestId('line-thumb')).getAttribute('style');
     expect(before).toContain('linear-gradient');
 
     rerender(<CheckoutPage />);
-    expect(within(screen.getByTestId('checkout-summary')).getByTestId('line-thumb').getAttribute('style')).toBe(before);
+    expect(within(screen.getByRole('region', { name: 'Состав заявки' })).getByTestId('line-thumb').getAttribute('style')).toBe(before);
   });
 
   /**
@@ -196,7 +196,7 @@ describe('оформление заявки', () => {
    * в ней спрятан. Поэтому на телефоне он стоит отдельным блоком наверху
    * страницы: что заказываешь, видно со снимками, а не только суммой.
    */
-  it('на телефоне состав заявки со снимками стоит отдельным блоком', async () => {
+  it('состав заявки со снимками стоит отдельным блоком', async () => {
     stubFetch([
       get('/api/portal/cart', cartWith({
         lines: [{ ...cartWith().lines[0], imageUrl: 'https://cdn.test/cement.jpg' }],
@@ -207,7 +207,6 @@ describe('оформление заявки', () => {
     renderScreen(<CheckoutPage />);
 
     const block = await screen.findByRole('region', { name: 'Состав заявки' });
-    expect(block.className).toContain('lg:hidden');
     expect(await within(block).findByTestId('cart-line')).toHaveTextContent('Цемент М400');
     // Снимок декоративный (alt=""): название стоит рядом, поэтому ищется по разметке, а не по роли.
     expect(block.querySelector('img')).toHaveAttribute('src', 'https://cdn.test/cement.jpg');

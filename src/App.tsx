@@ -2,6 +2,7 @@ import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } 
 import { CallbackPage } from './auth/CallbackPage';
 import { RequireAuth } from './auth/RequireAuth';
 import { ActivationPage } from './features/activation/ActivationPage';
+import { JoinPage } from './features/join/JoinPage';
 import { Shell } from './features/shell/Shell';
 import { SupplierProvider } from './supplier/SupplierProvider';
 import { withViewTransitions } from './ui/motion/viewTransitions';
@@ -9,8 +10,8 @@ import { withViewTransitions } from './ui/motion/viewTransitions';
 /**
  * Маршруты кабинета.
  *
- * Публичный здесь ровно один — активация приглашения: у клиента, который
- * открывает ссылку, токена ещё может не быть. Всё остальное закрыто входом,
+ * Публичных два: активация приглашения — у клиента, который открывает ссылку,
+ * токена ещё может не быть, — и страница приглашённого поставщика. Всё остальное закрыто входом,
  * а внутри — ещё и выбором поставщика: без него запросы уходили бы без
  * заголовка и получали отказ.
  *
@@ -24,6 +25,8 @@ import { withViewTransitions } from './ui/motion/viewTransitions';
 const router = withViewTransitions(createBrowserRouter(createRoutesFromElements(
   <>
     <Route path="/activate" element={<ActivationPage />} />
+    {/* Страница для поставщика, которого позвал клиент: у поставщика входа нет вовсе. */}
+    <Route path="/join/:code?" element={<JoinPage />} />
     <Route path="/callback" element={<CallbackPage />} />
     <Route
       path="/*"

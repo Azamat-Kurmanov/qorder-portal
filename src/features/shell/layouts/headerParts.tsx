@@ -1,7 +1,7 @@
 import { Bump } from '../../../ui/Bump';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, MapPin, MessageCircle, MessageCircleQuestion, Phone, Search, Store, Truck } from 'lucide-react';
+import { ChevronDown, MapPin, MessageCircle, MessageCircleQuestion, Phone, Search, Store, Truck } from '../../../ui/icons';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useGetPortalDeliveryOptions } from '../../../api/generated';
 import { toggleCart, useCartDrawer } from '../../cart/cartDrawer';
@@ -239,22 +239,24 @@ export function CartButton({ ready, className, label = true }: { ready: boolean;
 }
 
 /** Тема, уведомления точкой и чип вошедшего — справа в шапке шаблона. */
-export function HeaderTools({ activated, ready, chip = true, initialsOnly = false }: {
+export function HeaderTools({ activated, ready, chip = true, initialsOnly = false, phone = false }: {
   activated: boolean;
   ready: boolean;
   chip?: boolean;
+  /** Телефонная шапка К1: только колокольчик, остальное — в листе «Ещё». */
+  phone?: boolean;
   /** Чип вошедшего — одними инициалами, имя остаётся для диктора. */
   initialsOnly?: boolean;
 }) {
   return (
     <>
       {/* Точка самовывоза: по её складу витрина считает наличие — и у клиента, и у сотрудника в просмотре. */}
-      <PickupPointPicker ready={ready} />
+      {!phone && <PickupPointPicker ready={ready} />}
       {/* Тема — значком рядом с корзиной; язык и размер шрифта — в полосе графика. */}
       <div data-testid="header-settings" className="hidden items-center gap-0.5 lg:flex">
         <ThemeToggle compact className="size-[2.625rem] justify-center rounded-[var(--radius-small)] px-0" />
       </div>
-      <HelpGuide className="size-10 rounded-[var(--radius-small)] border border-line text-ink-muted hover:border-accent hover:text-ink lg:size-[2.625rem]" />
+      {!phone && <HelpGuide className="size-10 rounded-[var(--radius-small)] border border-line text-ink-muted hover:border-accent hover:text-ink lg:size-[2.625rem]" />}
       {activated && (
         <NotificationsBell
           active={ready}
@@ -318,12 +320,12 @@ export function DesignShopButton({
           supplier={{ name: current.name, logoUrl: current.logoUrl }}
           alt={current.name}
           initials
-          className="size-9 rounded-[var(--radius-small)] text-sm shadow-[0_6px_14px_-8px_var(--color-brand-deep)] lg:size-[2.625rem] lg:text-base"
+          className="size-11 rounded-[0.875rem] text-base shadow-[0_6px_14px_-8px_var(--color-brand-deep)] lg:size-[2.625rem] lg:rounded-[var(--radius-small)]"
         />
       )}
       <span className={cn('flex min-w-0 flex-1 flex-col gap-0.5', !plain && 'lg:w-[11.5rem] lg:flex-none xl:w-[14.375rem]')}>
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate font-heading text-body font-bold text-ink">
+          <span className="truncate font-heading text-[1.0625rem] font-extrabold text-ink lg:text-body lg:font-bold">
             {current?.name ?? t('shell.supplier')}
           </span>
           <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-ink-muted" />
@@ -336,7 +338,7 @@ export function DesignShopButton({
           )}
         </span>
         {plain ? null : <span className="truncate text-xs text-ink-muted max-lg:hidden">{switchText}</span>}
-        <span className="truncate text-[0.7188rem] text-ink-muted lg:hidden">{phoneNote}</span>
+        <span className={cn('truncate text-[0.8125rem] font-semibold lg:hidden', status?.open ? 'text-in-stock' : 'text-ink-muted')}>{phoneNote}</span>
       </span>
     </button>
   );

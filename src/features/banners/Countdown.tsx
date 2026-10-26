@@ -17,6 +17,9 @@ export function useTimeLeft(endsAt: string | undefined) {
   return { days: Math.floor(minutes / 1440), hours: Math.floor((minutes % 1440) / 60), minutes: minutes % 60 };
 }
 
+/** С какого остатка дней баннер показывает отсчёт. */
+export const COUNTDOWN_DAYS = 7;
+
 /**
  * Отсчёт до конца акции — три ячейки, как в макете. Светлые ячейки —
  * на светлом баннере, прозрачные с каймой — на тёмном и цветном.
@@ -24,7 +27,8 @@ export function useTimeLeft(endsAt: string | undefined) {
 export function Countdown({ endsAt, tone, small = false }: { endsAt?: string; tone: 'light' | 'dark'; small?: boolean }) {
   const { t } = useTranslation();
   const left = useTimeLeft(endsAt);
-  if (!left) return null;
+  // Отсчёт подгоняет, только когда конец близко: «1437 дней» читалось странно.
+  if (!left || left.days > COUNTDOWN_DAYS) return null;
   const cells: [string, string][] = [
     [String(left.days), t('design.days')],
     [String(left.hours).padStart(2, '0'), t('design.hours')],

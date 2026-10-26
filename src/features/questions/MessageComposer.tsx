@@ -2,7 +2,13 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { rules } from '../../api/rules.generated';
 import { useQueryClient } from '@tanstack/react-query';
-import { getGetPortalQuestionsQueryKey, useAskPortalQuestion } from '../../api/generated';
+import { useNavigate } from 'react-router-dom';
+import {
+  getGetPortalQuestionQueryKey,
+  getGetPortalQuestionsQueryKey,
+  useAskPortalQuestion,
+  useReplyPortalQuestion,
+} from '../../api/generated';
 import { cn } from '../../ui/cn';
 import { sendOnEnter } from '../../ui/sendOnEnter';
 
@@ -20,36 +26,50 @@ import { sendOnEnter } from '../../ui/sendOnEnter';
  * Отдельное поле под каждым сообщением предлагало бы выбрать ветку там,
  * где она одна.
  */
-export function MessageComposer() {
+export function MessageComposer({ threadId }: {
+  /** Ветка, в которую пишем; пусто — новый вопрос, своя ветка (макет К2.14). */
+  threadId?: string;
+} = {}) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [failed, setFailed] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
 
+  const done = (response: { status: number; data?: unknown }) => {
+    if (response.status !== 201) {
+      setFailed(true);
+      return false;
+    }
+    setText('');
+    setFailed(false);
+    if (field.current) field.current.style.height = 'auto';
+    // Список и ветка помечаются устаревшими, а не дополняются отправленным:
+    // номер обращения и время присваивает сервер.
+    void queryClient.invalidateQueries({ queryKey: getGetPortalQuestionsQueryKey() });
+    if (threadId) void queryClient.invalidateQueries({ queryKey: getGetPortalQuestionQueryKey(threadId) });
+    return true;
+  };
   const ask = useAskPortalQuestion({
     mutation: {
       onSuccess: (response) => {
-        if (response.status !== 201) {
-          setFailed(true);
-          return;
-        }
-        setText('');
-        setFailed(false);
-        if (field.current) field.current.style.height = 'auto';
-        // Переписка помечается устаревшей, а не дополняется отправленным:
-        // номер обращения и время присваивает сервер, и собранное экраном
-        // сообщение разошлось бы с тем, что увидит продавец.
-        void queryClient.invalidateQueries({ queryKey: getGetPortalQuestionsQueryKey() });
+        // Новый вопрос открывается своей веткой — там и придёт ответ.
+        if (done(response) && response.status === 201) navigate(`/questions/${response.data.id}`);
       },
       onError: () => setFailed(true),
     },
   });
+  const reply = useReplyPortalQuestion({
+    mutation: { onSuccess: (response) => { done(response); }, onError: () => setFailed(true) },
+  });
+  const pending = ask.isPending || reply.isPending;
 
   const send = () => {
     const message = text.trim();
-    if (message.length === 0 || ask.isPending) return;
-    ask.mutate({ data: { text: message } });
+    if (message.length === 0 || pending) return;
+    if (threadId) reply.mutate({ threadId, data: { text: message } });
+    else ask.mutate({ data: { text: message } });
   };
 
   return (
@@ -57,7 +77,9 @@ export function MessageComposer() {
       className={cn(
         // Липкое, а не прижатое к концу списка: переписка длиннее экрана,
         // и уезжающее вверх поле пришлось бы догонять прокруткой.
+        // На телефоне — над нижним меню: прижатое к низу экрана, поле пряталось под ним.
         'sticky bottom-0 -mx-4 mt-auto border-t border-hairline bg-surface px-4',
+        'max-lg:bottom-[calc(4.25rem+env(safe-area-inset-bottom))]',
         'pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]',
       )}
     >
@@ -74,7 +96,7 @@ export function MessageComposer() {
           value={text}
           maxLength={rules.AskQuestionRequest.text.maxLength}
           aria-label={t('questions.message')}
-          placeholder={t('questions.writeMessage')}
+          placeholder={threadId ? t('questions.writeMessage') : t('questions.newQuestion')}
           onKeyDown={sendOnEnter(send)}
           onChange={(event) => {
             setText(event.currentTarget.value);
@@ -93,7 +115,7 @@ export function MessageComposer() {
         <button
           type="button"
           aria-label={t('questions.sendMessage')}
-          disabled={text.trim().length === 0 || ask.isPending}
+          disabled={text.trim().length === 0 || pending}
           onClick={send}
           className={cn(
             'inline-flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-control)]',

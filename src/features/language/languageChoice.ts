@@ -55,3 +55,16 @@ export function rememberLanguageChoice(language: Language): void {
     // Записать некуда — спросим в следующий раз. См. `storage`.
   }
 }
+
+/**
+ * Язык, выбранный на экране выбора кабинета (frontend/entry): он приходит
+ * в адресе `?lng=` и уже является ответом — второй раз не спрашиваем.
+ * Сам язык из адреса берёт детектор i18next; здесь запоминается только
+ * факт ответа. Вызывается до входа: после возврата с Keycloak адреса уже нет.
+ */
+export function acceptLanguageFromUrl(search: string): void {
+  const lang = new URLSearchParams(search).get('lng');
+  if ((SUPPORTED_LANGUAGES as readonly string[]).includes(lang ?? '')) {
+    rememberLanguageChoice(lang as Language);
+  }
+}

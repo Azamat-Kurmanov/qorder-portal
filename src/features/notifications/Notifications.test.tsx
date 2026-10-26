@@ -143,9 +143,24 @@ describe('куда ведёт плашка', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 2 новых' }));
 
+    // Ответ продавца ведёт прямо в его ветку: draftId — id ветки.
     expect(await screen.findByRole('link', { name: /продавец ответил на вопрос/i }))
-      .toHaveAttribute('href', '/questions');
+      .toHaveAttribute('href', '/questions/inq-1');
     expect(screen.getByRole('link', { name: /продавец ответил по заявке/i }))
       .toHaveAttribute('href', '/orders/order-1');
+  });
+
+  it('доставка — в заказ, готовый шаблон — в корзину', async () => {
+    stubFetch([get('/api/portal/notifications', [
+      { id: 'n3', draftId: 'order-2', kind: 'ORDER_ON_ROUTE', createdAt: '2026-10-26T09:00:00Z' },
+      { id: 'n4', draftId: 'tpl-1', kind: 'TEMPLATE_READY', createdAt: '2026-10-26T10:00:00Z' },
+    ])]);
+
+    renderScreen(<NotificationsBell />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 2 новых' }));
+
+    expect(await screen.findByRole('link', { name: /заказ в пути/i })).toHaveAttribute('href', '/orders/order-2');
+    expect(screen.getByRole('link', { name: /собрана в корзине/i })).toHaveAttribute('href', '/checkout');
   });
 });

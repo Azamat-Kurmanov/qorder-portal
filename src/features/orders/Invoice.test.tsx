@@ -116,4 +116,27 @@ describe('счёт в карточке заявки', () => {
     // что кабинет сломан.
     expect(await screen.findByRole('alert')).toBeInTheDocument();
   });
+
+  it('счёт-фактуру выписывает 1С продавца — кнопки нет, виден номер реализации', async () => {
+    stubFetch([get('/api/portal/orders/order-7', {
+      ...accepted,
+      vatInvoiceAvailable: false,
+      realization1c: { status: 'EXPORTED', documentNumber: 'РН-00017', at: '2026-09-02T10:00:00Z' },
+    })]);
+
+    openOrder();
+
+    expect(await screen.findByTestId('order-realization')).toHaveTextContent('Реализация в 1С № РН-00017 от 2 сентября');
+    expect(screen.getByTestId('order-invoice')).toBeInTheDocument();
+    expect(screen.queryByTestId('order-vat-invoice')).not.toBeInTheDocument();
+  });
+
+  it('счёт-фактура кабинета — кнопка есть, реализации ещё нет', async () => {
+    stubFetch([get('/api/portal/orders/order-7', { ...accepted, vatInvoiceAvailable: true })]);
+
+    openOrder();
+
+    expect(await screen.findByTestId('order-vat-invoice')).toBeInTheDocument();
+    expect(screen.queryByTestId('order-realization')).not.toBeInTheDocument();
+  });
 });

@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { useRef, useState } from 'react';
-import { Play, X } from 'lucide-react';
+import { Play, X } from '../../ui/icons';
 import type { ItemMediaDto } from '../../api/generated';
 import { VideoPlayer } from './VideoPlayer';
 import { cn } from '../../ui/cn';

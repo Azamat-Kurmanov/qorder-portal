@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Box } from 'lucide-react';
+import { Box } from '../../../ui/icons';
 import { Link } from 'react-router-dom';
 import type { PortalPromotionsDto } from '../../../api/generated';
 import { cartOf, useCart } from '../../cart/useCart';

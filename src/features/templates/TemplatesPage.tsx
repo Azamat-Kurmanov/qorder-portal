@@ -1,3 +1,4 @@
+import { SectionHead } from '../shell/SectionHead';
 import { useTranslation } from 'react-i18next';
 import { rules } from '../../api/rules.generated';
 import { FieldFaultText } from '../../ui/Field';
@@ -18,6 +19,8 @@ import {
   type OrderTemplateDto,
 } from '../../api/generated';
 import { RepeatOrderButton } from '../orders/RepeatOrderButton';
+import { useState } from 'react';
+import { Plus, ShoppingCart, X } from '../../ui/icons';
 
 /**
  * Шаблоны закупки: сохранённая корзина под своим названием.
@@ -41,6 +44,7 @@ export function TemplatesPage() {
    */
   const form = useFormRules({ schema: rules.SaveTemplateRequest, initial: { name: '' } });
 
+  const [saving, setSaving] = useState(false);
   const response = useGetPortalTemplates();
   const templates: OrderTemplateDto[] = response.data?.status === 200 ? response.data.data : [];
 
@@ -51,6 +55,7 @@ export function TemplatesPage() {
     mutation: {
       onSuccess: () => {
         form.reset();
+        setSaving(false);
         void reload();
       },
     },
@@ -66,76 +71,71 @@ export function TemplatesPage() {
     },
   });
 
+  // Макет К2.13: повтор прошлой заявки строкой, шаблоны карточками с «В корзину»,
+  // сохранение текущей корзины — кнопкой внизу, поле названия раскрывается по нажатию.
+  const saveForm = (
+    <Card className="flex flex-col gap-3 p-4">
+      {/*
+        Причина отказа стоит вне подписи: подпись здесь оборачивает поле
+        целиком, и вложенная в неё причина вошла бы в доступное имя —
+        диктор читал бы «Название Не длиннее 255 символов».
+      */}
+      <FieldFaultText fault={form.faults.name} name="name" />
+      <div className="flex items-end gap-2">
+        <label className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <span className="text-sm font-medium text-ink">{t('templates.name')}</span>
+          <input
+            type="text"
+            autoFocus
+            placeholder={t('templates.namePlaceholder')}
+            value={form.values.name}
+            // Потолок приезжает из контракта, а не набирается здесь.
+            maxLength={rules.SaveTemplateRequest.name.maxLength}
+            aria-invalid={form.faults.name ? 'true' : 'false'}
+            onChange={(event) => form.field('name').onChange(event.currentTarget.value)}
+            onBlur={form.field('name').onBlur}
+            className={cn(
+              'h-11 w-full rounded-[var(--radius-control)] border-0 bg-sunk px-3',
+              'text-body text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent',
+            )}
+          />
+        </label>
+        <Button
+          disabled={!form.isValid || save.isPending}
+          onClick={() => {
+            if (!form.validate()) return;
+            save.mutate({ data: { name: form.values.name.trim() } });
+          }}
+        >
+          {save.isPending ? t('templates.saving') : t('templates.save')}
+        </Button>
+      </div>
+    </Card>
+  );
+
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="qo-page-title">{t('templates.title')}</h1>
+    <div className="flex flex-col gap-3">
+      <SectionHead title={t('templates.title')} subtitle={t('templates.subtitle')} />
 
-      <RepeatOrderButton />
-
-      <Card className="flex flex-col gap-3 p-4">
-        <p className="font-semibold text-ink">{t('templates.saveCurrent')}</p>
-        {/*
-          Причина отказа стоит вне подписи: подпись здесь оборачивает поле
-          целиком, и вложенная в неё причина вошла бы в доступное имя —
-          диктор читал бы «Название Не длиннее 255 символов».
-        */}
-        <FieldFaultText fault={form.faults.name} name="name" />
-
-        <div className="flex items-end gap-2">
-          <label className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <span className="text-sm font-medium text-ink">{t('templates.name')}</span>
-            <input
-              type="text"
-              placeholder={t('templates.namePlaceholder')}
-              value={form.values.name}
-              // Потолок приезжает из контракта, а не набирается здесь: своего
-              // мнения о длине названия у формы нет, и разойтись с сервером
-              // ей нечем.
-              maxLength={rules.SaveTemplateRequest.name.maxLength}
-              aria-invalid={form.faults.name ? 'true' : 'false'}
-              onChange={(event) => form.field('name').onChange(event.currentTarget.value)}
-              onBlur={form.field('name').onBlur}
-              className={cn(
-                'h-11 w-full rounded-[var(--radius-control)] border border-hairline bg-surface px-3',
-                'text-body text-ink placeholder:text-ink-faint',
-                'transition-[border-color,box-shadow] duration-150 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent',
-              )}
-            />
-          </label>
-          <Button
-            disabled={!form.isValid || save.isPending}
-            onClick={() => {
-              if (!form.validate()) return;
-              save.mutate({ data: { name: form.values.name.trim() } });
-            }}
-          >
-            {save.isPending ? t('templates.saving') : t('templates.save')}
-          </Button>
-        </div>
-      </Card>
+      <RepeatOrderButton row />
 
       {templates.length === 0 ? (
-        <p className="text-ink-subtle">
-          {t('templates.empty')}
-        </p>
+        <p className="px-1 text-sm text-ink-subtle">{t('templates.empty')}</p>
       ) : (
         templates.map((template, index) => (
           <Reveal key={template.id} delay={Math.min(index, 3) * 0.04}>
-            <Card interactive data-testid="template-row" className="flex items-center justify-between gap-3 p-4">
+            <Card data-testid="template-row" className="flex flex-col gap-3 p-4">
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="font-semibold text-ink">{template.name}</span>
-                <span className="text-sm text-ink-subtle">
-                  {t('templates.lineCount', { count: template.lineCount })}
-                </span>
+                <span className="text-base font-bold text-ink">{template.name}</span>
+                <span className="text-[0.8125rem] text-ink-subtle">{t('templates.lineCount', { count: template.lineCount })}</span>
               </div>
-
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex gap-2">
                 <Button
-                  size="chip"
-                  variant="soft"
+                  className="h-11 flex-1 gap-2"
                   disabled={fill.isPending}
                   onClick={() => fill.mutate({ templateId: template.id })}
                 >
+                  <ShoppingCart aria-hidden="true" className="size-[18px]" />
                   {fill.isPending ? t('templates.adding') : t('templates.toCart')}
                 </Button>
                 <button
@@ -143,19 +143,24 @@ export function TemplatesPage() {
                   aria-label={t('templates.deleteAria', { name: template.name })}
                   onClick={() => remove.mutate({ id: template.id })}
                   className={cn(
-                    'flex size-11 items-center justify-center rounded-[var(--radius-control)]',
-                    'text-ink-faint transition-all duration-300 hover:bg-gone/10 hover:text-gone',
-                    'active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                    'flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-ink-muted',
+                    'shadow-[inset_0_0_0_1.5px_var(--color-line)] transition-colors hover:text-gone',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                   )}
                 >
-                  <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4">
-                    <path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
+                  <X aria-hidden="true" className="size-[18px]" />
                 </button>
               </div>
             </Card>
           </Reveal>
         ))
+      )}
+
+      {saving ? saveForm : (
+        <Button variant="soft" size="lg" className="w-full gap-2" onClick={() => setSaving(true)}>
+          <Plus aria-hidden="true" className="size-5" />
+          {t('templates.saveCurrent')}
+        </Button>
       )}
     </div>
   );

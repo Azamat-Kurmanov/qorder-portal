@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { stubWideScreen } from '../../test/wideScreen';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Shell } from './Shell';
-import { getGetPortalSuppliersQueryKey, getGetPortalUnreadSummaryQueryKey } from '../../api/generated';
+import { getGetPortalSuppliersQueryKey } from '../../api/generated';
 import { renderScreen, renderWithRealSupplier } from '../../test/render';
 import { currentSupplierId, setCurrentSupplierId } from '../../supplier/supplier';
-import { rememberVisit, togglePin } from '../../supplier/shopMemory';
 import { get, stubFetch } from '../../test/http';
 
 const emptyCart = { lines: [], total: 0, skipped: [] };
@@ -74,25 +74,6 @@ function shellRules(cart: unknown = emptyCart) {
   ];
 }
 
-/**
- * Монитор.
- *
- * Оболочка спрашивает ширину у браузера, а не прячет вторую раскладку
- * классами: разделы не должны стоять в дереве дважды.
- */
-function stubWideScreen() {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: query.includes('1024'),
-    media: query,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }));
-}
-
 describe('оболочка кабинета', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -114,9 +95,26 @@ describe('оболочка кабинета', () => {
     expect(await screen.findByRole('dialog', { name: 'Меню' })).toBeInTheDocument();
   });
 
+  it('в подвале — «Работает на Q-Order» со ссылкой на страницу подключения', async () => {
+    stubFetch(shellRules());
+
+    await renderShell({ route: '/catalog' });
+
+    expect(await screen.findByRole('link', { name: 'Работает на Q-Order' })).toHaveAttribute('href', '/join');
+  });
+
+  // Разделы грузятся отдельными частями (React.lazy): под нагрузкой полного прогона
+  // первая загрузка модуля дольше любого разумного ожидания заголовка, и тест падал
+  // то на одном разделе, то на другом. Модули грузятся заранее, со своим запасом,
+  // а тест проверяет уже только маршруты — lazy берёт их из кэша модулей.
+  beforeAll(() => Promise.all([
+    import('../favorites/FavoritesPage'),
+    import('../questions/QuestionsPage'),
+    import('../reviews/MyReviewsPage'),
+    import('../delivery/DeliveryInfoPage'),
+  ]), 60_000);
+
   it('избранное, вопросы, отзывы и доставка открываются как разделы', async () => {
-    // Разделы грузятся отдельными частями (React.lazy): при полном прогоне
-    // первая загрузка модуля под нагрузкой дольше секунды поиска по умолчанию.
     stubFetch(shellRules());
 
     await renderShell({ route: '/favorites' });
@@ -131,41 +129,6 @@ describe('оболочка кабинета', () => {
     await renderShell({ route: '/delivery' });
     expect(await screen.findByRole('heading', { name: 'Доставка и самовывоз' }, { timeout: 15_000 })).toBeInTheDocument();
   }, 30_000);
-
-  /** У «Избранного» в колонке — число отложенного, как у «Корзины». */
-  it('у «Избранного» в колонке стоит число избранных', async () => {
-    stubWideScreen();
-    stubFetch([
-      get('/api/portal/favorites', [
-        { itemId: 'item-1', name: 'Цемент М400', unit: 'мешок', price: 2500, available: true },
-        { itemId: 'item-2', name: 'Песок', unit: 'м³', price: 12000, available: true },
-      ]),
-      ...shellRules(),
-    ]);
-
-    await renderShell({ route: '/catalog' });
-
-    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
-    const favorites = within(rail).getByRole('link', { name: /Избранное/ });
-    const badge = await within(favorites).findByRole('img', { name: 'В избранном: 2' });
-    expect(badge).toHaveTextContent('2');
-  });
-
-  /** Редкие разделы спрятаны под «Ещё» — и раскрываются по нажатию. */
-  it('раздел «Мои отзывы» стоит в списке разделов под «Ещё»', async () => {
-    stubWideScreen();
-    stubFetch(shellRules());
-
-    await renderShell({ route: '/catalog' });
-
-    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
-    expect(within(rail).queryByRole('link', { name: 'Мои отзывы' })).not.toBeInTheDocument();
-    await userEvent.click(within(rail).getByRole('button', { name: 'Ещё' }));
-    expect(within(rail).getByRole('link', { name: 'Мои отзывы' })).toHaveAttribute(
-      'href',
-      '/reviews',
-    );
-  });
 
   /**
    * Карточка товара — единственный экран кабинета, который открывают только
@@ -238,35 +201,12 @@ describe('оболочка кабинета', () => {
    */
   it('кнопка меню есть и на телефоне, и на мониторе', async () => {
     stubWideScreen();
-    stubFetch(shellRules());
+    stubFetch(designRules('SKLAD'));
 
     await renderShell({ route: '/catalog' });
 
     const button = await screen.findByRole('button', { name: 'Меню' });
     expect(button.className).not.toContain('lg:hidden');
-  });
-
-  /**
-   * На мониторе кнопка складывает постоянную колонку, а не открывает лист
-   * поверх неё: лист, выехавший слева поверх точно такого же списка слева,
-   * читается как поломка, а не как меню.
-   */
-  it('на мониторе кнопка складывает и разворачивает колонку разделов', async () => {
-    stubWideScreen();
-    stubFetch(shellRules());
-
-    await renderShell({ route: '/catalog' });
-
-    expect(await screen.findByRole('navigation', { name: 'Разделы кабинета' })).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Меню' }));
-    expect(screen.queryByRole('navigation', { name: 'Разделы кабинета' })).not.toBeInTheDocument();
-    // Лист поверх сложенной колонки не выезжает: разделы вернутся тем же
-    // нажатием, а не вторым механизмом.
-    expect(screen.queryByRole('dialog', { name: 'Меню' })).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Меню' }));
-    expect(await screen.findByRole('navigation', { name: 'Разделы кабинета' })).toBeInTheDocument();
   });
 
   /** На телефоне постоянной колонки нет, и та же кнопка открывает лист слева. */
@@ -367,7 +307,8 @@ describe('оболочка кабинета', () => {
    * из-под чужой учётной записи, уходит с чужим адресом доставки.
    */
   it('шапка называет вошедшего по имени, а не безликим кружком', async () => {
-    stubFetch(shellRules());
+    stubWideScreen();
+    stubFetch(designRules('SKLAD'));
 
     await renderShell({ route: '/catalog' });
 
@@ -404,31 +345,6 @@ describe('оболочка кабинета', () => {
     expect(within(menu).getAllByText('Q-Order')).toHaveLength(1);
   });
 
-  /**
-   * Тот же знак — и в постоянной колонке.
-   *
-   * Колонка на мониторе и лист на телефоне показывают один и тот же список
-   * разделов, и заканчиваться они обязаны одинаково: знак, стоящий только
-   * в одном из двух, читается как разница между кабинетами, а не между
-   * ширинами экрана.
-   */
-  it('в самом низу колонки разделов стоит знак системы', async () => {
-    stubWideScreen();
-    stubFetch(shellRules());
-
-    await renderShell({ route: '/catalog' });
-
-    const rail = await screen.findByTestId('rail');
-    await userEvent.click(within(rail).getByRole('button', { name: 'Ещё' }));
-    const mark = within(rail).getByTestId('rail-logo');
-    // Ниже разделов, а не десятым пунктом среди них.
-    const last = within(rail).getByRole('link', { name: /Поставщики/ });
-    expect(last.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING)
-      .toBeTruthy();
-
-    expect(within(rail).getAllByText('Q-Order')).toHaveLength(1);
-  });
-
   it('на мониторе кабинет разложен в две колонки: разделы и витрина — корзина выдвижная', async () => {
     stubFetch(shellRules());
 
@@ -445,6 +361,7 @@ describe('оболочка кабинета', () => {
    * и сумма, а сама панель закрывается крестиком и «Продолжить покупки».
    */
   it('кнопка «Корзина» в шапке показывает сумму и открывает выдвижную корзину', async () => {
+    stubWideScreen();
     stubFetch(shellRules(filledCart));
 
     await renderShell({ route: '/catalog' });
@@ -462,7 +379,6 @@ describe('оболочка кабинета', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Корзина' })).not.toBeInTheDocument());
 
     // На телефоне корзины в шапке нет: итог стоит полосой над нижним меню.
-    expect(cartButton.className).toContain('lg:flex');
     expect((await screen.findByTestId('cart-bar')).className).toContain('lg:hidden');
   });
 
@@ -475,24 +391,24 @@ describe('оболочка кабинета', () => {
    * Раздел «Акции и скидки» пропадает, когда у магазина не включено ни одной
    * акции: так продавцу обещает предпросмотр его настроек.
    */
-  it('без единой акции «Акции» пропадают из меню; с акцией — на месте', async () => {
+  it('без единой акции плитки «Акции» на «Главной» нет; с акцией — на месте', async () => {
     const none = { volumeTiers: [], deals: [], dealCount: 0 };
     stubFetch([get('/api/portal/promotions', none), ...shellRules(filledCart)]);
-    const { unmount } = await renderShell({ route: '/catalog' });
-    const tabs = screen.getByRole('navigation', { name: 'Главное меню' });
-    await waitFor(() => expect(within(tabs).queryByRole('link', { name: 'Акции' })).not.toBeInTheDocument());
+    const { unmount } = await renderShell({ route: '/home' });
+    const sections = await screen.findByRole('region', { name: 'Разделы' });
+    await waitFor(() => expect(within(sections).queryByRole('link', { name: 'Акции' })).not.toBeInTheDocument());
     unmount();
 
     stubFetch([
       get('/api/portal/promotions', { ...none, volumeTiers: [{ from: 100000, percent: 5 }] }),
       ...shellRules(filledCart),
     ]);
-    await renderShell({ route: '/catalog' });
-    expect(await within(screen.getByRole('navigation', { name: 'Главное меню' }))
+    await renderShell({ route: '/home' });
+    expect(await within(await screen.findByRole('region', { name: 'Разделы' }))
       .findByRole('link', { name: 'Акции' })).toHaveAttribute('href', '/promotions');
   });
 
-  it('на телефоне главные разделы стоят в нижнем меню, а корзина в шапке — только на мониторе', async () => {
+  it('на телефоне главные разделы стоят в нижнем меню, а в шапке корзины нет', async () => {
     stubFetch(shellRules(filledCart));
 
     await renderShell({ route: '/catalog' });
@@ -501,18 +417,16 @@ describe('оболочка кабинета', () => {
     expect(tabs.className).toContain('lg:hidden');
     expect(within(tabs).getByRole('link', { name: 'Каталог' })).toHaveAttribute('aria-current', 'page');
     expect(within(tabs).getByRole('link', { name: /Заявки/ })).toHaveAttribute('href', '/orders');
-    // Как в макете: Каталог, Акции, Корзина, Заявки — и «Ещё».
+    // Как в макетах «Кабинет клиента 2.0»: «Главная» слева, «Каталог» — по центру.
     expect(within(tabs).getAllByRole('link').map((link) => link.textContent?.replace(/\d+$/, '')))
-      .toEqual(['Каталог', 'Акции', 'Корзина', 'Заявки']);
-    expect(within(tabs).getByRole('link', { name: 'Акции' })).toHaveAttribute('href', '/promotions');
+      .toEqual(['Главная', 'Заявки', 'Каталог', 'Корзина', 'Ещё']);
+    expect(within(tabs).getByRole('link', { name: 'Главная' })).toHaveAttribute('href', '/home');
     // Число в корзине названо словами: голую цифру диктор прочёл бы без смысла.
     expect(await within(tabs).findByLabelText('В корзине 1 позиция')).toBeInTheDocument();
-    expect(within(tabs).getByRole('button', { name: 'Ещё' })).toBeInTheDocument();
-
-    const header = screen.getByRole('banner');
-    const cart = within(header).getByRole('button', { name: /Корзина/ });
-    expect(cart.className).toContain('hidden');
-    expect(cart.className).toContain('lg:flex');
+    // «Ещё» — экраном, как в макете, а не выдвижным листом.
+    expect(within(tabs).getByRole('link', { name: 'Ещё' })).toHaveAttribute('href', '/more');
+    expect(within(tabs).getByRole('link', { name: 'Каталог' })).toHaveAttribute('href', '/catalog');
+    expect(within(screen.getByRole('banner')).queryByRole('button', { name: /Корзина/ })).not.toBeInTheDocument();
   });
 
   /**
@@ -520,41 +434,30 @@ describe('оболочка кабинета', () => {
    * магазина, на телефоне строкой под шапкой рядом с «Аа», как в макете.
    * Поле витрины убрано: два поля «Поиск» отвечали бы на один вопрос по-разному.
    */
-  it('поиск стоит в шапке: на мониторе в строке магазина, на телефоне строкой под ней', async () => {
-    stubFetch(shellRules());
-
-    await renderShell({ route: '/catalog' });
-
-    const [wide, phone] = within(screen.getByRole('banner')).getAllByRole('search');
-    expect(wide.className).toContain('hidden');
-    expect(wide.className).toContain('lg:flex');
-    expect(phone.parentElement?.className).toContain('lg:hidden');
-    expect(within(phone.parentElement as HTMLElement).getByRole('button', { name: /Размер шрифта/ })).toBeInTheDocument();
-  });
-
-  /**
-   * Переключатель языка стоит в шапке рядом с плашкой вошедшего — на
-   * мониторе. На телефоне от плашки остаётся один кружок с инициалами, а сама
-   * шапка занята именем поставщика и значками: переключатель отнял бы ширину
-   * у имени, ради которого шапку и переделывали. Там он стоит первой строкой
-   * выдвижного меню — язык меняют один раз, ради него разумно открыть меню.
-   */
-  it('переключатель языка стоит в шапке и в выдвижном меню', async () => {
+  it('на телефоне шапка по макету К1 у любого магазина: магазин, колокольчик и поиск строкой ниже', async () => {
     stubFetch(shellRules());
 
     await renderShell({ route: '/catalog' });
 
     const header = screen.getByRole('banner');
-    const inHeader = within(header).getByRole('button', { name: /Язык интерфейса/ });
-    expect(inHeader).toBeInTheDocument();
-    // В шапке — только на мониторе: на телефоне он стоял бы дважды, здесь
-    // и в меню, и отнимал бы ширину у имени поставщика.
-    expect(inHeader.closest('.hidden')?.className).toContain('lg:block');
+    expect(header).toHaveAttribute('data-testid', 'design-header');
+    expect(within(header).getAllByRole('search')).toHaveLength(1);
+    // Тема и шрифт — в листе «Ещё», а не в шапке.
+    expect(within(header).queryByRole('button', { name: /Размер шрифта/ })).not.toBeInTheDocument();
+  });
 
-    await userEvent.click(within(header).getByRole('button', { name: 'Меню' }));
-    const menu = await screen.findByRole('dialog', { name: 'Меню' });
-    expect(within(menu).getByRole('button', { name: /Язык интерфейса/ }))
-      .toBeInTheDocument();
+  it('на телефоне «Ещё» — экран с разделами, языком, темой, шрифтом и выходом', async () => {
+    stubFetch(shellRules());
+
+    await renderShell({ route: '/more' });
+
+    const main = screen.getByRole('main');
+    expect(await within(main).findByRole('button', { name: /Язык интерфейса/ })).toBeInTheDocument();
+    expect(within(main).getByRole('button', { name: /Размер шрифта/ })).toBeInTheDocument();
+    expect(within(main).getByRole('link', { name: 'Шаблоны закупки' })).toHaveAttribute('href', '/templates');
+    expect(within(main).getByRole('button', { name: 'Выйти' })).toBeInTheDocument();
+    const tabs = screen.getByRole('navigation', { name: 'Главное меню' });
+    expect(within(tabs).getByRole('link', { name: 'Ещё' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('выбранный раздел назван выбранным, а не только подкрашен', async () => {
@@ -605,6 +508,7 @@ describe('мои магазины', () => {
   });
 
   it('в другом магазине витрина начинается заново: «Все товары» и пустой поиск', async () => {
+    stubWideScreen();
     setCurrentSupplierId('supplier-1');
     stubFetch([
       get('/api/portal/categories', [{ id: 'cat-1', name: 'Сухие смеси', sortOrder: 1 }]),
@@ -615,7 +519,7 @@ describe('мои магазины', () => {
       ...shellRules(),
     ]);
     try {
-      await shown(renderWithRealSupplier(<Shell />));
+      await shown(renderWithRealSupplier(<Shell />, '/catalog'));
 
       const rubrics = await screen.findByRole('group', { name: 'Рубрики' });
       await userEvent.click(within(rubrics).getByRole('button', { name: 'Сухие смеси' }));
@@ -629,9 +533,8 @@ describe('мои магазины', () => {
       const dialog = await screen.findByRole('dialog', { name: 'Мои магазины' });
       await userEvent.click(within(dialog).getByRole('button', { name: /^Бумага оптом/ }));
 
-      const fresh = await screen.findByRole('group', { name: 'Рубрики' });
-      expect(await within(fresh).findByRole('button', { name: 'Все товары' })).toHaveAttribute('aria-pressed', 'true');
-      expect(within(fresh).getByRole('button', { name: 'Сухие смеси' })).toHaveAttribute('aria-pressed', 'false');
+      // Другой магазин открывается своей витриной, а не прежней рубрикой.
+      expect(await screen.findByRole('heading', { name: 'Главная' })).toBeInTheDocument();
       within(screen.getByRole('banner')).getAllByRole('searchbox')
         .forEach((field) => expect(field).toHaveValue(''));
     } finally {
@@ -687,82 +590,6 @@ describe('мои магазины', () => {
     expect(within(dialog).getAllByTestId('shop-row')).toHaveLength(3);
   });
 
-  /**
-   * Блок «Мои магазины» — в колонке под карточкой «Вы сейчас в».
-   * <p>
-   * «Все мои магазины» и приглашения уже стоят в карточке над ним: второй
-   * такой же кнопки в блоке нет, иначе в колонке две одинаковые ссылки подряд.
-   */
-  it('блок «Мои магазины» стоит в колонке под «Вы сейчас в», без второй кнопки «Все мои магазины»', async () => {
-    stubWideScreen();
-    rememberVisit('supplier-2');
-    stubFetch(shellRules());
-    await renderShell({ route: '/catalog', supplierId: 'supplier-1' });
-
-    const rail = await screen.findByTestId('rail');
-    const block = await within(rail).findByRole('region', { name: 'Мои магазины' });
-    expect(within(block).getByRole('button', { name: /Бумага оптом/ })).toBeInTheDocument();
-    expect(within(block).queryByRole('button', { name: /Все мои магазины/ })).not.toBeInTheDocument();
-    expect(within(rail).getAllByRole('button', { name: /Все мои магазины/ })).toHaveLength(1);
-
-    // Под карточкой, а не над ней: карточка говорит «где я», блок — «куда ещё».
-    const youAreIn = within(rail).getByText('Вы сейчас в');
-    expect(youAreIn.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('блок «Мои магазины» — текущий, закреплённые и недавние, без добора остальными', async () => {
-    stubWideScreen();
-    stubFetch([
-      get('/api/portal/suppliers', [
-        { supplierId: 'supplier-1', name: 'СтройБаза Алматы', currency: 'KZT' },
-        { supplierId: 'supplier-2', name: 'Бумага оптом', currency: 'KZT' },
-        { supplierId: 'supplier-3', name: 'Овощебаза', currency: 'KZT' },
-        { supplierId: 'supplier-4', name: 'Сантехника', currency: 'KZT' },
-        { supplierId: 'supplier-5', name: 'Ткани', currency: 'KZT' },
-      ]),
-      ...shellRules(),
-    ]);
-    togglePin('supplier-4');
-    rememberVisit('supplier-3');
-    await renderShell({ route: '/catalog', supplierId: 'supplier-1' });
-
-    const block = await within(await screen.findByTestId('rail')).findByRole('region', { name: 'Мои магазины' });
-    const names = within(block).getAllByRole('button').map((button) => button.getAttribute('title'));
-    expect(names).toEqual(['СтройБаза Алматы', 'Сантехника', 'Овощебаза']);
-  });
-
-  it('строка магазина называет, сколько позиций уже лежит в его корзине', async () => {
-    stubWideScreen();
-    rememberVisit('supplier-2');
-    stubFetch([
-      get('/api/portal/suppliers', [
-        { supplierId: 'supplier-1', name: 'СтройБаза Алматы', currency: 'KZT' },
-        { supplierId: 'supplier-2', name: 'Бумага оптом', tagline: 'Магазин одежды', cartLines: 3, currency: 'KZT' },
-      ]),
-      get('/api/portal/notifications/summary', []),
-      ...shellRules(),
-    ]);
-    await renderShell({ route: '/catalog', supplierId: 'supplier-1' });
-
-    const block = await within(await screen.findByTestId('rail')).findByRole('region', { name: 'Мои магазины' });
-    const row = await within(block).findByRole('button', { name: /Бумага оптом/ });
-    expect(row).toHaveTextContent('Магазин одежды · в корзине 3');
-    // У текущего — «где я», а не корзина: её он видит в шапке.
-    expect(within(block).getByRole('button', { name: /СтройБаза Алматы/ })).toHaveTextContent('Вы сейчас здесь');
-  });
-
-  it('нажатие по другому магазину в колонке переключает на него', async () => {
-    stubWideScreen();
-    rememberVisit('supplier-2');
-    stubFetch(shellRules());
-    await renderShell({ route: '/orders', supplierId: 'supplier-1' });
-
-    const block = await within(await screen.findByTestId('rail')).findByRole('region', { name: 'Мои магазины' });
-    await userEvent.click(within(block).getByRole('button', { name: /Бумага оптом/ }));
-
-    expect(await screen.findByText('Вы перешли в магазин Бумага оптом')).toHaveAttribute('role', 'status');
-  });
-
   it('звёздочка закрепляет магазин, и он встаёт в «Закреплённые»', async () => {
     stubFetch(shellRules());
     await renderShell({ route: '/catalog' });
@@ -795,6 +622,7 @@ describe('несколько магазинов — у каждого свой �
   });
 
   it('корзина в шапке — «₸» у первого магазина, «₽» и без «₸» после перехода во второй', async () => {
+    stubWideScreen();
     setCurrentSupplierId('s-1');
 
     // Тело зависит от того, кто сейчас выбран: `get()` сравнивает только
@@ -845,26 +673,6 @@ describe('несколько магазинов — у каждого свой �
 describe('новости у других поставщиков', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('пункт «Поставщики» считает остальных, а не текущего', async () => {
-    stubWideScreen();
-    stubFetch(shellRules());
-
-    await renderShell({ route: '/catalog' });
-
-    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
-    await userEvent.click(within(rail).getByRole('button', { name: 'Ещё' }));
-    // Список разделов рисуется сразу, без ожидания сети — сводка непрочитанного
-    // приходит отдельным запросом и досчитывается позже. Поэтому дожидаемся
-    // именно числа на пункте, а не только появления самого списка.
-    //
-    // Четыре — это второй поставщик. Текущий сюда не входит: его новости
-    // считает колокольчик, и то же число в двух местах читалось бы
-    // как два разных повода.
-    await waitFor(() => {
-      expect(within(rail).getByRole('link', { name: /Поставщики/ })).toHaveTextContent('4');
-    });
-  });
-
   it('в шапке стоит точка, а не число', async () => {
     stubWideScreen();
     stubFetch(shellRules());
@@ -874,67 +682,6 @@ describe('новости у других поставщиков', () => {
     expect(await screen.findByLabelText('У других поставщиков есть новости')).toBeInTheDocument();
   });
 
-  it('без новостей у соседей ни точки, ни бейджа нет', async () => {
-    stubWideScreen();
-    stubFetch([
-      // Заглушка берёт первое подходящее правило: своё стоит впереди общего
-      // набора и перекрывает совпадающее правило `shellRules()` за него,
-      // а не вырезается из набора по индексу.
-      get('/api/portal/notifications/summary', [{ supplierId: 'supplier-1', unread: 7 }]),
-      ...shellRules(),
-    ]);
-
-    await renderShell({ route: '/catalog' });
-
-    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
-    await userEvent.click(within(rail).getByRole('button', { name: 'Ещё' }));
-    expect(screen.queryByLabelText('У других поставщиков есть новости')).not.toBeInTheDocument();
-    // Число у текущего поставщика (7) в бейдж не попадает вовсе: он не входит
-    // в сумму по остальным, а других поставщиков в ответе нет.
-    expect(within(rail).getByRole('link', { name: /Поставщики/ })).not.toHaveTextContent(/\d/);
-  });
-
-  /**
-   * На сервере встречается расхождение: поставщик, у которого не читаются
-   * сведения о продавце, выпадает из списка поставщиков, но остаётся
-   * в сводке со счётом. Список — источник истины о том, к кому клиент
-   * может пойти, и точка с бейджем не должны загораться от того, на кого
-   * переключиться всё равно нельзя.
-   */
-  it('поставщик из сводки, которого нет в списке, не зажигает ни точку, ни бейдж', async () => {
-    stubWideScreen();
-    stubFetch([
-      // Оба переопределения стоят впереди общего набора: заглушка берёт
-      // первое подходящее правило, и стоящие следом правила `shellRules()`
-      // для тех же адресов просто не доходят до дела — без срезов и без
-      // арифметики по индексам, хрупкой к порядку правил внутри неё.
-      get('/api/portal/notifications/summary', [
-        { supplierId: 'supplier-1', unread: 2 },
-        { supplierId: 'supplier-ghost', unread: 5 },
-      ]),
-      get('/api/portal/suppliers', [
-        { supplierId: 'supplier-1', name: 'СтройБаза Алматы', currency: 'KZT' },
-      ]),
-      ...shellRules(),
-    ]);
-
-    const { queryClient } = await renderShell({ route: '/catalog' });
-
-    const rail = await screen.findByRole('navigation', { name: 'Разделы кабинета' });
-    await userEvent.click(within(rail).getByRole('button', { name: 'Ещё' }));
-
-    // Утверждение об отсутствии точки и бейджа истинно и до того, как сводка
-    // с поставщиками дошли с сервера — само по себе оно ничего не доказывает.
-    // Ждём, пока оба запроса действительно завершатся, и только потом
-    // проверяем результат: иначе тест прошёл бы и без сверки со списком.
-    await waitFor(() => {
-      expect(queryClient.getQueryState(getGetPortalUnreadSummaryQueryKey())?.status).toBe('success');
-      expect(queryClient.getQueryState(getGetPortalSuppliersQueryKey())?.status).toBe('success');
-    });
-
-    expect(screen.queryByLabelText('У других поставщиков есть новости')).not.toBeInTheDocument();
-    expect(within(rail).getByRole('link', { name: /Поставщики/ })).not.toHaveTextContent(/\d/);
-  });
 });
 
 /**
@@ -1038,21 +785,9 @@ describe('сведения о магазине', () => {
   const shopCard = {
     supplierId: 'supplier-1', name: 'ИП «Мухамедиева»', tagline: 'Магазин одежды', currency: 'KZT',
     address: 'Барахолка «Кенжехан-2»', phone: '+7 701 000 00 01', whatsapp: '87010000001',
-    rating: 4.7, reviewCount: 12,
+    rating: 4.7, reviewCount: 12, design: { template: 'SKLAD', theme: 'TEMPLATE', published: true },
     hours: { timezone: 'Asia/Almaty', exceptions: [], days: [1, 2, 3, 4, 5, 6, 7].map((d) => ({ dayOfWeek: d, closed: false, opensAt: '07:00', closesAt: '17:00' })) },
   };
-
-  it('полоса называет адрес, часы и даёт позвонить и написать', async () => {
-    stubFetch([get('/api/portal/suppliers', [shopCard]), ...shellRules()]);
-    await renderShell({ route: '/catalog' });
-    const header = screen.getByRole('banner');
-    expect(await within(header).findByText('Барахолка «Кенжехан-2»')).toBeInTheDocument();
-    expect(within(header).getByText('Каждый день с 7:00 до 17:00')).toBeInTheDocument();
-    expect(within(header).getByRole('link', { name: /Написать в WhatsApp/ })).toHaveAttribute('href', 'https://wa.me/77010000001');
-    expect(within(header).getAllByRole('link', { name: /\+7 701 000 00 01|Позвонить/ })[0]).toHaveAttribute('href', 'tel:+77010000001');
-    expect(within(header).getByText('Магазин одежды')).toBeInTheDocument();
-    expect(within(header).getByLabelText('Рейтинг 4,7 из 5')).toBeInTheDocument();
-  });
 
   it('без контактов пунктов нет, а колонка называет, в каком вы магазине', async () => {
     stubFetch(shellRules());   // поставщики без address/phone/whatsapp
@@ -1066,6 +801,7 @@ describe('сведения о магазине', () => {
   });
 
   it('закрытый сегодня магазин предупреждает, что заявки всё равно принимаются', async () => {
+    stubWideScreen();
     const closed = { ...shopCard, hours: { timezone: 'Asia/Almaty', exceptions: [], days: [1, 2, 3, 4, 5, 6, 7].map((d) => ({ dayOfWeek: d, closed: true })) } };
     stubFetch([get('/api/portal/suppliers', [closed]), ...shellRules()]);
     await renderShell({ route: '/catalog' });
@@ -1095,6 +831,7 @@ describe('раскладка оболочки по шаблону продавц
   });
 
   it('«ярко» продавца — на витрине ярко, на странице заказов не выше «живо»', async () => {
+    stubWideScreen();
     const vivid = [
       get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза Алматы', currency: 'KZT',
         design: { template: 'CLASSIC', theme: 'TEMPLATE', published: true, motion: 'VIVID' } }]),
@@ -1141,20 +878,24 @@ describe('раскладка оболочки по шаблону продавц
     expect(screen.queryByTestId('slim-rail')).not.toBeInTheDocument();
   });
 
-  /** Без опубликованного дизайна — прежняя колонка, а нижнее меню только на телефоне. */
-  it('без дизайна — прежняя колонка разделов', async () => {
+  /** Без опубликованного дизайна на мониторе — панель макета ПК-К, нижнее меню только на телефоне. */
+  it('без дизайна на мониторе — панель макета ПК-К вместо колонки разделов', async () => {
     stubWideScreen();
     stubFetch(shellRules());
 
     await renderShell({ route: '/catalog' });
 
-    expect(await screen.findByTestId('rail')).toBeInTheDocument();
-    expect(screen.getByTestId('shell-grid')).toHaveAttribute('data-layout', 'side');
+    // ПК-К: одна панель сверху, разделы в ней строкой, колонки слева нет.
+    const bar = await screen.findByTestId('client-bar');
+    expect(within(bar).getByRole('link', { name: 'Каталог' })).toHaveAttribute('aria-current', 'page');
+    expect(within(bar).getByRole('link', { name: 'Ещё' })).toHaveAttribute('href', '/more');
+    expect(screen.queryByTestId('rail')).not.toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Главное меню' }).className).toContain('lg:hidden');
   });
 
   /** «Ночь» тёмная по умолчанию — у покупателя, который тему сам не выбирал. */
   it('тёмный шаблон открывает кабинет в тёмной теме', async () => {
+    stubWideScreen();
     stubFetch(designRules('NIGHT'));
 
     await renderShell({ route: '/catalog' });
@@ -1165,6 +906,7 @@ describe('раскладка оболочки по шаблону продавц
   });
 
   it('выбор покупателя главнее тёмного шаблона', async () => {
+    stubWideScreen();
     window.localStorage.setItem('q-order.portal.theme', 'light');
     stubFetch(designRules('NIGHT'));
 
@@ -1365,7 +1107,8 @@ describe('шапка с опубликованным дизайном', () => {
     expect(within(screen.getByTestId('header-settings')).queryByRole('button', { name: /Язык интерфейса/ })).toBeNull();
   });
 
-  it('без дизайна шапка прежняя', async () => {
+  it('без дизайна шапка — панель макета ПК-К', async () => {
+    stubWideScreen();
     stubFetch(shellRules());
 
     const { queryClient } = await renderShell({ route: '/catalog' });
@@ -1374,6 +1117,6 @@ describe('шапка с опубликованным дизайном', () => {
     });
     expect(screen.queryByTestId('design-header')).not.toBeInTheDocument();
     expect(screen.queryByTestId('shop-status')).not.toBeInTheDocument();
-    expect(screen.getByRole('banner').querySelector('.bg-strip')).not.toBeNull();
+    expect(screen.getByTestId('client-bar')).toBeInTheDocument();
   });
 });

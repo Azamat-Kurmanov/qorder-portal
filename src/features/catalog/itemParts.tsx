@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Plus, Star } from 'lucide-react';
+import { Plus, Star } from '../../ui/icons';
 import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import type { ShowcaseItemDto } from '../../api/generated';
@@ -90,7 +90,8 @@ export function CartAction({
           unit={item.unit}
           terms={item.terms}
           perPack={packsOnly(item) ? item.wholesale!.packQty : undefined}
-          suffix={t('catalog.inCartNote')}
+          // Круглая кнопка — на узкой карточке: «в корзине» не влезает рядом с числом.
+          suffix={look === 'round' ? undefined : t('catalog.inCartNote')}
           className={look ? 'h-11' : roomy ? 'h-13' : 'h-12'}
         />
         {/* Кратность — словами под счётчиком: «+» прибавляет не одну, а шесть. */}
@@ -210,7 +211,7 @@ const CART_LOOKS: Record<CartLook, string> = {
 export function priceNote(item: ShowcaseItemDto, t: TFunction): string {
   const parts: string[] = [];
   if (item.vatRate !== undefined) {
-    parts.push(t('catalog.priceNote.vat', { rate: decimal(item.vatRate) }));
+    parts.push(t(item.vatIncluded ? 'catalog.priceNote.vatIncluded' : 'catalog.priceNote.vat', { rate: decimal(item.vatRate) }));
   }
   if (item.priceAsOf) {
     parts.push(t('catalog.priceNote.asOf', { date: shortDate(item.priceAsOf) }));

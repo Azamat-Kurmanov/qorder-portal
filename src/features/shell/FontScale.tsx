@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ALargeSmall, Check } from 'lucide-react';
+import { ALargeSmall, Check } from '../../ui/icons';
 import {
   FONT_SCALES,
   applyFontScale,

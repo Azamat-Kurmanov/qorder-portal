@@ -28,7 +28,7 @@ export function TemplatePrice({
   unit = true,
   className,
 }: {
-  item: Pick<ShowcaseItemDto, 'price' | 'oldPrice' | 'unit' | 'wholesale'>;
+  item: Pick<ShowcaseItemDto, 'price' | 'oldPrice' | 'unit' | 'wholesale'> & Partial<Pick<ShowcaseItemDto, 'yourPrice'>>;
   look: PriceLook;
   size?: keyof typeof SIZES;
   /** Поверх снимка: цифры белые, старая цена — светлая. */
@@ -55,7 +55,14 @@ export function TemplatePrice({
           {t('catalog.priceNote.perUnit', { unit: unitPer(item.unit) })}
         </span>
       )}
-      <WholesaleNote item={item} className={onImage ? 'text-white/80' : undefined} />
+      {item.yourPrice ? (
+        <span data-testid="your-price" className={cn('whitespace-nowrap text-xs font-bold', onImage ? 'text-white' : 'text-accent')}>
+          {t('catalog.yourPrice')}
+        </span>
+      ) : (
+        // Опт к цене по договорённости не применяется: подсказка о нём сбивала бы с толку.
+        <WholesaleNote item={item} className={onImage ? 'text-white/80' : undefined} />
+      )}
     </span>
   );
 }
@@ -72,7 +79,9 @@ export function WholesaleNote({ item, className }: { item: Pick<ShowcaseItemDto,
   if (!wholesale) return null;
   const best = Math.min(...wholesale.tiers.map((tier) => tier.price));
   return (
-    <span data-testid="wholesale-note" className={cn('basis-full text-xs font-semibold text-ink-muted', className)}>
+    // Ширина, а не `basis-full`: в строке цены переносит на свою строку так же, а в столбике
+    // карточки телефона `basis-full` означал всю высоту — имя схлопывалось, под оптом зияла пустота.
+    <span data-testid="wholesale-note" className={cn('w-full text-xs font-semibold text-ink-muted', className)}>
       {wholesale.retail
         ? t('catalog.wholesale.from', {
           price: money(Math.round(best / wholesale.packQty), currency),

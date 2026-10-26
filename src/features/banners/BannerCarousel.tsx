@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pause, Play } from '../../ui/icons';
 import { useGetPortalBanners, useGetPortalPromotions, useGetPortalSuppliers, type PortalPromoSale, type ShowcaseBannerDto } from '../../api/generated';
 import type { TFunction } from 'i18next';
 import { shortDate } from '../../shared/format';
 import { useSupplier } from '../../supplier/useSupplier';
-import { resolveDesign } from '../../supplier/cabinetDesign';
+import { designFor } from '../../supplier/cabinetDesign';
+import { useWideScreen } from '../../ui/useWideScreen';
 import { cn } from '../../ui/cn';
 import { prefersReducedMotion } from '../../ui/reducedMotion';
 import { useMotion } from '../../ui/motion/motionLevel';
@@ -82,13 +83,15 @@ export function BannerCarousel({ width, category, onAction, onSale }: {
     : undefined;
   // Цвет — из опубликованного дизайна, если он есть: шаблон приносит свой
   // фирменный цвет, и баннер в чужом цвете выбивался бы из кабинета.
-  const design = resolveDesign(supplier);
+  // На телефоне тема не действует — ни одежда, ни свой переход слайдов.
+  const wide = useWideScreen();
+  const design = designFor(supplier, wide);
   const brand = design.brand ?? PLATFORM_BRAND;
   // Одежда баннеров — из темы кабинета; без живой темы слайды как прежде.
   // У живой темы все слайды — в крупном варианте одежды, как в предпросмотре продавца (решение владельца 2026-10-10).
   const look = skinOf(design.template?.id);
   // Переход слайдов продавца главнее перехода одежды; пусто — как у темы.
-  const fx = supplier?.design?.published ? supplier.design.slideTransition?.toLowerCase() : undefined;
+  const fx = wide && supplier?.design?.published ? supplier.design.slideTransition?.toLowerCase() : undefined;
   const level = useMotion();
   const sale = promotions.data?.status === 200 ? promotions.data.data.sale : undefined;
 

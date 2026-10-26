@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { screen } from '@testing-library/react';
 import { ProfilePage } from './ProfilePage';
 import { renderScreen } from '../../test/render';
-import { get, stubFetch } from '../../test/http';
+import { get, method, stubFetch } from '../../test/http';
 
 const suppliers = [
   { supplierId: 'supplier-1', name: 'СтройБаза Алматы' },
@@ -24,6 +25,7 @@ function profileRules(summary: unknown) {
     // Согласия проверяются своим файлом, но запрашивает их тот же экран,
     // и незаявленный запрос обвязка считает ошибкой набора, а не пустотой.
     get('/api/portal/consents', []),
+    get('/api/portal/promotions', { volumeTiers: [], deals: [], dealCount: 0, subscription: { subscribed: true } }),
   ];
 }
 
@@ -62,5 +64,21 @@ describe('список поставщиков', () => {
     renderScreen(<ProfilePage />, { supplierId: null });
 
     expect(await screen.findByLabelText('Непрочитанных: 1')).toBeInTheDocument();
+  });
+});
+
+describe('уведомления о новинках и акциях в профиле', () => {
+  it('включены по умолчанию; переключатель отказывается от них', async () => {
+    const { calls } = stubFetch([
+      method('PUT', '/api/portal/promotions/subscription', { volumeTiers: [], deals: [], dealCount: 0, subscription: { subscribed: false } }),
+      ...profileRules([]),
+    ]);
+    renderScreen(<ProfilePage />, { supplierId: 'supplier-1' });
+
+    const toggle = await screen.findByRole('switch', { name: 'Сообщать о новинках и акциях' });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(toggle);
+    expect(await screen.findByRole('switch', { name: 'Сообщать о новинках и акциях' })).toHaveAttribute('aria-checked', 'false');
+    expect(calls.some((call) => call.url.includes('/promotions/subscription') && call.init?.body === '{"subscribed":false}')).toBe(true);
   });
 });

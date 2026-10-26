@@ -1,7 +1,7 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { PackContents, packMembers } from '../catalog/PackContents';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronDown, MessageCircle, MessageCircleQuestion, Phone, RotateCcw, Star } from 'lucide-react';
+import { ChevronDown, MessageCircle, MessageCircleQuestion, Phone, RotateCcw, Star } from '../../ui/icons';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -141,14 +141,14 @@ export function OrderRow({ order, unread, open, onToggle }: {
             <span className="shrink-0 text-ink-faint">· {when(last.at, t)}</span>
           </span>
           {/* На узком экране сумма уходит под текст: справа ей не хватает места. */}
-          <span className="flex items-baseline gap-2 sm:hidden">
-            <span className="text-lg font-extrabold tabular-nums text-ink">{money(totalOf(order), order.currency)}</span>
+          <span className="flex flex-wrap items-baseline gap-x-2 sm:hidden">
+            <span className="whitespace-nowrap text-lg font-extrabold tabular-nums text-ink">{money(totalOf(order), order.currency)}</span>
             <span className="text-[0.7188rem] text-ink-subtle">{t('orders.v2.payOnPickup')}</span>
           </span>
         </span>
         <span className="flex shrink-0 items-start gap-3">
           <span className="hidden flex-col items-end sm:flex">
-            <span className="text-xl font-extrabold tabular-nums tracking-[-0.01em] text-ink">{money(totalOf(order), order.currency)}</span>
+            <span className="whitespace-nowrap text-xl font-extrabold tabular-nums tracking-[-0.01em] text-ink">{money(totalOf(order), order.currency)}</span>
             <span className="text-[0.7188rem] text-ink-subtle">{t('orders.v2.payOnPickup')}</span>
           </span>
           <span aria-hidden="true" className="inline-flex size-9 items-center justify-center rounded-[var(--radius-control)] shadow-[0_0_0_1px_var(--color-line)]">
@@ -160,6 +160,104 @@ export function OrderRow({ order, unread, open, onToggle }: {
       <div id={detailsId} hidden={!open}>
         {open ? <OrderDetails order={order} kind={kind} variant={variant} /> : null}
       </div>
+    </article>
+  );
+}
+
+/**
+ * Строка списка слева на мониторе (макет ПК-К5): номер, сумма, когда и сколько
+ * товаров, вид заявки. Нажатием открывает заявку в панели справа.
+ */
+export function OrderPick({ order, unread, selected, onPick }: {
+  order: PortalOrderDto;
+  unread?: Unread;
+  selected: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid="order-row"
+      aria-pressed={selected}
+      onClick={onPick}
+      className={cn(
+        'flex w-full cursor-pointer flex-col gap-1.5 rounded-[1.125rem] border-0 bg-transparent px-4 py-3.5 text-left',
+        'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        selected ? 'bg-surface shadow-[0_0_0_2px_var(--color-sale)]' : 'hover:bg-surface/60',
+      )}
+    >
+      <PickLines order={order} unread={unread} />
+    </button>
+  );
+}
+
+/**
+ * Заявка строкой на телефоне (макеты «Кабинет клиента 2.0»): номер, сумма,
+ * дата и статус, у ждущей ответа — что сделать. Всё о заявке — на её экране,
+ * а не раскрытием в списке: раскрытые карточки делали список нечитаемым.
+ */
+export function OrderLink({ order, unread }: { order: PortalOrderDto; unread?: Unread }) {
+  const { t } = useTranslation();
+  const kind = kindOf(order);
+  return (
+    <Link
+      to={`/orders/${order.id}`}
+      data-testid="order-row"
+      className="flex flex-col gap-1.5 px-4 py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+    >
+      <PickLines order={order} unread={unread} />
+      {kind === 'answer' ? (
+        <span className={cn('text-[0.8125rem] font-semibold', TONE[kind].todo)}>{t(`orders.v2.todo.${variantKey(order, kind)}`)}</span>
+      ) : null}
+    </Link>
+  );
+}
+
+function PickLines({ order, unread }: { order: PortalOrderDto; unread?: Unread }) {
+  const { t } = useTranslation();
+  const kind = kindOf(order);
+  return (
+    <>
+      <span className="flex items-baseline justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2 text-[0.9375rem] font-extrabold text-ink">
+          <span className="truncate">{t('orders.v2.title', { number: order.orderNumber })}</span>
+          {unread ? <span role="img" aria-label={t('orders.v2.new')} className="size-2 shrink-0 rounded-full bg-accent" /> : null}
+        </span>
+        <span className="whitespace-nowrap text-[0.9375rem] font-extrabold tabular-nums text-ink">{money(totalOf(order), order.currency)}</span>
+      </span>
+      <span className="flex items-center justify-between gap-3">
+        <span className="truncate text-[0.8125rem] text-ink-muted">
+          {orderDay(order.createdAt)} · {t('orders.v2.goods', { count: linesOf(order).length })}
+        </span>
+        <span className={cn('inline-flex h-6 shrink-0 items-center rounded-md px-2 text-xs font-bold', TONE[kind].badge)}>
+          {t(`orders.v2.kind.${kind}`)}
+        </span>
+      </span>
+    </>
+  );
+}
+
+/** Заявка панелью справа на мониторе (макет ПК-К5): заголовок, сумма и всё о ней — без раскрытия. */
+export function OrderPane({ order }: { order: PortalOrderDto }) {
+  const { t } = useTranslation();
+  const kind = kindOf(order);
+  return (
+    <article
+      data-testid="order-pane"
+      aria-label={t('orders.v2.title', { number: order.orderNumber })}
+      className="overflow-hidden rounded-[1.5rem] bg-surface shadow-[2px_3px_6px_rgba(58,48,30,.07)]"
+    >
+      <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="text-[1.625rem] font-black tracking-[-0.02em] text-ink">{t('orders.v2.title', { number: order.orderNumber })}</h2>
+          <span className={cn('text-sm font-semibold', TONE[kind].todo)}>{t(`orders.v2.todo.${variantKey(order, kind)}`)}</span>
+        </div>
+        <span className="flex shrink-0 flex-col items-end">
+          <span className="whitespace-nowrap text-2xl font-black tabular-nums text-ink">{money(totalOf(order), order.currency)}</span>
+          <span className="text-[0.7188rem] text-ink-subtle">{t('orders.v2.payOnPickup')}</span>
+        </span>
+      </div>
+      <OrderDetails order={order} kind={kind} variant={variantKey(order, kind)} />
     </article>
   );
 }

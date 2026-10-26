@@ -1,3 +1,5 @@
+import { Star } from '../../ui/icons';
+import { SectionHead } from '../shell/SectionHead';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -39,10 +41,7 @@ export function MyReviewsPage() {
 
   return (
     <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5">
-      <header className="flex flex-col gap-0.5">
-        <h1 className="qo-page-title">{t('reviews.title')}</h1>
-        <p className="text-caption text-ink-subtle">{t('reviews.subtitle')}</p>
-      </header>
+      <SectionHead title={t('reviews.title')} subtitle={t('reviews.subtitle')} />
 
       <AwaitingBlock />
 
@@ -92,13 +91,14 @@ function AwaitingBlock() {
   }
 
   return (
-    <section className="flex flex-col gap-3" aria-labelledby="awaiting-heading">
-      <h2 id="awaiting-heading" className="text-base font-semibold text-ink">
-        {t('reviews.awaiting')}
+    <section className="flex flex-col gap-2" aria-labelledby="awaiting-heading">
+      <h2 id="awaiting-heading" className="px-1.5 text-[0.8125rem] font-extrabold uppercase tracking-[0.04em] text-ink-muted">
+        {t('reviews.awaiting')} · {items.length}
       </h2>
-      <ul className="flex flex-col gap-3">
+      {/* Как в макете: короткий список купленного, форма оценки — по «Оценить» у строки. */}
+      <ul className="flex flex-col rounded-[1.375rem] bg-surface px-3.5 shadow-[2px_3px_6px_rgba(58,48,30,.07)]">
         {items.map((item) => (
-          <li key={item.itemId}>
+          <li key={item.itemId} className="border-b border-hairline py-2.5 last:border-b-0">
             <AwaitingRow
               item={item}
               onSaved={() => {
@@ -125,20 +125,39 @@ function AwaitingRow({
   onSaved: () => void;
 }) {
   const { t } = useTranslation();
+  // Оценка — звёздами прямо в строке (макет К2.15): нажатая звезда раскрывает
+  // форму уже с этой оценкой, текст и фото — по желанию.
+  const [rating, setRating] = useState(0);
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <div className="flex flex-col gap-2.5">
+      <span className="flex min-w-0 flex-col gap-0.5">
         <Link
           to={`/catalog/${item.itemId}`}
-          className="text-sm font-medium text-ink underline-offset-4 hover:underline"
+          className="truncate text-[0.9375rem] font-bold text-ink underline-offset-4 hover:underline"
         >
           {item.itemName}
         </Link>
-        <span className="text-sm text-ink-faint">
+        <span className="text-[0.8125rem] text-ink-muted">
           {t('reviews.purchasedAt', { date: shortDate(item.purchasedAt) })}
         </span>
-      </div>
-      <ReviewForm itemId={item.itemId} submitLabel={t('reviews.rate')} onSaved={onSaved} />
+      </span>
+      {rating > 0 ? (
+        <ReviewForm itemId={item.itemId} initialRating={rating} submitLabel={t('reviews.rate')} onSaved={onSaved} />
+      ) : (
+        <div role="group" aria-label={t('reviews.rateItem', { name: item.itemName })} className="flex justify-between">
+          {[1, 2, 3, 4, 5].map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-label={t('reviews.rateWith', { rating: value })}
+              onClick={() => setRating(value)}
+              className="flex size-11 items-center justify-center rounded-full text-ink-faint transition-colors hover:text-[#C98A00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <Star aria-hidden="true" className="size-7" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -252,8 +271,10 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
           {/* Сотрудник магазина отзывы не правит и не удаляет — сервер ему откажет. */}
           {currentViewer() !== 'staff' && (
           <div className="flex flex-wrap items-center gap-2">
+            {/* Вторичные действия — мягкими кнопками, а не чёрными плашками (макеты «Кабинет клиента 2.0»). */}
             <Button
               type="button"
+              variant="soft"
               onClick={() => {
                 setEditing(true);
                 // Взведённое подтверждение, пережившее уход в правку и
@@ -282,7 +303,7 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
                 </Button>
               </>
             ) : (
-              <Button type="button" onClick={() => setConfirming(true)}>
+              <Button type="button" variant="ghost" onClick={() => setConfirming(true)}>
                 {t('reviews.delete')}
               </Button>
             )}

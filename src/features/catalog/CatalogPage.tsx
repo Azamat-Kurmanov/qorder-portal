@@ -2,21 +2,21 @@ import { WholesaleNote } from './tiles/TemplatePrice';
 import { LoadFailed } from '../../ui/LoadFailed';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, Star, Zap } from 'lucide-react';
+import { keepPreviousData } from '@tanstack/react-query';
+import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Zap } from '../../ui/icons';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   useGetPortalCatalog,
   useGetPortalCatalogCounts,
   useGetPortalCategories,
   useGetPortalPromotions,
+  type GetPortalCatalogChannel,
   type GetPortalCatalogSort,
   type ShowcaseBannerDto,
   type ShowcaseCounts,
   type ShowcaseItemDto,
 } from '../../api/generated';
 import { cartOf, useCart } from '../cart/useCart';
-import { useCurrentShop } from '../shell/Shops';
-import { intlLocale } from '../../i18n';
 import { QuickInput } from './QuickInput';
 import { FavoriteButton } from '../favorites/FavoriteButton';
 import { ItemThumb } from './ItemThumb';
@@ -34,6 +34,7 @@ import { Pagination } from '../../ui/Pagination';
 import { Skeleton } from '../../ui/Skeleton';
 import { cn } from '../../ui/cn';
 import { useColumnWidth } from '../../ui/useColumnWidth';
+import { useWideScreen } from '../../ui/useWideScreen';
 import { useCabinetDesign, type CatalogView, type MotionStyle } from '../../supplier/cabinetDesign';
 import { chipClass, type ChipLook } from '../../supplier/templateLook';
 import { CartAction, ItemBadges, ItemFacts, RatingBadge, priceNote, useOpenCard } from './itemParts';
@@ -41,6 +42,7 @@ import { GridView } from './views/GridView';
 import { BentoView } from './views/BentoView';
 import { RowsView } from './views/RowsView';
 import { MasonryView } from './views/MasonryView';
+import { ArrivalsStrip } from '../arrivals/ArrivalsStrip';
 import { VolumeHint } from './views/VolumeHint';
 
 // Метки и условия продажи живут в `itemParts`; карточка товара берёт их отсюда.
@@ -117,10 +119,6 @@ export function CatalogPage() {
    * «Поиск» отвечали бы на один вопрос по-разному.
    */
   const [searchParams] = useSearchParams();
-  const shop = useCurrentShop();
-  const ratingText = shop?.rating != null
-    ? shop.rating.toLocaleString(intlLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-    : null;
   const address = searchParams.get('q') ?? '';
   // Рубрика приходит и адресом: на неё ведёт «Все товары рубрики» из карточки.
   const categoryInAddress = searchParams.get('category') ?? undefined;
@@ -137,6 +135,9 @@ export function CatalogPage() {
   // Порядок по умолчанию — «сначала популярные», как в макете: хиты
   // и новинки, которые продавец сам вынес вперёд, стоят первыми.
   const [sort, setSort] = useState<GetPortalCatalogSort>('POPULAR');
+  // «Розница / Опт»: розница — что продаётся штуками (и то, что ещё и оптом), опт — всё с оптом.
+  // Пусто — все товары.
+  const [channel, setChannel] = useState<GetPortalCatalogChannel | undefined>(undefined);
   // «Со скидкой» — такой же чип, как рубрика, но из адреса тоже: на него
   // ведут экран акций и кнопка баннера.
   const saleInAddress = searchParams.get('sale') === '1';
@@ -173,6 +174,8 @@ export function CatalogPage() {
   // Распродажа кончилась, а порядок остался — возвращается к умолчанию.
   const sortShown: GetPortalCatalogSort = sort === 'DISCOUNT' && dealCount === 0 ? 'POPULAR' : sort;
   const [columnRef, columnWidth] = useColumnWidth<HTMLDivElement>();
+  // Телефон — по макету каталога клиента: заголовок рубрики, чипы, карточки.
+  const phone = !useWideScreen();
   const three = columnWidth >= THREE_FROM;
   const four = columnWidth >= FOUR_FROM;
   // Вид витрины выбирает продавец шаблоном: карточки, крупные, мелкие,
@@ -180,7 +183,11 @@ export function CatalogPage() {
   const { view, style, layout } = useCabinetDesign();
   // Опубликованный дизайн — своя витрина шаблона; без него — прежняя.
   const designed = style !== null;
-  const columns = columnsOf(view, three, four);
+  // Без шаблона на мониторе — по макету ПК-К2: колонка рубрик слева, справа
+  // четыре карточки в ряд, пока каждой хватает ширины.
+  const columns = phone ? 2 : designed ? columnsOf(view, three, four) : columnWidth >= 900 ? 4 : three ? 3 : 2;
+  // Карточка по макетам кабинета клиента — на телефоне и на мониторе без шаблона.
+  const plainTile = phone || !designed;
   // Просторная карточка — там, где у неё есть ширина: в мелкой сетке
   // четыре-пять карточек в ряд набраны плотнее, как на телефоне.
   const roomy = three && view !== 'grid4';
@@ -202,7 +209,7 @@ export function CatalogPage() {
   // пятая страница узкой рубрики показала бы «ничего не нашли» там, где
   // товары есть. Сброс — прямо при отрисовке, а не эффектом: эффект успел бы
   // отправить запрос новой рубрики со старым номером страницы.
-  const listKey = JSON.stringify([query, categoryId, onSale, novelty, sortShown, size]);
+  const listKey = JSON.stringify([query, categoryId, onSale, novelty, sortShown, size, channel]);
   const [pagedKey, setPagedKey] = useState(listKey);
   if (pagedKey !== listKey) {
     setPagedKey(listKey);
@@ -226,10 +233,13 @@ export function CatalogPage() {
     // порядка к ней не относится.
     sort: onSale ? undefined : sortShown,
     novelty: novelty || undefined,
+    // Распродажа «Розницу / Опт» пока не учитывает (сервер) — там переключателя и нет.
+    channel: onSale ? undefined : channel,
   });
   // Числа у чипов — с тем же поиском, что и страница: число обещает, сколько
   // человек увидит, нажав чип.
-  const counts = useGetPortalCatalogCounts({ query: query.trim() || undefined });
+  // Прежние числа держатся, пока идут новые: иначе переключатель «Розница / Опт» мигал бы при каждом выборе.
+  const counts = useGetPortalCatalogCounts({ query: query.trim() || undefined, channel }, { query: { placeholderData: keepPreviousData } });
   const count = counts.data?.status === 200 && isCounts(counts.data.data) ? counts.data.data : undefined;
   const isEmpty = (id: string) => !!count && (count.byCategory[id] ?? 0) === 0;
   const emptyCount = categoryList.filter((category) => isEmpty(category.id) && category.id !== categoryId).length;
@@ -348,7 +358,8 @@ export function CatalogPage() {
     gridStart.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   }
 
-  const chipLook = style?.chip;
+  // На телефоне чипы — по макету у любого магазина, а не по шаблону.
+  const chipLook = phone ? undefined : style?.chip;
   /*
     На мониторе чипы переносятся строками: рубрик у поставщика бывает
     десяток, и все они на виду. На телефоне — одной строкой, которая
@@ -369,6 +380,7 @@ export function CatalogPage() {
       <CategoryChip
         selected={!onSale && !novelty && categoryId === undefined}
         count={count?.all}
+        phone={phone}
         look={chipLook}
         onSelect={() => pickCategory(undefined)}
       >
@@ -379,7 +391,8 @@ export function CatalogPage() {
           selected={onSale}
           count={count?.sale}
           tone="sale"
-          look={chipLook}
+          phone={phone}
+        look={chipLook}
           onSelect={() => { setOnSale(true); setNovelty(false); setCategoryId(undefined); if (noveltyInAddress) navigate('/catalog?sale=1'); }}
         >
           {t('catalog.onSale')}
@@ -389,7 +402,8 @@ export function CatalogPage() {
         <CategoryChip
           selected={novelty}
           count={count?.novelty}
-          look={chipLook}
+          phone={phone}
+        look={chipLook}
           onSelect={() => { setNovelty(true); setOnSale(false); setCategoryId(undefined); if (saleInAddress || categoryInAddress) navigate('/catalog?novelty=1'); }}
         >
           {t('catalog.novelty')}
@@ -405,7 +419,8 @@ export function CatalogPage() {
           key={category.id}
           selected={!onSale && !novelty && categoryId === category.id}
           count={count ? (count.byCategory[category.id] ?? 0) : undefined}
-          look={chipLook}
+          phone={phone}
+        look={chipLook}
           onSelect={() => pickCategory(category.id)}
         >
           {category.name}
@@ -436,8 +451,32 @@ export function CatalogPage() {
     «Быстрый заказ» — только на мониторе: на телефоне макет отдаёт место
     витрине.
   */
+  // Переключатель нужен, только когда выбор что-то меняет: есть и штучные, и оптовые товары,
+  // и не все они продаются обоими способами (тогда «Розница» и «Опт» показали бы одно и то же).
+  const retail = count?.retail ?? 0;
+  const wholesale = count?.wholesale ?? 0;
+  const mixed = !!count && retail > 0 && wholesale > 0
+    && (channel !== undefined || !(retail === count.all && wholesale === count.all));
+  const channels = mixed && !onSale ? (
+    <div role="group" aria-label={t('catalog.channel.label')}
+      className="inline-flex shrink-0 self-start rounded-[var(--radius-control)] border-[1.5px] border-line bg-surface p-0.5">
+      {([undefined, 'RETAIL', 'WHOLESALE'] as const).map((value) => (
+        <button key={value ?? 'ALL'} type="button" aria-pressed={channel === value}
+          onClick={() => setChannel(value)}
+          className={cn(
+            'h-9 rounded-[calc(var(--radius-control)-2px)] px-3 text-sm font-semibold transition-colors duration-200',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+            channel === value ? 'bg-accent text-on-accent' : 'text-ink-muted hover:text-ink',
+          )}>
+          {t(`catalog.channel.${value ?? 'ALL'}`)}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
   const tools = (
     <div className="hidden flex-wrap items-center gap-2.5 lg:flex">
+      {channels}
       <button
         type="button"
         aria-expanded={quickOpen}
@@ -478,29 +517,6 @@ export function CatalogPage() {
     </div>
   );
 
-  /*
-    Порядок на телефоне — компактным списком справа от заголовка: макет
-    отдаёт место витрине, но выбрать «сначала дешевле» закупщику нужно
-    и с телефона. Подпись скрыта, а не убрана: список назван для диктора.
-  */
-  const phoneSort = !onSale ? (
-    <label className="lg:hidden">
-      <span className="sr-only">{t('catalog.sort.label')}</span>
-      <select
-        value={sortShown}
-        onChange={(event) => setSort(event.currentTarget.value as GetPortalCatalogSort)}
-        className={cn(
-          'h-11 max-w-[11rem] rounded-[var(--radius-control)] border-[1.5px] border-line bg-surface pl-2.5 pr-1 text-sm font-semibold text-ink',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-        )}
-      >
-        {sorts.map((key) => (
-          <option key={key} value={key}>{t(`catalog.sort.${key}`)}</option>
-        ))}
-      </select>
-    </label>
-  ) : null;
-
   const quick = quickOpen ? (
     <div className="flex flex-col gap-2 rounded-[var(--radius-card)] bg-surface p-4 shadow-[0_0_0_1px_var(--color-hairline)]">
       <p className="text-sm font-semibold text-ink-muted">{t('catalog.quickOrderHint')}</p>
@@ -522,9 +538,9 @@ export function CatalogPage() {
         {filtered && <Button size="lg" onClick={resetSection}>{t('catalog.resetSection')}</Button>}
       </div>
     );
-  } else if (view === 'list') {
+  } else if (view === 'list' && !phone) {
     results = <ItemRows items={items} taken={taken} wide={three} designed={designed} />;
-  } else if (style) {
+  } else if (style && !phone) {
     results = (
       <TemplateCatalog
         view={view}
@@ -545,9 +561,60 @@ export function CatalogPage() {
       >
         {items.map((item, index) => (
           <Reveal key={item.id} index={index}>
-            <ItemTile item={item} taken={taken} roomy={roomy} photo={photo} />
+            <ItemTile item={item} taken={taken} roomy={roomy} photo={photo} phone={plainTile} />
           </Reveal>
         ))}
+      </div>
+    );
+  }
+
+  // Отбор (рубрика, скидки, новинки, поиск) — «назад» ко всему каталогу, без баннеров.
+  const narrowed = Boolean(onSale || novelty || openCategory || query.trim());
+  const title = onSale
+    ? t('catalog.onSale')
+    : novelty ? t('catalog.novelty') : openCategory?.name ?? (query.trim() ? `«${query.trim()}»` : t('catalog.title'));
+  if (phone) {
+    return (
+      <div ref={columnRef} data-testid="catalog-phone" className="flex flex-col gap-3 pb-20">
+        {/* Каталог — вкладка нижнего меню (макеты «Кабинет клиента 2.0»): весь
+            каталог открывается баннерами магазина, отбор — кнопкой «назад». */}
+        {narrowed ? null : <BannerCarousel width={columnWidth} onAction={openBanner} onSale={openSale} />}
+        <div className="flex items-center gap-3">
+          {narrowed ? (
+            <Link
+              to="/catalog"
+              aria-label={t('catalog.back')}
+              className="flex size-11 shrink-0 items-center justify-center rounded-[0.875rem] bg-surface text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <ChevronLeft aria-hidden="true" className="size-[1.375rem]" />
+            </Link>
+          ) : null}
+          <h1 className="min-w-0 flex-1 truncate text-[1.375rem] font-black tracking-[-0.02em] text-ink">
+            {title}
+            {total !== undefined && <span className="font-bold text-ink-muted"> · {total}</span>}
+          </h1>
+          {/* Порядок — одной кнопкой справа (макет К2.2), а не чипом среди рубрик. */}
+          {onSale ? null : (
+            <label className="relative flex h-11 shrink-0 items-center gap-1.5 text-sm font-bold text-ink">
+              <ArrowUpDown aria-hidden="true" className="size-[18px]" />
+              <span className="sr-only">{t('catalog.sort.label')}</span>
+              <select
+                value={sortShown}
+                onChange={(event) => setSort(event.currentTarget.value as GetPortalCatalogSort)}
+                className="cursor-pointer appearance-none border-0 bg-transparent pr-4 text-sm font-bold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {sorts.map((key) => <option key={key} value={key}>{t(`catalog.sortShort.${key}`)}</option>)}
+              </select>
+              <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-0 size-3.5 text-ink-muted" />
+            </label>
+          )}
+        </div>
+        {channels}
+        {chips}
+        <div ref={gridStart} aria-hidden="true" />
+        {results}
+        {pager}
+        <CartBar />
       </div>
     );
   }
@@ -560,6 +627,7 @@ export function CatalogPage() {
     return (
       <div ref={columnRef} data-testid="catalog-designed" className="flex flex-col gap-5 pb-20 lg:gap-6 lg:pb-0">
         <BannerCarousel width={columnWidth} category={openCategory} onAction={openBanner} onSale={openSale} />
+        {novelty ? null : <ArrivalsStrip count={count?.novelty ?? 0} />}
         <VolumeHint data={promotions.data?.status === 200 ? promotions.data.data : undefined} compact={!three} />
         <div className={cn('flex gap-x-3 gap-y-3', centered ? 'flex-col items-center' : 'flex-wrap items-center')}>
           <h1 className={cn('qo-heading qo-display mr-3 text-[1.625rem] text-ink', centered ? 'mr-0 lg:text-[2.125rem]' : 'lg:text-[1.625rem]')}>
@@ -569,7 +637,6 @@ export function CatalogPage() {
               а ниже монитора вкладок нет, и рубрики остаются чипами. */}
           <div className={cn('min-w-0', centered ? 'w-full' : 'order-last basis-full xl:order-none xl:basis-auto xl:flex-1', layout === 'tabs' && 'lg:hidden')}>{chips}</div>
           <div className={cn('flex items-center gap-2.5', centered ? '' : 'ml-auto')}>
-            {phoneSort}
             {tools}
           </div>
         </div>
@@ -582,52 +649,133 @@ export function CatalogPage() {
     );
   }
 
+  /** Строка колонки рубрик: имя и число товаров, выбранная — мягкой подложкой. */
+  const rubric = (key: string, label: string, selected: boolean, number: number | undefined, onSelect: () => void) => (
+    <button
+      key={key}
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={cn(
+        'flex min-h-10 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold',
+        'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        selected ? 'bg-accent-soft font-extrabold text-accent-ink' : 'text-ink hover:bg-canvas',
+      )}
+    >
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {number !== undefined && <span className="text-xs font-semibold text-ink-muted">{number}</span>}
+    </button>
+  );
+  /** Отбор «Показать» — флажком, как в макете; нажимается как кнопка. */
+  const toggle = (label: string, on: boolean, onSelect: () => void) => (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onSelect}
+      className="flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2 text-left text-sm font-bold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <span aria-hidden="true" className={cn('flex size-5 shrink-0 items-center justify-center rounded-md border-2', on ? 'border-accent bg-accent text-on-accent' : 'border-line')}>
+        {on && <Check className="size-3.5" />}
+      </span>
+      {label}
+    </button>
+  );
+  const CARD = 'rounded-[1.5rem] bg-surface p-2.5 shadow-[2px_3px_6px_rgba(58,48,30,.07)]';
+
   return (
-    /*
-      Ширину меряет сам корень витрины: он занимает колонку целиком, и от
-      числа колонок сетки его ширина не меняется — раскладка не гоняет сама
-      себя по кругу. Запас снизу — под плашку корзины над нижним меню.
-    */
-    <div ref={columnRef} className="flex flex-col gap-5 pb-20 lg:gap-[1.375rem] lg:pb-0">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-3">
-            <h1 className="qo-page-title">
-              {t('catalog.title')}
-            </h1>
-            {/* Рейтинг магазина — на телефоне рядом с заголовком, как в макете. */}
-            {ratingText && (
-              <span
-                aria-label={t('shop.rating', { value: ratingText })}
-                className="flex items-center gap-1 text-sm font-bold text-ink lg:hidden"
-              >
-                <Star aria-hidden="true" className="size-4 fill-[#D97706] text-[#D97706]" />
-                {ratingText}
-              </span>
-            )}
-          </div>
-          <p className="hidden text-body text-ink-muted lg:block">
-            {total !== undefined ? `${t('catalog.shown', { count: total })} · ` : ''}
-            {vatRate !== undefined ? t('catalog.leadVat', { rate: decimal(vatRate) }) : t('catalog.lead')}
-          </p>
+    // Монитор без шаблона — по макету ПК-К2: рубрики и отборы колонкой слева;
+    // весь каталог открывается баннерами магазина во всю ширину.
+    <div className="flex flex-col gap-6">
+    {narrowed ? null : <BannerCarousel width={columnWidth} onAction={openBanner} onSale={openSale} />}
+    <div data-testid="catalog-plain" className="flex items-start gap-6 pb-20 lg:pb-0">
+      <aside className="sticky top-[calc(var(--header-h)+1.5rem)] flex w-60 shrink-0 flex-col gap-4">
+        <div role="group" aria-label={t('catalog.rubrics')} className={CARD}>
+          {rubric('all', t('catalog.all'), !onSale && !novelty && categoryId === undefined, count?.all, () => pickCategory(undefined))}
+          {categoryList
+            .filter((category) => showEmpty || !isEmpty(category.id) || categoryId === category.id)
+            .map((category) => rubric(
+              category.id,
+              category.name,
+              !onSale && !novelty && categoryId === category.id,
+              count ? (count.byCategory[category.id] ?? 0) : undefined,
+              () => pickCategory(category.id),
+            ))}
+          {emptyCount > 0 && (
+            <button
+              type="button"
+              aria-expanded={showEmpty}
+              onClick={() => setShowEmpty((shown) => !shown)}
+              className="flex min-h-10 w-full items-center gap-2 px-3 text-sm font-semibold text-ink-muted hover:text-ink"
+            >
+              {t('catalog.emptyRubrics', { count: emptyCount })}
+              <ChevronDown aria-hidden="true" className={cn('size-4 transition-transform', showEmpty && 'rotate-180')} />
+            </button>
+          )}
         </div>
-        {phoneSort}
-        {tools}
+        {dealCount > 0 || (count?.novelty ?? 0) > 0 || novelty ? (
+          <div className={cn(CARD, 'px-3.5 py-3')}>
+            <p className="px-2 pb-1 text-xs font-bold text-ink-muted">{t('catalog.show')}</p>
+            {dealCount > 0 && toggle(t('catalog.onSale'), onSale, () => (onSale ? resetSection() : openSale()))}
+            {((count?.novelty ?? 0) > 0 || novelty) && toggle(t('catalog.novelty'), novelty, () => {
+              if (novelty) { resetSection(); return; }
+              setNovelty(true); setOnSale(false); setCategoryId(undefined);
+              if (saleInAddress || categoryInAddress) navigate('/catalog?novelty=1');
+            })}
+          </div>
+        ) : null}
+      </aside>
+
+      <div ref={columnRef} className="flex min-w-0 flex-1 flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="min-w-0 flex-1 truncate text-[1.75rem] font-black tracking-[-0.02em] text-ink">
+            {title}
+            {total !== undefined && <span className="font-bold text-ink-muted"> · {total}</span>}
+          </h1>
+          <button
+            type="button"
+            aria-expanded={quickOpen}
+            onClick={() => setQuickOpen((open) => !open)}
+            className={cn(
+              'flex h-10 items-center gap-2 rounded-xl px-3.5 text-sm font-bold',
+              'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              quickOpen ? 'bg-accent-soft text-accent-ink' : 'text-ink-muted hover:text-ink',
+            )}
+          >
+            <Zap aria-hidden="true" className="size-[18px]" />
+            {t('catalog.quickOrder')}
+          </button>
+          {channels}
+          {!onSale && (
+            <div role="group" aria-label={t('catalog.sort.label')} className="flex items-center gap-1">
+              {sorts.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={sortShown === key}
+                  onClick={() => setSort(key)}
+                  className={cn(
+                    'h-9 rounded-xl px-4 text-[0.8125rem] font-bold',
+                    'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                    sortShown === key ? 'bg-surface font-extrabold text-ink shadow-[2px_3px_6px_rgba(58,48,30,.07)]' : 'text-ink-muted hover:text-ink',
+                  )}
+                >
+                  {t(`catalog.sortShort.${key}`)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {quick}
+        <p className="-mt-2 text-sm text-ink-muted">
+          {vatRate !== undefined ? t(items[0].vatIncluded ? 'catalog.leadVatIncluded' : 'catalog.leadVat', { rate: decimal(vatRate) }) : t('catalog.lead')}
+        </p>
+        {/* Выгода за объём — на «Главной» и в оформлении (макеты «Кабинет клиента 2.0»), не над сеткой. */}
+        <div ref={gridStart} aria-hidden="true" className="-mb-4" />
+        {results}
+        {pager}
+        <CartBar />
       </div>
-
-      {quick}
-
-      <BannerCarousel width={columnWidth} category={openCategory} onAction={openBanner} />
-
-      <div ref={gridStart} aria-hidden="true" className="-mb-5 lg:-mb-[1.375rem]" />
-
-      {chips}
-
-      {results}
-
-      {pager}
-
-      <CartBar />
+    </div>
     </div>
   );
 }
@@ -649,8 +797,11 @@ export function ItemTile({
   taken,
   roomy,
   photo,
+  phone = false,
 }: {
   item: ShowcaseItemDto;
+  /** Карточка телефона по макету каталога клиента: снимок, цена, опт, имя, рейтинг, кнопка. */
+  phone?: boolean;
   /** Взятые позиции: плитка сама смотрит, взят ли выбранный на ней вариант. */
   taken: ReadonlySet<string>;
   roomy: boolean;
@@ -662,6 +813,59 @@ export function ItemTile({
   // Выбранный на плитке вариант — её цена, наличие, корзина и карточка.
   const { shown, choice, colour } = useTileVariant(item);
   const openCard = useOpenCard(shown.id);
+
+  if (phone) {
+    // Карточка «Кабинета клиента 2.0»: снимок, имя и цена с круглой «+».
+    // Цена «без НДС» сказана раз над сеткой, наличие — только когда товара
+    // нет или он со склада подальше: «Уточняется» у каждой позиции было шумом.
+    const taken_ = taken.has(shown.id);
+    const counted = shown.available !== undefined && shown.available !== null;
+    const telling = counted || shown.stock === 'OUT_OF_STOCK' || shown.stock === 'FROM_OTHER_WAREHOUSE';
+    return (
+      <article data-testid="item-tile" onClick={openCard} className="flex h-full cursor-pointer flex-col gap-2">
+        {/* shrink-0: с `overflow-hidden` блок снимка сжимается первым, и у карточки с длинными
+            условиями (опт, шаг продажи, размеры) фото схлопывалось в полоску. */}
+        <div className="relative shrink-0 overflow-hidden rounded-[1.125rem]">
+          <ItemThumb itemId={item.id} src={item.thumbnailUrl} flight className="h-[10.5rem] w-full lg:h-[13rem]" />
+          <ItemBadges item={shown} className="absolute left-2 top-2" />
+          <FavoriteButton
+            itemId={item.id}
+            favorite={item.favorite}
+            className="absolute right-1.5 top-1.5 rounded-full border-transparent bg-surface/90 shadow-soft backdrop-blur-sm"
+          />
+        </div>
+        <Link to={`/catalog/${shown.id}`} className="line-clamp-2 text-sm font-semibold leading-[1.3] text-ink">
+          {item.name}
+        </Link>
+        <WholesaleNote item={item} />
+        <ItemFacts item={item} />
+        {choice}
+        {/* Наличие — когда оно что-то говорит: остаток числом, «нет», «с другого склада».
+            «В наличии» и «Уточняется» у каждой позиции были шумом. */}
+        <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-ink-muted empty:hidden">
+          <RatingBadge rating={item.rating} reviewCount={item.reviewCount} />
+          {telling ? <StockNote stock={shown.stock} available={shown.available} short className="mt-0 text-xs" /> : null}
+        </span>
+        <div className="mt-auto flex flex-col gap-2">
+          <div className="flex min-h-10 items-center justify-between gap-2">
+            <span className="flex min-w-0 flex-col">
+              <span className={cn('whitespace-nowrap text-[1.0625rem] font-extrabold tabular-nums lg:text-lg', shown.oldPrice !== undefined ? 'text-sale-text' : 'text-ink')}>
+                {money(shown.price, currency)}
+                <span className="ml-1 text-xs font-semibold text-ink-muted">{t('catalog.priceNote.perUnit', { unit: unitPer(item.unit) })}</span>
+              </span>
+              {shown.oldPrice !== undefined && (
+                <s className="whitespace-nowrap text-xs tabular-nums text-ink-faint">{money(shown.oldPrice, currency)}</s>
+              )}
+              {/* Налог и дата цены — мелко: без даты цена стала бы бессрочным обещанием. */}
+              <span className="text-[0.6875rem] leading-tight text-ink-subtle">{priceNote(shown, t)}</span>
+            </span>
+            {taken_ ? null : <CartAction item={shown} taken={false} roomy={false} look="round" className="size-10 shrink-0 !rounded-full bg-accent text-on-accent" />}
+          </div>
+          {taken_ ? <CartAction item={shown} taken roomy={false} look="round" /> : null}
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article
@@ -945,8 +1149,11 @@ function CategoryChip({
   count,
   tone,
   look,
+  phone = false,
   children,
 }: {
+  /** Чип телефона по макету: таблетка, выбранный — тёмный. */
+  phone?: boolean;
   selected: boolean;
   onSelect: () => void;
   /** Сколько товаров под чипом; пусто — числа ещё нет, и ноль не выдумывается. */
@@ -966,7 +1173,12 @@ function CategoryChip({
         'flex shrink-0 items-center gap-2 whitespace-nowrap font-semibold',
         'transition-all duration-200 active:scale-95',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-        look
+        phone
+          ? cn(
+            'h-[2.375rem] rounded-[var(--radius-pill)] px-3.5 text-sm',
+            selected ? 'bg-ink text-on-ink' : tone === 'sale' ? 'bg-sale-soft text-sale-ink' : 'bg-surface text-ink',
+          )
+          : look
           ? cn('text-caption', chipClass(look, selected, tone === 'sale'))
           : cn(
             'h-11 rounded-[var(--radius-pill)] border-[1.5px] px-[1.125rem] text-body',
@@ -1016,7 +1228,7 @@ function TemplateCatalog({
  * Похож ли ответ на числа разделов. Сервер старше этого экрана о них не знает,
  * и число, собранное из чужого ответа, было бы выдумкой — лучше без чисел.
  */
-function isCounts(value: unknown): value is ShowcaseCounts {
+export function isCounts(value: unknown): value is ShowcaseCounts {
   const candidate = value as Partial<ShowcaseCounts> | undefined;
   return typeof candidate?.all === 'number' && typeof candidate.byCategory === 'object' && candidate.byCategory !== null;
 }

@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2 } from '../../ui/icons';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../ui/Button';

@@ -1,5 +1,6 @@
 import { getConfig } from '../config';
 import { UserManager, WebStorageStateStore, type StateStore } from 'oidc-client-ts';
+import { isAvailable } from '../shared/webview/bridge';
 
 /** Куда вести клиента, если адрес начала входа неизвестен. */
 export const DEFAULT_RETURN_TO = '/catalog';
@@ -9,6 +10,22 @@ export const CALLBACK_PATH = '/callback';
 
 /** Куда Keycloak возвращает браузер после выхода. */
 const POST_LOGOUT_PATH = '/';
+
+/**
+ * Экран выбора кабинета с открытым выбором (`?choose` не даёт ему сразу
+ * переправить обратно сюда же). `null` — экрана нет: адрес не задан или
+ * страница открыта в мобильном приложении, где выбор кабинета свой.
+ */
+export function entryChooseUrl(): string | null {
+  const entry = getConfig().ENTRY_URL;
+  if (!entry || isAvailable()) return null;
+  return `${entry.replace(/\/+$/, '')}/?choose`;
+}
+
+/** Куда Keycloak вернёт после выхода: на выбор кабинета, иначе в корень. */
+export function postLogoutUrl(): string {
+  return entryChooseUrl() ?? `${window.location.origin}${POST_LOGOUT_PATH}`;
+}
 
 /**
  * Хранилище пользователя в памяти вкладки.
@@ -106,8 +123,12 @@ export function getUserManager(viewer: Viewer = currentViewer()): UserManager {
     authority: `${getConfig().KEYCLOAK_URL}/realms/${realm}`,
     client_id: clientId,
     redirect_uri: `${window.location.origin}${CALLBACK_PATH}`,
-    post_logout_redirect_uri: `${window.location.origin}${POST_LOGOUT_PATH}`,
+    post_logout_redirect_uri: postLogoutUrl(),
     response_type: 'code',
+    // В приложении — offline-токен: обычный refresh умирает через 30 минут
+    // простоя, а сессию приложение хранит неделями и открывает PIN-кодом
+    // (appSession.ts). В браузере — как было.
+    scope: isAvailable() ? 'openid offline_access' : 'openid',
     stateStore: new WebStorageStateStore({ store: window.sessionStorage }),
     userStore: new InMemoryStateStore(),
   });

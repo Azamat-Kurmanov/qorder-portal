@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import i18n from '../../i18n';
-import { resetCartDrawer, useCartDrawer } from './cartDrawer';
-import { renderHook } from '@testing-library/react';
 import { CartBar } from './CartBar';
 import { renderScreen } from '../../test/render';
 import { get, stubFetch } from '../../test/http';
@@ -17,35 +14,27 @@ const cart = {
   skipped: [],
 };
 
-function cartDrawerState() {
-  return renderHook(() => useCartDrawer()).result.current;
-}
-
 describe('полоса корзины на телефоне', () => {
   afterEach(async () => {
     vi.unstubAllGlobals();
-    resetCartDrawer();
     await i18n.changeLanguage('ru');
   });
 
-  it('кнопка с суммой открывает полноценную корзину, а не свой отдельный лист', async () => {
+  it('одна строка — сколько позиций и на какую сумму, ведёт в корзину', async () => {
     stubFetch([get('/api/portal/cart', cart)]);
 
     renderScreen(<CartBar />);
-    expect(cartDrawerState().open).toBe(false);
-    await userEvent.click(await screen.findByRole('button', { name: /в корзине/i }));
-
-    expect(cartDrawerState().open).toBe(true);
-    // Собственного листа у полосы больше нет: корзину рисует оболочка (CartPanel).
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const bar = await screen.findByTestId('cart-bar');
+    expect(bar).toHaveAttribute('href', '/checkout');
+    expect(bar).toHaveTextContent(/1 позиция ·\s5\s000/);
+    expect(bar).toHaveTextContent('Корзина');
   });
 
-  it('кнопка с суммой говорит, что откроет лист, а не уведёт на другой экран', async () => {
-    stubFetch([get('/api/portal/cart', cart)]);
+  it('пустая корзина — полосы нет', async () => {
+    stubFetch([get('/api/portal/cart', { lines: [], total: 0, skipped: [] })]);
 
     renderScreen(<CartBar />);
-    const open = await screen.findByRole('button', { name: /в корзине/i });
-    expect(open).toHaveAttribute('aria-haspopup', 'dialog');
-    expect(screen.getByRole('button', { name: /Оформить/ })).not.toHaveAttribute('aria-haspopup');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByTestId('cart-bar')).toBeNull();
   });
 });

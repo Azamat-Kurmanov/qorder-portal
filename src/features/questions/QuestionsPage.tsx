@@ -1,12 +1,15 @@
+import { SectionHead } from '../shell/SectionHead';
 import { ItemThumb } from '../catalog/ItemThumb';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import {
   useGetPortalCatalogItem,
+  useGetPortalQuestion,
   useGetPortalQuestions,
   useGetWhatsappArchive,
   type QuestionThreadDto,
+  type QuestionThreadSummaryDto,
 } from '../../api/generated';
 import { useSetCartLine } from '../cart/useCart';
 import { MessageComposer } from './MessageComposer';
@@ -14,7 +17,7 @@ import { WhatsappArchive } from './WhatsappArchive';
 import { shortDate, money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { Button } from '../../ui/Button';
-import { Reveal } from '../../ui/Reveal';
+import { MessageCircle } from '../../ui/icons';
 
 /**
  * Переписка с продавцом.
@@ -34,8 +37,7 @@ import { Reveal } from '../../ui/Reveal';
  */
 export function QuestionsPage() {
   const { t } = useTranslation();
-  const questions = useGetPortalQuestions();
-  const threads = questions.data?.status === 200 ? questions.data.data : [];
+  const { threadId } = useParams<{ threadId?: string }>();
   const archive = useGetWhatsappArchive();
   const archived = archive.data?.status === 200 ? archive.data.data : [];
   // Вкладка архива — только тем, кто писал магазину в WhatsApp: остальным пустая вкладка ни к чему.
@@ -43,15 +45,15 @@ export function QuestionsPage() {
   const showArchive = archived.length > 0;
   const current = showArchive ? tab : 'questions';
 
+  // Открытая ветка — своим экраном (макет К2.14): список не мешает читать разговор.
+  if (threadId) return <ThreadScreen threadId={threadId} />;
+
   return (
     <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5">
-      <header className="flex flex-col gap-0.5">
-        <h1 className="qo-page-title">{t('questions.title')}</h1>
-        <p className="text-caption text-ink-subtle">{t('questions.subtitle')}</p>
-      </header>
+      <SectionHead title={t('questions.title')} subtitle={t('questions.subtitleThreads')} />
 
       {showArchive ? (
-        <div role="tablist" aria-label={t('questions.title')} className="inline-flex self-start gap-1 rounded-[var(--radius-pill)] bg-sunk p-1">
+        <div role="tablist" aria-label={t('questions.title')} className="flex gap-1 rounded-[0.875rem] bg-sunk p-1 lg:inline-flex lg:self-start">
           {(['questions', 'archive'] as const).map((key) => (
             <button
               key={key}
@@ -61,8 +63,8 @@ export function QuestionsPage() {
               onClick={() => setTab(key)}
               className={
                 current === key
-                  ? 'h-9 cursor-pointer rounded-[var(--radius-pill)] border-0 bg-surface px-4 text-[0.875rem] font-semibold text-ink shadow-sm'
-                  : 'h-9 cursor-pointer rounded-[var(--radius-pill)] border-0 bg-transparent px-4 text-[0.875rem] text-ink-muted hover:text-ink'
+                  ? 'h-10 flex-1 cursor-pointer rounded-[0.6875rem] border-0 bg-surface px-4 text-sm font-bold text-ink shadow-sm'
+                  : 'h-10 flex-1 cursor-pointer rounded-[0.6875rem] border-0 bg-transparent px-4 text-sm font-bold text-ink-muted hover:text-ink'
               }
             >
               {key === 'questions' ? t('questions.tabQuestions') : t('questions.archive.title')}
@@ -72,30 +74,94 @@ export function QuestionsPage() {
       ) : null}
 
       {current === 'archive' ? <WhatsappArchive messages={archived} /> : <>
-
-      {questions.isPending ? (
-        <div
-          data-testid="questions-skeleton"
-          className="h-24 animate-pulse rounded-[var(--radius-card)] border border-hairline bg-sunk"
-        />
-      ) : threads.length === 0 ? (
-        <p className="text-body leading-relaxed text-ink-subtle">
-          {t('questions.empty')}
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-6">
-          {threads.map((thread, index) => (
-            <li key={thread.id}>
-              <Reveal delay={Math.min(index, 3) * 0.04}>
-                <Thread thread={thread} />
-              </Reveal>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <MessageComposer />
+        <ThreadList />
+        {/* Новый вопрос — новая ветка: у продавца это отдельное обращение со своим номером. */}
+        <MessageComposer />
       </>}
+    </div>
+  );
+}
+
+/** Список веток: о чём, последнее сообщение, когда и ждёт ли ответа. */
+function ThreadList() {
+  const { t } = useTranslation();
+  const questions = useGetPortalQuestions();
+  const threads: QuestionThreadSummaryDto[] = questions.data?.status === 200 ? questions.data.data : [];
+
+  if (questions.isPending) {
+    return <div data-testid="questions-skeleton" className="h-24 animate-pulse rounded-[var(--radius-card)] border border-hairline bg-sunk" />;
+  }
+  if (threads.length === 0) {
+    return <p className="text-body leading-relaxed text-ink-subtle">{t('questions.empty')}</p>;
+  }
+  return (
+    <ul className="flex flex-col divide-y divide-hairline overflow-hidden rounded-[1.25rem] bg-surface">
+      {threads.map((thread) => {
+        const last = thread.lastMessage;
+        const mine = last?.author === 'CUSTOMER';
+        return (
+          <li key={thread.id}>
+            <Link
+              to={`/questions/${thread.id}`}
+              data-testid={`thread-${thread.id}`}
+              className="flex items-start gap-3 px-4 py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+            >
+              {thread.itemId ? (
+                <ItemThumb itemId={thread.itemId} className="size-12 shrink-0 rounded-[0.875rem]" />
+              ) : (
+                <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-[0.875rem] bg-accent-soft text-accent-ink">
+                  <MessageCircle className="size-6" />
+                </span>
+              )}
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="flex items-baseline justify-between gap-2">
+                  <b className="truncate text-[0.9375rem] font-bold text-ink">{thread.itemName ?? t('questions.general')}</b>
+                  <span className="shrink-0 text-xs text-ink-subtle">{last ? shortDate(last.createdAt) : ''}</span>
+                </span>
+                {last ? (
+                  <span className="line-clamp-2 text-sm text-ink-muted">
+                    {mine ? t('questions.you') : t('questions.seller')}: {last.text}
+                  </span>
+                ) : null}
+                <span className="flex items-center gap-2">
+                  <span className={thread.awaitingAnswer
+                    ? 'rounded-full bg-sunk px-2.5 py-0.5 text-xs font-bold text-ink-muted'
+                    : 'rounded-full bg-ok-soft px-2.5 py-0.5 text-xs font-bold text-ok-ink'}
+                  >
+                    {thread.awaitingAnswer ? t('questions.waitingShort') : t('questions.answered')}
+                  </span>
+                  {thread.unreadAnswers > 0 ? (
+                    <span role="img" aria-label={t('questions.unread', { count: thread.unreadAnswers })}
+                      className="flex h-5 min-w-5 items-center justify-center rounded-full bg-sale px-1.5 text-xs font-extrabold text-white">
+                      {thread.unreadAnswers}
+                    </span>
+                  ) : null}
+                  <span className="text-xs text-ink-faint">{thread.number}</span>
+                </span>
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Одна ветка: разговор целиком и поле, которое пишет в неё же. */
+function ThreadScreen({ threadId }: { threadId: string }) {
+  const { t } = useTranslation();
+  const thread = useGetPortalQuestion(threadId);
+  const data = thread.data?.status === 200 ? thread.data.data : undefined;
+  const subject = data?.messages.find((message) => message.itemName)?.itemName;
+  return (
+    <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5">
+      <SectionHead back="/questions" title={subject ?? t('questions.general')} subtitle={data?.number} />
+      {thread.isPending ? (
+        <div data-testid="questions-skeleton" className="h-24 animate-pulse rounded-[var(--radius-card)] border border-hairline bg-sunk" />
+      ) : data ? <Thread thread={data} /> : (
+        <p className="text-body text-ink-subtle">{t('questions.notFound')}</p>
+      )}
+      {data ? <MessageComposer threadId={threadId} /> : null}
     </div>
   );
 }
@@ -112,15 +178,30 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
   const discussed = withItem[withItem.length - 1];
 
   return (
-    <article data-testid={`thread-${thread.id}`} className="flex flex-col gap-2">
-      <div
-        data-testid={`thread-subject-${thread.id}`}
-        className="flex items-center justify-center gap-1.5 text-2xs text-ink-subtle"
-      >
-        <span>{shortDate(messages[0]?.createdAt)}</span>
-        <span aria-hidden="true">·</span>
-        {/* Номер обращения — то, чем клиент назовёт разговор по телефону. */}
-        <span className="text-ink-faint">{thread.number}</span>
+    // Как в макете: разговор — карточкой, сверху о чём и когда, справа — ждёт ли он ответа.
+    <article
+      data-testid={`thread-${thread.id}`}
+      className="flex flex-col gap-2 rounded-[1.375rem] bg-surface p-3.5 shadow-[2px_3px_6px_rgba(58,48,30,.07)]"
+    >
+      <div data-testid={`thread-subject-${thread.id}`} className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-ink-muted">
+          {/* Товар назван у самого сообщения — здесь только когда и какое обращение. */}
+          {/* Номер обращения — в заголовке экрана ветки; здесь — когда начат разговор. */}
+          <span className="shrink-0">{shortDate(messages[0]?.createdAt)}</span>
+        </span>
+        {/*
+          «Ждёт ответа» — не украшение: без него человек не знает, дошло ли
+          сообщение вообще, и пишет второй раз.
+        */}
+        <span
+          className={
+            thread.awaitingAnswer
+              ? 'shrink-0 rounded-full bg-sale-soft px-2.5 py-1 text-xs font-bold text-sale-ink'
+              : 'shrink-0 rounded-full bg-ok-soft px-2.5 py-1 text-xs font-bold text-ok-ink'
+          }
+        >
+          {thread.awaitingAnswer ? t('questions.waitingShort') : t('questions.answered')}
+        </span>
       </div>
 
       {messages.map((message) => {
@@ -148,8 +229,8 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
             <p
               className={
                 mine
-                  ? 'rounded-[16px_16px_4px_16px] bg-ink px-3.5 py-2.5 text-[0.875rem] leading-[1.45] text-on-ink'
-                  : 'rounded-[16px_16px_16px_4px] border border-hairline bg-surface px-3.5 py-2.5 text-[0.875rem] leading-[1.45] text-ink'
+                  ? 'rounded-[16px_16px_4px_16px] bg-accent px-3.5 py-2.5 text-[0.9375rem] leading-[1.45] text-on-accent'
+                  : 'rounded-[16px_16px_16px_4px] bg-canvas px-3.5 py-2.5 text-[0.9375rem] leading-[1.45] text-ink'
               }
             >
               {message.text}
@@ -166,14 +247,6 @@ function Thread({ thread }: { thread: QuestionThreadDto }) {
           </div>
         );
       })}
-
-      {/*
-        «Ждёт ответа» — не украшение: без него человек не знает, дошло ли
-        сообщение вообще, и пишет второй раз.
-      */}
-      {thread.awaitingAnswer && (
-        <p className="self-start text-sm text-unclear-ink">{t('questions.waiting')}</p>
-      )}
 
       {discussed?.itemId && <DiscussedItem itemId={discussed.itemId} />}
     </article>
@@ -205,7 +278,7 @@ function DiscussedItem({ itemId }: { itemId: string }) {
   const photo = item.media?.find((media) => media.kind === 'PHOTO')?.url;
 
   return (
-    <div className="flex w-full max-w-[86%] flex-col gap-2.5 self-start rounded-[16px_16px_16px_4px] border border-hairline bg-surface p-3">
+    <div className="flex w-full flex-col gap-2.5 rounded-[1rem] bg-canvas p-3">
       <div className="flex items-center gap-3">
         <ItemThumb itemId={item.id} src={photo} className="size-14 rounded-[10px]" />
         <div className="flex min-w-0 flex-col gap-0.5">

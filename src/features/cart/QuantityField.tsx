@@ -114,13 +114,16 @@ export function QuantityField({ itemId, unit, variant = 'card', terms, perPack =
           step={stepOf(terms)}
           value={value}
           onChange={(event) => schedule(event.currentTarget.value === '' ? '' : Number(event.currentTarget.value))}
+          // Ширина — по числу цифр: на узкой карточке каталога фиксированные 64 точки
+          // съедали место у единицы, и «шт.» обрезалось до «ш…».
+          style={card ? { width: `${Math.max(1, String(value).length) + 0.6}ch` } : undefined}
           className={cn(
             // Числа до пяти цифр — «1 250» мешков, — и набранное количество
             // перечитывают перед оформлением чаще, чем что-либо на витрине.
             'min-w-0 bg-transparent text-right font-extrabold tabular-nums',
             'rounded-md focus:outline-none focus:ring-2 focus:ring-accent/40',
             '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none',
-            card ? 'w-16 text-lead text-accent-ink' : 'w-10 text-body text-ink',
+            card ? 'text-lead text-accent-ink' : 'w-10 text-body text-ink',
           )}
         />
         {/* Единица рядом с числом: «2 мешка» читается, голое «2» — нет. */}

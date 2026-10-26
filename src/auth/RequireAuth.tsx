@@ -21,11 +21,11 @@ interface RequireAuthProps {
  */
 export function RequireAuth({ children }: RequireAuthProps) {
   const { t } = useTranslation();
-  const { authenticated, sessionRejected, login, logout } = useAuth();
+  const { authenticated, sessionRejected, restoring = false, signingOut = false, login, logout } = useAuth();
 
   useEffect(() => {
-    if (!authenticated && !sessionRejected) login();
-  }, [authenticated, sessionRejected, login]);
+    if (!authenticated && !sessionRejected && !restoring && !signingOut) login();
+  }, [authenticated, sessionRejected, restoring, signingOut, login]);
 
   if (sessionRejected) {
     return (

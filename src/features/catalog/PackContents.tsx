@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown } from '../../ui/icons';
 import { quantityWithUnit } from '../../shared/units';
 import { cn } from '../../ui/cn';
 

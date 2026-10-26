@@ -61,6 +61,8 @@ function describe(change: SnapshotDiffDto, currency: Currency | undefined): stri
     case 'PRICE_CHANGED':
       return `${change.name} — цена ${money(change.was ?? 0, currency)} → ${money(change.now ?? 0, currency)}`;
     case 'DELIVERY_CHANGED':
+      // Без сумм — срок «будет …» или перевозчик: название уже говорит само.
+      if (change.was == null && change.now == null) return change.name;
       return `Доставка: ${change.name}${
         change.now === undefined ? '' : `, ${money(change.now, currency)}`
       }`;

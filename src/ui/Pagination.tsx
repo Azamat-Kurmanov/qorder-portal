@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from './icons';
 import { cn } from './cn';
 import { pageItems } from './pageItems';
 

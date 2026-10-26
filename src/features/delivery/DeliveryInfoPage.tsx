@@ -1,4 +1,5 @@
-import { CircleCheck, MapPin, Package } from 'lucide-react';
+import { SectionHead } from '../shell/SectionHead';
+import { CircleCheck, MapPin, Package } from '../../ui/icons';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Method, PickupPoint } from '../../api/generated';
@@ -45,17 +46,12 @@ export function DeliveryInfoPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-20">
-      <header className="flex flex-col gap-1">
-        <h1 className="qo-page-title">
-          {t('delivery.title')}
-        </h1>
-        {/*
-          «Условия продавца» — про то, чьё это обещание: тарифы задаёт он
-          и меняет когда захочет. Даты, на которую условия верны, в ответе
-          сервера нет, и выдумывать её нельзя: она читалась бы как гарантия.
-        */}
-        <p className="text-caption text-ink-subtle">{t('delivery.terms')}</p>
-      </header>
+      {/*
+        «Условия продавца» — про то, чьё это обещание: тарифы задаёт он
+        и меняет когда захочет. Даты, на которую условия верны, в ответе
+        сервера нет, и выдумывать её нельзя: она читалась бы как гарантия.
+      */}
+      <SectionHead title={t('delivery.title')} subtitle={t('delivery.terms')} />
 
       {/*
         Возит или не возит — первое, что человек ищет на этом экране: от ответа

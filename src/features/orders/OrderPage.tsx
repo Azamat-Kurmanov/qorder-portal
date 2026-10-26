@@ -31,6 +31,18 @@ import { fileNameFrom, saveFile } from '../../shared/download';
 import { decimal, money } from '../../shared/format';
 import { quantityWithUnit } from '../../shared/units';
 import { orderDay, packNote } from './orderText';
+import { ReferralCard } from '../referral/ReferralCard';
+import { ChevronLeft, MapPin } from '../../ui/icons';
+import { MapViewButton } from '../maps/MapViewButton';
+import { pointOf } from '../maps/mapProvider';
+import { cn } from '../../ui/cn';
+import { useWideScreen } from '../../ui/useWideScreen';
+import { useCurrentShop } from '../shell/Shops';
+import { OrderStages } from './OrderStages';
+import { kindOf } from './myOrdersModel';
+
+/** Поставщик принял заявку: дальше она только движется к выдаче. */
+const CONFIRMED = new Set<string>(['ACCEPTED', 'READY', 'ISSUED']);
 
 /**
  * Заявка целиком: что отправлено, что предлагает поставщик и что с этим делать.
@@ -49,6 +61,9 @@ export function OrderPage() {
   const [invoiceFailed, setInvoiceFailed] = useState(false);
   const [vatBusy, setVatBusy] = useState(false);
   const [vatFailed, setVatFailed] = useState<'requisites' | 'failed' | null>(null);
+  // Телефон — по макету «Заявка»: «Назад» к заявкам, номер, магазин и способ, шкала этапов.
+  const wide = useWideScreen();
+  const shop = useCurrentShop();
 
   const response = useGetMyPortalOrder(id);
   const order: PortalOrderDto | undefined =
@@ -135,13 +150,54 @@ export function OrderPage() {
   return (
     <div className="flex flex-col gap-4 pb-28">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="qo-page-title">
-          {t('orders.orderFrom', { day: orderDay(order.createdAt) })}
-        </h1>
-        <OrderStateBadge state={order.state} />
+        {wide ? (
+          <h1 className="qo-page-title">
+            {t('orders.orderFrom', { day: orderDay(order.createdAt) })}
+          </h1>
+        ) : (
+          <div className="flex min-w-0 items-center gap-3">
+            <Link
+              to="/orders"
+              aria-label={t('orders.toAll')}
+              className="flex size-11 shrink-0 items-center justify-center rounded-[0.875rem] bg-surface text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <ChevronLeft aria-hidden="true" className="size-[1.375rem]" />
+            </Link>
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <h1 className="truncate text-[1.25rem] font-black tracking-[-0.02em] text-ink">
+                {t('orders.v2.title', { number: order.orderNumber })}
+              </h1>
+              <span className="truncate text-[0.8125rem] text-ink-muted">
+                {[shop?.name, t(order.pickup === false ? 'orders.way.delivery' : 'orders.way.pickup')].filter(Boolean).join(' · ')}
+              </span>
+              {/* Состояние — строкой под именем: справа плашка отнимала место у номера. */}
+              <span className="self-start"><OrderStateBadge state={order.state} /></span>
+            </span>
+          </div>
+        )}
+        {wide ? <OrderStateBadge state={order.state} /> : null}
       </div>
 
+      {wide ? null : <OrderStages kind={kindOf(order)} delivery={order.pickup === false} />}
+
       {order.pickupCode ? <PickupCode code={order.pickupCode} className="self-start" /> : null}
+
+      {/* Куда идти за самовывозом — с картой (макет К2.11): код без места мало что даёт. */}
+      {order.pickup !== false && order.pickupPoint ? (
+        <Card className="flex flex-col gap-2 p-4" data-testid="order-pickup-point">
+          <span className="flex items-start gap-2.5">
+            <MapPin aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent-ink" />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <b className="text-[0.9375rem] font-bold text-ink">{order.pickupPoint.name}</b>
+              <span className="text-[0.8125rem] text-ink-muted">
+                {[order.pickupPoint.address, order.pickupPoint.workingHours].filter(Boolean).join(' · ')}
+              </span>
+            </span>
+          </span>
+          <MapViewButton title={order.pickupPoint.name} address={order.pickupPoint.address}
+            point={pointOf(order.pickupPoint.latitude, order.pickupPoint.longitude)} />
+        </Card>
+      ) : null}
 
       {order.needsAnswer && (
         <div
@@ -211,12 +267,22 @@ export function OrderPage() {
 
       {answered && <p className="text-sm text-ink-subtle">{t('orders.answerSent')}</p>}
 
+      {/* Заявка подтверждена — лучший момент позвать сюда остальных поставщиков. */}
+      <ReferralCard confirmed={CONFIRMED.has(order.state)} />
+
       {order.needsAnswer && (
         // Две кнопки одной ширины: согласие и отказ равноправны, и более
         // крупная кнопка читалась бы как подсказка, что выбрать. Слова те же,
         // что в списке заявок: одно действие, названное на двух экранах
         // по-разному, читается как два разных.
-        <div className="grid grid-cols-2 gap-2">
+        <div
+          className={cn(
+            'grid grid-cols-2 gap-2',
+            // На телефоне ответ — панелью над нижним меню, как в макете: его не надо искать под составом.
+            'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] max-lg:z-20',
+            'max-lg:bg-surface max-lg:px-4 max-lg:py-3 max-lg:shadow-[0_-6px_20px_rgba(58,48,30,.1)]',
+          )}
+        >
           <Button
             size="lg"
             aria-label={t('orders.agreeAria', { day: orderDay(order.createdAt) })}
@@ -261,8 +327,11 @@ export function OrderPage() {
         </p>
       )}
 
-      {/* Счёт-фактура — компании-покупателю: выписывается на реквизиты из профиля. */}
-      {order.invoiceAvailable && (
+      {/*
+        Счёт-фактура — компании-покупателю: выписывается на реквизиты из профиля.
+        Если её выписывает 1С продавца, кнопки нет — документ продавца виден строкой реализации ниже.
+      */}
+      {order.invoiceAvailable && order.vatInvoiceAvailable && (
         <Button
           variant="outline"
           data-testid="order-vat-invoice"
@@ -281,6 +350,14 @@ export function OrderPage() {
       )}
       {vatFailed === 'failed' && (
         <p role="alert" className="text-sm text-gone">{t('orders.invoiceFailed')}</p>
+      )}
+
+      {order.realization1c?.status === 'EXPORTED' && (
+        <p data-testid="order-realization" className="text-sm text-ink">
+          {order.realization1c.documentNumber
+            ? t('orders.realization1c', { number: order.realization1c.documentNumber, day: orderDay(order.realization1c.at) })
+            : t('orders.realization1cNoNumber', { day: orderDay(order.realization1c.at) })}
+        </p>
       )}
 
       {order.cancellable && !order.needsAnswer && (
@@ -305,42 +382,48 @@ function Revision({ title, lines, total, testId, breakdown, currency }: {
   /** Валюта заявки, а не открытого магазина. */
   currency: Currency | undefined;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <Card className="p-4" data-testid={testId}>
       <p className="mb-2 font-semibold text-ink">{title}</p>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[280px] border-collapse text-sm">
-          <tbody>
-            {lines.map((line, index) => (
-              <tr key={`${line.name}-${index}`} className="border-b border-hairline last:border-0">
-                <td className="py-2 pr-2 text-ink">
-                  <span className="flex items-center gap-3">
-                    <LinkedLineThumb
-                      itemId={line.itemId}
-                      seed={line.itemId ?? line.name}
-                      src={line.imageUrl}
-                      label={t('orders.openItem', { name: line.name })}
-                      className="size-11"
-                    />
-                    <span className="flex min-w-0 flex-col">
-                      {line.name}
-                      {line.pack ? <PackContents label={t('pack.inPress')} members={packMembers(line.pack)} /> : null}
-                    </span>
-                  </span>
-                </td>
-                <td className="py-2 pr-2 text-right tabular-nums text-ink-muted">
+      {/* Строкой, а не таблицей (макеты «Кабинет клиента 2.0»): на узком телефоне
+          колонки таблицы рвали «2 шт.» и сумму на две строки. */}
+      <ul className="flex flex-col divide-y divide-hairline">
+        {lines.map((line, index) => {
+          const amount = line.amount ?? (line.price === undefined ? undefined : line.price * line.quantity);
+          return (
+            <li key={`${line.name}-${index}`} data-testid="order-line" className="flex items-center gap-3 py-2.5 text-sm">
+              <LinkedLineThumb
+                itemId={line.itemId}
+                seed={line.itemId ?? line.name}
+                src={line.imageUrl}
+                label={t('orders.openItem', { name: line.name })}
+                className="size-11"
+              />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="font-semibold text-ink">{line.name}</span>
+                {line.pack ? <PackContents label={t('pack.inPress')} members={packMembers(line.pack)} /> : null}
+                <span className="tabular-nums text-ink-muted">
                   {line.unit ? quantityWithUnit(line.quantity, line.unit) : decimal(line.quantity)}{packNote(line, t)}
-                </td>
-                <td className="py-2 text-right tabular-nums text-ink">
-                  {line.price === undefined ? '' : money(line.price, currency)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  {line.price === undefined ? null : <> × {money(line.price, currency)}</>}
+                </span>
+                {/* Сейчас нет, но продавец ждёт к дате склада — клиент соглашается ждать или отказывается. */}
+                {line.expectedOn ? (
+                  <span data-testid="order-line-expected" className="text-xs font-semibold text-sale-ink">
+                    {t('orders.expectedOn', {
+                      date: new Date(`${line.expectedOn}T00:00:00`).toLocaleDateString(i18n.language, { day: 'numeric', month: 'long' }),
+                    })}
+                  </span>
+                ) : null}
+              </span>
+              {amount === undefined ? null : (
+                <b className="shrink-0 whitespace-nowrap font-bold tabular-nums text-ink">{money(amount, currency)}</b>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
       <div className="my-2 h-px bg-hairline" />
       <OrderTotals total={total} breakdown={breakdown} currency={currency} />

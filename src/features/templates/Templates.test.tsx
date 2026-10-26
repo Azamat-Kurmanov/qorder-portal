@@ -37,8 +37,9 @@ describe('шаблоны закупки', () => {
 
     renderScreen(<TemplatesPage />);
 
+    await userEvent.click(await screen.findByRole('button', { name: 'Сохранить корзину как шаблон' }));
     await userEvent.type(await screen.findByLabelText(/название/i), 'Объект на Абая');
-    await userEvent.click(screen.getByRole('button', { name: /сохранить/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^сохранить$/i }));
 
     await waitFor(() => {
       const save = calls.find((call) => call.init?.method === 'POST');

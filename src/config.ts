@@ -7,6 +7,11 @@ export interface AppConfig {
   KEYCLOAK_STAFF_REALM: string;
   KEYCLOAK_STAFF_CLIENT_ID: string;
   WEB_URL: string;
+  /**
+   * Экран выбора кабинета (frontend/entry), единый вход для менеджера
+   * и клиента. Пусто — выход ведёт в корень этого приложения, как раньше.
+   */
+  ENTRY_URL: string;
 }
 
 declare global {
@@ -30,6 +35,7 @@ export function getConfig(): AppConfig {
     KEYCLOAK_STAFF_REALM: pick('KEYCLOAK_STAFF_REALM', build.VITE_KEYCLOAK_STAFF_REALM),
     KEYCLOAK_STAFF_CLIENT_ID: pick('KEYCLOAK_STAFF_CLIENT_ID', build.VITE_KEYCLOAK_STAFF_CLIENT_ID),
     WEB_URL: pick('WEB_URL', build.VITE_WEB_URL),
+    ENTRY_URL: pick('ENTRY_URL', build.VITE_ENTRY_URL),
   };
 
   // Скрипт старта пода переносит сюда любой ключ APP_* из ConfigMap, и опечатка

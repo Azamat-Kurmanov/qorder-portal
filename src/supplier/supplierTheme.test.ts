@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buttonColors, contrastRatio, darkTokens, designCss, supplierTokens, templateRadii, templateTokens } from './supplierTheme';
-import { CABINET_OCCASIONS, motionTemplateOf, resolveDesign } from './cabinetDesign';
+import { CABINET_OCCASIONS, motionTemplateOf, designFor, resolveDesign } from './cabinetDesign';
 
 describe('оформление поставщика в кабинете клиента', () => {
   /** Не выбравший ничего поставщик — оформление платформы, без своей таблицы стилей. */
@@ -299,5 +299,33 @@ describe('ночная кнопка тоже читается', () => {
   it.each(['#F15730', '#FFC629', '#0AE448', '#2E8B57', '#CC5500', '#5433EB', '#0A0A0A'])('%s', (brand) => {
     const tokens = darkTokens(brand, null);
     expect(contrastRatio(tokens['--color-accent'], tokens['--color-on-accent'])).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('тема на телефоне', () => {
+  const shop = {
+    brandColor: '#112233', background: 'SAND',
+    design: { template: 'NIGHT', brandColor: '#aa0000', backdrop: 'AURORA', theme: 'TEMPLATE', published: true, pattern: 'FOOD' },
+  } as never;
+
+  it('на телефоне — обычный вид, но цвет продавца из дизайна остаётся', () => {
+    const phone = designFor(shop, false);
+    expect(phone.template).toBeNull();
+    expect(phone.style).toBeNull();
+    expect(phone.dark).toBe(false);
+    expect(phone.backdrop).toBe('NONE');
+    expect(phone.pattern).toBeNull();
+    expect(phone.photo).toBeNull();
+    expect(phone.layout).toBe('side');
+    expect(phone.brand).toBe('#AA0000');
+  });
+
+  it('на компьютере — тема целиком', () => {
+    expect(designFor(shop, true)).toEqual(resolveDesign(shop));
+  });
+
+  it('без опубликованного дизайна телефон и компьютер не различаются', () => {
+    const plain = { brandColor: '#112233', background: 'SAND' } as never;
+    expect(designFor(plain, false)).toEqual(resolveDesign(plain));
   });
 });

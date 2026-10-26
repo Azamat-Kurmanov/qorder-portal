@@ -47,6 +47,13 @@ describe('строки корзины', () => {
     expect(screen.getByText('Гвозди 100 мм')).toBeInTheDocument();
   });
 
+  it('строка по условию клиента подписана «ваша цена»', async () => {
+    stubFetch([get('/api/portal/cart', { ...cart, lines: [{ ...line('item-1', 'Цемент М400'), yourPrice: true }] })]);
+    renderScreen(<CartLines />);
+
+    expect(await screen.findByText(/ваша цена/)).toBeInTheDocument();
+  });
+
   it('название товара ведёт на его карточку', async () => {
     stubFetch([get('/api/portal/cart', cart)]);
     renderScreen(<CartLines />);

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun } from '../../ui/icons';
 import { chooseTheme, useTheme } from '../../ui/theme';
 import { cn } from '../../ui/cn';
 

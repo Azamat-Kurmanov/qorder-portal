@@ -17,7 +17,7 @@ import { cn } from '../../ui/cn';
 import { compressImage } from '../../api/compressImage';
 import { UploadProgress } from '../../ui/UploadProgress';
 import { Star } from './Stars';
-import { ImagePlus, Link2, X } from 'lucide-react';
+import { ImagePlus, Link2, X } from '../../ui/icons';
 import {
   MAX_REVIEW_PHOTO_MB,
   MAX_REVIEW_PHOTOS,

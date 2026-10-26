@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { rules } from '../../api/rules.generated';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check } from 'lucide-react';
+import { ArrowLeft, Check, PenLine, Phone, Plus } from '../../ui/icons';
 import { useAuth } from '../../auth/useAuth';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -15,6 +15,8 @@ import { CartSavings } from './CartSavings';
 import { AdultNotice } from './AdultNotice';
 import { useCheckout } from './useCheckout';
 import { CheckoutBreakdown, CheckoutTotal } from './CheckoutBreakdown';
+import { VolumeHint } from '../catalog/views/VolumeHint';
+import { useGetPortalPromotions } from '../../api/generated';
 
 /**
  * Оформление — одна страница и ничего лишнего.
@@ -36,6 +38,9 @@ export function CheckoutPage() {
   const { shipping, direct } = checkout.totals;
   /** Расчёт в липкой сводке на телефоне — по нажатию «Подробнее». */
   const [details, setDetails] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const promotionsQuery = useGetPortalPromotions();
+  const promotions = promotionsQuery.data?.status === 200 ? promotionsQuery.data.data : undefined;
 
   if (submitted) {
     return (
@@ -76,42 +81,17 @@ export function CheckoutPage() {
             с «Вернуться к покупкам», а не под заголовком — иначе над ним
             оставалась пустая полоса высотой в шаги и заголовок.
           */}
-          <div className="flex flex-col gap-5 pb-1">
+          {/* Одна строка: «назад» и заголовок — без шагов (макеты «Кабинет клиента 2.0»):
+              всё оформление на одном экране, шаги лишь занимали место. */}
+          <div className="flex items-center gap-3">
             <Link
               to="/catalog"
-              className="inline-flex items-center gap-2 self-start rounded-md text-body font-semibold text-accent-ink hover:underline"
+              aria-label={t('checkout.back')}
+              className="flex size-11 shrink-0 items-center justify-center rounded-[0.875rem] bg-surface text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <ArrowLeft aria-hidden="true" className="size-[18px]" />
-              {t('checkout.back')}
+              <ArrowLeft aria-hidden="true" className="size-5" />
             </Link>
-
-            {/*
-              Шаги — подсказка, где человек находится, а не мастер из трёх экранов:
-              всё оформление помещается на одну страницу, и листать его по шагам
-              значило бы прятать итог.
-            */}
-            <ol aria-label={t('checkout.steps.label')} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-body">
-              <li className="flex items-center gap-2 font-semibold text-in-stock">
-                <span className="flex size-7 items-center justify-center rounded-full bg-in-stock text-white">
-                  <Check aria-hidden="true" className="size-4" strokeWidth={3} />
-                </span>
-                {t('checkout.steps.chosen')}
-              </li>
-              <li aria-hidden="true" className="h-0.5 w-8 rounded bg-line" />
-              <li aria-current="step" className="flex items-center gap-2 font-bold text-ink">
-                <span className="flex size-7 items-center justify-center rounded-full bg-accent text-sm text-on-accent">2</span>
-                {t('checkout.steps.receive')}
-              </li>
-              <li aria-hidden="true" className="h-0.5 w-8 rounded bg-line" />
-              <li className="flex items-center gap-2 font-medium text-ink-muted">
-                <span className="flex size-7 items-center justify-center rounded-full border-[1.5px] border-line text-sm">3</span>
-                {t('checkout.steps.send')}
-              </li>
-            </ol>
-
-            <h1 className="qo-page-title">
-              {t('checkout.title')}
-            </h1>
+            <h1 className="qo-page-title">{t('checkout.title')}</h1>
           </div>
 
           {/* «Не добавлено» — над формой, на любой ширине: молча пропущенная
@@ -139,13 +119,14 @@ export function CheckoutPage() {
           )}
 
           {/*
-            Состав на телефоне — отдельным блоком наверху: сводка там липнет
-            к низу и обязана оставаться низкой, а сверить заказ глазами —
-            по снимкам, а не по одной сумме — нужно и на телефоне.
+            Состав — отдельным блоком наверху, с «− +» у каждой строки, как
+            в макетах корзины (К и ПК-К4): сводка справа остаётся итогом,
+            а на телефоне липнет к низу и обязана быть низкой.
           */}
-          <Card aria-labelledby="checkout-lines-title" role="region" className="flex flex-col gap-2 p-5 lg:hidden">
+          <Card aria-labelledby="checkout-lines-title" role="region" className="flex flex-col gap-2 p-5">
             <h2 id="checkout-lines-title" className="text-xl font-bold text-ink">{t('checkout.linesTitle')}</h2>
-            <CartLines editable={false} withSkipped={false} />
+            {/* Количество правится прямо здесь, как в макете корзины: за «плюсом» не нужно уходить в каталог. */}
+            <CartLines withSkipped={false} />
             <Link to="/catalog" className="self-start text-sm font-semibold text-accent-ink underline underline-offset-[3px]">
               {t('checkout.editGoods')}
             </Link>
@@ -153,35 +134,49 @@ export function CheckoutPage() {
 
           <DeliveryBlock goodsTotal={goodsTotal} value={delivery} onChange={setDelivery} lines={loadersLines} />
 
-          <Card className="flex flex-col gap-3 p-5 lg:p-6">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-xl font-bold text-ink">
-                <label htmlFor="checkout-comment">{t('checkout.comment')}</label>
-              </h2>
-              <span className="text-sm text-ink-subtle">{t('checkout.optional')}</span>
-            </div>
-            <textarea
-              id="checkout-comment"
-              rows={3}
-              value={note}
-              maxLength={rules.SubmitOrderRequest.note.maxLength}
-              onChange={(event) => setNote(event.currentTarget.value)}
-              placeholder={t('checkout.commentPlaceholder')}
-              className={cn(
-                'w-full resize-y rounded-[var(--radius-tile)] border-2 border-line bg-surface p-4',
-                'text-base text-ink placeholder:text-ink-subtle',
-                'transition-all duration-300 focus:border-accent focus:outline-none',
-                'focus:shadow-[0_0_0_4px_var(--color-accent-soft)]',
-              )}
-            />
+          {/* Телефон и пожелание — по строке: пожелание пишут редко, поле раскрывается по нажатию. */}
+          <Card className="flex flex-col divide-y divide-hairline px-5 py-1 lg:px-6">
+            {viewerPhone && (
+              <div className="flex min-h-14 items-center gap-3 py-2">
+                <Phone aria-hidden="true" className="size-5 shrink-0 text-ink-muted" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-[0.8125rem] text-ink-muted">{t('checkout.contact')}</span>
+                  <b className="text-[0.9375rem] font-bold tabular-nums text-ink">{formatPhone(viewerPhone)}</b>
+                </span>
+              </div>
+            )}
+            {noteOpen || note ? (
+              <div className="flex flex-col gap-2 py-3">
+                <label htmlFor="checkout-comment" className="text-[0.9375rem] font-semibold text-ink">
+                  {t('checkout.comment')} <span className="font-normal text-ink-subtle">· {t('checkout.optional')}</span>
+                </label>
+                <textarea
+                  id="checkout-comment"
+                  rows={3}
+                  autoFocus={!note}
+                  value={note}
+                  maxLength={rules.SubmitOrderRequest.note.maxLength}
+                  onChange={(event) => setNote(event.currentTarget.value)}
+                  placeholder={t('checkout.commentPlaceholder')}
+                  className={cn(
+                    'w-full resize-y rounded-[var(--radius-tile)] border-0 bg-sunk p-3.5',
+                    'text-base text-ink placeholder:text-ink-subtle',
+                    'focus:outline-none focus:ring-2 focus:ring-accent',
+                  )}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setNoteOpen(true)}
+                className="flex min-h-14 w-full items-center gap-3 py-2 text-left text-[0.9375rem] font-semibold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+              >
+                <PenLine aria-hidden="true" className="size-5 shrink-0 text-ink-muted" />
+                <span className="flex-1">{t('checkout.comment')}</span>
+                <Plus aria-hidden="true" className="size-5 text-accent-ink" />
+              </button>
+            )}
           </Card>
-
-          {viewerPhone && (
-            <Card className="flex flex-col gap-1.5 p-5 lg:p-6">
-              <h2 className="text-xl font-bold text-ink">{t('checkout.contact')}</h2>
-              <p className="text-[1.375rem] font-bold tabular-nums text-ink">{formatPhone(viewerPhone)}</p>
-            </Card>
-          )}
         </div>
 
         {/*
@@ -204,21 +199,6 @@ export function CheckoutPage() {
           */}
           <h2 className={cn('text-xl font-bold text-ink', !details && 'max-lg:hidden')}>{t('checkout.summary.title')}</h2>
 
-          {/*
-            Количество здесь не правят: заявку на этом экране сверяют, а меняют
-            состав в корзине. Поэтому строка называет «5 мешков × 2 500 тенге» —
-            то, что человек сличает с накладной. На телефоне состав спрятан:
-            сводка там прилипает к низу и обязана оставаться низкой.
-          */}
-          <div className="hidden max-h-[40vh] overflow-y-auto lg:block">
-            <CartLines editable={false} withSkipped={false} />
-          </div>
-          <Link
-            to="/catalog"
-            className="hidden self-start text-sm font-semibold text-accent-ink underline underline-offset-[3px] lg:inline"
-          >
-            {t('checkout.editGoods')}
-          </Link>
 
           <CheckoutBreakdown checkout={checkout} details={details} />
 
@@ -245,19 +225,11 @@ export function CheckoutPage() {
 
           <AdultNotice cart={cart} />
 
-          <div className="hidden flex-col gap-2.5 rounded-[var(--radius-tile)] bg-sunk p-4 lg:flex">
-            <h3 className="text-body font-bold text-ink">{t('checkout.next.title')}</h3>
-            <ol className="flex flex-col gap-2">
-              {(['check', 'change', 'pickup'] as const).map((step, index) => (
-                <li key={step} className="flex gap-2.5 text-sm leading-[1.45] text-ink-muted">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent-ink">
-                    {index + 1}
-                  </span>
-                  {t(`checkout.next.${step}`)}
-                </li>
-              ))}
-            </ol>
-          </div>
+          {/* До оптовой скидки — полосой под кнопкой, на мониторе (макет ПК-К2.4);
+              на телефоне сводка липнет к низу и обязана быть низкой. */}
+          <div className="max-lg:hidden"><VolumeHint data={promotions} compact /></div>
+
+          <p className={cn('text-center text-caption text-ink-muted', !details && 'max-lg:hidden')}>{t('checkout.payLater')}</p>
         </Card>
       </div>
     </div>

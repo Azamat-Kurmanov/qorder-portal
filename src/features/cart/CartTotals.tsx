@@ -51,8 +51,8 @@ export function GoodsLine({ cart, className }: { cart: CartDto; className?: stri
 }
 
 /**
- * «в т.ч. НДС 16%» — налог внутри суммы к оплате за товары, как его напишет
- * счёт. Сумму считает сервер: округление и раскладка скидки по ставкам
+ * НДС товаров, как его напишет счёт: «в т.ч. НДС 16%», когда продавец
+ * считает налог в цене (`vatIncluded`), и «НДС 16%», когда он прибавлен сверху. Сумму считает сервер: округление и раскладка скидки по ставкам
  * должны совпасть со счётом до тиына, а второй расчёт в браузере однажды
  * разошёлся бы с ним. Нет суммы — нет и строки: «НДС 0 тенге» читалось бы
  * как нулевая ставка, а не как «поставщик ставку не ведёт».
@@ -75,7 +75,11 @@ export function VatLine({ cart }: { cart: CartDto }) {
   const rate = commonVatRate(cart);
   return (
     <div className="flex justify-between gap-2 text-body text-ink-muted" data-testid="cart-vat">
-      <span>{rate === undefined ? t('cart.vat') : t('cart.vatRate', { rate: decimal(rate) })}</span>
+      <span>
+        {cart.vatIncluded
+          ? rate === undefined ? t('cart.vatInsideAny') : t('cart.vatInside', { rate: decimal(rate) })
+          : rate === undefined ? t('cart.vat') : t('cart.vatRate', { rate: decimal(rate) })}
+      </span>
       <span className="tabular-nums text-ink">{money(cart.vatAmount, currency)}</span>
     </div>
   );

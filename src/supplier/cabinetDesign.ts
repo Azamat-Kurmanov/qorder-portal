@@ -3,6 +3,7 @@ import registry from './cabinetTemplates.json';
 import { todaysLook } from '../ui/motion/seasonalLook';
 import festive from './cabinetOccasions.json';
 import { useSupplier } from './useSupplier';
+import { useWideScreen } from '../ui/useWideScreen';
 import type { MotionChoice } from '../ui/motion/motionLevel';
 
 /**
@@ -234,6 +235,23 @@ export function resolveDesign(
 }
 
 /**
+ * Дизайн для этой ширины экрана.
+ *
+ * На телефоне тема продавца не действует (решение владельца 2026-10-22):
+ * кабинет такой же, как у продавца без опубликованного дизайна, — без живого
+ * фона, узора, фото и особенностей темы. Цвет продавца остаётся: по нему
+ * покупатель узнаёт свой магазин.
+ */
+export function designFor(
+  supplier: Pick<PortalSupplierDto, 'brandColor' | 'background' | 'design'> | null | undefined,
+  wide: boolean,
+): ResolvedDesign {
+  const full = resolveDesign(supplier);
+  if (wide || !supplier || !full.template) return full;
+  return { ...resolveDesign({ ...supplier, design: undefined }), brand: full.brand };
+}
+
+/**
  * Дизайн открытого поставщика.
  *
  * Список поставщиков берётся из общего кеша, без перезапроса при появлении:
@@ -244,5 +262,5 @@ export function useCabinetDesign(): ResolvedDesign {
   const { supplierId } = useSupplier();
   const suppliers = useGetPortalSuppliers({ query: { refetchOnMount: false, retryOnMount: false } });
   const list = suppliers.data?.status === 200 ? suppliers.data.data : [];
-  return resolveDesign(list.find((supplier) => supplier.supplierId === supplierId));
+  return designFor(list.find((supplier) => supplier.supplierId === supplierId), useWideScreen());
 }

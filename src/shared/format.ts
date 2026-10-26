@@ -1,3 +1,4 @@
+import { formatPhone } from './phone';
 import { intlLocale } from '../i18n';
 import { currencySign, type Currency } from './currency';
 
@@ -49,14 +50,10 @@ export function shortDate(iso: string): string {
  *
  * Хранит и присылает его сервер цифрами подряд, и в таком виде человек
  * не узнаёт собственного номера — а в шапке номер стоит ровно затем, чтобы
- * он себя узнал. Форматируется казахстанская одиннадцатизначная запись; всё
- * остальное возвращается как есть: чужой формат, разбитый по чужим правилам,
- * читается хуже неразбитого.
+ * он себя узнал. Казахстанская запись разбивается по разрядам, у номера
+ * другой страны отделяется только код (`shared/phone.ts`): чужой формат,
+ * разбитый по чужим правилам, читается хуже неразбитого.
  */
 export function phone(value: string): string {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length !== 11 || !digits.startsWith('7')) return value;
-
-  const [, code, first, second, third] = /^7(\d{3})(\d{3})(\d{2})(\d{2})$/.exec(digits) ?? [];
-  return code ? `+7 ${code} ${first} ${second} ${third}` : value;
+  return formatPhone(value);
 }

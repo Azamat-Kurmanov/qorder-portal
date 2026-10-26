@@ -148,6 +148,12 @@ describe('карточка товара', () => {
     }
   });
 
+  it('под названием — артикул цвета; без артикула строки нет', async () => {
+    stubFetch(cardRules({ ...CARD, article: 'TS-BLK' }));
+    renderCard();
+    expect(await screen.findByText('Арт. TS-BLK')).toBeInTheDocument();
+  });
+
   it('показывает характеристики рубрики выше прочих свойств', async () => {
     stubFetch(cardRules({
       ...CARD,
@@ -481,7 +487,9 @@ describe('карточка товара', () => {
     const again = await screen.findByRole('dialog', { name: 'Как подобрать размер' });
     await userEvent.click(within(again).getByRole('button', { name: 'Спросить продавца' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(await screen.findByLabelText('Вопрос')).toBeInTheDocument();
+    // Окно закрылось — курсор сразу в поле вопроса, а не на ссылке «Как подобрать размер».
+    const question = await screen.findByLabelText('Вопрос');
+    await waitFor(() => expect(question).toHaveFocus());
   });
 
   /**
@@ -974,5 +982,37 @@ describe('свой отзыв в карточке по состоянию мод
     expect(screen.getByText('Спасибо за отзыв!')).toBeInTheDocument();
     expect(screen.getByText(/Он уже в списке/)).toBeInTheDocument();
     expect(screen.queryByText('Продавец не опубликовал отзыв')).not.toBeInTheDocument();
+  });
+});
+
+/** Условия получения — двумя карточками, как в макете ПК-К3, из настоящих условий магазина. */
+describe('доставка и самовывоз в карточке товара', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('доставка называет порог бесплатной, самовывоз — точку и часы', async () => {
+    stubFetch([
+      get('/api/portal/delivery', {
+        mode: 'ENABLED',
+        methods: [{ id: 'm1', name: 'До двери', pickup: false, requiresAddress: true, requiresFloor: false,
+          requiresTimeSlot: false, price: 1500, freeFromAmount: 50000, negotiable: false, zones: [], slots: [], carriers: [] }],
+        pickupPoints: [{ id: 'p1', name: 'Склад', address: 'ул. Рыскулова 101', workingHours: 'до 18:00' }],
+      }),
+      ...cardRules(),
+    ]);
+    renderCard();
+
+    expect(await screen.findByTestId('deal-delivery')).toHaveTextContent('Доставкабесплатно от 50 000 ₸');
+    expect(screen.getByTestId('deal-pickup')).toHaveTextContent('ул. Рыскулова 101 · до 18:00');
+  });
+
+  it('продавец не возит — карточки доставки нет', async () => {
+    stubFetch([
+      get('/api/portal/delivery', { mode: 'PICKUP_ONLY', methods: [], pickupPoints: [] }),
+      ...cardRules(),
+    ]);
+    renderCard();
+
+    await screen.findByRole('heading', { level: 1, name: 'Цемент М400' });
+    expect(screen.queryByTestId('deal-delivery')).not.toBeInTheDocument();
   });
 });

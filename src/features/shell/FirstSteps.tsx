@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { Check, ClipboardList, Send, ShoppingCart, X, type LucideIcon } from 'lucide-react';
+import { Check, ClipboardList, Send, ShoppingCart, X, type IconComponent } from '../../ui/icons';
 import { useGetMyPortalOrders } from '../../api/generated';
 import { cartOf, useCart } from '../cart/useCart';
 import { cn } from '../../ui/cn';
@@ -22,7 +22,7 @@ const WAITING = new Set(['SUBMITTED', 'IN_REVIEW']);
 
 interface Step {
   key: 'cart' | 'send' | 'answer';
-  icon: LucideIcon;
+  icon: IconComponent;
   href: string;
   done: boolean;
 }

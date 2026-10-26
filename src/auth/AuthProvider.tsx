@@ -3,6 +3,10 @@ import type { User } from 'oidc-client-ts';
 import { AuthContext, type AuthContextValue } from './AuthContext';
 import { CALLBACK_PATH, DEFAULT_RETURN_TO, getUserManager } from './oidcConfig';
 import { isSessionRejected, setSession, subscribeSessionRejected } from './session';
+import { lastLogin, persistSession, restoreSession } from './appSession';
+import { currentLanguage } from '../i18n';
+import { forgetRegisteredDevice } from '../shared/webview/push';
+import { isAvailable } from '../shared/webview/bridge';
 
 /** Переход на Keycloak уже запрошен и ещё не начался — общий на вкладку, а не на компонент. */
 let redirecting = false;
@@ -53,6 +57,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * RequireAuth успеет запросить новый вход и получится круг редиректов.
    */
   const [sessionRejected, setSessionRejected] = useState(isSessionRejected);
+  /** В приложении сначала поднимается сохранённая сессия (appSession.ts). */
+  const [restoring, setRestoring] = useState(isAvailable);
+  // Выход начат: см. AuthContextValue.signingOut.
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => subscribeSessionRejected(() => setSessionRejected(true)), []);
 
@@ -62,7 +70,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (active) setUser(stored);
     });
 
-    const handleLoaded = (loaded: User) => setUser(loaded);
+    // Каждая новая сессия уходит в хранилище приложения; в браузере — ничего.
+    const handleLoaded = (loaded: User) => {
+      setUser(loaded);
+      persistSession(loaded);
+    };
     const handleUnloaded = () => setUser(null);
     userManager.events.addUserLoaded(handleLoaded);
     userManager.events.addUserUnloaded(handleUnloaded);
@@ -79,12 +91,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * нетронутым: клиент, открывший ссылку активации или конкретный экран,
    * после входа обязан попасть туда же, а не в каталог.
    */
+  useEffect(() => {
+    if (!restoring) return;
+    void restoreSession(userManager).finally(() => setRestoring(false));
+    // Один раз на старте: повторять восстановление после входа незачем.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userManager]);
+
   const login = useCallback(() => {
     const path = window.location.pathname;
     const returnTo = path === CALLBACK_PATH
       ? DEFAULT_RETURN_TO
       : `${path}${window.location.search}`;
-    startRedirect(() => userManager.signinRedirect({ state: { returnTo } }));
+    startRedirect(async () =>
+      userManager.signinRedirect({
+        state: { returnTo },
+        login_hint: await lastLogin(),
+        // Форма входа — на языке кабинета, а не на языке телефона.
+        ui_locales: currentLanguage(),
+      }),
+    );
   }, [userManager]);
 
   /**
@@ -93,19 +119,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * на потом, не случится никогда.
    */
   const logout = useCallback(() => {
+    // Отзыв токена снимает пользователя раньше, чем браузер уйдёт на
+    // Keycloak; без признака RequireAuth успевал запустить вход.
+    setSigningOut(true);
+    // Приложение забывает сессию сразу: следующий запуск — снова пароль.
+    persistSession(null);
+    // Телефон, с которого вышли, push этого человека больше не показывает.
+    forgetRegisteredDevice();
     void userManager
       .revokeTokens(['refresh_token'])
       .catch(() => undefined)
       .finally(() => {
-        void userManager.signoutRedirect();
+        userManager.signoutRedirect().catch((error: unknown) => {
+          // Уйти не удалось (Keycloak недоступен) — возвращаем обычное
+          // поведение, иначе кнопка «Выйти» молча перестала бы работать.
+          setSigningOut(false);
+          console.error('Keycloak signout failed', error);
+        });
       });
   }, [userManager]);
 
   const token = user?.access_token ?? null;
   // Номер берётся из разобранного профиля токена, а не разбирается здесь
-  // заново: oidc-client-ts уже проверил подпись и срок.
+  // заново: oidc-client-ts уже проверил подпись и срок. Логин — «+7…»,
+  // номер везде в портале — цифрами.
   const phone = typeof user?.profile.preferred_username === 'string'
-    ? user.profile.preferred_username
+    ? user.profile.preferred_username.replace(/^\+/, '')
     : null;
 
   // Токен уезжает в мутатор запросов при каждой смене сессии: он читает его
@@ -113,8 +152,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => setSession(token, login), [token, login]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ authenticated: token !== null, token, phone, sessionRejected, login, logout }),
-    [token, phone, sessionRejected, login, logout],
+    () => ({ authenticated: token !== null, token, phone, sessionRejected, restoring, signingOut, login, logout }),
+    [token, phone, sessionRejected, restoring, signingOut, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

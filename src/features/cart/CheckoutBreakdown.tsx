@@ -61,8 +61,9 @@ export function CheckoutTotal({ checkout, details, onToggle }: { checkout: Check
   const { shipping, direct, loaders, total } = checkout.totals;
   return (
     <>
+      {/* Сумма — одной строкой: знак валюты, ушедший на вторую, читается как другое число. */}
       <div className="flex items-baseline justify-between gap-2">
-        <span className="flex items-baseline gap-3">
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-3">
           <span className="text-lg font-bold text-ink">{t('checkout.summary.toPay')}</span>
           {onToggle && (
             <button
@@ -76,7 +77,7 @@ export function CheckoutTotal({ checkout, details, onToggle }: { checkout: Check
             </button>
           )}
         </span>
-        <span data-testid="total" className="text-[1.75rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink">
+        <span data-testid="total" className="whitespace-nowrap text-[1.375rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink sm:text-[1.75rem]">
           {money(total, currency)}
         </span>
       </div>

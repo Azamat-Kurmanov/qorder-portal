@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { MailPlus } from 'lucide-react';
+import { MailPlus } from '../../ui/icons';
 import {
   getGetPortalPendingInvitationsQueryKey,
   getGetPortalSuppliersQueryKey,

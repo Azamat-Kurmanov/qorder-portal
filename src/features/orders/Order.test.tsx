@@ -48,11 +48,24 @@ describe('заявка на пересогласовании', () => {
     // Полное совпадение, а не вхождение: те же слова стоят в заголовке
     // предупреждения о правках, и вхождение нашло бы оба.
     expect(screen.getByText('Поставщик предлагает')).toBeInTheDocument();
-    expect(within(screen.getByTestId('submitted')).getByText('12 500 ₸')).toBeInTheDocument();
-    expect(within(screen.getByTestId('proposed')).getByText('13 500 ₸')).toBeInTheDocument();
+    expect(within(screen.getByTestId('submitted')).getAllByText('12 500 ₸')).not.toHaveLength(0);
+    expect(within(screen.getByTestId('proposed')).getAllByText('13 500 ₸')).not.toHaveLength(0);
     expect(screen.getByTestId('diff')).toHaveTextContent('цена 2 500 ₸ → 2 700 ₸');
     // Количество с единицей читается по-русски: «5 мешков», а не «5 мешок».
     expect(screen.getByTestId('submitted')).toHaveTextContent('5 мешков');
+  });
+
+  it('позиция, которую продавец ждёт к дате, помечена «будет …»', async () => {
+    stubFetch([get('/api/portal/orders/order-1', {
+      ...renegotiated,
+      proposed: [{ name: 'Цемент М400', quantity: 5, unit: 'мешок', price: 2700, amount: 13500, expectedOn: '2026-10-27' }],
+    })]);
+
+    openOrder();
+
+    expect(await within(await screen.findByTestId('proposed')).findByTestId('order-line-expected'))
+      .toHaveTextContent('будет 27 октября');
+    expect(within(screen.getByTestId('submitted')).queryByTestId('order-line-expected')).toBeNull();
   });
 
   it('карточка заявки — в валюте заявки, а не открытого магазина', async () => {
@@ -61,8 +74,8 @@ describe('заявка на пересогласовании', () => {
     openOrder('USD');
 
     expect(await screen.findByTestId('diff')).toHaveTextContent('цена 2 500 € → 2 700 €');
-    expect(within(screen.getByTestId('submitted')).getByText('12 500 €')).toBeInTheDocument();
-    expect(within(screen.getByTestId('proposed')).getByText('13 500 €')).toBeInTheDocument();
+    expect(within(screen.getByTestId('submitted')).getAllByText('12 500 €')).not.toHaveLength(0);
+    expect(within(screen.getByTestId('proposed')).getAllByText('13 500 €')).not.toHaveLength(0);
     expect(document.body.textContent).not.toContain('$');
   });
 
@@ -279,5 +292,22 @@ describe('итог заявки на её странице', () => {
     expect(within(proposed).queryByTestId('order-delivery')).not.toBeInTheDocument();
     expect(within(proposed).getByTestId('order-total')).toHaveTextContent(/13\s500\s₸/);
     expect(within(screen.getByTestId('submitted')).getByTestId('order-delivery')).toHaveTextContent(/0\s₸/);
+  });
+});
+
+describe('где забрать', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('у самовывоза — пункт с адресом, часами и картой', async () => {
+    stubFetch([get('/api/portal/orders/order-1', {
+      ...renegotiated, state: 'READY', needsAnswer: false, proposed: undefined, diff: [], pickup: true, pickupCode: '4821',
+      pickupPoint: { name: 'Склад', address: 'Барахолка «Кенжехан-2», ряд 4', workingHours: '7:00–17:00' },
+    })]);
+    openOrder();
+
+    const point = await screen.findByTestId('order-pickup-point');
+    expect(point).toHaveTextContent('Склад');
+    expect(point).toHaveTextContent('Барахолка «Кенжехан-2», ряд 4 · 7:00–17:00');
+    expect(within(point).getByRole('button', { name: 'Склад — открыть карту' })).toBeInTheDocument();
   });
 });

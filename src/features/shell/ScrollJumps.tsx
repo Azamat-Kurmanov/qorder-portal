@@ -1,6 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDown, ArrowUp } from 'lucide-react';
+import { ArrowDown, ArrowUp } from '../../ui/icons';
 import { cn } from '../../ui/cn';
 
 /** Сколько точек нужно отлистать от края, чтобы стрелка к нему появилась. */
@@ -48,15 +48,18 @@ export function ScrollJumps({ content }: { content: RefObject<HTMLElement | null
     <>
       {far.bottom ? (
         <button type="button" aria-label={t('shell.scrollDown')} title={t('shell.scrollDown')}
-          className={cn(ROUND, 'top-[calc(var(--header-h)+0.75rem)]')}
+          // Только на мониторе: на телефоне под шапкой стоят кнопки экрана
+          // («Назад», избранное), и стрелка ложилась бы на них.
+          className={cn(ROUND, 'top-[calc(var(--header-h)+0.75rem)] max-lg:hidden')}
           onClick={() => jump(document.documentElement.scrollHeight)}>
           <ArrowDown aria-hidden="true" className="size-6" />
         </button>
       ) : null}
       {far.top ? (
         <button type="button" aria-label={t('shell.scrollUp')} title={t('shell.scrollUp')}
-          // На телефоне — над нижним меню, как подсказки оболочки.
-          className={cn(ROUND, 'bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-8')}
+          // На телефоне — над нижним меню, как подсказки оболочки, а при корзине — над ней (`CartBar`).
+          // Панель покупки карточки на телефоне занимает это место — стрелка уступает.
+          className={cn(ROUND, '[body:has([data-purchase-bar])_&]:max-lg:hidden bottom-[calc(6rem+env(safe-area-inset-bottom))] [body:has([data-cart-bar])_&]:bottom-[calc(9.25rem+env(safe-area-inset-bottom))] lg:bottom-8 lg:[body:has([data-cart-bar])_&]:bottom-8')}
           onClick={() => jump(0)}>
           <ArrowUp aria-hidden="true" className="size-6" />
         </button>

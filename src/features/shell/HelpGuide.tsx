@@ -26,8 +26,8 @@ import {
   Truck,
   Wallet,
   Zap,
-  type LucideIcon,
-} from 'lucide-react';
+  type IconComponent,
+} from '../../ui/icons';
 import { Sheet } from '../../ui/Sheet';
 import { cn } from '../../ui/cn';
 
@@ -62,7 +62,7 @@ function screenOf(pathname: string): GuideScreen | null {
  * служебные метки пришлось бы помнить при каждой правке экрана.
  */
 interface GuideStep {
-  icon: LucideIcon;
+  icon: IconComponent;
   target?: string;
 }
 

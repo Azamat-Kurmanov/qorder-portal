@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, MapPin } from 'lucide-react';
+import { Check, ChevronDown, MapPin } from '../../../ui/icons';
 import { useGetPortalDeliveryOptions } from '../../../api/generated';
 import { refetchStockViews, usePickupPoint } from '../../../supplier/pickupPoint';
 import { cn } from '../../../ui/cn';
+import { MapViewButton } from '../../maps/MapViewButton';
 
 /**
  * «Заберу в: …» — точка самовывоза, по складу которой витрина и корзина считают наличие.
  * Из одной точки выбирать нечего — тогда выбора нет. Устройство меню — как у выбора языка.
  */
-export function PickupPointPicker({ ready, className }: {
+export function PickupPointPicker({ ready, className, withMap = false }: {
   ready: boolean;
+  /** Под выбранной точкой — полоса карты с её адресом (лист «Ещё» на телефоне). */
+  withMap?: boolean;
   /** Вид кнопки под соседей в шапке (например, белым по фирменной полосе на телефоне). */
   className?: string;
 }) {
@@ -66,7 +69,7 @@ export function PickupPointPicker({ ready, className }: {
   );
 
   return (
-    <div ref={holder} className="relative">
+    <div ref={holder} className={cn('relative', withMap && 'flex w-full flex-col gap-2')}>
       <button
         ref={trigger}
         type="button"
@@ -88,12 +91,18 @@ export function PickupPointPicker({ ready, className }: {
         <ChevronDown aria-hidden="true" className={cn('size-3 shrink-0 transition-transform duration-200', opened && 'rotate-180')} strokeWidth={2.2} />
       </button>
 
+      {withMap && chosen ? (
+        <MapViewButton title={chosen.name} address={chosen.address}
+          point={chosen.latitude != null && chosen.longitude != null ? { latitude: chosen.latitude, longitude: chosen.longitude } : null} />
+      ) : null}
+
       {opened && (
         <div
           role="menu"
           aria-label={t('pickupPoint.title')}
           className={cn(
-            'absolute right-0 top-full z-30 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-0.5',
+            // На телефоне кнопка стоит слева в листе «Ещё» — меню раскрывается вправо, иначе уходит за край экрана.
+            'absolute left-0 top-11 z-30 mt-1 flex w-72 max-w-[calc(100vw-2rem)] flex-col gap-0.5 lg:left-auto lg:right-0',
             'rounded-[var(--radius-tile)] border border-hairline bg-surface p-1.5 shadow-float',
           )}
         >

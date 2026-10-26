@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { User } from 'lucide-react';
+import { User } from '../../ui/icons';
 import { useGetPortalProfile } from '../../api/generated';
 import { useAuth } from '../../auth/useAuth';
 import { phone as formatPhone } from '../../shared/format';
@@ -14,7 +14,7 @@ import { cn } from '../../ui/cn';
  * с небуквенным началом («ТОО», кавычки, дефисы) отсеиваются: кавычка
  * на кружке выглядит опечаткой, а не знаком.
  */
-function initialsOf(name: string): string {
+export function initialsOf(name: string): string {
   return name
     .split(/\s+/)
     .map((word) => word.replace(/[^\p{L}\p{N}]/gu, ''))

@@ -812,3 +812,25 @@ html[data-theme='dark'] body::before {
   outline-offset: 3px;
   animation: qo-help-spot 1s ease-in-out 3;
 }
+
+/*
+ * «Новые поступления»: пока о поставке есть непрочитанное уведомление, пункт
+ * меню зовёт — значок мягко пульсирует, подпись цветом акцента. Значок рисуют
+ * все раскладки меню, поэтому подпись находится через :has(), а не правкой
+ * каждой раскладки.
+ */
+@keyframes qo-arrivals-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.18); opacity: 0.75; }
+}
+.qo-arrivals-hot {
+  color: var(--color-accent);
+  animation: qo-arrivals-pulse 1.6s ease-in-out infinite;
+}
+:is(a, button):has(> .qo-arrivals-hot) {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) {
+  .qo-arrivals-hot { animation: none; }
+}

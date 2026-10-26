@@ -1,3 +1,4 @@
+import { SectionHead } from '../shell/SectionHead';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -72,19 +73,15 @@ export function FavoritesPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-28">
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <h1 className="qo-page-title">{t('favorites.title')}</h1>
-          {items.length > 0 && (
-            // «Отложено вами» — про то, что список личный: он ничего не сообщил
-            // продавцу и ни к чему не обязывает.
-            <p className="text-caption text-ink-subtle">
-              {items.length} {t('common.positions', { count: items.length })}
-              {' · '}
-              {t('favorites.setAside')}
-            </p>
-          )}
-        </div>
+      <div className="flex items-start justify-between gap-3">
+        {/*
+          Как в макете: «Избранное · 4», «Назад» в «Ещё» на телефоне. «Отложено
+          вами» — про то, что список личный: он ничего не сообщил продавцу.
+        */}
+        <SectionHead
+          title={<>{t('favorites.title')}{items.length > 0 && <span className="font-bold text-ink-muted"> · {items.length}</span>}</>}
+          subtitle={items.length > 0 ? t('favorites.setAside') : undefined}
+        />
 
         {items.length > 0 && (
           <button
@@ -107,7 +104,22 @@ export function FavoritesPage() {
             {t('favorites.clear')}
           </button>
         )}
-      </header>
+      </div>
+
+      {available.length > 0 && (
+        // Главное действие — сразу под заголовком, как в макете: за ним сюда и приходят.
+        // «Доступное», а не «всё»: снятое с витрины в заявку не уедет, и обещать
+        // обратное значило бы удивить клиента списком пропущенного.
+        // Мягкой кнопкой цвета магазина, а не чёрной плашкой во всю ширину: спокойнее (макеты «Кабинет клиента 2.0»).
+        <Button
+          size="lg"
+          className="w-full bg-accent-soft text-accent-ink shadow-none hover:bg-accent-soft hover:shadow-none"
+          disabled={toCart.isPending}
+          onClick={() => toCart.mutate()}
+        >
+          {t('favorites.addAvailable')}
+        </Button>
+      )}
 
       {skipped.length > 0 && (
         <Card data-testid="skipped-notice" className="flex flex-col gap-1 p-4">
@@ -140,19 +152,6 @@ export function FavoritesPage() {
             ))}
           </ul>
         </Card>
-      )}
-
-      {available.length > 0 && (
-        // «Доступное», а не «всё»: снятое с витрины в заявку не уедет, и обещать
-        // обратное значило бы удивить клиента списком пропущенного.
-        <Button
-          size="lg"
-          className="w-full"
-          disabled={toCart.isPending}
-          onClick={() => toCart.mutate()}
-        >
-          {t('favorites.addAvailable')}
-        </Button>
       )}
 
       <CartBar />
@@ -209,17 +208,15 @@ function FavoriteRow({ item }: { item: FavoriteItemDto }) {
           // возвращения бессмысленно и пора искать замену.
           <p className="text-[0.75rem] text-gone">{t('favorites.gone')}</p>
         )}
+        {/* Количество — под ценой, а не сбоку: сбоку оно сжимало имя в столбик в два слова. */}
+        {item.available && item.unit && <QuantityField itemId={item.itemId} unit={item.unit} className="mt-1 w-full max-w-[14rem]" />}
       </div>
 
       {/*
-        Сердечко над количеством, а не рядом: снять отметку и набрать количество —
-        разные намерения, и соседние цели в один ряд на телефоне промахиваются
-        одна в другую.
+        Сердечко — отдельно от количества: снять отметку и набрать количество —
+        разные намерения, и соседние цели на телефоне промахиваются одна в другую.
       */}
-      <div className="flex shrink-0 flex-col items-end gap-2">
-        <FavoriteButton itemId={item.itemId} favorite />
-        {item.available && item.unit && <QuantityField itemId={item.itemId} unit={item.unit} />}
-      </div>
+      <FavoriteButton itemId={item.itemId} favorite className="shrink-0" />
     </div>
   );
 }

@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MyOrdersPage } from './MyOrdersPage';
 import { renderScreen } from '../../test/render';
+import { stubWideScreen } from '../../test/wideScreen';
 import { get, method, stubFetch } from '../../test/http';
 import type { Currency } from '../../shared/currency';
+import { setCurrentSupplierId } from '../../supplier/supplier';
 
 const order = (overrides: Record<string, unknown> = {}) => ({
   id: 'order-1',
@@ -76,6 +78,13 @@ const fresh = [
   { id: 'n-ready', draftId: 'order-ready', kind: 'ACCEPTED', createdAt: '2026-09-06T09:30:00Z' },
 ];
 
+/**
+ * Раскрываемые карточки остались у магазина с шаблоном на мониторе; телефон
+ * показывает короткие строки, монитор без шаблона — список и панель. Тесты
+ * карточек открывают список именно так.
+ */
+let cards = true;
+
 function openOrders(
   orders: unknown[] = wholeList,
   extra: ReturnType<typeof method>[] = [],
@@ -83,10 +92,16 @@ function openOrders(
   shopCurrency?: Currency | null,
 ) {
   // Точные адреса выше общего списка: совпадение идёт по вхождению подстроки.
+  if (cards) {
+    stubWideScreen();
+    setCurrentSupplierId('supplier-1');
+  }
   const stub = stubFetch([
     ...extra,
     get('/api/portal/notifications', notifications),
     get('/api/portal/orders', orders),
+    ...(cards ? [get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Магазин', currency: 'KZT',
+      design: { template: 'NEON', theme: 'TEMPLATE', published: true } }])] : []),
   ]);
   renderScreen(<MyOrdersPage />, shopCurrency === undefined ? {} : { currency: shopCurrency });
   return stub;
@@ -241,7 +256,11 @@ describe('мои заявки', () => {
       },
       get('/api/portal/notifications', fresh),
       { match: (url, init) => url.includes('/api/portal/orders') && (init?.method ?? 'GET') === 'GET', get body() { return list; } },
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Магазин', currency: 'KZT',
+        design: { template: 'NEON', theme: 'TEMPLATE', published: true } }]),
     ]);
+    stubWideScreen();
+    setCurrentSupplierId('supplier-1');
     renderScreen(<MyOrdersPage />);
 
     await userEvent.click(await screen.findByRole('button', { name: /согласен с изменениями в заявке от 4 сентября/i }));
@@ -400,7 +419,8 @@ describe('мои заявки', () => {
   });
 
   describe('этапы заявки, подсказка о статусах и звонок продавцу', () => {
-    const shop = (phone?: string) => get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'ИП «Мухамедиева»', phone }]);
+    const shop = (phone?: string) => get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'ИП «Мухамедиева»', phone,
+      currency: 'KZT', design: { template: 'NEON', theme: 'TEMPLATE', published: true } }]);
 
     it('у идущей заявки шкала из четырёх этапов и отмечено, где она сейчас', async () => {
       openOrders([atSupplier]);
@@ -647,5 +667,41 @@ describe('итог заявки в списке', () => {
 
     expect(within(totals).queryByTestId('order-discount')).not.toBeInTheDocument();
     expect(within(totals).getByTestId('order-total')).toHaveTextContent(/61\s500\s₸/);
+  });
+});
+
+/** Монитор без шаблона — макет ПК-К5: список слева, выбранная заявка справа. */
+describe('мои заявки на мониторе', () => {
+  beforeEach(() => { cards = false; });
+  afterEach(() => { vi.unstubAllGlobals(); cards = true; });
+
+  it('справа открыта первая заявка, нажатие в списке открывает другую', async () => {
+    stubWideScreen();
+    openOrders();
+
+    const pane = await screen.findByTestId('order-pane');
+    const first = screen.getAllByTestId('order-row')[0];
+    expect(first).toHaveAttribute('aria-pressed', 'true');
+    expect(pane).toHaveAccessibleName(/^Заявка №\d+$/);
+
+    await userEvent.click(screen.getByRole('button', { name: /^Заявка №1039/ }));
+    expect(await screen.findByRole('article', { name: 'Заявка №1039' })).toHaveTextContent('Товар снят с производства');
+    expect(screen.getByRole('button', { name: /^Заявка №1039/ })).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('мои заявки на телефоне', () => {
+  beforeEach(() => { cards = false; });
+  afterEach(() => { vi.unstubAllGlobals(); cards = true; });
+
+  it('короткие строки: «Ждут вас» отдельно, строка ведёт на экран заявки', async () => {
+    openOrders();
+
+    const waiting = await screen.findByRole('region', { name: 'Ждут вас' });
+    const rows = within(waiting).getAllByTestId('order-row');
+    expect(rows.map((row) => row.getAttribute('href'))).toEqual(expect.arrayContaining(['/orders/order-need', '/orders/order-ready']));
+    expect(within(screen.getByRole('region', { name: 'Остальные' })).getAllByTestId('order-row')).toHaveLength(3);
+    // Раскрывать в списке нечего — всё на экране заявки.
+    expect(screen.queryByRole('button', { name: /^Подробнее о заявке/ })).toBeNull();
   });
 });

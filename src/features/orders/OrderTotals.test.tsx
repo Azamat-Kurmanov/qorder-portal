@@ -25,4 +25,13 @@ describe('итог заявки с грузчиками', () => {
     expect(screen.queryByTestId('order-loaders')).not.toBeInTheDocument();
     expect(screen.queryByTestId('order-loaders-direct')).not.toBeInTheDocument();
   });
+
+  it('НДС в цене товаров — «в т.ч. НДС», иначе — «НДС»', () => {
+    const { unmount } = render(<OrderTotals currency="KZT" total={135000} breakdown={{ goodsTotal: 135000, vatAmount: 18620.69, goodsVatMode: 'INCLUDED' }} />);
+    expect(screen.getByTestId('order-vat')).toHaveTextContent(/в т\.ч\. НДС/);
+    unmount();
+
+    render(<OrderTotals currency="KZT" total={156600} breakdown={{ goodsTotal: 135000, vatAmount: 21600, goodsVatMode: 'ON_TOP' }} />);
+    expect(screen.getByTestId('order-vat')).not.toHaveTextContent('в т.ч.');
+  });
 });

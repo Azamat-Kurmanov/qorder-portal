@@ -156,7 +156,7 @@ export async function customer(t: Tenant): Promise<Customer> {
   const code = new URL(invitation.activationLink).searchParams.get('code');
   const anonymous = await request.newContext({ baseURL: API_URL });
   await json(await anonymous.post('/api/portal/invitation/activate', {
-    data: { code, consentVersion: process.env.E2E_CONSENT_VERSION ?? '2026-09-10', password: NEW_PASSWORD },
+    data: { code, consentVersion: process.env.E2E_CONSENT_VERSION ?? '2026-10-14', password: NEW_PASSWORD },
   }), 'активация');
   await anonymous.dispose();
   return { phone, password: NEW_PASSWORD };

@@ -9,9 +9,10 @@ data:
   APP_API_URL: ""
   NGINX_API_UPSTREAM: "http://qorder.qorder-test.svc.cluster.local:5000"
   NGINX_API_DOCS: "on"   # контракт для npm run api:pull — только на TEST (SEC-01)
-  APP_KEYCLOAK_URL: "https://auth-test.q-order.kz"
+  APP_KEYCLOAK_URL: "http://auth-test.q-order.kz"
   APP_KEYCLOAK_REALM: "q-order-customers"
   APP_KEYCLOAK_CLIENT_ID: "q-order-portal"
   APP_KEYCLOAK_STAFF_REALM: "q-order"
   APP_KEYCLOAK_STAFF_CLIENT_ID: "q-order-portal-staff"
-  APP_WEB_URL: "https://app-test.q-order.kz"
+  APP_WEB_URL: "http://app-test.q-order.kz"
+  APP_ENTRY_URL: "http://test.q-order.kz"

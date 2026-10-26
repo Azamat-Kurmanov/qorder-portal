@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { stubWideScreen } from '../../test/wideScreen';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
@@ -33,11 +34,12 @@ function rules(banners: unknown[], dealCount = 3) {
   ];
 }
 
-/** Витрина при уровне движения оболочки; вне оболочки он «спокойно», и слайды стоят. */
-function renderCatalog(level: MotionLevel = 'lively') {
+/** Каталог при уровне движения оболочки; вне оболочки он «спокойно», и слайды стоят. */
+function renderShowcase(level: MotionLevel = 'lively') {
   return renderScreen(
     <MotionLevelContext.Provider value={level}>
     <Routes>
+      {/* Баннеры — в начале каталога (макеты «Кабинет клиента 2.0»). */}
       <Route path="/" element={<CatalogPage />} />
       <Route path="/catalog" element={<CatalogPage />} />
       <Route path="/catalog/:itemId" element={<h1>Карточка позиции</h1>} />
@@ -58,10 +60,12 @@ function themed(template: string, banners: unknown[]) {
 
 describe('баннеры в одежде темы', () => {
   afterEach(() => vi.unstubAllGlobals());
+  // Тема продавца действует только на компьютере.
+  beforeEach(stubWideScreen);
 
   it('слайды продавца с темой «Неон» — в неоновой одежде', async () => {
     stubFetch(themed('NEON', [SALE, BULK]));
-    renderCatalog();
+    renderShowcase();
     const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
     const skins = [...carousel.querySelectorAll('.qo-banner')].map((node) => node.getAttribute('data-skin'));
     expect(skins).toEqual(['neon', 'neon']);
@@ -73,7 +77,7 @@ describe('баннеры в одежде темы', () => {
         design: { template: 'NEON', theme: 'TEMPLATE', published: true, slideTransition: 'CIRCLE' } }]),
       ...rules([SALE, BULK]),
     ]);
-    renderCatalog();
+    renderShowcase();
     const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
     const slides = carousel.querySelectorAll('[data-skin-slide]');
     expect([...slides].map((node) => node.getAttribute('data-slide-fx'))).toEqual(['circle', 'circle']);
@@ -81,14 +85,14 @@ describe('баннеры в одежде темы', () => {
 
   it('без выбранного перехода атрибута нет — работает переход одежды', async () => {
     stubFetch(themed('NEON', [SALE, BULK]));
-    renderCatalog();
+    renderShowcase();
     const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
     expect(carousel.querySelector('[data-slide-fx]')).toBeNull();
   });
 
   it('«спокойно» — показ слайдов стоит с самого начала', async () => {
     stubFetch(themed('NEON', [SALE, BULK]));
-    renderCatalog('calm');
+    renderShowcase('calm');
     await screen.findByRole('region', { name: 'Акции магазина' });
     // У темы кнопки показа — под баннером, вне его области.
     expect(screen.getByRole('button', { name: 'Включить показ слайдов' })).toBeInTheDocument();
@@ -96,13 +100,15 @@ describe('баннеры в одежде темы', () => {
 
   it('без темы — слайды без одежды, как прежде', async () => {
     stubFetch(rules([SALE, BULK]));
-    renderCatalog();
+    renderShowcase();
     const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
     expect(carousel.querySelector('.qo-banner[data-skin]')).toBeNull();
   });
 });
 
 describe('баннеры на витрине', () => {
+  // Баннеры каталога — на мониторе; на телефоне они на витрине (`/home`).
+  beforeEach(stubWideScreen);
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -111,7 +117,7 @@ describe('баннеры на витрине', () => {
   it('показывает слайды магазина по одному, с точками и паузой', async () => {
     stubFetch(rules([SALE, BULK]));
     // «Спокойно»: слайды стоят и скидка видна сразу — под нагрузкой автопрокрутка «живо» успевала сменить слайд.
-    renderCatalog('calm');
+    renderShowcase('calm');
 
     const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
     const first = within(carousel).getByRole('group', { name: '1 из 2: Осенняя распродажа' });
@@ -131,7 +137,7 @@ describe('баннеры на витрине', () => {
 
   it('кнопка слайда ведёт в карточку товара', async () => {
     stubFetch(rules([SALE]));
-    renderCatalog();
+    renderShowcase();
 
     await userEvent.click(await screen.findByRole('button', { name: /Смотреть товары/ }));
     expect(await screen.findByRole('heading', { name: 'Карточка позиции' })).toBeInTheDocument();
@@ -143,7 +149,7 @@ describe('баннеры на витрине', () => {
       id: 's3', visible: true, template: 'LAST_DAYS', scheme: 'NAVY', title: 'Успейте до конца акции',
       buttonText: 'К акции', discount: '−40%', showUntil: '2026-09-30', target: 'ITEM', targetItemId: 'item-1',
     }]));
-    renderCatalog('calm');
+    renderShowcase('calm');
 
     const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
     expect(within(carousel).getByText('30.09')).toBeInTheDocument();
@@ -155,10 +161,10 @@ describe('баннеры на витрине', () => {
 
   it('без опубликованных слайдов карусели нет', async () => {
     stubFetch(rules([]));
-    renderCatalog();
+    renderShowcase();
 
-    // Витрина успела ответить — а карусель так и не появилась.
-    await screen.findByText(/Ничего не нашли по запросу/);
+    // Каталог успел ответить — а карусель так и не появилась.
+    await screen.findByText(/Ничего не нашли/);
     expect(screen.queryByRole('region', { name: 'Акции магазина' })).not.toBeInTheDocument();
   });
 
@@ -170,7 +176,7 @@ describe('баннеры на витрине', () => {
 
   it('кнопка слайда «распродажа» включает отбор «Со скидкой»', async () => {
     const { calls } = stubFetch(rules([TO('SALE')]));
-    renderCatalog();
+    renderShowcase();
 
     await userEvent.click(await screen.findByRole('button', { name: /Смотреть/ }));
     await waitFor(() => expect(calls.some((call) => call.url.includes('/api/portal/catalog?') && call.url.includes('onSale=true'))).toBe(true));
@@ -178,7 +184,7 @@ describe('баннеры на витрине', () => {
 
   it('слайд «распродажа» не показывается, когда распродажа не идёт', async () => {
     stubFetch(rules([TO('SALE'), TO('NOVELTY')], 0));
-    renderCatalog();
+    renderShowcase();
 
     expect(await screen.findByText('Слайд NOVELTY')).toBeInTheDocument();
     expect(screen.queryByText('Слайд SALE')).not.toBeInTheDocument();
@@ -188,7 +194,7 @@ describe('баннеры на витрине', () => {
 
   it('кнопка слайда «новинки» включает отбор новинок', async () => {
     const { calls } = stubFetch(rules([TO('NOVELTY')]));
-    renderCatalog();
+    renderShowcase();
 
     await userEvent.click(await screen.findByRole('button', { name: /Смотреть/ }));
     await waitFor(() => expect(calls.some((call) => call.url.includes('/api/portal/catalog?') && call.url.includes('novelty=true'))).toBe(true));
@@ -196,7 +202,7 @@ describe('баннеры на витрине', () => {
 
   it('кнопка слайда «акции» ведёт на экран акций', async () => {
     stubFetch(rules([TO('PROMOTIONS')]));
-    renderCatalog();
+    renderShowcase();
 
     await userEvent.click(await screen.findByRole('button', { name: /Смотреть/ }));
     expect(await screen.findByRole('heading', { name: 'Акции' })).toBeInTheDocument();
@@ -255,6 +261,8 @@ describe('баннеры в рубрике', () => {
 
 describe('крупный баннер вместо героев', () => {
   afterEach(() => vi.unstubAllGlobals());
+  // Тема продавца действует только на компьютере.
+  beforeEach(stubWideScreen);
 
   /** Не скрыт ли узел от программы чтения с экрана — ни сам, ни через предка. */
   const spoken = (node: Element) => node.closest('[aria-hidden="true"]') === null;
@@ -268,7 +276,7 @@ describe('крупный баннер вместо героев', () => {
         sale: { title: 'Осенняя распродажа', maxPercent: 30, endsOn: '2099-10-30', countdown: false } }),
       ...rules([]),
     ]);
-    renderCatalog();
+    renderShowcase();
 
     const big = await waitFor(() => {
       const node = document.querySelector('.qo-banner[data-big]');
@@ -285,13 +293,13 @@ describe('крупный баннер вместо героев', () => {
 
   it('у продавца с темой все слайды крупные — как в предпросмотре продавца', async () => {
     stubFetch(themed('NEON', [SALE, BULK]));
-    renderCatalog();
+    renderShowcase();
     await waitFor(() => expect(document.querySelectorAll('.qo-banner[data-big]')).toHaveLength(2));
   });
 
   it('на компьютере слайд — 748×360 масштабом во всю ширину, как герой в шаблонах на экране продавца', async () => {
     stubFetch(rules([SALE, BULK]));
-    renderCatalog();
+    renderShowcase();
     await waitFor(() => expect(document.querySelector('.qo-banner[data-big]')).not.toBeNull());
     const frame = document.querySelector('.qo-banner')!.parentElement as HTMLElement;
     expect(frame.style.width).toBe('748px');
@@ -301,24 +309,26 @@ describe('крупный баннер вместо героев', () => {
 
   it('без темы слайды тоже крупные — как в шаблонах на экране продавца, но без одежды', async () => {
     stubFetch(rules([SALE, BULK]));
-    renderCatalog();
+    renderShowcase();
     await waitFor(() => expect(document.querySelectorAll('.qo-banner[data-big]')).toHaveLength(2));
     expect(document.querySelector('.qo-banner[data-skin]')).toBeNull();
   });
 
   it('фирменный слайд продавца с темой — крупный, в одежде', async () => {
     stubFetch(themed('STUDIO', [BULK]));
-    renderCatalog();
+    renderShowcase();
     await waitFor(() => expect(document.querySelector('.qo-banner[data-big][data-skin="studio"]')).not.toBeNull());
   });
 });
 
 describe('крупный баннер Глубины под курсором', () => {
   afterEach(() => vi.unstubAllGlobals());
+  // Тема продавца действует только на компьютере.
+  beforeEach(stubWideScreen);
 
   it.each([['DEPTH', true], ['FLOAT', true], ['GLOW', false]] as const)('%s: слои смещаются за курсором — %s', async (template, fx) => {
     stubFetch(themed(template, [BULK]));
-    renderCatalog();
+    renderShowcase();
     const big = await waitFor(() => {
       const node = document.querySelector('.qo-banner[data-big]');
       if (!node) throw new Error('нет крупного баннера');

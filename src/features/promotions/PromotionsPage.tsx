@@ -2,14 +2,10 @@ import { LoadFailed } from '../../ui/LoadFailed';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Bell, Box, Check, Clock, Info, Layers, Plus, Sparkles, Ticket } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, ArrowRight, Box, Check, Clock, Info, Layers, Plus, Sparkles, Ticket } from '../../ui/icons';
 import {
-  getGetPortalPromotionsQueryKey,
-  setPortalPromoSubscription,
   useGetPortalBanners,
   useGetPortalCatalog,
-  useGetPortalProfile,
   useGetPortalPromotions,
   useGetPortalSuppliers,
   type CartDto,
@@ -22,17 +18,19 @@ import { cartOf, useCart, useSetCartLine } from '../cart/useCart';
 import { useAddToCart } from '../cart/ageGate';
 import { openCart } from '../cart/cartDrawer';
 import { ItemThumb } from '../catalog/ItemThumb';
-import { useCurrentShop } from '../shell/Shops';
-import { phone as formatPhone, money } from '../../shared/format';
+import { money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { cn } from '../../ui/cn';
 import { Skeleton } from '../../ui/Skeleton';
 import { useColumnWidth } from '../../ui/useColumnWidth';
 import { BannerSlide } from '../banners/BannerSlide';
 import { liveBanners } from '../banners/BannerCarousel';
+import { COUNTDOWN_DAYS } from '../banners/Countdown';
 import { useSupplier } from '../../supplier/useSupplier';
 import { resolveDesign } from '../../supplier/cabinetDesign';
 import { promotionsOff } from './promotionsOff';
+import { useReadOnOpen } from '../notifications/useReadOnOpen';
+import { PromoSubscription } from '../profile/PromoSubscription';
 
 /** С какой ширины колонки товары распродажи встают в четыре карточки — как на витрине. */
 const FOUR_FROM = 1040;
@@ -70,6 +68,7 @@ export function PromotionsPage() {
   const location = useLocation();
   const promotions = useGetPortalPromotions();
   const data = promotions.data?.status === 200 ? promotions.data.data : undefined;
+  useReadOnOpen('PROMO_STARTED');
   const cart = cartOf(useCart().data);
   const [columnRef, columnWidth] = useColumnWidth<HTMLDivElement>();
   const compact = columnWidth > 0 && columnWidth < COMPACT_BELOW;
@@ -160,6 +159,7 @@ export function PromotionsPage() {
           ) : null}
 
           <HowAndSubscribe data={data} compact={compact} />
+          <PromoSubscription />
         </>
       )}
     </div>
@@ -517,7 +517,10 @@ function SaleHero({ sale, dealCount, compact }: {
         {compact && left && sale.countdown !== false ? (
           <p className="flex items-center gap-2 text-caption font-bold text-white/85">
             <Clock aria-hidden="true" className="size-4" />
-            {t('promotions.v2.leftShort', { days: left.days, hours: left.hours })}{lastDay ? ` · ${t('promotions.v2.untilShort', { date: lastDay })}` : ''}
+            {/* Отсчёт — только когда конец близко; издалека — одна дата («до 30 сентября»). */}
+            {left.days > COUNTDOWN_DAYS && lastDay
+              ? t('promotions.v2.untilShort', { date: lastDay })
+              : <>{t('promotions.v2.leftShort', { days: left.days, hours: left.hours })}{lastDay ? ` · ${t('promotions.v2.untilShort', { date: lastDay })}` : ''}</>}
           </p>
         ) : null}
         <Link
@@ -780,17 +783,10 @@ function DealCard({ deal, inCart, compact, beyondRow = false }: {
   );
 }
 
-/** «Как работают скидки» и подписка — двумя панелями рядом. */
+/** «Как работают скидки» — на мониторе; на телефоне рядом с делом не помещается. */
 function HowAndSubscribe({ data, compact }: { data: PortalPromotionsDto; compact: boolean }) {
-  // На телефоне «как работают скидки» не помещается рядом с делом — макет телефона его не показывает.
-  const hasHow = !compact && (data.volumeTiers.length > 0 || !!data.firstOrder);
-  if (!hasHow && !data.subscription) return null;
-  return (
-    <section className={cn('grid gap-5', hasHow && data.subscription && 'lg:grid-cols-2')}>
-      {hasHow ? <HowItWorks /> : null}
-      {data.subscription ? <Subscription data={data} compact={compact} /> : null}
-    </section>
-  );
+  if (compact || (data.volumeTiers.length === 0 && !data.firstOrder)) return null;
+  return <HowItWorks />;
 }
 
 function HowItWorks() {
@@ -814,129 +810,3 @@ function HowItWorks() {
   );
 }
 
-/**
- * Подписка на акции — с примером сообщения, собранным из настоящих данных
- * магазина: его имени и идущей распродажи. Выдуманная акция в примере
- * обещала бы то, чего в магазине нет.
- */
-function Subscription({ data, compact }: { data: PortalPromotionsDto; compact: boolean }) {
-  const { t, i18n } = useTranslation();
-  const queryClient = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const shop = useCurrentShop();
-  const profile = useGetPortalProfile();
-  const viewerPhone = profile.data?.status === 200 ? profile.data.data.phone : undefined;
-  const subscribed = data.subscription?.subscribed ?? false;
-  const endsOn = data.sale?.endsOn
-    ? new Intl.DateTimeFormat(i18n.language === 'kk' ? 'kk-KZ' : i18n.language, { day: 'numeric', month: 'long' })
-      .format(new Date(`${data.sale.endsOn}T12:00:00`))
-    : null;
-  const example = data.sale
-    ? [t('promotions.v2.sub.exampleSale', { title: data.sale.title, percent: data.sale.maxPercent }),
-      endsOn ? t('promotions.v2.sub.exampleUntil', { date: endsOn }) : null].filter(Boolean).join(' ')
-    : t('promotions.v2.sub.exampleGeneric');
-  const locale = i18n.language === 'kk' ? 'kk-KZ' : i18n.language;
-  // Время в пузыре — нынешнее: пример читается как сообщение, пришедшее только что.
-  // Считается при каждой отрисовке — экран живёт недолго, тикать ему незачем.
-  const sentAt = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
-  // Обещание магазина — со строчной, чтобы вставать в строку после номера
-  // («На номер … · не чаще раза в неделю») и после «В WhatsApp,» на телефоне.
-  const promise = data.subscription?.promise ? t(`promotions.v2.sub.promise.${data.subscription.promise}`) : null;
-  const phone = viewerPhone ? formatPhone(viewerPhone) : null;
-  const sendsTo = phone && promise
-    ? t('promotions.v2.sub.toPhoneLine', { phone, promise })
-    : phone
-      ? t('promotions.v2.sub.toPhone', { phone })
-      // Без номера обещание стоит одно — и тогда с заглавной, как начало фразы.
-      : promise ? promise.charAt(0).toLocaleUpperCase(locale) + promise.slice(1) : null;
-
-  async function toggle() {
-    setBusy(true);
-    try {
-      const response = await setPortalPromoSubscription({ subscribed: !subscribed });
-      if (response.status === 200) queryClient.setQueryData(getGetPortalPromotionsQueryKey(), response);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const switchButton = (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={subscribed}
-      aria-label={t('promotions.subscription.off')}
-      disabled={busy}
-      onClick={() => void toggle()}
-      className={cn(
-        'relative h-[30px] w-[52px] shrink-0 cursor-pointer rounded-full border-0 p-0 transition-colors disabled:opacity-60',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-        subscribed ? 'bg-in-stock' : 'bg-ink-faint',
-      )}
-    >
-      <span className={cn('absolute top-[3px] size-6 rounded-full bg-white shadow-soft transition-[left]',
-        subscribed ? 'left-[25px]' : 'left-[3px]')} />
-    </button>
-  );
-
-  // Телефон: одна строка, как в макете, — значок, что обещает магазин, переключатель.
-  if (compact) {
-    return (
-      <div className="flex items-center gap-3 rounded-[calc(var(--radius-tile)*1.25)] bg-surface p-4 shadow-[0_0_0_1px_var(--color-hairline)]">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-[calc(var(--radius-control)*6/7)] bg-ok-soft text-ok-ink">
-          <Bell aria-hidden="true" className="size-5" />
-        </span>
-        <span className="flex min-w-0 grow flex-col gap-0.5">
-          <b className="text-body text-ink">{subscribed ? t('promotions.subscription.on') : t('promotions.subscription.off')}</b>
-          {promise ? (
-            <span className="text-xs text-ink-subtle">{t('promotions.v2.sub.viaWhatsapp', { promise })}</span>
-          ) : null}
-        </span>
-        {switchButton}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-4 rounded-[var(--radius-gallery)] bg-surface p-6 shadow-[0_0_0_1px_var(--color-hairline)]">
-      <div className="flex items-center gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-[calc(var(--radius-control)*6/7)] bg-ok-soft text-ok-ink">
-          <Bell aria-hidden="true" className="size-5" />
-        </span>
-        <h2 className="text-title font-extrabold text-ink">{t('promotions.subscription.title')}</h2>
-      </div>
-      <figure className="flex flex-1 flex-col justify-end gap-2 rounded-[calc(var(--radius-tile)*1.125)] bg-sunk p-4">
-        <figcaption className="self-center text-xs text-ink-subtle">{t('promotions.v2.sub.exampleLabel')}</figcaption>
-        <p className="max-w-[88%] self-start rounded-[4px_16px_16px_16px] bg-ok-soft px-3.5 py-3 text-sm leading-[1.45] text-ink">
-          {shop?.name && <b className="block text-ok-ink">{shop.name}</b>}
-          {example}
-          <span className="mt-1 block text-right text-2xs tabular-nums text-ink-subtle">{sentAt}</span>
-        </p>
-      </figure>
-      <div className="flex items-center gap-3.5">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={subscribed}
-          aria-labelledby="sub-label"
-          disabled={busy}
-          onClick={() => void toggle()}
-          className={cn(
-            'relative h-8 w-14 shrink-0 cursor-pointer rounded-full border-0 p-0 transition-colors disabled:opacity-60',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-            subscribed ? 'bg-in-stock' : 'bg-ink-faint',
-          )}
-        >
-          <span className={cn('absolute top-[3px] size-[26px] rounded-full bg-white shadow-soft transition-[left]',
-            subscribed ? 'left-[27px]' : 'left-[3px]')} />
-        </button>
-        <span id="sub-label" className="flex flex-col gap-0.5">
-          <b className="text-base text-ink">
-            {subscribed ? t('promotions.subscription.on') : t('promotions.subscription.off')}
-          </b>
-          {sendsTo ? <span className="text-caption text-ink-subtle">{sendsTo}</span> : null}
-        </span>
-      </div>
-    </div>
-  );
-}

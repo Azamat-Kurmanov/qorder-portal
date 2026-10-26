@@ -6,6 +6,7 @@ import './ui/motion/liveTheme.css';
 // Язык поднимается до первого рендера: подпись, нарисованная раньше, чем
 // известен язык, мигнула бы русским текстом на казахском экране.
 import './i18n';
+import { acceptLanguageFromUrl } from './features/language/languageChoice';
 import '@fontsource-variable/onest';
 import '@fontsource-variable/inter';
 // Шрифты шаблонов кабинета (src/supplier/cabinetTemplates.json). Подключение
@@ -32,6 +33,9 @@ import { App } from './App';
 import { AuthProvider } from './auth/AuthProvider';
 import { rememberViewer } from './auth/oidcConfig';
 import { getGetPortalSuppliersQueryKey } from './api/generated';
+
+// Язык уже выбран на экране выбора кабинета — не спрашиваем второй раз.
+acceptLanguageFromUrl(window.location.search);
 
 /*
  * Режим читается из адреса до первого рендера — и сразу из него убирается.

@@ -1,4 +1,4 @@
-import { MapPin } from 'lucide-react';
+import { MapPin } from '../../ui/icons';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { reversePortalMapPlace, searchPortalMapPlaces, type MapPlaceDto } from '../../api/generated';

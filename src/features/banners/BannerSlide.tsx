@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowRight, Box, Clock } from 'lucide-react';
+import { ArrowRight, Box, Clock } from '../../ui/icons';
 import type { ShowcaseBannerDto } from '../../api/generated';
 import { cn } from '../../ui/cn';
 import { BannerLayout, type PartsFor } from './BannerLayouts';

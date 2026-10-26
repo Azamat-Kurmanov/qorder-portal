@@ -14,6 +14,16 @@ export interface AuthContextValue {
   phone: string | null;
   /** Сервер отказал в доступе с токеном только что завершённого входа. */
   sessionRejected: boolean;
+  /**
+   * Мобильное приложение поднимает сохранённую сессию (appSession.ts): пока
+   * это идёт, вход не запрашивается. В браузере его нет, поэтому необязательно.
+   */
+  restoring?: boolean;
+  /**
+   * Выход начат, браузер вот-вот уйдёт на Keycloak: «сессии нет» здесь —
+   * не повод запускать вход (RequireAuth).
+   */
+  signingOut?: boolean;
   login: () => void;
   logout: () => void;
 }

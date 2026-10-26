@@ -4,11 +4,12 @@ import { packsOnly, splitOf, tierFor, toPieces } from '../cart/wholesale';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, MessageCircle, Ruler, ShieldCheck, Sparkles, Star, Tag, X, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, MessageCircle, Ruler, ShieldCheck, Sparkles, Star, Store, Tag, Truck, X, Zap } from '../../ui/icons';
 import {
   useGetPortalCatalog,
   useGetPortalCatalogItem,
   useGetPortalCategories,
+  useGetPortalDeliveryOptions,
   useGetPortalPromotions,
   type ItemSaleTerms,
   type ShowcaseCardDto,
@@ -25,6 +26,7 @@ import { AskQuestionForm } from '../questions/AskQuestionForm';
 import { useCurrentShop } from '../shell/Shops';
 import { hoursText } from '../shell/shopHours';
 import { MediaGallery } from './MediaGallery';
+import { SizeGrid } from './SizeGrid';
 import { VariantPicker } from './VariantPicker';
 import { StockNote } from './StockNote';
 import { soldByOf } from './soldBy';
@@ -134,30 +136,21 @@ function ItemCard({ item }: { item: ShowcaseCardDto }) {
   const hasSize = properties.some((property) => /^(размер|size|өлшем)/i.test(property.name));
 
   return (
-    <div className="flex flex-col gap-6 pb-28 lg:gap-11 lg:pb-0">
+    <div className="flex flex-col gap-6 pb-40 lg:gap-11 lg:pb-0">
       {/*
-        Путь обратно на мониторе — строкой над карточкой вместе с «где вы
-        находитесь»: карточку открывают и по присланной ссылке, и тогда крошки
-        — единственный ответ на вопрос, из какой она рубрики.
+        Путь обратно — крошками над карточкой, как в макете ПК-К3: «Витрина ›
+        рубрика › товар». Карточку открывают и по присланной ссылке, и тогда
+        крошки — единственный ответ на вопрос, из какой она рубрики.
       */}
-      <div className="hidden flex-wrap items-center gap-x-5 gap-y-2 md:flex lg:-mb-5">
-        <Link
-          to="/catalog"
-          className="inline-flex h-11 items-center gap-2 text-sm font-bold text-ink transition-colors duration-300 hover:text-accent-ink"
-        >
-          <ArrowLeft className="size-[18px]" aria-hidden="true" />
-          {t('item.back')}
+      <nav aria-label={t('item.crumbs')} className="hidden flex-wrap items-center gap-1.5 text-sm text-ink-muted md:flex lg:-mb-5">
+        <Link to="/home" className="hover:text-ink">{t('home.title')}</Link>
+        <span aria-hidden="true">›</span>
+        <Link to={category ? `/catalog?category=${encodeURIComponent(category.id)}` : '/catalog'} className="hover:text-ink">
+          {category?.name ?? t('catalog.title')}
         </Link>
-        <nav aria-label={t('item.crumbs')} className="flex items-center gap-2 text-sm text-ink-subtle">
-          <Link to="/catalog" className="hover:text-ink">{t('catalog.title')}</Link>
-          {category && (
-            <>
-              <span aria-hidden="true">/</span>
-              <span className="text-ink-muted">{category.name}</span>
-            </>
-          )}
-        </nav>
-      </div>
+        <span aria-hidden="true">›</span>
+        <span aria-current="page" className="min-w-0 truncate font-bold text-ink">{item.name}</span>
+      </nav>
 
       {/*
         Три части одной сеткой: снимки, решение и характеристики. На мониторе
@@ -165,7 +158,7 @@ function ItemCard({ item }: { item: ShowcaseCardDto }) {
         высоту; на телефоне всё идёт подряд — снимки, решение, характеристики.
         Панель одна: две копии для двух ширин диктор прочёл бы дважды.
       */}
-      <section className="flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_460px] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-9 lg:gap-y-5">
+      <section className="flex flex-col lg:grid lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-8 lg:gap-y-5">
         {/*
           Отрицательные поля гасят отступы оболочки: на телефоне снимок идёт
           от края до края, иначе он читался бы картинкой внутри карточки,
@@ -214,7 +207,8 @@ function ItemCard({ item }: { item: ShowcaseCardDto }) {
 
       {item.categoryId && <Similar itemId={item.id} categoryId={item.categoryId} categoryName={category?.name} />}
 
-      <CartBar />
+      {/* На телефоне корзину зовёт панель покупки — плавающая кнопка легла бы на неё. */}
+      <div className="max-lg:hidden"><CartBar /></div>
     </div>
   );
 }
@@ -236,7 +230,7 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
   // Требование о полноте торговой информации от размера шрифта не зависит:
   // строка не исчезает, а только уступает первый взгляд самой цене.
   const terms = [
-    item.vatRate != null ? t('catalog.vat', { rate: decimal(item.vatRate) }) : undefined,
+    item.vatRate != null ? t(item.vatIncluded ? 'catalog.vatIncluded' : 'catalog.vat', { rate: decimal(item.vatRate) }) : undefined,
     item.priceAsOf ? t('catalog.asOf', { date: shortDate(item.priceAsOf) }) : undefined,
   ]
     .filter(Boolean)
@@ -291,9 +285,11 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
               : t('item.noReviews')}
           </a>
         </div>
-        <h1 className="text-[1.375rem] font-extrabold leading-tight tracking-[-0.02em] text-ink md:text-[2rem] lg:text-[2.75rem] lg:font-black lg:leading-[1.02] lg:tracking-[-0.03em]">
+        <h1 className="text-[1.375rem] font-extrabold leading-tight tracking-[-0.02em] text-ink md:text-[2rem] lg:text-[2.25rem] lg:font-black lg:leading-[1.05] lg:tracking-[-0.03em]">
           {item.name}
         </h1>
+        {/* Артикул цвета — как «Арт.» у магазинов одежды: другой цвет — другая карточка и другой артикул. */}
+        {item.article ? <span className="text-sm text-ink-subtle">{t('item.article', { article: item.article })}</span> : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -323,6 +319,9 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
             </>
           )}
         </div>
+        {item.yourPrice ? (
+          <p data-testid="item-your-price" className="text-sm font-semibold text-accent">{t('catalog.yourPriceNote')}</p>
+        ) : null}
         {terms && <p className="text-sm text-ink-subtle">{terms}</p>}
       </div>
 
@@ -354,28 +353,34 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
         )}
         {item.pack ? <PackContents label={t('pack.inPress')} members={packMembers(item.pack)} /> : null}
         <Purchase item={item} />
-        <div className="grid grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            aria-expanded={asking}
-            onClick={() => setAsking((open) => !open)}
-            className={GHOST}
-          >
-            <MessageCircle aria-hidden="true" className="size-5" />
-            {t('questions.ask')}
-          </button>
-          <FavoriteButton itemId={item.id} favorite={item.favorite} labelled className={cn(GHOST, 'size-auto')} />
-        </div>
-        {/*
-          Вопрос о товаре уезжает в отдельную вкладку переписки: менеджер
-          увидит его вместе с названием позиции.
-        */}
-        {asking && (
-          <AskQuestionForm itemId={item.id} itemName={item.name} startOpened onClose={() => setAsking(false)} />
-        )}
+        <SizeGrid item={item} />
       </div>
 
       <DealFacts />
+
+      {/*
+        Вопрос продавцу и избранное — под условиями, как в макете ПК-К3:
+        на мониторе ссылками, на телефоне — двумя кнопками под пальцем.
+      */}
+      <div className="grid grid-cols-2 gap-2.5 lg:flex lg:gap-7">
+        <button
+          type="button"
+          aria-expanded={asking}
+          onClick={() => setAsking((open) => !open)}
+          className={cn(GHOST, LINK)}
+        >
+          <MessageCircle aria-hidden="true" className="size-5" />
+          {t('questions.ask')}
+        </button>
+        <FavoriteButton itemId={item.id} favorite={item.favorite} labelled className={cn(GHOST, 'size-auto', LINK)} />
+      </div>
+      {/*
+        Вопрос о товаре уезжает в отдельную вкладку переписки: менеджер
+        увидит его вместе с названием позиции.
+      */}
+      {asking && (
+        <AskQuestionForm itemId={item.id} itemName={item.name} startOpened onClose={() => setAsking(false)} />
+      )}
 
       <DiscountsPanel item={item} />
     </div>
@@ -637,6 +642,21 @@ function PhotoBadges({ item }: { item: ShowcaseCardDto }) {
  * и в корзине, — прямо в корзине, — а вместо кнопки встаёт «Добавлено»
  * со ссылкой в корзину.
  */
+/** На мониторе второстепенное действие — ссылкой без рамки, как в макете ПК-К3. */
+const LINK = 'lg:min-h-0 lg:border-transparent lg:px-0 lg:py-1 lg:text-sm lg:font-extrabold lg:shadow-none lg:hover:bg-transparent lg:hover:text-accent-ink';
+
+/**
+ * Панель покупки на телефоне — над нижним меню, как в макете карточки:
+ * количество, сумма и главное действие под пальцем, сколько ни листай
+ * характеристики и отзывы. На мониторе — обычный блок в колонке решения.
+ */
+// На телефоне — одной строкой (макет К2.3): количество и кнопка с суммой.
+const PHONE_BAR = cn(
+  'flex items-center gap-3 lg:gap-5',
+  'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] max-lg:z-20',
+  'max-lg:bg-surface max-lg:px-4 max-lg:pb-3 max-lg:pt-3 max-lg:shadow-[0_-6px_20px_rgba(58,48,30,.1)]',
+);
+
 function Purchase({ item }: { item: ShowcaseCardDto }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
@@ -674,27 +694,31 @@ function Purchase({ item }: { item: ShowcaseCardDto }) {
     return (
       <div className="flex flex-col gap-3">
         {wholesale && <WholesaleTerms item={item} wholesale={wholesale} packs={split?.packs ?? 0} />}
-        <div className="flex flex-wrap items-center gap-3">
-          <QuantityField itemId={item.id} unit={item.unit} terms={item.terms} perPack={perPack}
-            className="h-13 w-auto min-w-[12rem] flex-1" />
-          <Sum amount={sum} />
-        </div>
         {breakdown}
         <p role="status" className="flex items-center gap-2.5 rounded-[var(--radius-control)] bg-ok-soft px-3.5 py-3 text-body font-bold text-ok-ink">
           <CheckCircle2 aria-hidden="true" className="size-5 shrink-0" />
           {t('item.added', { amount: quantityWithUnit(ordered, item.unit) })}
         </p>
-        <Link
-          to="/checkout"
-          className={cn(
-            'flex h-14 w-full items-center justify-center gap-2.5 rounded-[calc(var(--radius-tile)*1.125)] bg-night lg:h-[60px]',
-            'text-[1.0625rem] font-bold text-white transition-opacity duration-200 hover:opacity-90',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-          )}
-        >
-          {t('item.toCart')}
-          <ArrowRight aria-hidden="true" className="size-5" />
-        </Link>
+        <div data-purchase-bar="" className={PHONE_BAR}>
+          <div className="flex items-center gap-3 lg:flex-1 lg:flex-wrap">
+            <QuantityField itemId={item.id} unit={item.unit} terms={item.terms} perPack={perPack}
+              className="h-13 w-[9.5rem] flex-none lg:w-[12.5rem]" />
+            <Sum amount={sum} />
+          </div>
+          <Link
+            to="/checkout"
+            aria-label={t('item.toCart')}
+            className={cn(
+              'flex h-13 min-w-0 flex-1 items-center justify-center gap-2.5 rounded-[1rem] bg-accent px-3 lg:h-14 lg:flex-none lg:bg-night lg:px-7',
+              'text-[0.9375rem] font-bold text-white transition-opacity duration-200 hover:opacity-90 lg:text-[1.0625rem]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
+            )}
+          >
+            <span className="truncate lg:hidden">{t('item.inCartSum', { sum: money(sum, currency) })}</span>
+            <span className="max-lg:hidden">{t('item.toCart')}</span>
+            <ArrowRight aria-hidden="true" className="size-5 shrink-0 max-lg:hidden" />
+          </Link>
+        </div>
       </div>
     );
   }
@@ -702,31 +726,38 @@ function Purchase({ item }: { item: ShowcaseCardDto }) {
   return (
     <div className="flex flex-col gap-3">
       {wholesale && <WholesaleTerms item={item} wholesale={wholesale} packs={split?.packs ?? 0} />}
-      <div className="flex flex-wrap items-center gap-3">
-        <LocalStepper value={wanted} unit={item.unit} terms={item.terms} onChange={setWanted} />
-        <Sum amount={sum} />
-      </div>
       {breakdown}
-      <Button
-        /*
-          Цвет магазина и самый крупный размер: на карточке это единственное
-          главное действие и то, ради чего её открыли.
-        */
-        variant="accent"
-        size="xl"
-        className="w-full gap-2.5 rounded-[calc(var(--radius-tile)*1.125)] text-base lg:h-[60px] lg:text-lg"
-        disabled={isPending || wanted <= 0}
-        onClick={async (event) => {
-          // Летит текущий кадр галереи: заявка живёт наверху экрана или справа,
-          // и молча нажатая кнопка заставляет класть позицию второй раз.
-          const shot = document.querySelector('[data-testid="gallery-photo"]') ?? event.currentTarget;
-          const added = await add(item, wanted);
-          if (added) flyToCart(shot);
-        }}
-      >
-        <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[22px]" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2 3h3l2.6 12.2a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.5L22 8H6.2" /></svg>
-        {t('item.add')}
-      </Button>
+      <div data-purchase-bar="" className={PHONE_BAR}>
+        <div className="flex items-center gap-3 lg:flex-1 lg:flex-wrap">
+          <LocalStepper value={wanted} unit={item.unit} terms={item.terms} onChange={setWanted} />
+          <Sum amount={sum} />
+        </div>
+        <Button
+          /*
+            Цвет магазина и самый крупный размер: на карточке это единственное
+            главное действие и то, ради чего её открыли.
+          */
+          variant="accent"
+          size="xl"
+          // На мониторе — в строку с количеством и суммой, цветом скидки, как корзина в шапке (ПК-К3).
+          className="h-13 min-w-0 flex-1 gap-2 rounded-[1rem] px-3 text-[0.9375rem] lg:h-14 lg:w-auto lg:flex-none lg:rounded-[calc(var(--radius-tile)*1.125)] lg:bg-sale lg:px-7 lg:text-white lg:hover:bg-sale-ink"
+          disabled={isPending || wanted <= 0}
+          // Имя кнопки — одно на любой ширине; сумма в подписи телефона — для глаз.
+          aria-label={t('item.add')}
+          onClick={async (event) => {
+            // Летит текущий кадр галереи: заявка живёт наверху экрана или справа,
+            // и молча нажатая кнопка заставляет класть позицию второй раз.
+            const shot = document.querySelector('[data-testid="gallery-photo"]') ?? event.currentTarget;
+            const added = await add(item, wanted);
+            if (added) flyToCart(shot);
+          }}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="size-[22px] shrink-0 max-lg:hidden" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2 3h3l2.6 12.2a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.5L22 8H6.2" /></svg>
+          {/* На телефоне сумма — в самой кнопке, отдельной строки «Сумма» нет. */}
+          <span className="truncate lg:hidden">{t('item.addSum', { sum: money(sum, currency) })}</span>
+          <span className="max-lg:hidden">{t('item.add')}</span>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -800,7 +831,7 @@ function Sum({ amount }: { amount: number }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   return (
-    <div className="ml-auto flex flex-col items-end">
+    <div className="ml-auto flex flex-col items-end max-lg:hidden">
       <span className="text-caption text-ink-subtle">{t('item.sum')}</span>
       <span data-testid="item-sum" className="text-2xl font-extrabold tabular-nums tracking-[-0.01em] text-ink">{money(amount, currency)}</span>
     </div>
@@ -830,7 +861,7 @@ function LocalStepper({
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
   );
   return (
-    <div className="flex h-14 min-w-[12rem] flex-1 items-center justify-between gap-1 rounded-[var(--radius-tile)] bg-sunk p-1 shadow-[0_0_0_1px_var(--color-hairline)]">
+    <div className="flex h-14 min-w-[12rem] flex-1 items-center justify-between gap-1 rounded-[var(--radius-tile)] bg-sunk p-1 shadow-[0_0_0_1px_var(--color-hairline)] lg:w-[12.5rem] lg:flex-none">
       <button
         type="button"
         aria-label={t('cart.less')}
@@ -866,28 +897,55 @@ function LocalStepper({
  */
 function DealFacts() {
   const { t } = useTranslation();
+  const currency = useSupplierCurrency();
   const shop = useCurrentShop();
   const hours = hoursText(shop?.hours, t);
-  const fact = 'flex items-start gap-3 text-sm leading-normal text-ink-muted';
-  const icon = 'flex size-[34px] shrink-0 items-center justify-center rounded-[calc(var(--radius-control)*5/7)] bg-sunk text-accent-ink';
+  const options = useGetPortalDeliveryOptions();
+  const delivery = options.data?.status === 200 ? options.data.data : undefined;
+  // Доставка — карточкой, только если продавец возит: цену называет самое
+  // выгодное из настоящих условий, выдуманного обещания здесь нет.
+  const methods = (delivery?.methods ?? []).filter((method) => !method.pickup);
+  const free = methods.map((method) => method.freeFromAmount).filter((amount): amount is number => !!amount && amount > 0);
+  const prices = methods.map((method) => method.price).filter((price): price is number => price !== undefined);
+  const deliveryNote = free.length > 0
+    ? t('item.deal.freeFrom', { amount: money(Math.min(...free), currency) })
+    : prices.length > 0 ? t('item.deal.priceFrom', { amount: money(Math.min(...prices), currency) }) : t('item.deal.negotiable');
+  const point = delivery?.pickupPoints?.[0];
+  const pickupNote = point
+    ? [point.address ?? point.name, point.workingHours].filter(Boolean).join(' · ')
+    : [shop?.address, hours?.toLocaleLowerCase()].filter(Boolean).join(', ');
+  const card = 'flex items-center gap-3 rounded-[1.125rem] bg-surface px-4 py-3.5 shadow-[0_0_0_1px_var(--color-hairline)]';
+  const icon = 'size-6 shrink-0 text-accent-ink';
 
   return (
-    <ul className="flex flex-col gap-2.5">
-      <li className={fact}>
-        <span className={icon}><ShieldCheck aria-hidden="true" className="size-[18px]" /></span>
-        <span className="pt-1.5"><b className="font-semibold text-ink">{t('item.factPayLabel')}</b> {t('item.factPay')}</span>
-      </li>
-      {shop?.address && (
-        <li className={fact}>
-          <span className={icon}><MapPin aria-hidden="true" className="size-[18px]" /></span>
-          <span className="pt-1.5">
-            <b className="font-semibold text-ink">{t('item.factPickupLabel')}</b>
-            {' '}
-            {[shop.address, hours?.toLocaleLowerCase()].filter(Boolean).join(', ')}.
-          </span>
-        </li>
+    <div className="flex flex-col gap-2.5">
+      {(methods.length > 0 || pickupNote) && (
+        <ul className="grid gap-2.5 sm:grid-cols-2">
+          {methods.length > 0 && (
+            <li data-testid="deal-delivery" className={card}>
+              <Truck aria-hidden="true" className={icon} />
+              <span className="flex min-w-0 flex-col">
+                <b className="text-sm font-extrabold text-ink">{t('item.deal.delivery')}</b>
+                <span className="text-[0.8125rem] text-ink-muted">{deliveryNote}</span>
+              </span>
+            </li>
+          )}
+          {pickupNote && (
+            <li data-testid="deal-pickup" className={card}>
+              <Store aria-hidden="true" className={icon} />
+              <span className="flex min-w-0 flex-col">
+                <b className="text-sm font-extrabold text-ink">{t('item.deal.pickup')}</b>
+                <span className="text-[0.8125rem] text-ink-muted">{pickupNote}</span>
+              </span>
+            </li>
+          )}
+        </ul>
       )}
-    </ul>
+      <p className="flex items-center gap-2 text-sm text-ink-muted">
+        <ShieldCheck aria-hidden="true" className="size-[18px] shrink-0 text-accent-ink" />
+        <span><b className="font-semibold text-ink">{t('item.factPayLabel')}</b> {t('item.factPay')}</span>
+      </p>
+    </div>
   );
 }
 
@@ -1094,9 +1152,10 @@ function DiscountsPanel({ item }: { item: ShowcaseCardDto }) {
     <section aria-labelledby="h-item-discounts" className="flex flex-col gap-3 rounded-[calc(var(--radius-tile)*1.25)] bg-surface px-[18px] py-4 shadow-[0_0_0_1px_var(--color-hairline)]">
       <h2 id="h-item-discounts" className="text-caption font-bold uppercase tracking-[0.06em] text-ink-subtle">{t('item.discounts.title')}</h2>
       <ul className="flex flex-col gap-3">
+        {/* Строка «не участвует в акциях» ничего не давала клиенту — её нет (макеты «Кабинет клиента 2.0»). */}
         {item.discountPercent && data.sale
           ? row('sale', true, data.sale.title, t('item.discounts.inPrice'), `−${item.discountPercent}%`)
-          : row('sale', false, t('item.discounts.noSale'), t('item.discounts.noSaleSub'), undefined, true)}
+          : null}
         {tier && row('volume', volumeOn, t('promotions.volume.title'), volumeSub, `−${volumeValue}%`)}
         {first && row('first', cart?.discount?.kind === 'FIRST_ORDER', t('promotions.v2.first.title'),
           t('item.discounts.newBuyers'), `−${first.percent}%`)}
@@ -1113,7 +1172,9 @@ function DiscountsPanel({ item }: { item: ShowcaseCardDto }) {
           </p>
         </>
       )}
-      {(tier || first) && <p className="text-xs text-ink-faint">{t('promotions.v2.noStack')}</p>}
+      {[item.discountPercent && data.sale, tier, first].filter(Boolean).length > 1 && (
+        <p className="text-xs text-ink-faint">{t('promotions.v2.noStack')}</p>
+      )}
     </section>
   );
 }

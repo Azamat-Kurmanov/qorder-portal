@@ -167,6 +167,26 @@ describe('активация приглашения', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/попыт/i);
   });
 
+  /** Согласие сменилось, пока страница была открыта, — просим обновить, а не «приглашение недействительно». */
+  it('устаревшее согласие просит обновить страницу', async () => {
+    stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      method('POST', '/api/portal/invitation/activate',
+        { code: 'CONSENT_OUTDATED', detail: 'Редакция устарела' }, 400),
+    ]);
+
+    renderScreen(<ActivationPage />, {
+      route: '/activate?code=abc123',
+      auth: { authenticated: false, token: null },
+    });
+
+    await userEvent.click(await screen.findByRole('checkbox'));
+    await userEvent.type(screen.getByLabelText(/пароль/i), 'Строитель-2026!');
+    await userEvent.click(screen.getByRole('button', { name: /открыть кабинет/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Обновите страницу/);
+  });
+
   /** Наша авария — не вина человека: ссылка жива, повторить стоит. */
   it('недоступность сервиса не выдаёт за негодный код', async () => {
     stubFetch([

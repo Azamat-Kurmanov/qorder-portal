@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
+import { X } from '../../ui/icons';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { FestiveScene, isFestiveOccasion } from './FestiveScene';
 

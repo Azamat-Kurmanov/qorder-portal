@@ -4,6 +4,22 @@ import { TemplatePrice } from './TemplatePrice';
 import { renderScreen } from '../../../test/render';
 
 describe('цена в плитке шаблона', () => {
+  it('цена по условию клиента — «ваша цена», цена каталога зачёркнута, подсказки опта нет', () => {
+    renderScreen(
+      <TemplatePrice
+        item={{
+          price: 900, oldPrice: 1000, unit: 'мешок', yourPrice: true,
+          wholesale: { unit: 'упаковка', packQty: 20, pieceUnit: 'мешок', retail: true, tiers: [{ from: 1, price: 1800 }] },
+        }}
+        look="plain"
+      />,
+    );
+
+    expect(screen.getByTestId('your-price')).toHaveTextContent('ваша цена');
+    expect(screen.getByText(/1\s?000/, { selector: 's' })).toBeInTheDocument();
+    expect(screen.queryByText(/Опт/)).not.toBeInTheDocument();
+  });
+
   it('единица после «за» — «за бутылку», «за шт.»', () => {
     renderScreen(
       <>

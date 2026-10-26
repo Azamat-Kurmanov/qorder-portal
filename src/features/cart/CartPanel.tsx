@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useState } from 'react';
-import { AlertCircle, ArrowRight, ChevronDown, Info, Maximize2, Minimize2, ShoppingCart, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, ChevronDown, Info, Maximize2, Minimize2, ShoppingCart, X } from '../../ui/icons';
 import { cartOf, useCart, useClearCart } from './useCart';
 import { CartLines } from './CartLines';
 import { closeCart, openCart, useCartDrawer } from './cartDrawer';
@@ -169,7 +169,7 @@ export function CartPanel({ active = true }: { active?: boolean }) {
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
                     )}
                   >
-                    <span className="flex items-baseline gap-2">
+                    <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                       <span className="text-lg font-bold text-ink">{t('cart.total')}</span>
                       <span className="flex items-center gap-1 text-caption font-semibold text-ink-muted">
                         <span className="group-open:hidden">{t('cart.breakdownShow')}</span>
@@ -177,7 +177,7 @@ export function CartPanel({ active = true }: { active?: boolean }) {
                         <ChevronDown aria-hidden="true" className="size-4 transition-transform duration-200 group-open:rotate-180" />
                       </span>
                     </span>
-                    <Bump value={cart?.total ?? 0} className="text-[1.5rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink sm:text-[1.75rem]">
+                    <Bump value={cart?.total ?? 0} className="whitespace-nowrap text-[1.375rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink sm:text-[1.75rem]">
                       {money(cart?.total ?? 0, currency)}
                     </Bump>
                   </summary>
