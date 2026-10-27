@@ -41,12 +41,18 @@ const KNOWN_REASONS = [
   'ORDER_ON_ROUTE',
   'ORDER_DELIVERED',
   'TEMPLATE_READY',
+  'BACK_IN_STOCK',
+  'REORDER_DUE',
 ];
 
 function reasonOf(kind: string, t: TFunction, detail?: string): string {
   // Причина отклонения — слова продавца: подставляются как есть, без перевода.
   if (kind === 'TRANSPORT_PAYMENT_REJECTED' && detail) return t('notifications.reasons.transportRejectedWith', { reason: detail });
   // Число товаров объявления: «Новые поступления: 30 товаров».
+  // Ждавшаяся позиция — названа: «Снова в наличии: Цемент М400».
+  if (kind === 'BACK_IN_STOCK' && detail) return t('notifications.reasons.BACK_IN_STOCK_named', { name: detail });
+  // Обычный интервал клиента в днях — чтобы напоминание объясняло, почему пришло.
+  if (kind === 'REORDER_DUE' && detail) return t('notifications.reasons.REORDER_DUE_every', { days: detail });
   if ((kind === 'NEW_ARRIVALS' || kind === 'PROMO_STARTED') && detail) {
     return t(`notifications.reasons.${kind}_count`, { count: Number(detail) });
   }
@@ -73,6 +79,8 @@ export function destinationOf(kind: string, draftId: string): string {
   if (kind === 'PROMO_STARTED') return '/promotions';
   // Шаблон по расписанию уже разложен в корзину — клиенту остаётся проверить и отправить.
   if (kind === 'TEMPLATE_READY') return '/checkout';
+  // Предмет — позиция: в её карточку, где её и заказывают.
+  if (kind === 'BACK_IN_STOCK') return `/catalog/${draftId}`;
   // Ответ продавца — в свою ветку (draftId — id ветки); без него — к списку вопросов.
   if (kind === 'QUESTION_ANSWERED') return draftId ? `/questions/${draftId}` : '/questions';
   return `/orders/${draftId}`;
@@ -192,6 +200,8 @@ const LOOKS: Record<string, { icon: IconComponent; tone: string }> = {
   ORDER_ON_ROUTE: { icon: Truck, tone: 'bg-accent-soft text-accent-ink' },
   ORDER_DELIVERED: { icon: Check, tone: 'bg-ok-soft text-ok-ink' },
   TEMPLATE_READY: { icon: ShoppingCart, tone: 'bg-sage-soft text-accent-ink' },
+  BACK_IN_STOCK: { icon: Bell, tone: 'bg-ok-soft text-ok-ink' },
+  REORDER_DUE: { icon: ShoppingCart, tone: 'bg-accent-soft text-accent-ink' },
 };
 
 function NotificationRow({

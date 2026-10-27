@@ -16,6 +16,7 @@ import { OrderLink, OrderPane, OrderPick, OrderRow } from './OrderRow';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { useCabinetDesign } from '../../supplier/cabinetDesign';
 import { StatusHelp } from './StatusHelp';
+import { OrderStatement } from './OrderStatement';
 import {
   FILTERS, ORDER_SIZES, SORTS, kindOf, matchesFilter, matchesSearch, openByDefault, sorted, unreadByOrder,
   type OrderFilter, type OrderSort,
@@ -179,6 +180,7 @@ export function MyOrdersPage() {
       <div data-testid="orders-split" className="grid grid-cols-[23.75rem_minmax(0,1fr)] items-start gap-6">
         <div className="flex min-w-0 flex-col gap-4">
           <h1 className="text-[1.75rem] font-black tracking-[-0.02em] text-ink">{t('orders.title')}</h1>
+          <OrderStatement />
           {chips}
           <label className="relative flex items-center">
             <Search aria-hidden="true" className="pointer-events-none absolute left-3 size-4 text-ink-faint" />
@@ -230,6 +232,7 @@ export function MyOrdersPage() {
     return (
       <div className="flex flex-col gap-4">
         <h1 className="qo-page-title">{t('orders.title')}</h1>
+        <OrderStatement />
         {chips}
         {shown.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-[1.25rem] bg-surface px-5 py-10 text-center">
@@ -269,6 +272,7 @@ export function MyOrdersPage() {
           <h1 className="qo-page-title">{t('orders.title')}</h1>
           <p className="m-0 text-sm text-ink-muted max-lg:hidden">{t('orders.v2.subtitle')}</p>
         </div>
+        <OrderStatement />
         {newCount > 0 ? (
           <span className="inline-flex h-8 items-center gap-2 rounded-[var(--radius-pill)] bg-accent-soft px-3 text-caption font-bold text-accent-ink">
             <span aria-hidden="true" className="size-2 rounded-full bg-accent" />

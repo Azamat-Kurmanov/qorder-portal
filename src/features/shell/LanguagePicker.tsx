@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, Globe } from '../../ui/icons';
 import { SUPPORTED_LANGUAGES, currentLanguage, type Language } from '../../i18n';
+import { useAccountLanguage } from '../language/accountLanguage';
 import { cn } from '../../ui/cn';
 
 /**
@@ -35,6 +36,7 @@ export function LanguagePicker({
 } = {}) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
+  const { save } = useAccountLanguage();
   const [opened, setOpened] = useState(false);
   const current = currentLanguage();
   const holder = useRef<HTMLDivElement | null>(null);
@@ -70,6 +72,8 @@ export function LanguagePicker({
     // Именно clear: ответы сервера переведены по заголовку,
     // и старые тексты не должны пережить смену языка.
     queryClient.clear();
+    // В учётную запись — чтобы на другом устройстве кабинет открылся на нём же.
+    save(lng);
   }
 
   return (

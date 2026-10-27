@@ -1,3 +1,4 @@
+import { intlLocale } from '../../i18n';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,7 +20,7 @@ function stateKey(referral: ReferralDto): string {
 
 /** Свои приглашения поставщиков, новые сверху. Пустой список — ни строки. */
 export function MyReferrals() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const list = useListMyReferrals();
   const remove = useDeleteMyReferral({
@@ -49,7 +50,7 @@ export function MyReferrals() {
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="truncate text-sm font-semibold text-ink">{referral.label || t('referral.noLabel')}</span>
               <span className="text-xs text-ink-muted">
-                {new Date(referral.createdAt).toLocaleDateString(i18n.language)} · {t(stateKey(referral))}
+                {new Date(referral.createdAt).toLocaleDateString(intlLocale())} · {t(stateKey(referral))}
               </span>
             </div>
             {removable && (

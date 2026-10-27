@@ -264,7 +264,8 @@ test('оптовая строка: корзина → заявка → зака�
   const client = await customer(wholesaler);
   const token = await signInToPortal(page, client, wholesaler.id);
   const cart = await customerApi(token, wholesaler.id);
-  const put = await cart.put(`/api/portal/cart/lines/${cement}`, { data: { quantity: 65 } });
+  // «Оптом» явно: у позиции «и так, и так» новая строка по умолчанию розничная.
+  const put = await cart.put(`/api/portal/cart/lines/${cement}`, { data: { quantity: 65, mode: 'WHOLESALE' } });
   expect(put.ok(), await put.text()).toBeTruthy();
   const cartLine = ((await put.json()) as { lines: Array<{ split?: { packs: number; packPrice: number; rest: number } }> })
     .lines[0];
@@ -273,10 +274,11 @@ test('оптовая строка: корзина → заявка → зака�
 
   await page.goto('/checkout');
   // Сверку оформление рисует дважды — для телефона и для монитора, видна одна;
-  // штуки она пишет перед разбиением.
-  const line = page.getByTestId('cart-line').filter({ hasText: '65 мешков =', visible: true });
+  // штуки стоят в поле количества, разбиение — строкой под названием.
+  const line = page.getByTestId('cart-line').filter({ hasText: '3 упаковки (по 20 мешков)', visible: true });
   await expect(line).toHaveCount(1);
-  await expect(line).toContainText(/65 мешков = 3 упаковки \(по 20 мешков\) × 1\s800 ₸ \+ 5 мешков × 2\s500 ₸/);
+  await expect(line.getByRole('spinbutton', { name: /^Количество/ })).toHaveValue('65');
+  await expect(line).toContainText(/3 упаковки \(по 20 мешков\) × 1\s800 ₸ \+ 5 мешков × 2\s500 ₸/);
   await expect(page.getByTestId('cart-vat').filter({ visible: true })).toContainText(/1\s917,86/);
   await page.screenshot({ path: join(SHOTS, 'wholesale-checkout.png'), fullPage: true });
 

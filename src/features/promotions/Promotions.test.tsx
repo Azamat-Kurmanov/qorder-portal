@@ -400,6 +400,7 @@ describe('акции и скидки на телефоне', () => {
 describe('выгода в корзине', () => {
   it('подсказывает порог, показывает скидку на заявку и выгоду', () => {
     const cart: CartDto = {
+      creditLimitExceeded: false,
       lines: [{ itemId: 'a', name: 'Цемент', quantity: 80, unit: 'мешок', priceAtAdding: 2500, price: 2500, priceChanged: false, total: 200000,
         terms: { hit: false, novelty: false, ageRestricted: false } }],
       total: 194000, skipped: [], goodsTotal: 200000, volumeGoods: 200000, saleSavings: 0, ageConfirmed: false, vatPayer: true, vatIncluded: false,
@@ -417,6 +418,7 @@ describe('выгода в корзине', () => {
     const retail = { itemId: 'a', name: 'Цемент', quantity: 80, unit: 'мешок', priceAtAdding: 2500, price: 2500, priceChanged: false,
       total: 200000, terms: { hit: false, novelty: false, ageRestricted: false } };
     const cart: CartDto = {
+      creditLimitExceeded: false,
       lines: [retail, { ...retail, itemId: 'b', quantity: 60, total: 5400, split: { packs: 3, packUnit: 'упаковка', packQty: 20, packPrice: 1800, rest: 0 } }],
       total: 199400, skipped: [], goodsTotal: 205400, volumeGoods: 200000, saleSavings: 0, ageConfirmed: false, vatPayer: true, vatIncluded: false,
       discount: { kind: 'VOLUME', percent: 3, amount: 6000 },
@@ -431,6 +433,7 @@ describe('выгода в корзине', () => {
 
   it('порог не выше действующей скидки на заявку не подсказывает: первая заявка 5% перекрывает «и 3%»', () => {
     const cart: CartDto = {
+      creditLimitExceeded: false,
       lines: [{ itemId: 'a', name: 'Цемент', quantity: 20, unit: 'мешок', priceAtAdding: 2500, price: 2500, priceChanged: false, total: 50000,
         terms: { hit: false, novelty: false, ageRestricted: false } }],
       total: 47500, skipped: [], goodsTotal: 50000, volumeGoods: 50000, saleSavings: 0, ageConfirmed: false, vatPayer: true, vatIncluded: false,

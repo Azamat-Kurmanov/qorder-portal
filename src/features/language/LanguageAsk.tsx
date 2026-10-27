@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { SUPPORTED_LANGUAGES, currentLanguage, type Language } from '../../i18n';
 import { languageChosen, rememberLanguageChoice } from './languageChoice';
+import { useAccountLanguage } from './accountLanguage';
 import { Flag } from '../../ui/Flag';
 import { cn } from '../../ui/cn';
 
@@ -36,7 +37,25 @@ export function LanguageAsk() {
    * языка перерисовывает всё дерево, а к этому моменту ответ уже записан
    * и окно должно закрыться, а не открыться заново.
    */
-  const [asking, setAsking] = useState(() => !languageChosen());
+  const [unanswered, setUnanswered] = useState(() => !languageChosen());
+  const { serverLanguage, save } = useAccountLanguage();
+
+  /*
+   * Язык учётной записи главнее браузера: выбранный на телефоне, он открывает
+   * кабинет и на компьютере. Есть он — вопрос не нужен, ответ уже дан.
+   */
+  useEffect(() => {
+    if (!serverLanguage) return;
+    if (serverLanguage !== currentLanguage()) {
+      void i18n.changeLanguage(serverLanguage);
+      queryClient.clear();
+    }
+    rememberLanguageChoice(serverLanguage);
+    setUnanswered(false);
+  }, [serverLanguage, i18n, queryClient]);
+
+  // Пока учётная запись не ответила, окно не всплывает: язык, может быть, уже выбран.
+  const asking = unanswered && serverLanguage === null;
 
   const current = currentLanguage();
 
@@ -53,7 +72,8 @@ export function LanguageAsk() {
       queryClient.clear();
     }
     rememberLanguageChoice(language);
-    setAsking(false);
+    save(language);
+    setUnanswered(false);
   };
 
   return (

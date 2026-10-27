@@ -387,6 +387,68 @@ describe('мои заявки', () => {
     });
   });
 
+  it('у полученной заявки — «Сообщить о проблеме»: вид, товар, сколько и подробности уходят в переписку', async () => {
+    const issued = order({ id: 'order-issued', orderNumber: '1030', state: 'ISSUED', cancellable: false });
+    const { calls } = openOrders([issued], [
+      method('POST', '/api/portal/orders/order-issued/questions', issued),
+    ]);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1030' }));
+    await userEvent.click(within(card('1030')).getByRole('button', { name: 'Сообщить о проблеме' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Брак' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Цемент М400' }));
+    const howMany = screen.getByRole('spinbutton', { name: /сколько/ });
+    expect(howMany).toHaveValue(5);
+    await userEvent.clear(howMany);
+    await userEvent.type(howMany, '50');
+    // Больше, чем в заказе, не вводится.
+    expect(howMany).toHaveValue(5);
+    await userEvent.clear(howMany);
+    await userEvent.type(howMany, '2');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Подробности' }), 'Порваны');
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить продавцу' }));
+
+    await waitFor(() => {
+      const call = calls.find((candidate) => candidate.url.includes('/order-issued/questions'));
+      expect(call?.init?.body).toBe(JSON.stringify({ text: 'Проблема с заказом: Брак\n— Цемент М400: 2 мешка\nПорваны' }));
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent('Продавец получил сообщение');
+  });
+
+  it('полученный заказ оценивается: «всё хорошо» — одним касанием, «были проблемы» — с причиной', async () => {
+    const issued = order({ id: 'order-issued', orderNumber: '1030', state: 'ISSUED', cancellable: false });
+    const { calls } = openOrders([issued], [
+      method('PUT', '/api/portal/orders/order-issued/rating', { ...issued, rating: { good: false, reason: 'LATE' } }),
+    ]);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1030' }));
+    await userEvent.click(within(card('1030')).getByRole('button', { name: 'Были проблемы' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Опоздали' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Пара слов продавцу' }), 'На день позже');
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить оценку' }));
+
+    await waitFor(() => {
+      const call = calls.find((candidate) => candidate.url.includes('/order-issued/rating'));
+      expect(call?.init?.body).toBe(JSON.stringify({ good: false, reason: 'LATE', comment: 'На день позже' }));
+    });
+  });
+
+  it('поставленная оценка видна словами, и её можно изменить', async () => {
+    openOrders([order({ id: 'order-issued', orderNumber: '1030', state: 'ISSUED', cancellable: false, rating: { good: false, reason: 'INCOMPLETE' } })]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1030' }));
+
+    expect(within(card('1030')).getByTestId('order-rating')).toHaveTextContent('Ваша оценка: были проблемы — привезли не всё');
+    await userEvent.click(within(card('1030')).getByRole('button', { name: 'Изменить' }));
+    expect(within(card('1030')).getByRole('button', { name: 'Всё хорошо' })).toBeInTheDocument();
+  });
+
+  it('у идущей заявки сообщить о проблеме нельзя — товар ещё не получен', async () => {
+    openOrders([atSupplier]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1043' }));
+
+    expect(within(card('1043')).queryByRole('button', { name: 'Сообщить о проблеме' })).toBeNull();
+  });
+
   it('Enter в вопросе по заявке отправляет его продавцу', async () => {
     const { calls } = openOrders([atSupplier], [
       method('POST', '/api/portal/orders/order-review/questions', {

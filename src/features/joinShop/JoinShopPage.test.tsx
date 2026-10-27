@@ -108,4 +108,34 @@ describe('заявка в магазин по ссылке', () => {
     expect(await screen.findByRole('heading', { name: 'Заявка в магазин ИП Мухамедиева' })).toBeInTheDocument();
     expect(localStorage.getItem('qo.portal.joinShop.abc')).toBeNull();
   });
+
+  it('открытая витрина: товары без цен под формой, поиск и рубрики', async () => {
+    const { calls } = stubFetch([
+      get('/api/portal/consent-notice', notice),
+      get('/api/portal/join-shop/abc/items', { page: 0, size: 24, totalElements: 1, items: [
+        { id: 'i1', name: 'Цемент М400', unit: 'мешок', imageUrl: 'https://cdn.example.kz/c.jpg' },
+      ] }),
+      get('/api/portal/join-shop/abc/categories', [{ id: 'c1', name: 'Сухие смеси', path: 'c1', sortOrder: 1 }]),
+      get('/api/portal/join-shop/abc', { shopName: 'ИП Мухамедиева', showcase: true }),
+    ]);
+    open();
+
+    const showcase = await screen.findByRole('region', { name: 'Товары магазина' });
+    expect(await screen.findByText('Цемент М400')).toBeInTheDocument();
+    expect(showcase).toHaveTextContent('Цены и наличие откроются в кабинете');
+    expect(showcase).not.toHaveTextContent('₸');
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Название товара' }), 'цем');
+    await userEvent.click(screen.getByRole('radio', { name: 'Сухие смеси' }));
+    expect(calls.some((call) => call.url.includes('/items') && call.url.includes('query=%D1%86%D0%B5%D0%BC')
+      && call.url.includes('categoryId=c1'))).toBe(true);
+  });
+
+  it('закрытая витрина — товаров нет и их не спрашивают', async () => {
+    const { calls } = stubFetch([get('/api/portal/consent-notice', notice), shop]);
+    open();
+
+    expect(await screen.findByRole('button', { name: 'Отправить заявку' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Товары магазина' })).toBeNull();
+    expect(calls.some((call) => call.url.includes('/items'))).toBe(false);
+  });
 });

@@ -55,6 +55,35 @@ describe('заявка на пересогласовании', () => {
     expect(screen.getByTestId('submitted')).toHaveTextContent('5 мешков');
   });
 
+  it('пока ход за продавцом — до какого времени он ответит', async () => {
+    const due = new Date();
+    due.setHours(15, 30, 0, 0);
+    stubFetch([get('/api/portal/orders/order-1', {
+      ...renegotiated, state: 'SUBMITTED', needsAnswer: false, answerExpectedBy: due.toISOString(),
+    })]);
+
+    openOrder();
+
+    expect(await screen.findByTestId('order-answer-by')).toHaveTextContent('Продавец ответит сегодня до 15:30');
+  });
+
+  it('называет, кто ведёт заявку, — именем', async () => {
+    stubFetch([get('/api/portal/orders/order-1', { ...renegotiated, managerName: 'Жанар' })]);
+
+    openOrder();
+
+    expect(await screen.findByTestId('order-manager')).toHaveTextContent('Вашу заявку ведёт Жанар');
+  });
+
+  it('без срока от сервера строки о сроке нет', async () => {
+    stubFetch([get('/api/portal/orders/order-1', renegotiated)]);
+
+    openOrder();
+
+    expect(await screen.findByText('Вы отправляли')).toBeInTheDocument();
+    expect(screen.queryByTestId('order-answer-by')).toBeNull();
+  });
+
   it('позиция, которую продавец ждёт к дате, помечена «будет …»', async () => {
     stubFetch([get('/api/portal/orders/order-1', {
       ...renegotiated,

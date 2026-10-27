@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../ui/Button';
 import { cn } from '../../ui/cn';
+import { dayMonth } from '../../shared/format';
 import {
   getGetPortalTemplatesQueryKey,
   useSchedulePortalTemplate,
@@ -18,14 +19,14 @@ const FIELD = cn(
 );
 
 /** «По четвергам в 15:00 · следующий раз 29 октября» — те же слова, что видит продавец. */
-export function scheduleText(template: OrderTemplateDto, t: (key: string, options?: Record<string, unknown>) => string, language: string): string | null {
+export function scheduleText(template: OrderTemplateDto, t: (key: string, options?: Record<string, unknown>) => string): string | null {
   if (!template.repeatKind || template.repeatDay == null) return null;
   const when = template.repeatKind === 'WEEKLY'
     ? t(`templates.auto.weekday${template.repeatDay}`)
     : t('templates.auto.monthDay', { day: template.repeatDay });
   const text = t('templates.auto.when', { when, time: template.repeatTime?.slice(0, 5) ?? '' });
   return template.nextRunAt
-    ? `${text} · ${t('templates.auto.next', { date: new Date(template.nextRunAt).toLocaleDateString(language, { day: 'numeric', month: 'long' }) })}`
+    ? `${text} · ${t('templates.auto.next', { date: dayMonth(template.nextRunAt) })}`
     : text;
 }
 
@@ -34,9 +35,9 @@ export function scheduleText(template: OrderTemplateDto, t: (key: string, option
  * и приходит уведомление; заявку клиент отправляет сам — цены и наличие с прошлого раза могли измениться.
  */
 export function TemplateSchedule({ template }: { template: OrderTemplateDto }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
-  const text = scheduleText(template, t, i18n.language);
+  const text = scheduleText(template, t);
 
   if (editing) return <ScheduleForm template={template} onDone={() => setEditing(false)} />;
   return (

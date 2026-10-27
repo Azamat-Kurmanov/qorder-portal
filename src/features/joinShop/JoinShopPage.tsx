@@ -1,3 +1,4 @@
+import { intlLocale } from '../../i18n';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
@@ -21,6 +22,7 @@ import {
 } from '../../api/generated';
 import { ConsentNotice } from '../activation/ConsentNotice';
 import { LanguageAsk } from '../language/LanguageAsk';
+import { PublicShowcase } from './PublicShowcase';
 import { LanguagePicker } from '../shell/LanguagePicker';
 
 const INPUT = cn(
@@ -101,7 +103,9 @@ export function JoinShopPage() {
   const setToken = (next: string | null) => { writeToken(code, next); setTokenState(next); };
 
   return (
-    <Screen>
+    <Screen after={info?.showcase && !token ? (
+      <PublicShowcase code={code} onRequest={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />
+    ) : null}>
       {info?.logoUrl ? <img src={info.logoUrl} alt="" className="h-14 w-14 rounded-[var(--radius-control)] object-contain" /> : null}
       {shop.isError || !code ? (
         <>
@@ -309,7 +313,7 @@ function ConfirmPhone({ code, token, phoneCode, onPhoneCode }: {
             {t('joinShop.openWhatsApp')}
           </a>
           <p className="text-center text-xs text-ink-muted">
-            {t('joinShop.codeIs', { code: fresh.code, time: new Date(fresh.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}
+            {t('joinShop.codeIs', { code: fresh.code, time: new Date(fresh.expiresAt).toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' }) })}
           </p>
           <p role="status" className="text-center text-xs text-ink-faint">{t('joinShop.waiting')}</p>
         </>
@@ -393,10 +397,10 @@ function Alert({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Screen({ children }: { children: React.ReactNode }) {
+function Screen({ children, after }: { children: React.ReactNode; after?: React.ReactNode }) {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-dvh items-center justify-center p-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 p-4">
       <LanguageAsk />
       <Card className="flex w-full max-w-[460px] flex-col gap-4 p-6">
         <div className="flex items-center gap-2">
@@ -405,6 +409,7 @@ function Screen({ children }: { children: React.ReactNode }) {
         </div>
         {children}
       </Card>
+      {after}
     </div>
   );
 }

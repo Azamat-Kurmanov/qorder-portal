@@ -1,6 +1,7 @@
+import { dayMonth } from '../../shared/format';
+import { intlLocale } from '../../i18n';
 import type { TFunction } from 'i18next';
 import type { SnapshotLineDto } from '../../api/generated';
-import { intlLocale } from '../../i18n';
 import { quantityWithUnit } from '../../shared/units';
 
 /**
@@ -16,10 +17,28 @@ import { quantityWithUnit } from '../../shared/units';
 
 /** День без года: заявки живут неделями, и год в подписи — лишний шум. */
 export function orderDay(iso: string): string {
+  return dayMonth(iso);
+}
+
+/** Время сообщения: «сегодня, 11:40» или «21 сентября, 10:05». */
+export function dayTime(iso: string, t: (key: string) => string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long' }).format(date);
+  if (Number.isNaN(date.getTime())) return iso;
+  const time = new Intl.DateTimeFormat(intlLocale(), { hour: '2-digit', minute: '2-digit' }).format(date);
+  const today = new Date().toDateString() === date.toDateString();
+  return `${today ? t('orders.v2.today') : orderDay(iso)}, ${time}`;
+}
+
+/**
+ * «Продавец ответит сегодня до 15:30» — пока ход за продавцом. Без неё
+ * клиент не знает, ждать или звонить; сервер не присылает прошедший срок.
+ */
+export function answerExpectedText(iso: string, t: TFunction): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const time = new Intl.DateTimeFormat(intlLocale(), { hour: '2-digit', minute: '2-digit' }).format(date);
+  const today = new Date().toDateString() === date.toDateString();
+  return t('orders.answerBy', { day: today ? t('orders.v2.today') : orderDay(iso), time });
 }
 
 /**

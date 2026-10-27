@@ -250,7 +250,11 @@
       "PROMO_STARTED_count_other": "A sale has started: {{count}} discounted products",
       "ORDER_ON_ROUTE": "Your order is on the way",
       "ORDER_DELIVERED": "Your order has been delivered",
-      "TEMPLATE_READY": "Your template order is in the cart — check it and send"
+      "TEMPLATE_READY": "Your template order is in the cart — check it and send",
+      "BACK_IN_STOCK": "An item you were waiting for is back in stock",
+      "BACK_IN_STOCK_named": "Back in stock: {{name}}",
+      "REORDER_DUE": "Time to reorder?",
+      "REORDER_DUE_every": "Time to reorder? You usually order every {{days}} days."
     }
   },
   "activation": {
@@ -345,7 +349,8 @@
       "label": "How you buy",
       "RETAIL": "Retail",
       "WHOLESALE": "Wholesale"
-    }
+    },
+    "creditLimit": "This total is above your credit limit with the seller — they will confirm shipping separately. You can still send the order"
   },
   "checkout": {
     "title": "Place your request",
@@ -431,6 +436,14 @@
       "toTerminal": "To the terminal: {{address}}",
       "carrierTariff": "at carrier rates",
       "directNote": "You pay the carrier for delivery — not in the total"
+    },
+    "error": {
+      "title": "Request not sent",
+      "note": "Could not reach the server. Your cart is saved — try sending again."
+    },
+    "maybeSent": {
+      "title": "Your request may already be sent",
+      "note": "The cart is empty: the request may have gone through while the reply was lost. Check it in My requests."
     },
     "closed": {
       "title": "The supplier is temporarily not accepting orders",
@@ -603,7 +616,14 @@
       "WHOLESALE": "Wholesale"
     },
     "vatIncluded": "incl. {{rate}}% VAT, tax is already in the price",
-    "leadVatIncluded": "prices include {{rate}}% VAT; next to each one — per piece, sack or box"
+    "leadVatIncluded": "prices include {{rate}}% VAT; next to each one — per piece, sack or box",
+    "restock": {
+      "notify": "Notify me when available",
+      "waiting": "We'll let you know"
+    },
+    "filters": {
+      "reset": "Clear filters"
+    }
   },
   "orders": {
     "expectedOn": "arrives {{date}}",
@@ -612,7 +632,8 @@
       "terminal": "To the carrier terminal — you pick it up",
       "carrier": "Delivered by {{name}}",
       "direct": "You pay the carrier for delivery — not in the total",
-      "tracking": "Tracking number:"
+      "tracking": "Tracking number:",
+      "when": "Arrives {{when}}"
     },
     "title": "My requests",
     "empty": "No requests yet. Fill the basket in the catalogue and send it.",
@@ -845,7 +866,55 @@
       "delivery": "delivery"
     },
     "realization1c": "1C sales document No. {{number}} of {{day}}",
-    "realization1cNoNumber": "1C sales document of {{day}}"
+    "realization1cNoNumber": "1C sales document of {{day}}",
+    "answerBy": "The seller will reply {{day}} by {{time}}",
+    "problem": {
+      "open": "Report a problem",
+      "title": "What happened?",
+      "kind": {
+        "SHORT": "Short delivery",
+        "DEFECT": "Defect",
+        "WRONG": "Wrong item",
+        "OTHER": "Other"
+      },
+      "which": "Which items",
+      "howMany": "how many",
+      "details": "Details",
+      "detailsPlaceholder": "For example: two bags are torn",
+      "send": "Send to the seller",
+      "sent": "The seller has your message — the reply will come to this order's thread.",
+      "message": "Problem with the order: {{kind}}"
+    },
+    "rating": {
+      "question": "How did the order go?",
+      "good": "All good",
+      "bad": "There were problems",
+      "what": "What went wrong",
+      "comment": "A few words to the seller",
+      "send": "Send rating",
+      "change": "Change",
+      "yourGood": "Your rating: all good",
+      "yourBad": "Your rating: there were problems",
+      "reason": {
+        "LATE": "Late",
+        "INCOMPLETE": "Not everything delivered",
+        "QUALITY": "Product quality",
+        "SERVICE": "Service",
+        "OTHER": "Other"
+      },
+      "yourBadWith": "Your rating: there were problems — {{reason}}"
+    },
+    "manager": "{{name}} is handling your order",
+    "statement": {
+      "open": "Order statement",
+      "title": "Order statement",
+      "from": "From",
+      "to": "To",
+      "download": "Download PDF",
+      "preparing": "Preparing…",
+      "failed": "Couldn't download — please try again",
+      "note": "For reference: orders and payments recorded by the seller. This is not a reconciliation statement — the seller prepares that in their accounting"
+    }
   },
   "templates": {
     "title": "Templates",
@@ -1415,7 +1484,8 @@
     },
     "mode": {
       "from": "from {{price}} per {{unit}}"
-    }
+    },
+    "substitutes": "In stock — could replace it"
   },
   "design": {
     "toCartShort": "Add to cart",
@@ -2009,7 +2079,19 @@
     "tooOften": "Too many requests from this number. Try tomorrow.",
     "codeLimit": "Too many codes this hour. Try later.",
     "noChannel": "The shop has no WhatsApp connected for codes right now. Contact the shop directly.",
-    "failed": "Something went wrong — check your internet and try again."
+    "failed": "Something went wrong — check your internet and try again.",
+    "showcase": {
+      "title": "Shop items",
+      "noPrices": "Prices and stock open in the cabinet once the shop approves your request",
+      "request": "Get access",
+      "search": "Item name",
+      "categories": "Categories",
+      "all": "All",
+      "empty": "Nothing found",
+      "prev": "Back",
+      "next": "Next",
+      "page": "{{page}} of {{pages}}"
+    }
   },
   "phoneGate": {
     "title": "Confirm your phone number",

@@ -135,6 +135,39 @@ describe('оформление заявки', () => {
     expect(screen.queryByText(/заявка отправлена/i)).not.toBeInTheDocument();
   });
 
+  /** QA-008: сбой сервера раньше оставлял экран немым — ушла ли заявка, было не понять. */
+  it('сбой сервера — «Заявка не отправлена», корзина на месте', async () => {
+    stubFetch([
+      get('/api/portal/cart', cartWith()),
+      get('/api/portal/delivery', pickupOnly),
+      method('POST', '/api/portal/orders', { code: 'INTERNAL_ERROR', detail: 'Внутренняя ошибка сервера' }, 500),
+    ]);
+
+    renderScreen(<CheckoutPage />);
+    await waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('12 500'));
+    await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/заявка не отправлена/i);
+    expect(screen.getByTestId('total')).toHaveTextContent('12 500');
+  });
+
+  /** QA-009: ответ на подачу потерян, повтор получает «корзина пуста» — заявка, скорее всего, ушла. */
+  it('«корзина пуста» на отправке — «Возможно, заявка уже отправлена» и ссылка на «Мои заявки»', async () => {
+    stubFetch([
+      get('/api/portal/cart', cartWith()),
+      get('/api/portal/delivery', pickupOnly),
+      method('POST', '/api/portal/orders', { code: 'PORTAL_CART_EMPTY', detail: 'Корзина пуста' }, 400),
+    ]);
+
+    renderScreen(<CheckoutPage />);
+    await waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('12 500'));
+    await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/возможно, заявка уже отправлена/i);
+    expect(within(alert).getByRole('link', { name: 'Мои заявки' })).toHaveAttribute('href', '/orders');
+  });
+
   it('позиция, снятая с продажи, названа отдельным списком', async () => {
     stubFetch([
       get('/api/portal/cart', cartWith({

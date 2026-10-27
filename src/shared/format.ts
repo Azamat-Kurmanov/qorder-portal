@@ -1,5 +1,5 @@
 import { formatPhone } from './phone';
-import { intlLocale } from '../i18n';
+import { currentLanguage, intlLocale, kazakhIntl } from '../i18n';
 import { currencySign, type Currency } from './currency';
 
 /**
@@ -43,6 +43,23 @@ export function shortDate(iso: string): string {
   return Number.isNaN(date.getTime())
     ? iso
     : new Intl.DateTimeFormat(intlLocale(), { day: '2-digit', month: '2-digit' }).format(date);
+}
+
+/** Месяцы по-казахски — на случай браузера без казахских данных (`kazakhIntl`). */
+const KK_MONTHS = ['қаңтар', 'ақпан', 'наурыз', 'сәуір', 'мамыр', 'маусым', 'шілде', 'тамыз', 'қыркүйек', 'қазан', 'қараша', 'желтоқсан'];
+
+/**
+ * «12 сентября», «12 қыркүйек», «12 September»; с годом — «12 сентября 2026 г.», «2026 ж. 12 қыркүйек».
+ * Строка `YYYY-MM-DD` — день как есть, без сдвига часовым поясом. Нераспознанное возвращается как пришло.
+ */
+export function dayMonth(value: Date | string, withYear = false): string {
+  const date = typeof value === 'string' ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value) : value;
+  if (Number.isNaN(date.getTime())) return String(value);
+  if (currentLanguage() === 'kk' && !kazakhIntl) {
+    const day = `${date.getDate()} ${KK_MONTHS[date.getMonth()]}`;
+    return withYear ? `${date.getFullYear()} ж. ${day}` : day;
+  }
+  return new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long', ...(withYear ? { year: 'numeric' } : {}) }).format(date);
 }
 
 /**

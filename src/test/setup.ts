@@ -3,6 +3,8 @@ import { resetShopMemory } from '../supplier/shopMemory';
 import { resetCartDrawer } from '../features/cart/cartDrawer';
 import { configure } from '@testing-library/dom';
 import i18n from '../i18n';
+import en from '../i18n/en.json';
+import kk from '../i18n/kk.json';
 import '@testing-library/jest-dom/vitest';
 
 /**
@@ -29,6 +31,14 @@ configure({ asyncUtilTimeout: 5000 });
  * (заголовок запроса, переключатель), не должен оставлять соседям чужой.
  */
 void i18n.changeLanguage('ru');
+
+/**
+ * Словари казахского и английского в кабинете догружаются (src/i18n/index.ts),
+ * в тестах — лежат сразу: проверка, сменившая язык, получает подписи тем же шагом,
+ * что и раньше, а не через догрузку, которую пришлось бы ждать в каждом тесте.
+ */
+i18n.addResourceBundle('kk', 'translation', kk);
+i18n.addResourceBundle('en', 'translation', en);
 
 /**
  * Язык считается уже выбранным — во всём наборе, кроме проверок самого окна.

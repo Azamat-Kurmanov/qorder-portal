@@ -1,3 +1,4 @@
+import { dayMonth } from '../../shared/format';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../ui/Button';
@@ -8,7 +9,7 @@ import {
   type ConsentRecordDto,
 } from '../../api/generated';
 import { useSupplier } from '../../supplier/useSupplier';
-import { SUPPORTED_LANGUAGES, intlLocale } from '../../i18n';
+import { SUPPORTED_LANGUAGES } from '../../i18n';
 import { fileNameFrom, saveFile } from '../../shared/download';
 
 /**
@@ -145,12 +146,5 @@ function languageName(code: string, t: (key: string) => string): string {
  * а согласие — годами, и «02.04» без года в справке о себе бесполезно.
  */
 function consentDay(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime())
-    ? iso
-    : new Intl.DateTimeFormat(intlLocale(), {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }).format(date);
+  return dayMonth(iso, true);
 }

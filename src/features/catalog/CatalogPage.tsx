@@ -7,6 +7,7 @@ import { ArrowUpDown, Check, ChevronDown, ChevronLeft, Zap } from '../../ui/icon
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   useGetPortalCatalog,
+  useGetPortalCatalogFilters,
   useGetPortalCatalogCounts,
   useGetPortalCategories,
   useGetPortalPromotions,
@@ -43,6 +44,7 @@ import { BentoView } from './views/BentoView';
 import { RowsView } from './views/RowsView';
 import { MasonryView } from './views/MasonryView';
 import { ArrivalsStrip } from '../arrivals/ArrivalsStrip';
+import { FieldFilters } from './FieldFilters';
 import { VolumeHint } from './views/VolumeHint';
 
 // Метки и условия продажи живут в `itemParts`; карточка товара берёт их отсюда.
@@ -209,7 +211,14 @@ export function CatalogPage() {
   // пятая страница узкой рубрики показала бы «ничего не нашли» там, где
   // товары есть. Сброс — прямо при отрисовке, а не эффектом: эффект успел бы
   // отправить запрос новой рубрики со старым номером страницы.
-  const listKey = JSON.stringify([query, categoryId, onSale, novelty, sortShown, size, channel]);
+  // Отбор по полям — свой у рубрики: в другой рубрике другие поля, и выбранное там ничего не значит.
+  const [fields, setFields] = useState<string[]>([]);
+  const [fieldsCategory, setFieldsCategory] = useState(categoryId);
+  if (fieldsCategory !== categoryId) {
+    setFieldsCategory(categoryId);
+    setFields([]);
+  }
+  const listKey = JSON.stringify([query, categoryId, onSale, novelty, sortShown, size, channel, fields]);
   const [pagedKey, setPagedKey] = useState(listKey);
   if (pagedKey !== listKey) {
     setPagedKey(listKey);
@@ -235,7 +244,13 @@ export function CatalogPage() {
     novelty: novelty || undefined,
     // Распродажа «Розницу / Опт» пока не учитывает (сервер) — там переключателя и нет.
     channel: onSale ? undefined : channel,
+    field: onSale || novelty || fields.length === 0 ? undefined : fields,
   });
+  // Отборы — только в рубрике: поля заводятся на рубрику, и в «Всех» их было бы не к чему приложить.
+  const filtersQuery = useGetPortalCatalogFilters({ categoryId }, { query: { enabled: categoryId !== undefined && !onSale && !novelty } });
+  const facets = categoryId !== undefined && !onSale && !novelty && filtersQuery.data?.status === 200
+    && Array.isArray(filtersQuery.data.data) ? filtersQuery.data.data : [];
+  const fieldFilters = <FieldFilters facets={facets} selected={fields} onChange={setFields} />;
   // Числа у чипов — с тем же поиском, что и страница: число обещает, сколько
   // человек увидит, нажав чип.
   // Прежние числа держатся, пока идут новые: иначе переключатель «Розница / Опт» мигал бы при каждом выборе.
@@ -611,6 +626,7 @@ export function CatalogPage() {
         </div>
         {channels}
         {chips}
+        {fieldFilters}
         <div ref={gridStart} aria-hidden="true" />
         {results}
         {pager}
@@ -641,6 +657,7 @@ export function CatalogPage() {
           </div>
         </div>
         {quick}
+        {fieldFilters}
         <div ref={gridStart} aria-hidden="true" className="-mb-5 lg:-mb-6" />
         {results}
         {pager}
@@ -727,7 +744,8 @@ export function CatalogPage() {
 
       <div ref={columnRef} className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="min-w-0 flex-1 truncate text-[1.75rem] font-black tracking-[-0.02em] text-ink">
+          {/* Нижний предел ширины: на kk кнопки длиннее, и без него заголовок сжимался до «К.», а не уступал им строку. */}
+          <h1 className="min-w-[8rem] flex-1 truncate text-[1.75rem] font-black tracking-[-0.02em] text-ink">
             {title}
             {total !== undefined && <span className="font-bold text-ink-muted"> · {total}</span>}
           </h1>
@@ -770,6 +788,7 @@ export function CatalogPage() {
           {vatRate !== undefined ? t(items[0].vatIncluded ? 'catalog.leadVatIncluded' : 'catalog.leadVat', { rate: decimal(vatRate) }) : t('catalog.lead')}
         </p>
         {/* Выгода за объём — на «Главной» и в оформлении (макеты «Кабинет клиента 2.0»), не над сеткой. */}
+        {fieldFilters}
         <div ref={gridStart} aria-hidden="true" className="-mb-4" />
         {results}
         {pager}

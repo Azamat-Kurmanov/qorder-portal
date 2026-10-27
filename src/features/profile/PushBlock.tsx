@@ -18,9 +18,9 @@ type Kind = PushPreferencesDtoMutedItem;
 
 /** Поводы клиента (у продавца свои) — тремя группами, словами колокольчика (`notifications.reasons.*`). */
 const GROUPS: { key: string; kinds: Kind[] }[] = [
-  { key: 'orders', kinds: ['ACCEPTED', 'RENEGOTIATION', 'DEADLINE_SOON', 'ORDER_ANSWERED', 'QUESTION_ANSWERED', 'TEMPLATE_READY'] },
+  { key: 'orders', kinds: ['ACCEPTED', 'RENEGOTIATION', 'DEADLINE_SOON', 'ORDER_ANSWERED', 'QUESTION_ANSWERED', 'TEMPLATE_READY', 'REORDER_DUE'] },
   { key: 'delivery', kinds: ['INVOICE_SENT', 'TRANSPORT_RECEIPT_SENT', 'TRANSPORT_PAYMENT_REJECTED', 'ORDER_ON_ROUTE', 'ORDER_DELIVERED'] },
-  { key: 'promo', kinds: ['NEW_ARRIVALS', 'PROMO_STARTED'] },
+  { key: 'promo', kinds: ['NEW_ARRIVALS', 'PROMO_STARTED', 'BACK_IN_STOCK'] },
 ];
 
 const FIELD = 'h-11 rounded-[var(--radius-control)] border-0 bg-sunk px-3 text-body text-ink focus:outline-none focus:ring-2 focus:ring-accent';

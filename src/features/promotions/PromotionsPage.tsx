@@ -18,7 +18,7 @@ import { cartOf, useCart, useSetCartLine } from '../cart/useCart';
 import { useAddToCart } from '../cart/ageGate';
 import { openCart } from '../cart/cartDrawer';
 import { ItemThumb } from '../catalog/ItemThumb';
-import { money } from '../../shared/format';
+import { dayMonth, money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { cn } from '../../ui/cn';
 import { Skeleton } from '../../ui/Skeleton';
@@ -476,12 +476,9 @@ function SaleHero({ sale, dealCount, compact }: {
   dealCount: number;
   compact: boolean;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const left = useCountdown(sale.endsAt);
-  const lastDay = sale.endsOn
-    ? new Intl.DateTimeFormat(i18n.language === 'kk' ? 'kk-KZ' : i18n.language, { day: 'numeric', month: 'long' })
-      .format(new Date(`${sale.endsOn}T12:00:00`))
-    : null;
+  const lastDay = sale.endsOn ? dayMonth(sale.endsOn) : null;
 
   return (
     <div

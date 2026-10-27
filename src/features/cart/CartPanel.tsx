@@ -13,6 +13,7 @@ import { cn } from '../../ui/cn';
 import { CartSavings } from './CartSavings';
 import { GoodsLine, VatLine } from './CartTotals';
 import { AdultNotice } from './AdultNotice';
+import { CreditNotice } from './CreditNotice';
 import { useCurrentShop } from '../shell/Shops';
 
 /**
@@ -157,6 +158,7 @@ export function CartPanel({ active = true }: { active?: boolean }) {
               <div className="flex flex-col gap-3 border-t border-hairline px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4">
                 {/* «Ещё N — и скидка больше» — строкой над итогом: работает, пока заявка не отправлена. */}
                 <CartSavings cart={cart} tierOnly />
+                <CreditNotice cart={cart} />
                 {/*
                   Итог — одной строкой; из чего он сложился (товары, скидки,
                   налог) раскрывается нажатием на неё. НДС — последним: он

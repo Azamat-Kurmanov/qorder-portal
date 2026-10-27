@@ -22,10 +22,19 @@ describe('доставка заявки', () => {
     expect(screen.getByRole('link', { name: /AB123/ })).toHaveAttribute('href', 'https://track.example/AB123');
   });
 
+  it('называет день и окно доставки; без окна — только день', () => {
+    const { rerender } = render(<OrderDelivery delivery={{ methodName: 'По городу', date: '2026-10-29', slot: '10:00–14:00' }} />);
+    expect(screen.getByTestId('order-delivery-date')).toHaveTextContent('Привезут 29 октября, 10:00–14:00');
+
+    rerender(<OrderDelivery delivery={{ methodName: 'По городу', date: '2026-10-29' }} />);
+    expect(screen.getByTestId('order-delivery-date')).toHaveTextContent(/^Привезут 29 октября$/);
+  });
+
   it('без перевозчика — только способ и адрес', () => {
     render(<OrderDelivery delivery={{ methodName: 'По городу', address: 'ул. Абая 1' }} />);
 
     expect(screen.getByTestId('order-delivery-block')).toHaveTextContent('По городу');
     expect(screen.queryByTestId('order-tracking')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('order-delivery-date')).not.toBeInTheDocument();
   });
 });

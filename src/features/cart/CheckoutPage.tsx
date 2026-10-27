@@ -16,6 +16,7 @@ import { AdultNotice } from './AdultNotice';
 import { useCheckout } from './useCheckout';
 import { CheckoutBreakdown, CheckoutTotal } from './CheckoutBreakdown';
 import { VolumeHint } from '../catalog/views/VolumeHint';
+import { CreditNotice } from './CreditNotice';
 import { useGetPortalPromotions } from '../../api/generated';
 
 /**
@@ -34,7 +35,7 @@ export function CheckoutPage() {
   const navigate = useNavigate();
   const { phone: viewerPhone } = useAuth();
   const checkout = useCheckout();
-  const { cart, lines, goodsTotal, loadersLines, delivery, setDelivery, note, setNote, submitted, stale, closed } = checkout;
+  const { cart, lines, goodsTotal, loadersLines, delivery, setDelivery, note, setNote, submitted, stale, closed, failed } = checkout;
   const { shipping, direct } = checkout.totals;
   /** Расчёт в липкой сводке на телефоне — по нажатию «Подробнее». */
   const [details, setDetails] = useState(false);
@@ -105,6 +106,21 @@ export function CheckoutPage() {
             >
               <p className="font-semibold text-ink">{t('checkout.closed.title')}</p>
               <p className="text-sm text-ink-muted">{t('checkout.closed.note')}</p>
+            </div>
+          )}
+
+          {failed && (
+            <div
+              role="alert"
+              className="flex flex-col gap-1 rounded-[var(--radius-tile)] border border-unclear/30 bg-unclear/8 p-4"
+            >
+              <p className="font-semibold text-ink">{t(`checkout.${failed}.title`)}</p>
+              <p className="text-sm text-ink-muted">{t(`checkout.${failed}.note`)}</p>
+              {failed === 'maybeSent' && (
+                <Link to="/orders" className="self-start text-sm font-semibold text-accent underline">
+                  {t('orders.title')}
+                </Link>
+              )}
             </div>
           )}
 
@@ -205,6 +221,8 @@ export function CheckoutPage() {
           <div className={cn(!details && 'max-lg:hidden')}>
             <CartSavings cart={cart} withTier={false} />
           </div>
+
+          <CreditNotice cart={cart} />
 
           <CheckoutTotal checkout={checkout} details={details} onToggle={() => setDetails((open) => !open)} />
 

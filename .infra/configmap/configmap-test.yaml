@@ -8,7 +8,7 @@ data:
   TZ: "Asia/Almaty"
   APP_API_URL: ""
   NGINX_API_UPSTREAM: "http://qorder.qorder-test.svc.cluster.local:5000"
-  NGINX_API_DOCS: "on"   # контракт для npm run api:pull — только на TEST (SEC-01)
+  NGINX_API_DOCS: "on"   # контракт для npm run api:pull — только на TEST
   APP_KEYCLOAK_URL: "http://auth-test.q-order.kz"
   APP_KEYCLOAK_REALM: "q-order-customers"
   APP_KEYCLOAK_CLIENT_ID: "q-order-portal"

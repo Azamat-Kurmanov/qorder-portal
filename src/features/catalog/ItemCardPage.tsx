@@ -10,6 +10,7 @@ import {
   getPortalCatalogItem,
   useGetPortalCatalog,
   useGetPortalCatalogItem,
+  useGetPortalCatalogSubstitutes,
   useGetPortalCategories,
   useGetPortalDeliveryOptions,
   useGetPortalPromotions,
@@ -25,6 +26,7 @@ import { announceAdded } from '../cart/cartDrawer';
 import { useAddToCart } from '../cart/ageGate';
 import { firstQuantity, fitQuantity, lessQuantity, stepOf } from '../cart/saleTerms';
 import { FavoriteButton } from '../favorites/FavoriteButton';
+import { RestockButton } from './RestockButton';
 import { ReviewsBlock } from '../reviews/ReviewsBlock';
 import { AskQuestionForm } from '../questions/AskQuestionForm';
 import { useCurrentShop } from '../shell/Shops';
@@ -38,7 +40,7 @@ import { ItemBadges, ItemFacts } from './CatalogPage';
 import { RatingBadge } from './itemParts';
 import type { ShowcaseCardDtoSizeGuide, ShowcaseItemDto, ShowcaseWholesaleDto } from '../../api/generated';
 import { ItemThumb } from './ItemThumb';
-import { decimal, money, shortDate } from '../../shared/format';
+import { dayMonth, decimal, money, shortDate } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { quantityWithUnit, unitPer } from '../../shared/units';
 import { intlLocale } from '../../i18n';
@@ -233,6 +235,8 @@ function ItemCard({ item }: { item: ShowcaseCardDto }) {
         )}
       </section>
 
+      {item.stock === 'OUT_OF_STOCK' ? <Substitutes itemId={item.id} /> : null}
+
       <ReviewsBlock
         itemId={item.id}
         canReview={item.canReview}
@@ -257,7 +261,7 @@ function ItemCard({ item }: { item: ShowcaseCardDto }) {
  * в каком человек задаёт себе эти вопросы.
  */
 function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?: string }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const currency = useSupplierCurrency();
   const [asking, setAsking] = useState(false);
   const mode = useSaleMode(item);
@@ -281,8 +285,7 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
       : 'bg-canvas';
   const stockKnown = item.available != null || item.stock != null;
   const noveltySince = item.terms?.noveltySince
-    ? new Intl.DateTimeFormat(i18n.language === 'kk' ? 'kk-KZ' : i18n.language, { day: '2-digit', month: '2-digit' })
-      .format(new Date(`${item.terms.noveltySince}T12:00:00`))
+    ? shortDate(`${item.terms.noveltySince}T12:00:00`)
     : null;
 
   return (
@@ -372,6 +375,7 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
             <StockNote stock={item.stock} available={item.available} />
           </span>
         )}
+        {item.stock === 'OUT_OF_STOCK' ? <RestockButton itemId={item.id} /> : null}
         <ItemFacts item={item} pills />
       </div>
 
@@ -1151,15 +1155,12 @@ function compositionOf(properties: { name: string; value: string }[]) {
  * Только когда у товара есть скидка распродажи и распродажа идёт.
  */
 function SaleParticipation() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const promotions = useGetPortalPromotions();
   const sale = promotions.data?.status === 200 ? promotions.data.data.sale : undefined;
   const left = useSaleCountdown(sale?.endsAt);
   if (!sale) return null;
-  const until = sale.endsOn
-    ? new Intl.DateTimeFormat(i18n.language === 'kk' ? 'kk-KZ' : i18n.language, { day: 'numeric', month: 'long' })
-      .format(new Date(`${sale.endsOn}T12:00:00`))
-    : null;
+  const until = sale.endsOn ? dayMonth(sale.endsOn) : null;
   const box = 'flex min-w-10 flex-col items-center justify-center rounded-[calc(var(--radius-control)*5/7)] bg-black/25 px-1.5 py-1.5 leading-none';
   return (
     <Link
@@ -1285,6 +1286,29 @@ function DiscountsPanel({ item }: { item: ShowcaseCardDto }) {
       {[item.discountPercent && data.sale, tier, first].filter(Boolean).length > 1 && (
         <p className="text-xs text-ink-faint">{t('promotions.v2.noStack')}</p>
       )}
+    </section>
+  );
+}
+
+/**
+ * Чем заменить позицию, которой нет: похожие по названию и рубрике, которые
+ * сейчас в наличии. Стоит выше отзывов — человеку, упёршемуся в «нет в наличии»,
+ * сначала нужен выход, а не чужие оценки того, что купить нельзя.
+ */
+function Substitutes({ itemId }: { itemId: string }) {
+  const { t } = useTranslation();
+  const substitutes = useGetPortalCatalogSubstitutes(itemId);
+  const items = substitutes.data?.status === 200 ? substitutes.data.data : [];
+  if (items.length === 0) return null;
+
+  return (
+    <section aria-labelledby="substitutes-heading" data-testid="substitutes" className="flex flex-col gap-4 lg:gap-[18px]">
+      <h2 id="substitutes-heading" className="text-xl font-extrabold tracking-[-0.02em] text-ink lg:text-[1.75rem] lg:font-black">
+        {t('item.substitutes')}
+      </h2>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
+        {items.map((entry) => <SimilarCard key={entry.id} entry={entry} />)}
+      </div>
     </section>
   );
 }

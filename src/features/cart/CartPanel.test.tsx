@@ -47,6 +47,19 @@ describe('корзина на телефоне — нижний лист', () =>
     expect(await within(sheet).findByText('Цемент М400')).toBeInTheDocument();
   });
 
+  it('за кредитным лимитом — предупреждение без сумм; в пределах лимита — тишина', async () => {
+    stubFetch([
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза' }]),
+      get('/api/portal/cart', { ...cart, creditLimitExceeded: true }),
+    ]);
+    renderScreen(<CartPanel />);
+    act(() => openCart());
+
+    const notice = await screen.findByTestId('credit-notice');
+    expect(notice).toHaveTextContent('Сумма выше вашего кредитного лимита у продавца');
+    expect(notice.textContent).not.toMatch(/\d/);
+  });
+
   it('разворачивается на всю страницу и возвращается к прежнему размеру', async () => {
     stubFetch([
       get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза' }]),

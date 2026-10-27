@@ -1,8 +1,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
-import en from './en.json';
-import kk from './kk.json';
+import type { BackendModule } from 'i18next';
 import ru from './ru.json';
 
 export const SUPPORTED_LANGUAGES = ['ru', 'kk', 'en'] as const;
@@ -21,11 +20,34 @@ const INTL_LOCALES: Record<Language, string> = {
   en: 'en-GB',
 };
 
-void i18n
+/**
+ * Словарь нужен один, а не три. Русский (он же запасной) — в сборке,
+ * казахский и английский догружаются, когда язык выбран: при старте —
+ * определённый браузером, потом — переключателем (`changeLanguage` сам ждёт словарь).
+ */
+const LAZY: Record<string, () => Promise<{ default: object }>> = {
+  kk: () => import('./kk.json'),
+  en: () => import('./en.json'),
+};
+
+const lazyBundles: BackendModule = {
+  type: 'backend',
+  init() {},
+  read(language, _namespace, callback) {
+    const load = LAZY[language];
+    if (!load) return callback(null, {});
+    load().then((bundle) => callback(null, bundle.default as never), (error: Error) => callback(error, null));
+  },
+};
+
+/** Готов словарь стартового языка: до этого экран рисовать незачем — мелькнул бы русский. */
+export const i18nReady = i18n
+  .use(lazyBundles)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    resources: { ru: { translation: ru }, kk: { translation: kk }, en: { translation: en } },
+    resources: { ru: { translation: ru } },
+    partialBundledLanguages: true,
     supportedLngs: SUPPORTED_LANGUAGES,
     fallbackLng: 'ru',
     interpolation: { escapeValue: false },
@@ -43,9 +65,27 @@ export function currentLanguage(): Language {
     : 'ru';
 }
 
-/** Локаль для `Intl`: даты и суммы записываются по правилам выбранного языка. */
+/**
+ * Знает ли браузер казахские правила. Chrome (и десктоп 156, и Android) везёт урезанные данные
+ * локалей: без них `kk-KZ` даёт «31,990», «09-12» и месяц «M09». Спрашивается один раз —
+ * данные браузера за время работы кабинета не меняются.
+ */
+export const kazakhIntl: boolean = (() => {
+  try {
+    return new Intl.DateTimeFormat('kk-KZ', { month: 'long' }).format(new Date(2026, 8, 12)) === 'қыркүйек';
+  } catch {
+    return false;
+  }
+})();
+
+/**
+ * Локаль для `Intl`: даты и суммы записываются по правилам выбранного языка.
+ * Казахский без данных в браузере пишется по `ru-KZ`: разряды через пробел и «12.09» у них общие.
+ * Месяц словом так не получить — для него `dayMonth` (`shared/format.ts`).
+ */
 export function intlLocale(): string {
-  return INTL_LOCALES[currentLanguage()];
+  const language = currentLanguage();
+  return language === 'kk' && !kazakhIntl ? 'ru-KZ' : INTL_LOCALES[language];
 }
 
 /*

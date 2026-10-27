@@ -96,6 +96,45 @@ describe('карточка товара', () => {
    * Внутренних характеристик здесь нет ни в каком виде: сервер их не отдаёт,
    * и проверять их отсутствие на экране нечем — это закреплено на сервере.
    */
+  it('позиции нет — «Сообщить о поступлении»; нажатие подписывает, кнопка говорит «Сообщим»', async () => {
+    let waiting: string[] = [];
+    const { calls } = stubFetch([
+      get('/api/portal/catalog/item-1/substitutes', []),
+      ...cardRules({ ...CARD, stock: 'OUT_OF_STOCK' }),
+      { match: (url, init) => url.includes('/api/portal/restock-subscriptions') && (init?.method ?? 'GET') === 'GET', get body() { return waiting; } },
+      { match: (url, init) => url.includes('/api/portal/restock-subscriptions/item-1') && init?.method === 'PUT',
+        get body() { waiting = ['item-1']; return undefined; }, status: 204 },
+    ]);
+    renderCard();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Сообщить о поступлении' }));
+
+    expect(await screen.findByRole('button', { name: 'Сообщим, когда появится' })).toHaveAttribute('aria-pressed', 'true');
+    expect(calls.some((call) => call.url.includes('/restock-subscriptions/item-1') && call.init?.method === 'PUT')).toBe(true);
+  });
+
+  it('позиции нет — выше отзывов «можно заменить» с тем, что есть в наличии', async () => {
+    stubFetch([
+      get('/api/portal/catalog/item-1/substitutes', [
+        { id: 'item-2', name: 'Цемент М500', unit: 'мешок', price: 2700, stock: 'IN_STOCK', favorite: false },
+      ]),
+      { match: (url) => url.includes('/api/portal/restock-subscriptions'), body: [] },
+      ...cardRules({ ...CARD, stock: 'OUT_OF_STOCK' }),
+    ]);
+    renderCard();
+
+    const block = await screen.findByRole('region', { name: 'Есть в наличии — можно заменить' });
+    expect(within(block).getByRole('link', { name: /Цемент М500/ })).toHaveAttribute('href', '/catalog/item-2');
+  });
+
+  it('в наличии — кнопки поступления нет', async () => {
+    stubFetch(cardRules());
+    renderCard();
+
+    expect(await screen.findByTestId('stock-pill')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Сообщить о поступлении' })).toBeNull();
+  });
+
   it('открытая по ссылке с #reviews прокручивается к отзывам, когда они загружены', async () => {
     const scroll = vi.fn();
     const original = Element.prototype.scrollIntoView;

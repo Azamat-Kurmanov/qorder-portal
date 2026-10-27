@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18n from '../../i18n';
 import { LanguageAsk } from './LanguageAsk';
 import { renderScreen } from '../../test/render';
+import { get, method, stubFetch } from '../../test/http';
 
 /**
  * Хранилище чистится вокруг каждой проверки, а язык возвращается русским.
@@ -101,5 +102,42 @@ describe('вопрос о языке при первом заходе', () => {
     } finally {
       if (original) Object.defineProperty(window, 'localStorage', original);
     }
+  });
+});
+
+describe('язык в учётной записи', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('язык из учётной записи открывает кабинет на нём и вопроса не задаёт', async () => {
+    stubFetch([get('/api/portal/me/language', { language: 'kk' })]);
+
+    renderScreen(<LanguageAsk />);
+
+    await waitFor(() => expect(i18n.language).toBe('kk'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('пустая учётная запись — вопрос; выбор уходит в учётную запись', async () => {
+    const { calls } = stubFetch([
+      get('/api/portal/me/language', {}),
+      method('PUT', '/api/portal/me/language', null, 204),
+    ]);
+
+    renderScreen(<LanguageAsk />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Қазақша' }));
+
+    await waitFor(() => {
+      const put = calls.find((call) => call.url.includes('/api/portal/me/language') && call.init?.method === 'PUT');
+      expect(put?.init?.body).toBe(JSON.stringify({ language: 'kk' }));
+    });
+  });
+
+  it('без входа учётную запись не спрашивает', async () => {
+    const { calls } = stubFetch([]);
+
+    renderScreen(<LanguageAsk />, { auth: { authenticated: false } });
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(calls).toHaveLength(0);
   });
 });

@@ -5,7 +5,7 @@ import './index.css';
 import './ui/motion/liveTheme.css';
 // Язык поднимается до первого рендера: подпись, нарисованная раньше, чем
 // известен язык, мигнула бы русским текстом на казахском экране.
-import './i18n';
+import { i18nReady } from './i18n';
 import { acceptLanguageFromUrl } from './features/language/languageChoice';
 import '@fontsource-variable/onest';
 import '@fontsource-variable/inter';
@@ -91,7 +91,7 @@ const queryClient = new QueryClient({
 // и старый знак не должен висеть ещё минуту.
 queryClient.setQueryDefaults(getGetPortalSuppliersQueryKey(), { staleTime: 60_000, refetchOnWindowFocus: 'always' });
 
-createRoot(document.getElementById('root')!).render(
+void i18nReady.then(() => createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
@@ -99,4 +99,4 @@ createRoot(document.getElementById('root')!).render(
       </QueryClientProvider>
     </AuthProvider>
   </StrictMode>,
-);
+));

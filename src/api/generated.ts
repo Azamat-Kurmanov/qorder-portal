@@ -2464,6 +2464,9 @@ export const PushPreferencesDtoMutedItem = {
   CATALOG_VIDEO_FAILED: 'CATALOG_VIDEO_FAILED',
   NEW_ARRIVALS: 'NEW_ARRIVALS',
   PROMO_STARTED: 'PROMO_STARTED',
+  BACK_IN_STOCK: 'BACK_IN_STOCK',
+  CUSTOMER_SILENT: 'CUSTOMER_SILENT',
+  REORDER_DUE: 'REORDER_DUE',
 } as const;
 
 /**
@@ -3140,6 +3143,527 @@ export interface PortalPromotionsDto {
 }
 
 /**
+ * Что пошло не так; у «всё хорошо» не сохраняется
+ */
+export type RateOrderRequestReason = typeof RateOrderRequestReason[keyof typeof RateOrderRequestReason];
+
+
+export const RateOrderRequestReason = {
+  LATE: 'LATE',
+  INCOMPLETE: 'INCOMPLETE',
+  QUALITY: 'QUALITY',
+  SERVICE: 'SERVICE',
+  OTHER: 'OTHER',
+} as const;
+
+/**
+ * Оценка полученного заказа
+ */
+export interface RateOrderRequest {
+  /** true — всё хорошо, false — были проблемы */
+  good: boolean;
+  /** Что пошло не так; у «всё хорошо» не сохраняется */
+  reason?: RateOrderRequestReason;
+  /**
+     * Пара слов от клиента; у «всё хорошо» не сохраняется
+     * @minLength 0
+     * @maxLength 1000
+     */
+  comment?: string;
+}
+
+/**
+ * PENDING — ждёт 1С, EXPORTED — заведён документом, REJECTED — не выгружен
+ */
+export type Export1cDtoStatus = typeof Export1cDtoStatus[keyof typeof Export1cDtoStatus];
+
+
+export const Export1cDtoStatus = {
+  PENDING: 'PENDING',
+  EXPORTED: 'EXPORTED',
+  REJECTED: 'REJECTED',
+} as const;
+
+/**
+ * Выгрузка заказа в 1С
+ */
+export interface Export1cDto {
+  /** PENDING — ждёт 1С, EXPORTED — заведён документом, REJECTED — не выгружен */
+  status: Export1cDtoStatus;
+  /** Номер документа 1С; есть у EXPORTED */
+  documentNumber?: string;
+  /** Когда состояние сменилось: у EXPORTED — когда 1С подтвердила приём */
+  at: string;
+  /** Почему не выгружен; есть у REJECTED */
+  reason?: string;
+  /** Дата документа 1С; есть у EXPORTED, если 1С её прислала */
+  documentDate?: string;
+}
+
+/**
+ * Участник пресса в строке заявки
+ */
+export interface LinePackItem {
+  /** Название с вариантом */
+  name: string;
+  /** Сколько в одном прессе */
+  quantity: number;
+  /** Единица */
+  unit?: string;
+}
+
+/**
+ * Кто сообщил: клиент или продавец со слов клиента
+ */
+export type PaymentReportDtoAuthor = typeof PaymentReportDtoAuthor[keyof typeof PaymentReportDtoAuthor];
+
+
+export const PaymentReportDtoAuthor = {
+  SELLER: 'SELLER',
+  CUSTOMER: 'CUSTOMER',
+} as const;
+
+/**
+ * Сообщение об оплате перевозки
+ */
+export interface PaymentReportDto {
+  id: string;
+  /** Кто сообщил: клиент или продавец со слов клиента */
+  author: PaymentReportDtoAuthor;
+  /** Номер операции */
+  paymentRef?: string;
+  /** Когда оплачено */
+  paidAt?: string;
+  /** Комментарий */
+  comment?: string;
+  /** Со слов клиента из WhatsApp */
+  viaWhatsApp: boolean;
+  /** Когда сообщено */
+  createdAt: string;
+}
+
+/**
+ * Кому платить за перевозку: SELLER — в итоге, DIRECT — перевозчику
+ */
+export type PortalOrderDeliveryTransportPayee = typeof PortalOrderDeliveryTransportPayee[keyof typeof PortalOrderDeliveryTransportPayee];
+
+
+export const PortalOrderDeliveryTransportPayee = {
+  SELLER: 'SELLER',
+  DIRECT: 'DIRECT',
+} as const;
+
+/**
+ * До двери или до терминала
+ */
+export type PortalOrderDeliveryDeliverTo = typeof PortalOrderDeliveryDeliverTo[keyof typeof PortalOrderDeliveryDeliverTo];
+
+
+export const PortalOrderDeliveryDeliverTo = {
+  DOOR: 'DOOR',
+  TERMINAL: 'TERMINAL',
+} as const;
+
+/**
+ * Доставка заявки для клиента
+ */
+export interface PortalOrderDelivery {
+  /** Способ */
+  methodName?: string;
+  /** Адрес: клиента или терминала */
+  address?: string;
+  /** Город */
+  city?: string;
+  /** Перевозчик; пусто — возит продавец */
+  carrierName?: string;
+  /** Телефон перевозчика */
+  carrierPhone?: string;
+  /** Кому платить за перевозку: SELLER — в итоге, DIRECT — перевозчику */
+  transportPayee?: PortalOrderDeliveryTransportPayee;
+  /** До двери или до терминала */
+  deliverTo?: PortalOrderDeliveryDeliverTo;
+  /** Номер отправления; появляется после отгрузки */
+  trackingNumber?: string;
+  /** Ссылка отслеживания */
+  trackingUrl?: string;
+  /** Широта адреса на карте; пусто — не указана */
+  latitude?: number;
+  /** Долгота адреса на карте; пусто — не указана */
+  longitude?: number;
+  /** Когда привезут: день рейса, а пока заказ не в рейсе — выбранный при оформлении; пусто — день не назван */
+  date?: string;
+  /** Окно времени, выбранное при оформлении; пусто, когда рейс назначен на другой день */
+  slot?: string;
+}
+
+/**
+ * Вид скидки: VOLUME — за объём, FIRST_ORDER — на первую заявку
+ */
+export type PortalOrderDiscountKind = typeof PortalOrderDiscountKind[keyof typeof PortalOrderDiscountKind];
+
+
+export const PortalOrderDiscountKind = {
+  VOLUME: 'VOLUME',
+  FIRST_ORDER: 'FIRST_ORDER',
+} as const;
+
+/**
+ * Скидка на заявку: вид, процент и сумма
+ */
+export interface PortalOrderDiscount {
+  /** Вид скидки: VOLUME — за объём, FIRST_ORDER — на первую заявку */
+  kind: PortalOrderDiscountKind;
+  /** Процент от суммы товаров */
+  percent: number;
+  /** Сумма скидки */
+  amount: number;
+}
+
+/**
+ * Состояние на языке клиента
+ */
+export type PortalOrderDtoState = typeof PortalOrderDtoState[keyof typeof PortalOrderDtoState];
+
+
+export const PortalOrderDtoState = {
+  SUBMITTED: 'SUBMITTED',
+  IN_REVIEW: 'IN_REVIEW',
+  AWAITING_CONFIRMATION: 'AWAITING_CONFIRMATION',
+  ACCEPTED: 'ACCEPTED',
+  READY: 'READY',
+  ISSUED: 'ISSUED',
+  CLOSED: 'CLOSED',
+} as const;
+
+/**
+ * Кто закрыл заявку; пусто — заявка не закрыта
+ */
+export type PortalOrderDtoClosedBy = typeof PortalOrderDtoClosedBy[keyof typeof PortalOrderDtoClosedBy];
+
+
+export const PortalOrderDtoClosedBy = {
+  CUSTOMER: 'CUSTOMER',
+  SELLER: 'SELLER',
+  TIMEOUT: 'TIMEOUT',
+} as const;
+
+/**
+ * Валюта заявки: ею подписаны все суммы этой заявки. Своя у каждой заявки — поставщик мог сменить валюту после подачи
+ */
+export type PortalOrderDtoCurrency = typeof PortalOrderDtoCurrency[keyof typeof PortalOrderDtoCurrency];
+
+
+export const PortalOrderDtoCurrency = {
+  KZT: 'KZT',
+  RUB: 'RUB',
+  USD: 'USD',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  EUR: 'EUR',
+} as const;
+
+/**
+ * Кому платить за грузчиков: SELLER — входит в итог, DIRECT — напрямую, в итог не входит
+ */
+export type PortalOrderDtoLoadersPayee = typeof PortalOrderDtoLoadersPayee[keyof typeof PortalOrderDtoLoadersPayee];
+
+
+export const PortalOrderDtoLoadersPayee = {
+  SELLER: 'SELLER',
+  DIRECT: 'DIRECT',
+} as const;
+
+/**
+ * НДС товаров, с которым клиент подтверждал итог: INCLUDED — уже в ценах («в т.ч.»), ON_TOP — сверху. Пусто — налога нет
+ */
+export type PortalOrderDtoGoodsVatMode = typeof PortalOrderDtoGoodsVatMode[keyof typeof PortalOrderDtoGoodsVatMode];
+
+
+export const PortalOrderDtoGoodsVatMode = {
+  NONE: 'NONE',
+  ON_TOP: 'ON_TOP',
+  INCLUDED: 'INCLUDED',
+} as const;
+
+/**
+ * Строка состава, предъявленного клиенту
+ */
+export interface SnapshotLineDto {
+  /** Наименование на момент предъявления */
+  name: string;
+  quantity: number;
+  unit?: string;
+  price?: number;
+  /** Сумма строки */
+  amount?: number;
+  /** Позиция каталога, по которой собрана строка. Приходит только в заявках кабинета клиента и только пока позиция есть в каталоге: по ней открывается карточка товара */
+  itemId?: string;
+  /** Адрес главного снимка позиции — того же кадра, что стоит в витрине первым. Пусто у позиции без снимков и у той, которой больше нет в каталоге */
+  imageUrl?: string;
+  /** Вложение оптовой строки: штук в одной оптовой единице; пусто — строка штучная */
+  packQty?: number;
+  /** Единица штук оптовой строки — для подписи «3 упаковки · 60 мешков». Приходит только в заявках кабинета клиента и только пока позиция есть в каталоге */
+  pieceUnit?: string;
+  /** Состав одного пресса на момент заявки; пусто — строка не пресс */
+  pack?: LinePackItem[];
+  /** Позиции сейчас нет, склад обещал её к этой дате, и продавец решил подождать: строка в сумме, клиенту — «будет к дате». Пусто — позиция есть */
+  expectedOn?: string;
+}
+
+/**
+ * Что именно изменилось
+ */
+export type SnapshotDiffDtoKind = typeof SnapshotDiffDtoKind[keyof typeof SnapshotDiffDtoKind];
+
+
+export const SnapshotDiffDtoKind = {
+  LINE_ADDED: 'LINE_ADDED',
+  LINE_REMOVED: 'LINE_REMOVED',
+  QUANTITY_CHANGED: 'QUANTITY_CHANGED',
+  PRICE_CHANGED: 'PRICE_CHANGED',
+  DELIVERY_CHANGED: 'DELIVERY_CHANGED',
+} as const;
+
+/**
+ * Отличие предложенного состава от подтверждённого
+ */
+export interface SnapshotDiffDto {
+  /** Что именно изменилось */
+  kind: SnapshotDiffDtoKind;
+  /** Позиция, о которой речь */
+  name: string;
+  /** Как было. Пусто у добавленной позиции */
+  was?: number;
+  /** Как стало. Пусто у убранной позиции */
+  now?: number;
+}
+
+/**
+ * Сообщение по заявке
+ */
+export interface PortalOrderMessage {
+  /** Кто написал: CUSTOMER — клиент, MANAGER — продавец */
+  author: string;
+  text: string;
+  createdAt: string;
+}
+
+/**
+ * Точка самовывоза заявки
+ */
+export interface PortalPickupPoint {
+  name: string;
+  address?: string;
+  /** Часы работы текстом */
+  workingHours?: string;
+  /** Широта точки на карте; пусто — не указана */
+  latitude?: number;
+  /** Долгота точки на карте; пусто — не указана */
+  longitude?: number;
+}
+
+/**
+ * Ход оплаты
+ */
+export type TransportPaymentDtoStatus = typeof TransportPaymentDtoStatus[keyof typeof TransportPaymentDtoStatus];
+
+
+export const TransportPaymentDtoStatus = {
+  NONE: 'NONE',
+  AWAITING_RECEIPT: 'AWAITING_RECEIPT',
+  AWAITING_PAYMENT: 'AWAITING_PAYMENT',
+  REPORTED: 'REPORTED',
+  CONFIRMED: 'CONFIRMED',
+  REJECTED: 'REJECTED',
+} as const;
+
+/**
+ * Режим контроля оплаты по заявке; пусто — ход не включён
+ */
+export type TransportPaymentDtoControl = typeof TransportPaymentDtoControl[keyof typeof TransportPaymentDtoControl];
+
+
+export const TransportPaymentDtoControl = {
+  DATA_ONLY: 'DATA_ONLY',
+  MARK: 'MARK',
+  BLOCK_SHIPMENT: 'BLOCK_SHIPMENT',
+} as const;
+
+/**
+ * Квитанция на оплату перевозки
+ */
+export interface TransportReceiptDto {
+  id: string;
+  /** Сумма к оплате */
+  amount: number;
+  /** Получатель оплаты */
+  payee: string;
+  /** Реквизиты */
+  requisites?: string;
+  /** Ссылка на оплату */
+  payUrl?: string;
+  /** Номер квитанции */
+  number?: string;
+  /** Оплатить до */
+  dueDate?: string;
+  /** Комментарий */
+  comment?: string;
+  /** Когда приложена */
+  createdAt: string;
+}
+
+/**
+ * Оплата перевозки по квитанции
+ */
+export interface TransportPaymentDto {
+  /** Ход оплаты */
+  status: TransportPaymentDtoStatus;
+  /** Режим контроля оплаты по заявке; пусто — ход не включён */
+  control?: TransportPaymentDtoControl;
+  /** Почему оплата не подтверждена */
+  rejectionReason?: string;
+  /** Действующая квитанция */
+  receipt?: TransportReceiptDto;
+  /** Последнее сообщение об оплате */
+  lastReport?: PaymentReportDto;
+  /** Выдать заказ нельзя, пока оплата не подтверждена */
+  shipmentBlocked: boolean;
+  /** Квитанции перевозчика, отправленные клиенту файлом, — копии в хранилище арендатора */
+  receiptFiles: string[];
+  /** У заявки есть переписка: квитанцию можно отправить клиенту файлом. У заказа из кабинета клиента её нет — квитанцию прикладывают полями */
+  fileToChat: boolean;
+  /** Хранилище арендатора подключено: у заказа без переписки квитанцию файлом клиент увидит в своём кабинете. Из переписки файл уходит только в WhatsApp */
+  fileToCabinet: boolean;
+}
+
+/**
+ * Что пошло не так; пусто у «всё хорошо»
+ */
+export type PortalOrderRatingDtoReason = typeof PortalOrderRatingDtoReason[keyof typeof PortalOrderRatingDtoReason];
+
+
+export const PortalOrderRatingDtoReason = {
+  LATE: 'LATE',
+  INCOMPLETE: 'INCOMPLETE',
+  QUALITY: 'QUALITY',
+  SERVICE: 'SERVICE',
+  OTHER: 'OTHER',
+} as const;
+
+/**
+ * Оценка заказа клиентом
+ */
+export interface PortalOrderRatingDto {
+  /** true — всё хорошо, false — были проблемы */
+  good: boolean;
+  /** Что пошло не так; пусто у «всё хорошо» */
+  reason?: PortalOrderRatingDtoReason;
+}
+
+/**
+ * Заявка клиента в кабинете
+ */
+export interface PortalOrderDto {
+  id: string;
+  /** Номер заявки: его клиент называет, когда звонит о ней спросить */
+  orderNumber: string;
+  /** Состояние на языке клиента */
+  state: PortalOrderDtoState;
+  /** Требует ли заявка действия клиента: такие поднимаются в списке наверх */
+  needsAnswer: boolean;
+  /** Можно ли ещё отменить: после принятия — нет */
+  cancellable: boolean;
+  /** Когда подана */
+  createdAt: string;
+  /** Итог того, что клиент отправлял */
+  total: number;
+  /** Сумма товаров того, что клиент отправлял, без скидки на заявку и доставки: из неё и строк ниже экран складывает итог. Пусто у заявки без подтверждённого состава */
+  goodsTotal?: number;
+  /** Скидка на заявку — за объём или на первую заявку — в том виде, в каком клиент её подтвердил; пусто — скидки не было */
+  discount?: PortalOrderDiscount;
+  /** Стоимость доставки на момент отправки; ноль — бесплатно, пусто — сумма не названа или доставки нет */
+  deliveryPrice?: number;
+  /** Состав, который клиент отправил */
+  submitted: SnapshotLineDto[];
+  /** Состав, который предлагает поставщик. Пусто, пока пересогласования не было */
+  proposed?: SnapshotLineDto[];
+  /** Итог предложенного */
+  proposedTotal?: number;
+  /** Чем предложенное отличается от отправленного */
+  diff: SnapshotDiffDto[];
+  /** Ответ продавца по этой заявке. Пусто, пока он не отвечал: клиент кабинета читает ответ здесь, а не в мессенджере — туда он обычно и не писал */
+  sellerAnswer?: string;
+  /** Когда продавец ответил */
+  answeredAt?: string;
+  /** Выписан ли счёт: по нему экран показывает кнопку скачивания */
+  invoiceAvailable: boolean;
+  /** Когда заказ собран — с этого момента «Можно забирать»; пусто — ещё не собран */
+  readyAt?: string;
+  /** Код для получения: клиент называет его продавцу на выдаче. Есть только у заявки «Можно забирать»: до сборки называть нечего, после выдачи код больше не нужен */
+  pickupCode?: string;
+  /** Когда заказ выдан или доставлен; пусто — ещё нет */
+  issuedAt?: string;
+  /** Самовывоз: забирать в магазине. Пусто, пока заявку не приняли */
+  pickup?: boolean;
+  /** Переписка по заявке: вопросы клиента и ответы продавца, по времени */
+  messages: PortalOrderMessage[];
+  /** Кто закрыл заявку; пусто — заявка не закрыта */
+  closedBy?: PortalOrderDtoClosedBy;
+  /** Почему продавец отменил принятый заказ; пусто — не отменял */
+  cancelReason?: string;
+  /** Где забрать: точка самовывоза заявки; пусто — доставка или точка не выбрана */
+  pickupPoint?: PortalPickupPoint;
+  /** Валюта заявки: ею подписаны все суммы этой заявки. Своя у каждой заявки — поставщик мог сменить валюту после подачи */
+  currency: PortalOrderDtoCurrency;
+  /** Сумма грузчиков; пусто — не заказывали или сумму уточнит продавец */
+  loadersPrice?: number;
+  /** Кому платить за грузчиков: SELLER — входит в итог, DIRECT — напрямую, в итог не входит */
+  loadersPayee?: PortalOrderDtoLoadersPayee;
+  /** Доставка: способ, адрес, перевозчик, кому платить, номер отправления; пусто — самовывоз или доставка не выбрана */
+  delivery?: PortalOrderDelivery;
+  /** Оплата перевозки по квитанции; пусто — не требуется */
+  transportPayment?: TransportPaymentDto;
+  /** НДС заявки из подтверждённого снимка: товары сверху, доставка и грузчики по режиму; уже входит в итог. Пусто — налога нет */
+  vatAmount?: number;
+  /** Счёт-фактуру можно скачать здесь; false — её выписывает 1С продавца или счёта ещё нет */
+  vatInvoiceAvailable: boolean;
+  /** Реализация в 1С продавца: номер и дата документа; пусто — ещё не заведена */
+  realization1c?: Export1cDto;
+  /** НДС товаров, с которым клиент подтверждал итог: INCLUDED — уже в ценах («в т.ч.»), ON_TOP — сверху. Пусто — налога нет */
+  goodsVatMode?: PortalOrderDtoGoodsVatMode;
+  /** До какого времени продавец ответит: подача плюс его часы на ответ в рабочем времени. Есть, только пока ход за продавцом и срок впереди */
+  answerExpectedBy?: string;
+  /** Оценка, которую клиент поставил полученному заказу; пусто — не оценивал */
+  rating?: PortalOrderRatingDto;
+  /** Кто ведёт заявку у продавца — имя одним словом, без фамилии; пусто — ещё никто. Звонят на общий номер магазина, личного номера сотрудника здесь нет */
+  managerName?: string;
+}
+
+/**
+ * Код языка
+ * @pattern ru|kk|en
+ */
+export type SetPortalLanguageRequestLanguage = typeof SetPortalLanguageRequestLanguage[keyof typeof SetPortalLanguageRequestLanguage];
+
+
+export const SetPortalLanguageRequestLanguage = {
+  ru: 'ru',
+  kk: 'kk',
+  en: 'en',
+} as const;
+
+/**
+ * Язык кабинета
+ */
+export interface SetPortalLanguageRequest {
+  /**
+     * Код языка
+     * @pattern ru|kk|en
+     */
+  language: SetPortalLanguageRequestLanguage;
+}
+
+/**
  * Реквизиты компании покупателя для счёта-фактуры
  */
 export interface CompanyRequisites {
@@ -3414,6 +3938,8 @@ export interface CartDto {
   shopVatRate?: number;
   /** Цены товаров уже с НДС (режим продавца «в цене»): `vatAmount` выделен из цен — «в т.ч. НДС», к итогу не прибавлен. Нет — налог сверху, уже в итоге */
   vatIncluded: boolean;
+  /** Заявка на такую сумму выйдет за кредитный лимит клиента у продавца — отгрузку продавец подтвердит отдельно. Только признак: ни долга, ни лимита корзина не называет */
+  creditLimitExceeded: boolean;
 }
 
 /**
@@ -3536,18 +4062,6 @@ export const CustomerOrderDtoGoodsVatMode = {
 } as const;
 
 /**
- * Участник пресса в строке заявки
- */
-export interface LinePackItem {
-  /** Название с вариантом */
-  name: string;
-  /** Сколько в одном прессе */
-  quantity: number;
-  /** Единица */
-  unit?: string;
-}
-
-/**
  * Строка заказа на момент согласия клиента
  */
 export interface CustomerOrderLineDto {
@@ -3561,34 +4075,6 @@ export interface CustomerOrderLineDto {
   packQty?: number;
   pack?: LinePackItem[];
   itemId?: string;
-}
-
-/**
- * PENDING — ждёт 1С, EXPORTED — заведён документом, REJECTED — не выгружен
- */
-export type Export1cDtoStatus = typeof Export1cDtoStatus[keyof typeof Export1cDtoStatus];
-
-
-export const Export1cDtoStatus = {
-  PENDING: 'PENDING',
-  EXPORTED: 'EXPORTED',
-  REJECTED: 'REJECTED',
-} as const;
-
-/**
- * Выгрузка заказа в 1С
- */
-export interface Export1cDto {
-  /** PENDING — ждёт 1С, EXPORTED — заведён документом, REJECTED — не выгружен */
-  status: Export1cDtoStatus;
-  /** Номер документа 1С; есть у EXPORTED */
-  documentNumber?: string;
-  /** Когда состояние сменилось: у EXPORTED — когда 1С подтвердила приём */
-  at: string;
-  /** Почему не выгружен; есть у REJECTED */
-  reason?: string;
-  /** Дата документа 1С; есть у EXPORTED, если 1С её прислала */
-  documentDate?: string;
 }
 
 /**
@@ -4443,110 +4929,6 @@ export interface TransportReceiptRequest {
   comment?: string;
 }
 
-/**
- * Кто сообщил: клиент или продавец со слов клиента
- */
-export type PaymentReportDtoAuthor = typeof PaymentReportDtoAuthor[keyof typeof PaymentReportDtoAuthor];
-
-
-export const PaymentReportDtoAuthor = {
-  SELLER: 'SELLER',
-  CUSTOMER: 'CUSTOMER',
-} as const;
-
-/**
- * Сообщение об оплате перевозки
- */
-export interface PaymentReportDto {
-  id: string;
-  /** Кто сообщил: клиент или продавец со слов клиента */
-  author: PaymentReportDtoAuthor;
-  /** Номер операции */
-  paymentRef?: string;
-  /** Когда оплачено */
-  paidAt?: string;
-  /** Комментарий */
-  comment?: string;
-  /** Со слов клиента из WhatsApp */
-  viaWhatsApp: boolean;
-  /** Когда сообщено */
-  createdAt: string;
-}
-
-/**
- * Ход оплаты
- */
-export type TransportPaymentDtoStatus = typeof TransportPaymentDtoStatus[keyof typeof TransportPaymentDtoStatus];
-
-
-export const TransportPaymentDtoStatus = {
-  NONE: 'NONE',
-  AWAITING_RECEIPT: 'AWAITING_RECEIPT',
-  AWAITING_PAYMENT: 'AWAITING_PAYMENT',
-  REPORTED: 'REPORTED',
-  CONFIRMED: 'CONFIRMED',
-  REJECTED: 'REJECTED',
-} as const;
-
-/**
- * Режим контроля оплаты по заявке; пусто — ход не включён
- */
-export type TransportPaymentDtoControl = typeof TransportPaymentDtoControl[keyof typeof TransportPaymentDtoControl];
-
-
-export const TransportPaymentDtoControl = {
-  DATA_ONLY: 'DATA_ONLY',
-  MARK: 'MARK',
-  BLOCK_SHIPMENT: 'BLOCK_SHIPMENT',
-} as const;
-
-/**
- * Квитанция на оплату перевозки
- */
-export interface TransportReceiptDto {
-  id: string;
-  /** Сумма к оплате */
-  amount: number;
-  /** Получатель оплаты */
-  payee: string;
-  /** Реквизиты */
-  requisites?: string;
-  /** Ссылка на оплату */
-  payUrl?: string;
-  /** Номер квитанции */
-  number?: string;
-  /** Оплатить до */
-  dueDate?: string;
-  /** Комментарий */
-  comment?: string;
-  /** Когда приложена */
-  createdAt: string;
-}
-
-/**
- * Оплата перевозки по квитанции
- */
-export interface TransportPaymentDto {
-  /** Ход оплаты */
-  status: TransportPaymentDtoStatus;
-  /** Режим контроля оплаты по заявке; пусто — ход не включён */
-  control?: TransportPaymentDtoControl;
-  /** Почему оплата не подтверждена */
-  rejectionReason?: string;
-  /** Действующая квитанция */
-  receipt?: TransportReceiptDto;
-  /** Последнее сообщение об оплате */
-  lastReport?: PaymentReportDto;
-  /** Выдать заказ нельзя, пока оплата не подтверждена */
-  shipmentBlocked: boolean;
-  /** Квитанции перевозчика, отправленные клиенту файлом, — копии в хранилище арендатора */
-  receiptFiles: string[];
-  /** У заявки есть переписка: квитанцию можно отправить клиенту файлом. У заказа из кабинета клиента её нет — квитанцию прикладывают полями */
-  fileToChat: boolean;
-  /** Хранилище арендатора подключено: у заказа без переписки квитанцию файлом клиент увидит в своём кабинете. Из переписки файл уходит только в WhatsApp */
-  fileToCabinet: boolean;
-}
-
 export type PickupPointRequestWorkingDaysItem = typeof PickupPointRequestWorkingDaysItem[keyof typeof PickupPointRequestWorkingDaysItem];
 
 
@@ -5133,6 +5515,24 @@ export interface CustomerCreditDto {
   graceDays?: number;
   /** Долг под реализацию сейчас — тем же расчётом, что раздел «Долги» */
   debt: number;
+}
+
+/**
+ * Витрина без цен на странице ссылки
+ */
+export interface SetShopShowcaseRequest {
+  /** true — гость видит товары без цен */
+  showcasePublic: boolean;
+}
+
+/**
+ * Ссылка магазина: кабинет строит адрес /join-shop/{code} и QR для печати
+ */
+export interface ShopLinkDto {
+  code: string;
+  enabled: boolean;
+  /** Гость на странице ссылки видит товары без цен */
+  showcasePublic: boolean;
 }
 
 /**
@@ -7379,295 +7779,6 @@ export interface PaymentReportRequest {
 }
 
 /**
- * Кому платить за перевозку: SELLER — в итоге, DIRECT — перевозчику
- */
-export type PortalOrderDeliveryTransportPayee = typeof PortalOrderDeliveryTransportPayee[keyof typeof PortalOrderDeliveryTransportPayee];
-
-
-export const PortalOrderDeliveryTransportPayee = {
-  SELLER: 'SELLER',
-  DIRECT: 'DIRECT',
-} as const;
-
-/**
- * До двери или до терминала
- */
-export type PortalOrderDeliveryDeliverTo = typeof PortalOrderDeliveryDeliverTo[keyof typeof PortalOrderDeliveryDeliverTo];
-
-
-export const PortalOrderDeliveryDeliverTo = {
-  DOOR: 'DOOR',
-  TERMINAL: 'TERMINAL',
-} as const;
-
-/**
- * Доставка заявки для клиента
- */
-export interface PortalOrderDelivery {
-  /** Способ */
-  methodName?: string;
-  /** Адрес: клиента или терминала */
-  address?: string;
-  /** Город */
-  city?: string;
-  /** Перевозчик; пусто — возит продавец */
-  carrierName?: string;
-  /** Телефон перевозчика */
-  carrierPhone?: string;
-  /** Кому платить за перевозку: SELLER — в итоге, DIRECT — перевозчику */
-  transportPayee?: PortalOrderDeliveryTransportPayee;
-  /** До двери или до терминала */
-  deliverTo?: PortalOrderDeliveryDeliverTo;
-  /** Номер отправления; появляется после отгрузки */
-  trackingNumber?: string;
-  /** Ссылка отслеживания */
-  trackingUrl?: string;
-  /** Широта адреса на карте; пусто — не указана */
-  latitude?: number;
-  /** Долгота адреса на карте; пусто — не указана */
-  longitude?: number;
-}
-
-/**
- * Вид скидки: VOLUME — за объём, FIRST_ORDER — на первую заявку
- */
-export type PortalOrderDiscountKind = typeof PortalOrderDiscountKind[keyof typeof PortalOrderDiscountKind];
-
-
-export const PortalOrderDiscountKind = {
-  VOLUME: 'VOLUME',
-  FIRST_ORDER: 'FIRST_ORDER',
-} as const;
-
-/**
- * Скидка на заявку: вид, процент и сумма
- */
-export interface PortalOrderDiscount {
-  /** Вид скидки: VOLUME — за объём, FIRST_ORDER — на первую заявку */
-  kind: PortalOrderDiscountKind;
-  /** Процент от суммы товаров */
-  percent: number;
-  /** Сумма скидки */
-  amount: number;
-}
-
-/**
- * Состояние на языке клиента
- */
-export type PortalOrderDtoState = typeof PortalOrderDtoState[keyof typeof PortalOrderDtoState];
-
-
-export const PortalOrderDtoState = {
-  SUBMITTED: 'SUBMITTED',
-  IN_REVIEW: 'IN_REVIEW',
-  AWAITING_CONFIRMATION: 'AWAITING_CONFIRMATION',
-  ACCEPTED: 'ACCEPTED',
-  READY: 'READY',
-  ISSUED: 'ISSUED',
-  CLOSED: 'CLOSED',
-} as const;
-
-/**
- * Кто закрыл заявку; пусто — заявка не закрыта
- */
-export type PortalOrderDtoClosedBy = typeof PortalOrderDtoClosedBy[keyof typeof PortalOrderDtoClosedBy];
-
-
-export const PortalOrderDtoClosedBy = {
-  CUSTOMER: 'CUSTOMER',
-  SELLER: 'SELLER',
-  TIMEOUT: 'TIMEOUT',
-} as const;
-
-/**
- * Валюта заявки: ею подписаны все суммы этой заявки. Своя у каждой заявки — поставщик мог сменить валюту после подачи
- */
-export type PortalOrderDtoCurrency = typeof PortalOrderDtoCurrency[keyof typeof PortalOrderDtoCurrency];
-
-
-export const PortalOrderDtoCurrency = {
-  KZT: 'KZT',
-  RUB: 'RUB',
-  USD: 'USD',
-  UZS: 'UZS',
-  KGS: 'KGS',
-  EUR: 'EUR',
-} as const;
-
-/**
- * Кому платить за грузчиков: SELLER — входит в итог, DIRECT — напрямую, в итог не входит
- */
-export type PortalOrderDtoLoadersPayee = typeof PortalOrderDtoLoadersPayee[keyof typeof PortalOrderDtoLoadersPayee];
-
-
-export const PortalOrderDtoLoadersPayee = {
-  SELLER: 'SELLER',
-  DIRECT: 'DIRECT',
-} as const;
-
-/**
- * НДС товаров, с которым клиент подтверждал итог: INCLUDED — уже в ценах («в т.ч.»), ON_TOP — сверху. Пусто — налога нет
- */
-export type PortalOrderDtoGoodsVatMode = typeof PortalOrderDtoGoodsVatMode[keyof typeof PortalOrderDtoGoodsVatMode];
-
-
-export const PortalOrderDtoGoodsVatMode = {
-  NONE: 'NONE',
-  ON_TOP: 'ON_TOP',
-  INCLUDED: 'INCLUDED',
-} as const;
-
-/**
- * Строка состава, предъявленного клиенту
- */
-export interface SnapshotLineDto {
-  /** Наименование на момент предъявления */
-  name: string;
-  quantity: number;
-  unit?: string;
-  price?: number;
-  /** Сумма строки */
-  amount?: number;
-  /** Позиция каталога, по которой собрана строка. Приходит только в заявках кабинета клиента и только пока позиция есть в каталоге: по ней открывается карточка товара */
-  itemId?: string;
-  /** Адрес главного снимка позиции — того же кадра, что стоит в витрине первым. Пусто у позиции без снимков и у той, которой больше нет в каталоге */
-  imageUrl?: string;
-  /** Вложение оптовой строки: штук в одной оптовой единице; пусто — строка штучная */
-  packQty?: number;
-  /** Единица штук оптовой строки — для подписи «3 упаковки · 60 мешков». Приходит только в заявках кабинета клиента и только пока позиция есть в каталоге */
-  pieceUnit?: string;
-  /** Состав одного пресса на момент заявки; пусто — строка не пресс */
-  pack?: LinePackItem[];
-  /** Позиции сейчас нет, склад обещал её к этой дате, и продавец решил подождать: строка в сумме, клиенту — «будет к дате». Пусто — позиция есть */
-  expectedOn?: string;
-}
-
-/**
- * Что именно изменилось
- */
-export type SnapshotDiffDtoKind = typeof SnapshotDiffDtoKind[keyof typeof SnapshotDiffDtoKind];
-
-
-export const SnapshotDiffDtoKind = {
-  LINE_ADDED: 'LINE_ADDED',
-  LINE_REMOVED: 'LINE_REMOVED',
-  QUANTITY_CHANGED: 'QUANTITY_CHANGED',
-  PRICE_CHANGED: 'PRICE_CHANGED',
-  DELIVERY_CHANGED: 'DELIVERY_CHANGED',
-} as const;
-
-/**
- * Отличие предложенного состава от подтверждённого
- */
-export interface SnapshotDiffDto {
-  /** Что именно изменилось */
-  kind: SnapshotDiffDtoKind;
-  /** Позиция, о которой речь */
-  name: string;
-  /** Как было. Пусто у добавленной позиции */
-  was?: number;
-  /** Как стало. Пусто у убранной позиции */
-  now?: number;
-}
-
-/**
- * Сообщение по заявке
- */
-export interface PortalOrderMessage {
-  /** Кто написал: CUSTOMER — клиент, MANAGER — продавец */
-  author: string;
-  text: string;
-  createdAt: string;
-}
-
-/**
- * Точка самовывоза заявки
- */
-export interface PortalPickupPoint {
-  name: string;
-  address?: string;
-  /** Часы работы текстом */
-  workingHours?: string;
-  /** Широта точки на карте; пусто — не указана */
-  latitude?: number;
-  /** Долгота точки на карте; пусто — не указана */
-  longitude?: number;
-}
-
-/**
- * Заявка клиента в кабинете
- */
-export interface PortalOrderDto {
-  id: string;
-  /** Номер заявки: его клиент называет, когда звонит о ней спросить */
-  orderNumber: string;
-  /** Состояние на языке клиента */
-  state: PortalOrderDtoState;
-  /** Требует ли заявка действия клиента: такие поднимаются в списке наверх */
-  needsAnswer: boolean;
-  /** Можно ли ещё отменить: после принятия — нет */
-  cancellable: boolean;
-  /** Когда подана */
-  createdAt: string;
-  /** Итог того, что клиент отправлял */
-  total: number;
-  /** Сумма товаров того, что клиент отправлял, без скидки на заявку и доставки: из неё и строк ниже экран складывает итог. Пусто у заявки без подтверждённого состава */
-  goodsTotal?: number;
-  /** Скидка на заявку — за объём или на первую заявку — в том виде, в каком клиент её подтвердил; пусто — скидки не было */
-  discount?: PortalOrderDiscount;
-  /** Стоимость доставки на момент отправки; ноль — бесплатно, пусто — сумма не названа или доставки нет */
-  deliveryPrice?: number;
-  /** Состав, который клиент отправил */
-  submitted: SnapshotLineDto[];
-  /** Состав, который предлагает поставщик. Пусто, пока пересогласования не было */
-  proposed?: SnapshotLineDto[];
-  /** Итог предложенного */
-  proposedTotal?: number;
-  /** Чем предложенное отличается от отправленного */
-  diff: SnapshotDiffDto[];
-  /** Ответ продавца по этой заявке. Пусто, пока он не отвечал: клиент кабинета читает ответ здесь, а не в мессенджере — туда он обычно и не писал */
-  sellerAnswer?: string;
-  /** Когда продавец ответил */
-  answeredAt?: string;
-  /** Выписан ли счёт: по нему экран показывает кнопку скачивания */
-  invoiceAvailable: boolean;
-  /** Когда заказ собран — с этого момента «Можно забирать»; пусто — ещё не собран */
-  readyAt?: string;
-  /** Код для получения: клиент называет его продавцу на выдаче. Есть только у заявки «Можно забирать»: до сборки называть нечего, после выдачи код больше не нужен */
-  pickupCode?: string;
-  /** Когда заказ выдан или доставлен; пусто — ещё нет */
-  issuedAt?: string;
-  /** Самовывоз: забирать в магазине. Пусто, пока заявку не приняли */
-  pickup?: boolean;
-  /** Переписка по заявке: вопросы клиента и ответы продавца, по времени */
-  messages: PortalOrderMessage[];
-  /** Кто закрыл заявку; пусто — заявка не закрыта */
-  closedBy?: PortalOrderDtoClosedBy;
-  /** Почему продавец отменил принятый заказ; пусто — не отменял */
-  cancelReason?: string;
-  /** Где забрать: точка самовывоза заявки; пусто — доставка или точка не выбрана */
-  pickupPoint?: PortalPickupPoint;
-  /** Валюта заявки: ею подписаны все суммы этой заявки. Своя у каждой заявки — поставщик мог сменить валюту после подачи */
-  currency: PortalOrderDtoCurrency;
-  /** Сумма грузчиков; пусто — не заказывали или сумму уточнит продавец */
-  loadersPrice?: number;
-  /** Кому платить за грузчиков: SELLER — входит в итог, DIRECT — напрямую, в итог не входит */
-  loadersPayee?: PortalOrderDtoLoadersPayee;
-  /** Доставка: способ, адрес, перевозчик, кому платить, номер отправления; пусто — самовывоз или доставка не выбрана */
-  delivery?: PortalOrderDelivery;
-  /** Оплата перевозки по квитанции; пусто — не требуется */
-  transportPayment?: TransportPaymentDto;
-  /** НДС заявки из подтверждённого снимка: товары сверху, доставка и грузчики по режиму; уже входит в итог. Пусто — налога нет */
-  vatAmount?: number;
-  /** Счёт-фактуру можно скачать здесь; false — её выписывает 1С продавца или счёта ещё нет */
-  vatInvoiceAvailable: boolean;
-  /** Реализация в 1С продавца: номер и дата документа; пусто — ещё не заведена */
-  realization1c?: Export1cDto;
-  /** НДС товаров, с которым клиент подтверждал итог: INCLUDED — уже в ценах («в т.ч.»), ON_TOP — сверху. Пусто — налога нет */
-  goodsVatMode?: PortalOrderDtoGoodsVatMode;
-}
-
-/**
  * Вопрос клиента по заявке
  */
 export interface AskAboutOrderRequest {
@@ -8653,14 +8764,6 @@ export interface CustomerDebtPaymentDto {
   paid: number;
   /** Осталось долга */
   debtLeft: number;
-}
-
-/**
- * Ссылка магазина: кабинет строит адрес /join-shop/{code} и QR для печати
- */
-export interface ShopLinkDto {
-  code: string;
-  enabled: boolean;
 }
 
 /**
@@ -9976,6 +10079,9 @@ export const PortalNotificationDtoKind = {
   CATALOG_VIDEO_FAILED: 'CATALOG_VIDEO_FAILED',
   NEW_ARRIVALS: 'NEW_ARRIVALS',
   PROMO_STARTED: 'PROMO_STARTED',
+  BACK_IN_STOCK: 'BACK_IN_STOCK',
+  CUSTOMER_SILENT: 'CUSTOMER_SILENT',
+  REORDER_DUE: 'REORDER_DUE',
 } as const;
 
 /**
@@ -10001,6 +10107,26 @@ export interface PortalUnreadDto {
   supplierId: string;
   /** Сколько непрочитанных плашек. Ноль — обычное состояние, а не признак того, что поставщик выпал */
   unread: number;
+}
+
+/**
+ * Код языка; пусто — не выбирал, кабинет определяет язык сам
+ */
+export type PortalLanguageDtoLanguage = typeof PortalLanguageDtoLanguage[keyof typeof PortalLanguageDtoLanguage];
+
+
+export const PortalLanguageDtoLanguage = {
+  ru: 'ru',
+  kk: 'kk',
+  en: 'en',
+} as const;
+
+/**
+ * Язык кабинета в учётной записи
+ */
+export interface PortalLanguageDto {
+  /** Код языка; пусто — не выбирал, кабинет определяет язык сам */
+  language?: PortalLanguageDtoLanguage;
 }
 
 /**
@@ -10036,6 +10162,8 @@ export interface ConsentNoticeDto {
 export interface JoinShopDto {
   shopName: string;
   logoUrl?: string;
+  /** Продавец открыл витрину без цен: товары — `GET …/{code}/items` */
+  showcase: boolean;
 }
 
 /**
@@ -10048,6 +10176,35 @@ export interface JoinRequestStatusDto {
   reason?: string;
   /** После одобрения: нужно задать пароль (true) или войти своим (false) */
   passwordNeeded?: boolean;
+}
+
+/**
+ * Товар витрины без цен
+ */
+export interface PublicShowcaseItemDto {
+  id: string;
+  name: string;
+  /** Единица */
+  unit?: string;
+  /** Главный снимок; пусто — снимка нет */
+  imageUrl?: string;
+  categoryId?: string;
+}
+
+/**
+ * Страница результатов
+ */
+export interface PageResponsePublicShowcaseItemDto {
+  /** Номер страницы, с нуля */
+  page?: number;
+  /** Размер страницы */
+  size?: number;
+  /** Всего элементов */
+  totalElements?: number;
+  /** Элементы страницы */
+  items?: PublicShowcaseItemDto[];
+  /** Есть записи сверх totalElements: число посчитано не до конца. Пусто — число точное */
+  hasMore?: boolean;
 }
 
 /**
@@ -10328,6 +10485,45 @@ export interface ShowcaseCardDto {
 }
 
 /**
+ * OPTION, OPTION_MULTI или BOOLEAN; у BOOLEAN один вариант `true`
+ */
+export type ShowcaseFacetDtoType = typeof ShowcaseFacetDtoType[keyof typeof ShowcaseFacetDtoType];
+
+
+export const ShowcaseFacetDtoType = {
+  OPTION: 'OPTION',
+  OPTION_MULTI: 'OPTION_MULTI',
+  NUMBER: 'NUMBER',
+  BOOLEAN: 'BOOLEAN',
+  DATE: 'DATE',
+  RANGE: 'RANGE',
+  TEXT: 'TEXT',
+} as const;
+
+/**
+ * Вариант отбора и сколько моделей под ним
+ */
+export interface ShowcaseFacetOption {
+  code: string;
+  /** Название варианта; у BOOLEAN пусто — чип называется полем */
+  name?: string;
+  count: number;
+}
+
+/**
+ * Отбор витрины по полю рубрики
+ */
+export interface ShowcaseFacetDto {
+  /** Код поля — его передают в `field=КОД:вариант` */
+  code: string;
+  /** Название поля */
+  name: string;
+  /** OPTION, OPTION_MULTI или BOOLEAN; у BOOLEAN один вариант `true` */
+  type: ShowcaseFacetDtoType;
+  options: ShowcaseFacetOption[];
+}
+
+/**
  * Товаров по рубрикам: идентификатор рубрики → число. Рубрики без товаров в словаре нет
  */
 export type ShowcaseCountsByCategory = {[key: string]: number};
@@ -10454,6 +10650,75 @@ export interface OrderDebtRowDto {
   overdueDays?: number;
 }
 
+export interface OrderRatingManager {
+  assigneeId?: string;
+  name?: string;
+  total: number;
+  good: number;
+}
+
+/**
+ * Причина оценки «были проблемы»
+ */
+export type OrderRatingProblemReason = typeof OrderRatingProblemReason[keyof typeof OrderRatingProblemReason];
+
+
+export const OrderRatingProblemReason = {
+  LATE: 'LATE',
+  INCOMPLETE: 'INCOMPLETE',
+  QUALITY: 'QUALITY',
+  SERVICE: 'SERVICE',
+  OTHER: 'OTHER',
+} as const;
+
+export interface OrderRatingProblem {
+  draftId: string;
+  orderNumber?: string;
+  customerName?: string;
+  /** Причина оценки «были проблемы» */
+  reason?: OrderRatingProblemReason;
+  comment?: string;
+  at: string;
+}
+
+/**
+ * Причина оценки «были проблемы»
+ */
+export type OrderRatingReasonCountReason = typeof OrderRatingReasonCountReason[keyof typeof OrderRatingReasonCountReason];
+
+
+export const OrderRatingReasonCountReason = {
+  LATE: 'LATE',
+  INCOMPLETE: 'INCOMPLETE',
+  QUALITY: 'QUALITY',
+  SERVICE: 'SERVICE',
+  OTHER: 'OTHER',
+} as const;
+
+export interface OrderRatingReasonCount {
+  /** Причина оценки «были проблемы» */
+  reason?: OrderRatingReasonCountReason;
+  count: number;
+}
+
+/**
+ * Сводка оценок заказов
+ */
+export interface OrderRatingSummaryDto {
+  /** За сколько дней */
+  days: number;
+  /** Всего оценок */
+  total: number;
+  /** Из них «всё хорошо» */
+  good: number;
+  /** Причины «были проблемы», частые первыми */
+  reasons: OrderRatingReasonCount[];
+  /** По тем, кто вёл заказ; без ведущего — assigneeId пусто */
+  managers: OrderRatingManager[];
+  /** Свежие «были проблемы», новые первыми, не больше 20 */
+  problems: OrderRatingProblem[];
+}
+
 /**
  * Повод
  */
@@ -10492,6 +10757,9 @@ export const NotificationDtoKind = {
   CATALOG_VIDEO_FAILED: 'CATALOG_VIDEO_FAILED',
   NEW_ARRIVALS: 'NEW_ARRIVALS',
   PROMO_STARTED: 'PROMO_STARTED',
+  BACK_IN_STOCK: 'BACK_IN_STOCK',
+  CUSTOMER_SILENT: 'CUSTOMER_SILENT',
+  REORDER_DUE: 'REORDER_DUE',
 } as const;
 
 /**
@@ -10629,6 +10897,8 @@ export interface DraftSummaryDto {
   waitingSince?: string;
   /** Сколько заплатит клиент: со скидкой, НДС сверху и доставкой — тем же расчётом, что `payableTotal` карточки заявки. `total` — только сумма строк. Пусто, пока не у всех строк есть цена */
   payableTotal?: number;
+  /** До какого момента продавец обещал первый ответ — часы на ответ из настроек в рабочем времени. Есть, пока клиенту ничего не отправлено; прошёл — заявка опаздывает */
+  replyDueAt?: string;
 }
 
 /**
@@ -12638,6 +12908,11 @@ export const GetReviewModerationQueueStatus = {
   REJECTED: 'REJECTED',
 } as const;
 
+export type DownloadMyOrderStatementParams = {
+from: string;
+to: string;
+};
+
 export type SearchPortalMapPlacesParams = {
 /**
  * Адрес словами
@@ -12660,6 +12935,13 @@ lat: number;
 lng: number;
 };
 
+export type GetJoinShopItemsParams = {
+query?: string;
+categoryId?: string;
+page?: number;
+size?: number;
+};
+
 export type GetPortalCatalogParams = {
 query?: string;
 categoryId?: string;
@@ -12678,6 +12960,10 @@ novelty?: boolean;
  * RETAIL — товары, которые продаются штуками (без опта или и штуками, и оптом); WHOLESALE — товары с оптом (только оптом или и так, и так)
  */
 channel?: GetPortalCatalogChannel;
+/**
+ * Отбор по полю рубрики, `КОД:вариант`, повторяется: варианты одного поля — «или», разных — «и». Поле и варианты — из `getPortalCatalogFilters`; поле, по которому отбирать нельзя, не действует
+ */
+field?: string[];
 };
 
 export type GetPortalCatalogSort = typeof GetPortalCatalogSort[keyof typeof GetPortalCatalogSort];
@@ -12699,6 +12985,10 @@ export const GetPortalCatalogChannel = {
   RETAIL: 'RETAIL',
   WHOLESALE: 'WHOLESALE',
 } as const;
+
+export type GetPortalCatalogFiltersParams = {
+categoryId?: string;
+};
 
 export type GetPortalCatalogCountsParams = {
 query?: string;
@@ -12753,6 +13043,10 @@ customerId?: string;
 };
 
 export type CountOrders200 = {[key: string]: number};
+
+export type GetOrderRatingSummaryParams = {
+days?: number;
+};
 
 export type SearchMapPlacesParams = {
 /**
@@ -23640,6 +23934,235 @@ export const useUnschedulePortalTemplate = <TError = ErrorResponse,
       return useMutation(getUnschedulePortalTemplateMutationOptions(options), queryClient);
     }
 
+export type subscribePortalRestockResponse204 = {
+  data: void
+  status: 204
+}
+
+export type subscribePortalRestockResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type subscribePortalRestockResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type subscribePortalRestockResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type subscribePortalRestockResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type subscribePortalRestockResponseSuccess = (subscribePortalRestockResponse204) & {
+  headers: Headers;
+};
+export type subscribePortalRestockResponseError = (subscribePortalRestockResponse400 | subscribePortalRestockResponse403 | subscribePortalRestockResponse404 | subscribePortalRestockResponse500) & {
+  headers: Headers;
+};
+
+export type subscribePortalRestockResponse = (subscribePortalRestockResponseSuccess | subscribePortalRestockResponseError)
+
+export const getSubscribePortalRestockUrl = (itemId: string,) => {
+
+
+
+
+  return `/api/portal/restock-subscriptions/${itemId}`
+}
+
+/**
+ * Раз в несколько минут фоновый проход сверяет ожидаемые позиции с витриной по тому же правилу наличия. Стала «в наличии» — клиенту новость `BACK_IN_STOCK` (и push), подписка гаснет: одна новость на одно ожидание. Повторная подписка — то же состояние, без второй строки.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Подписаться на позицию с нулевым остатком — 204.
+ * 2. Поставить остаток — после прохода в колокольчике «Снова в наличии».
+ * 3. Негативный 404: позиция другого поставщика или снятая с витрины.
+ * @summary Сообщить о поступлении
+ */
+export const subscribePortalRestock = async (itemId: string, options?: Parameters<typeof apiRequest>[1]): Promise<subscribePortalRestockResponse> => {
+
+  return apiRequest<subscribePortalRestockResponse>(getSubscribePortalRestockUrl(itemId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getSubscribePortalRestockMutationKey = () => ['subscribePortalRestock'] as const;
+
+export const getSubscribePortalRestockMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof subscribePortalRestock>>, TError,SubscribePortalRestockMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof subscribePortalRestock>>, TError,SubscribePortalRestockMutationVariables, TContext> => {
+
+const mutationKey = getSubscribePortalRestockMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof subscribePortalRestock>>, SubscribePortalRestockMutationVariables> = (props) => {
+          const {itemId} = props ?? {};
+
+          return  subscribePortalRestock(itemId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubscribePortalRestockMutationResult = NonNullable<Awaited<ReturnType<typeof subscribePortalRestock>>>
+
+    export type SubscribePortalRestockMutationError = ErrorResponse
+    export type SubscribePortalRestockMutationVariables = {itemId: string}
+
+    /**
+ * @summary Сообщить о поступлении
+ */
+export const useSubscribePortalRestock = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof subscribePortalRestock>>, TError,SubscribePortalRestockMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof subscribePortalRestock>>,
+        TError,
+        SubscribePortalRestockMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSubscribePortalRestockMutationOptions(options), queryClient);
+    }
+
+export type unsubscribePortalRestockResponse204 = {
+  data: void
+  status: 204
+}
+
+export type unsubscribePortalRestockResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type unsubscribePortalRestockResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type unsubscribePortalRestockResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type unsubscribePortalRestockResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type unsubscribePortalRestockResponseSuccess = (unsubscribePortalRestockResponse204) & {
+  headers: Headers;
+};
+export type unsubscribePortalRestockResponseError = (unsubscribePortalRestockResponse400 | unsubscribePortalRestockResponse403 | unsubscribePortalRestockResponse404 | unsubscribePortalRestockResponse500) & {
+  headers: Headers;
+};
+
+export type unsubscribePortalRestockResponse = (unsubscribePortalRestockResponseSuccess | unsubscribePortalRestockResponseError)
+
+export const getUnsubscribePortalRestockUrl = (itemId: string,) => {
+
+
+
+
+  return `/api/portal/restock-subscriptions/${itemId}`
+}
+
+/**
+ * Снимает ожидание. Снять несуществующее — не ошибка: экран нажимает, не зная, не погасил ли подписку проход.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Подписаться, снять — 204, в списке пусто.
+ * 2. Снять ещё раз — снова 204.
+ * @summary Не сообщать о поступлении
+ */
+export const unsubscribePortalRestock = async (itemId: string, options?: Parameters<typeof apiRequest>[1]): Promise<unsubscribePortalRestockResponse> => {
+
+  return apiRequest<unsubscribePortalRestockResponse>(getUnsubscribePortalRestockUrl(itemId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnsubscribePortalRestockMutationKey = () => ['unsubscribePortalRestock'] as const;
+
+export const getUnsubscribePortalRestockMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unsubscribePortalRestock>>, TError,UnsubscribePortalRestockMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof unsubscribePortalRestock>>, TError,UnsubscribePortalRestockMutationVariables, TContext> => {
+
+const mutationKey = getUnsubscribePortalRestockMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unsubscribePortalRestock>>, UnsubscribePortalRestockMutationVariables> = (props) => {
+          const {itemId} = props ?? {};
+
+          return  unsubscribePortalRestock(itemId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnsubscribePortalRestockMutationResult = NonNullable<Awaited<ReturnType<typeof unsubscribePortalRestock>>>
+
+    export type UnsubscribePortalRestockMutationError = ErrorResponse
+    export type UnsubscribePortalRestockMutationVariables = {itemId: string}
+
+    /**
+ * @summary Не сообщать о поступлении
+ */
+export const useUnsubscribePortalRestock = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unsubscribePortalRestock>>, TError,UnsubscribePortalRestockMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof unsubscribePortalRestock>>,
+        TError,
+        UnsubscribePortalRestockMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUnsubscribePortalRestockMutationOptions(options), queryClient);
+    }
+
 export type getPortalPushPreferencesResponse200 = {
   data: PushPreferencesDto
   status: 200
@@ -24263,6 +24786,400 @@ export const useSetPortalPromoSubscription = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSetPortalPromoSubscriptionMutationOptions(options), queryClient);
+    }
+
+export type rateMyPortalOrderResponse200 = {
+  data: PortalOrderDto
+  status: 200
+}
+
+export type rateMyPortalOrderResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type rateMyPortalOrderResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type rateMyPortalOrderResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type rateMyPortalOrderResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type rateMyPortalOrderResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type rateMyPortalOrderResponseSuccess = (rateMyPortalOrderResponse200) & {
+  headers: Headers;
+};
+export type rateMyPortalOrderResponseError = (rateMyPortalOrderResponse400 | rateMyPortalOrderResponse403 | rateMyPortalOrderResponse404 | rateMyPortalOrderResponse409 | rateMyPortalOrderResponse500) & {
+  headers: Headers;
+};
+
+export type rateMyPortalOrderResponse = (rateMyPortalOrderResponseSuccess | rateMyPortalOrderResponseError)
+
+export const getRateMyPortalOrderUrl = (id: string,) => {
+
+
+
+
+  return `/api/portal/orders/${id}/rating`
+}
+
+/**
+ * «Всё хорошо» или «были проблемы» с причиной и парой слов. Одна оценка на заказ, повторная переписывает прежнюю. «Были проблемы» уходит ещё и сообщением в переписку заказа: менеджер получает плашку «сообщение клиента» и отвечает там же. Та же жалоба повторно второго сообщения не шлёт. Деньги и возвраты оценка не трогает.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Получить заказ, поставить `{"good":true}` — в ответе `rating.good=true`, сообщений нет.
+ * 2. Поставить `{"good":false,"reason":"LATE"}` — в `messages` сообщение клиента «Оценка заказа: были проблемы — опоздали».
+ * 3. Негативный 409: заказ ещё не получен. Негативный 404: чужой заказ.
+ * @summary Оценить полученный заказ
+ */
+export const rateMyPortalOrder = async (id: string,
+    rateOrderRequest: RateOrderRequest, options?: Parameters<typeof apiRequest>[1]): Promise<rateMyPortalOrderResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<rateMyPortalOrderResponse>(getRateMyPortalOrderUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(rateOrderRequest)
+  }
+);}
+
+
+
+
+
+export const getRateMyPortalOrderMutationKey = () => ['rateMyPortalOrder'] as const;
+
+export const getRateMyPortalOrderMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rateMyPortalOrder>>, TError,RateMyPortalOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof rateMyPortalOrder>>, TError,RateMyPortalOrderMutationVariables, TContext> => {
+
+const mutationKey = getRateMyPortalOrderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rateMyPortalOrder>>, RateMyPortalOrderMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rateMyPortalOrder(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RateMyPortalOrderMutationResult = NonNullable<Awaited<ReturnType<typeof rateMyPortalOrder>>>
+    export type RateMyPortalOrderMutationBody = RateOrderRequest
+    export type RateMyPortalOrderMutationError = ErrorResponse
+    export type RateMyPortalOrderMutationVariables = {id: string;data: RateOrderRequest}
+
+    /**
+ * @summary Оценить полученный заказ
+ */
+export const useRateMyPortalOrder = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rateMyPortalOrder>>, TError,RateMyPortalOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rateMyPortalOrder>>,
+        TError,
+        RateMyPortalOrderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRateMyPortalOrderMutationOptions(options), queryClient);
+    }
+
+export type getPortalLanguageResponse200 = {
+  data: PortalLanguageDto
+  status: 200
+}
+
+export type getPortalLanguageResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalLanguageResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalLanguageResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalLanguageResponseSuccess = (getPortalLanguageResponse200) & {
+  headers: Headers;
+};
+export type getPortalLanguageResponseError = (getPortalLanguageResponse400 | getPortalLanguageResponse404 | getPortalLanguageResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalLanguageResponse = (getPortalLanguageResponseSuccess | getPortalLanguageResponseError)
+
+export const getGetPortalLanguageUrl = () => {
+
+
+
+
+  return `/api/portal/me/language`
+}
+
+/**
+ * Язык, который человек выбрал в кабинете, — один на всех его поставщиков, поэтому заголовок поставщика не нужен. Пусто — ещё не выбирал: кабинет определяет язык по браузеру и спрашивает. Сотруднику, открывшему витрину, всегда пусто.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. До выбора — `language` пусто.
+ * 2. Выбрать казахский — `language=kk`; войти с другого браузера — кабинет сразу по-казахски.
+ * @summary Мой язык кабинета
+ */
+export const getPortalLanguage = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getPortalLanguageResponse> => {
+
+  return apiRequest<getPortalLanguageResponse>(getGetPortalLanguageUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalLanguageQueryKey = () => {
+    return [
+    `/api/portal/me/language`
+    ] as const;
+    }
+
+
+export const getGetPortalLanguageQueryOptions = <TData = Awaited<ReturnType<typeof getPortalLanguage>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalLanguage>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalLanguageQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalLanguage>>> = ({ signal }) => getPortalLanguage({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalLanguage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalLanguageQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalLanguage>>>
+export type GetPortalLanguageQueryError = ErrorResponse
+
+
+export function useGetPortalLanguage<TData = Awaited<ReturnType<typeof getPortalLanguage>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalLanguage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalLanguage>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalLanguage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalLanguage<TData = Awaited<ReturnType<typeof getPortalLanguage>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalLanguage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalLanguage>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalLanguage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalLanguage<TData = Awaited<ReturnType<typeof getPortalLanguage>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalLanguage>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Мой язык кабинета
+ */
+
+export function useGetPortalLanguage<TData = Awaited<ReturnType<typeof getPortalLanguage>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalLanguage>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalLanguageQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type setPortalLanguageResponse204 = {
+  data: void
+  status: 204
+}
+
+export type setPortalLanguageResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type setPortalLanguageResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type setPortalLanguageResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type setPortalLanguageResponseSuccess = (setPortalLanguageResponse204) & {
+  headers: Headers;
+};
+export type setPortalLanguageResponseError = (setPortalLanguageResponse400 | setPortalLanguageResponse404 | setPortalLanguageResponse500) & {
+  headers: Headers;
+};
+
+export type setPortalLanguageResponse = (setPortalLanguageResponseSuccess | setPortalLanguageResponseError)
+
+export const getSetPortalLanguageUrl = () => {
+
+
+
+
+  return `/api/portal/me/language`
+}
+
+/**
+ * Кабинет зовёт при выборе языка в переключателе и в вопросе о языке. Сотруднику, открывшему витрину, ничего не записывается.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `{"language":"kk"}` — 204, чтение отдаёт `kk`.
+ * 2. Негативный 400: `{"language":"de"}`.
+ * @summary Запомнить язык кабинета
+ */
+export const setPortalLanguage = async (setPortalLanguageRequest: SetPortalLanguageRequest, options?: Parameters<typeof apiRequest>[1]): Promise<setPortalLanguageResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<setPortalLanguageResponse>(getSetPortalLanguageUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setPortalLanguageRequest)
+  }
+);}
+
+
+
+
+
+export const getSetPortalLanguageMutationKey = () => ['setPortalLanguage'] as const;
+
+export const getSetPortalLanguageMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPortalLanguage>>, TError,SetPortalLanguageMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof setPortalLanguage>>, TError,SetPortalLanguageMutationVariables, TContext> => {
+
+const mutationKey = getSetPortalLanguageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setPortalLanguage>>, SetPortalLanguageMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  setPortalLanguage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetPortalLanguageMutationResult = NonNullable<Awaited<ReturnType<typeof setPortalLanguage>>>
+    export type SetPortalLanguageMutationBody = SetPortalLanguageRequest
+    export type SetPortalLanguageMutationError = ErrorResponse
+    export type SetPortalLanguageMutationVariables = {data: SetPortalLanguageRequest}
+
+    /**
+ * @summary Запомнить язык кабинета
+ */
+export const useSetPortalLanguage = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setPortalLanguage>>, TError,SetPortalLanguageMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setPortalLanguage>>,
+        TError,
+        SetPortalLanguageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetPortalLanguageMutationOptions(options), queryClient);
     }
 
 export type getMyCompanyResponse200 = {
@@ -27217,6 +28134,132 @@ export const useSaveCustomerCredit = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSaveCustomerCreditMutationOptions(options), queryClient);
+    }
+
+export type setShopShowcaseResponse200 = {
+  data: ShopLinkDto
+  status: 200
+}
+
+export type setShopShowcaseResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type setShopShowcaseResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type setShopShowcaseResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type setShopShowcaseResponseSuccess = (setShopShowcaseResponse200) & {
+  headers: Headers;
+};
+export type setShopShowcaseResponseError = (setShopShowcaseResponse400 | setShopShowcaseResponse404 | setShopShowcaseResponse500) & {
+  headers: Headers;
+};
+
+export type setShopShowcaseResponse = (setShopShowcaseResponseSuccess | setShopShowcaseResponseError)
+
+export const getSetShopShowcaseUrl = () => {
+
+
+
+
+  return `/api/customers/shop-link/showcase`
+}
+
+/**
+ * Открывает гостю на странице ссылки товары без цен: название, снимок, рубрику и единицу. Ни цен,
+ * ни остатков; заказать можно только после одобренной заявки на доступ. Признак переезжает
+ * на новую ссылку при смене кода.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `{"showcasePublic": true}` — 200, `showcasePublic = true`; `GET /api/portal/join-shop/{code}/items` отдаёт товары.
+ * 2. `false` — товары гостя отвечают 404.
+ * 3. Негативный 404 `SHOP_LINK_NOT_FOUND`: ссылки ещё нет.
+ * @summary Витрина без цен на странице ссылки
+ */
+export const setShopShowcase = async (setShopShowcaseRequest: SetShopShowcaseRequest, options?: Parameters<typeof apiRequest>[1]): Promise<setShopShowcaseResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<setShopShowcaseResponse>(getSetShopShowcaseUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setShopShowcaseRequest)
+  }
+);}
+
+
+
+
+
+export const getSetShopShowcaseMutationKey = () => ['setShopShowcase'] as const;
+
+export const getSetShopShowcaseMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setShopShowcase>>, TError,SetShopShowcaseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof setShopShowcase>>, TError,SetShopShowcaseMutationVariables, TContext> => {
+
+const mutationKey = getSetShopShowcaseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setShopShowcase>>, SetShopShowcaseMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  setShopShowcase(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetShopShowcaseMutationResult = NonNullable<Awaited<ReturnType<typeof setShopShowcase>>>
+    export type SetShopShowcaseMutationBody = SetShopShowcaseRequest
+    export type SetShopShowcaseMutationError = ErrorResponse
+    export type SetShopShowcaseMutationVariables = {data: SetShopShowcaseRequest}
+
+    /**
+ * @summary Витрина без цен на странице ссылки
+ */
+export const useSetShopShowcase = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setShopShowcase>>, TError,SetShopShowcaseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setShopShowcase>>,
+        TError,
+        SetShopShowcaseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetShopShowcaseMutationOptions(options), queryClient);
     }
 
 export type getCatalogSettingsResponse200 = {
@@ -62316,6 +63359,154 @@ export function useGetPortalSuppliers<TData = Awaited<ReturnType<typeof getPorta
 
 
 
+export type downloadMyOrderStatementResponse200 = {
+  data: Blob
+  status: 200
+}
+
+export type downloadMyOrderStatementResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type downloadMyOrderStatementResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type downloadMyOrderStatementResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type downloadMyOrderStatementResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type downloadMyOrderStatementResponseSuccess = (downloadMyOrderStatementResponse200) & {
+  headers: Headers;
+};
+export type downloadMyOrderStatementResponseError = (downloadMyOrderStatementResponse400 | downloadMyOrderStatementResponse403 | downloadMyOrderStatementResponse404 | downloadMyOrderStatementResponse500) & {
+  headers: Headers;
+};
+
+export type downloadMyOrderStatementResponse = (downloadMyOrderStatementResponseSuccess | downloadMyOrderStatementResponseError)
+
+export const getDownloadMyOrderStatementUrl = (params: DownloadMyOrderStatementParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/portal/statement.pdf?${stringifiedParams}` : `/api/portal/statement.pdf`
+}
+
+/**
+ * PDF за период (не длиннее года): принятые и не отменённые заказы клиента у этого поставщика, оплаты, которые отметил продавец, ожидающие возвраты и остаток — тем же расчётом, что раздел «Долги» у продавца. **Справочно, не акт сверки**: документ так и говорит, акт составляет продавец в своём учёте. Язык документа — язык кабинета.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Два заказа: один оплачен частично, второй отмечен оплаченным — в файле оба номера, остаток только у первого.
+ * 2. Негативный 400 `PORTAL_STATEMENT_PERIOD`: начало позже конца или период длиннее года.
+ * @summary Выписка по заказам файлом
+ */
+export const downloadMyOrderStatement = async (params: DownloadMyOrderStatementParams, options?: Parameters<typeof apiRequest>[1]): Promise<downloadMyOrderStatementResponse> => {
+
+  return apiRequest<downloadMyOrderStatementResponse>(getDownloadMyOrderStatementUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadMyOrderStatementQueryKey = (params?: DownloadMyOrderStatementParams,) => {
+    return [
+    `/api/portal/statement.pdf`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDownloadMyOrderStatementQueryOptions = <TData = Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError = ErrorResponse>(params: DownloadMyOrderStatementParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadMyOrderStatementQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadMyOrderStatement>>> = ({ signal }) => downloadMyOrderStatement(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadMyOrderStatementQueryResult = NonNullable<Awaited<ReturnType<typeof downloadMyOrderStatement>>>
+export type DownloadMyOrderStatementQueryError = ErrorResponse
+
+
+export function useDownloadMyOrderStatement<TData = Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError = ErrorResponse>(
+ params: DownloadMyOrderStatementParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadMyOrderStatement>>,
+          TError,
+          Awaited<ReturnType<typeof downloadMyOrderStatement>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadMyOrderStatement<TData = Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError = ErrorResponse>(
+ params: DownloadMyOrderStatementParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadMyOrderStatement>>,
+          TError,
+          Awaited<ReturnType<typeof downloadMyOrderStatement>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadMyOrderStatement<TData = Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError = ErrorResponse>(
+ params: DownloadMyOrderStatementParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Выписка по заказам файлом
+ */
+
+export function useDownloadMyOrderStatement<TData = Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError = ErrorResponse>(
+ params: DownloadMyOrderStatementParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadMyOrderStatement>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadMyOrderStatementQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getPortalMyReviewsResponse200 = {
   data: ItemReviewDto[]
   status: 200
@@ -62737,6 +63928,148 @@ export function useGetPortalItemsAwaitingReview<TData = Awaited<ReturnType<typeo
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetPortalItemsAwaitingReviewQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getPortalRestockSubscriptionsResponse200 = {
+  data: string[]
+  status: 200
+}
+
+export type getPortalRestockSubscriptionsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalRestockSubscriptionsResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getPortalRestockSubscriptionsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalRestockSubscriptionsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalRestockSubscriptionsResponseSuccess = (getPortalRestockSubscriptionsResponse200) & {
+  headers: Headers;
+};
+export type getPortalRestockSubscriptionsResponseError = (getPortalRestockSubscriptionsResponse400 | getPortalRestockSubscriptionsResponse403 | getPortalRestockSubscriptionsResponse404 | getPortalRestockSubscriptionsResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalRestockSubscriptionsResponse = (getPortalRestockSubscriptionsResponseSuccess | getPortalRestockSubscriptionsResponseError)
+
+export const getGetPortalRestockSubscriptionsUrl = () => {
+
+
+
+
+  return `/api/portal/restock-subscriptions`
+}
+
+/**
+ * Позиции, о поступлении которых клиент просил сообщить, новые сверху. Экран отмечает по ним кнопку в карточке товара.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. До подписки — пустой список.
+ * 2. Подписаться на позицию — она в списке.
+ * 3. Позиция появилась на витрине — после прохода её в списке нет, в новостях `BACK_IN_STOCK`.
+ * @summary Что я жду
+ */
+export const getPortalRestockSubscriptions = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getPortalRestockSubscriptionsResponse> => {
+
+  return apiRequest<getPortalRestockSubscriptionsResponse>(getGetPortalRestockSubscriptionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalRestockSubscriptionsQueryKey = () => {
+    return [
+    `/api/portal/restock-subscriptions`
+    ] as const;
+    }
+
+
+export const getGetPortalRestockSubscriptionsQueryOptions = <TData = Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalRestockSubscriptionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalRestockSubscriptions>>> = ({ signal }) => getPortalRestockSubscriptions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalRestockSubscriptionsQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalRestockSubscriptions>>>
+export type GetPortalRestockSubscriptionsQueryError = ErrorResponse
+
+
+export function useGetPortalRestockSubscriptions<TData = Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalRestockSubscriptions>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalRestockSubscriptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalRestockSubscriptions<TData = Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalRestockSubscriptions>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalRestockSubscriptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalRestockSubscriptions<TData = Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Что я жду
+ */
+
+export function useGetPortalRestockSubscriptions<TData = Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalRestockSubscriptions>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalRestockSubscriptionsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -65437,6 +66770,296 @@ export function useGetAccessRequestStatus<TData = Awaited<ReturnType<typeof getA
 
 
 
+export type getJoinShopItemsResponse200 = {
+  data: PageResponsePublicShowcaseItemDto
+  status: 200
+}
+
+export type getJoinShopItemsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getJoinShopItemsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getJoinShopItemsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getJoinShopItemsResponseSuccess = (getJoinShopItemsResponse200) & {
+  headers: Headers;
+};
+export type getJoinShopItemsResponseError = (getJoinShopItemsResponse400 | getJoinShopItemsResponse404 | getJoinShopItemsResponse500) & {
+  headers: Headers;
+};
+
+export type getJoinShopItemsResponse = (getJoinShopItemsResponseSuccess | getJoinShopItemsResponseError)
+
+export const getGetJoinShopItemsUrl = (code: string,
+    params?: GetJoinShopItemsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/portal/join-shop/${code}/items?${stringifiedParams}` : `/api/portal/join-shop/${code}/items`
+}
+
+/**
+ * Витрина без цен — только если продавец её открыл (`JoinShopDto.showcase`). Видимые позиции
+ * с названием, снимком, рубрикой и единицей; цен, остатков и условий нет. Поиск и рубрика —
+ * как у витрины кабинета, страница до 60.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Продавец открыл витрину — 200 без входа, у позиций нет `price` и `stock`.
+ * 2. `query=цемент` — только подходящие.
+ * 3. Негативный 404 `SHOP_LINK_NOT_FOUND`: витрина закрыта или ссылка сменена.
+ * @summary Товары магазина без цен
+ */
+export const getJoinShopItems = async (code: string,
+    params?: GetJoinShopItemsParams, options?: Parameters<typeof apiRequest>[1]): Promise<getJoinShopItemsResponse> => {
+
+  return apiRequest<getJoinShopItemsResponse>(getGetJoinShopItemsUrl(code,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJoinShopItemsQueryKey = (code: string,
+    params?: GetJoinShopItemsParams,) => {
+    return [
+    `/api/portal/join-shop/${code}/items`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetJoinShopItemsQueryOptions = <TData = Awaited<ReturnType<typeof getJoinShopItems>>, TError = ErrorResponse>(code: string,
+    params?: GetJoinShopItemsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItems>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJoinShopItemsQueryKey(code,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJoinShopItems>>> = ({ signal }) => getJoinShopItems(code,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItems>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetJoinShopItemsQueryResult = NonNullable<Awaited<ReturnType<typeof getJoinShopItems>>>
+export type GetJoinShopItemsQueryError = ErrorResponse
+
+
+export function useGetJoinShopItems<TData = Awaited<ReturnType<typeof getJoinShopItems>>, TError = ErrorResponse>(
+ code: string,
+    params: undefined |  GetJoinShopItemsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItems>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getJoinShopItems>>,
+          TError,
+          Awaited<ReturnType<typeof getJoinShopItems>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetJoinShopItems<TData = Awaited<ReturnType<typeof getJoinShopItems>>, TError = ErrorResponse>(
+ code: string,
+    params?: GetJoinShopItemsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItems>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getJoinShopItems>>,
+          TError,
+          Awaited<ReturnType<typeof getJoinShopItems>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetJoinShopItems<TData = Awaited<ReturnType<typeof getJoinShopItems>>, TError = ErrorResponse>(
+ code: string,
+    params?: GetJoinShopItemsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItems>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Товары магазина без цен
+ */
+
+export function useGetJoinShopItems<TData = Awaited<ReturnType<typeof getJoinShopItems>>, TError = ErrorResponse>(
+ code: string,
+    params?: GetJoinShopItemsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItems>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetJoinShopItemsQueryOptions(code,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getJoinShopCategoriesResponse200 = {
+  data: ItemCategoryDto[]
+  status: 200
+}
+
+export type getJoinShopCategoriesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getJoinShopCategoriesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getJoinShopCategoriesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getJoinShopCategoriesResponseSuccess = (getJoinShopCategoriesResponse200) & {
+  headers: Headers;
+};
+export type getJoinShopCategoriesResponseError = (getJoinShopCategoriesResponse400 | getJoinShopCategoriesResponse404 | getJoinShopCategoriesResponse500) & {
+  headers: Headers;
+};
+
+export type getJoinShopCategoriesResponse = (getJoinShopCategoriesResponseSuccess | getJoinShopCategoriesResponseError)
+
+export const getGetJoinShopCategoriesUrl = (code: string,) => {
+
+
+
+
+  return `/api/portal/join-shop/${code}/categories`
+}
+
+/**
+ * Рубрики витрины без цен, в порядке продавца; закрытая витрина — 404.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Открытая витрина — 200, рубрики продавца.
+ * 2. Негативный 404 `SHOP_LINK_NOT_FOUND`: витрина закрыта.
+ * @summary Рубрики магазина без цен
+ */
+export const getJoinShopCategories = async (code: string, options?: Parameters<typeof apiRequest>[1]): Promise<getJoinShopCategoriesResponse> => {
+
+  return apiRequest<getJoinShopCategoriesResponse>(getGetJoinShopCategoriesUrl(code),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJoinShopCategoriesQueryKey = (code: string,) => {
+    return [
+    `/api/portal/join-shop/${code}/categories`
+    ] as const;
+    }
+
+
+export const getGetJoinShopCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof getJoinShopCategories>>, TError = ErrorResponse>(code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopCategories>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJoinShopCategoriesQueryKey(code);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJoinShopCategories>>> = ({ signal }) => getJoinShopCategories(code, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJoinShopCategories>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetJoinShopCategoriesQueryResult = NonNullable<Awaited<ReturnType<typeof getJoinShopCategories>>>
+export type GetJoinShopCategoriesQueryError = ErrorResponse
+
+
+export function useGetJoinShopCategories<TData = Awaited<ReturnType<typeof getJoinShopCategories>>, TError = ErrorResponse>(
+ code: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopCategories>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getJoinShopCategories>>,
+          TError,
+          Awaited<ReturnType<typeof getJoinShopCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetJoinShopCategories<TData = Awaited<ReturnType<typeof getJoinShopCategories>>, TError = ErrorResponse>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopCategories>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getJoinShopCategories>>,
+          TError,
+          Awaited<ReturnType<typeof getJoinShopCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetJoinShopCategories<TData = Awaited<ReturnType<typeof getJoinShopCategories>>, TError = ErrorResponse>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopCategories>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Рубрики магазина без цен
+ */
+
+export function useGetJoinShopCategories<TData = Awaited<ReturnType<typeof getJoinShopCategories>>, TError = ErrorResponse>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopCategories>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetJoinShopCategoriesQueryOptions(code,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getPortalFavoritesResponse200 = {
   data: FavoriteItemDto[]
   status: 200
@@ -66346,6 +67969,14 @@ export const getGetPortalCatalogUrl = (params?: GetPortalCatalogParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["field"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
 
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : String(value))
@@ -66608,6 +68239,297 @@ export function useGetPortalCatalogItem<TData = Awaited<ReturnType<typeof getPor
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetPortalCatalogItemQueryOptions(itemId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getPortalCatalogSubstitutesResponse200 = {
+  data: ShowcaseItemDto[]
+  status: 200
+}
+
+export type getPortalCatalogSubstitutesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalCatalogSubstitutesResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getPortalCatalogSubstitutesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalCatalogSubstitutesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalCatalogSubstitutesResponseSuccess = (getPortalCatalogSubstitutesResponse200) & {
+  headers: Headers;
+};
+export type getPortalCatalogSubstitutesResponseError = (getPortalCatalogSubstitutesResponse400 | getPortalCatalogSubstitutesResponse403 | getPortalCatalogSubstitutesResponse404 | getPortalCatalogSubstitutesResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalCatalogSubstitutesResponse = (getPortalCatalogSubstitutesResponseSuccess | getPortalCatalogSubstitutesResponseError)
+
+export const getGetPortalCatalogSubstitutesUrl = (itemId: string,) => {
+
+
+
+
+  return `/api/portal/catalog/${itemId}/substitutes`
+}
+
+/**
+ * До четырёх строк витрины: соседи по рубрике с тем же первым словом названия, которые клиент видит, может заказать и которые сейчас в наличии — тем же правилом, что признак `stock` на витрине, за вычетом обещанного другим заявкам. Размеры и цвета той же модели не входят: их предлагает сама карточка. Самые полные по остатку — первыми. Похожесть грубая намеренно: выбирает клиент.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. «Цемент М400» с нулевым остатком и «Цемент М500» в наличии — для первого приходит второй.
+ * 2. Снять «Цемент М500» с продажи — список пуст, а не отказ.
+ * 3. Негативный 404: позиция другого поставщика или снятая с витрины.
+ * @summary Чем заменить позицию, которой нет
+ */
+export const getPortalCatalogSubstitutes = async (itemId: string, options?: Parameters<typeof apiRequest>[1]): Promise<getPortalCatalogSubstitutesResponse> => {
+
+  return apiRequest<getPortalCatalogSubstitutesResponse>(getGetPortalCatalogSubstitutesUrl(itemId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalCatalogSubstitutesQueryKey = (itemId: string,) => {
+    return [
+    `/api/portal/catalog/${itemId}/substitutes`
+    ] as const;
+    }
+
+
+export const getGetPortalCatalogSubstitutesQueryOptions = <TData = Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError = ErrorResponse>(itemId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalCatalogSubstitutesQueryKey(itemId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>> = ({ signal }) => getPortalCatalogSubstitutes(itemId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: itemId !== null && itemId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalCatalogSubstitutesQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>>
+export type GetPortalCatalogSubstitutesQueryError = ErrorResponse
+
+
+export function useGetPortalCatalogSubstitutes<TData = Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError = ErrorResponse>(
+ itemId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalCatalogSubstitutes<TData = Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError = ErrorResponse>(
+ itemId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalCatalogSubstitutes<TData = Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError = ErrorResponse>(
+ itemId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Чем заменить позицию, которой нет
+ */
+
+export function useGetPortalCatalogSubstitutes<TData = Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError = ErrorResponse>(
+ itemId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogSubstitutes>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalCatalogSubstitutesQueryOptions(itemId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getPortalCatalogFiltersResponse200 = {
+  data: ShowcaseFacetDto[]
+  status: 200
+}
+
+export type getPortalCatalogFiltersResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalCatalogFiltersResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getPortalCatalogFiltersResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalCatalogFiltersResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalCatalogFiltersResponseSuccess = (getPortalCatalogFiltersResponse200) & {
+  headers: Headers;
+};
+export type getPortalCatalogFiltersResponseError = (getPortalCatalogFiltersResponse400 | getPortalCatalogFiltersResponse403 | getPortalCatalogFiltersResponse404 | getPortalCatalogFiltersResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalCatalogFiltersResponse = (getPortalCatalogFiltersResponseSuccess | getPortalCatalogFiltersResponseError)
+
+export const getGetPortalCatalogFiltersUrl = (params?: GetPortalCatalogFiltersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/portal/catalog/filters?${stringifiedParams}` : `/api/portal/catalog/filters`
+}
+
+/**
+ * Поля рубрики, по которым продавец разрешил отбирать (признак «по нему отбирают») и которые видит клиент, — списки, «несколько из списка» и «да/нет». Только варианты, которые встречаются у товаров на витрине этой рубрики, с числом моделей. Без рубрики — поля всего каталога. Выбранное передают в `getPortalCatalog` параметром `field=КОД:вариант`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. В рубрике поле «Цвет» (список, «по нему отбирают») и две куртки — красная и синяя: приходит `COLOR` с вариантами `red` и `blue` по одной модели.
+ * 2. Снять с поля признак «по нему отбирают» — поля в ответе нет.
+ * 3. Негативный 403: заголовок чужого поставщика.
+ * @summary Отборы витрины по полям рубрики
+ */
+export const getPortalCatalogFilters = async (params?: GetPortalCatalogFiltersParams, options?: Parameters<typeof apiRequest>[1]): Promise<getPortalCatalogFiltersResponse> => {
+
+  return apiRequest<getPortalCatalogFiltersResponse>(getGetPortalCatalogFiltersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalCatalogFiltersQueryKey = (params?: GetPortalCatalogFiltersParams,) => {
+    return [
+    `/api/portal/catalog/filters`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetPortalCatalogFiltersQueryOptions = <TData = Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError = ErrorResponse>(params?: GetPortalCatalogFiltersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalCatalogFiltersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalCatalogFilters>>> = ({ signal }) => getPortalCatalogFilters(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalCatalogFiltersQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalCatalogFilters>>>
+export type GetPortalCatalogFiltersQueryError = ErrorResponse
+
+
+export function useGetPortalCatalogFilters<TData = Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError = ErrorResponse>(
+ params: undefined |  GetPortalCatalogFiltersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalCatalogFilters>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalCatalogFilters>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalCatalogFilters<TData = Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError = ErrorResponse>(
+ params?: GetPortalCatalogFiltersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalCatalogFilters>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalCatalogFilters>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalCatalogFilters<TData = Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError = ErrorResponse>(
+ params?: GetPortalCatalogFiltersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Отборы витрины по полям рубрики
+ */
+
+export function useGetPortalCatalogFilters<TData = Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError = ErrorResponse>(
+ params?: GetPortalCatalogFiltersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalCatalogFilters>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalCatalogFiltersQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -68589,6 +70511,154 @@ export function useCountOrders<TData = Awaited<ReturnType<typeof countOrders>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getCountOrdersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getOrderRatingSummaryResponse200 = {
+  data: OrderRatingSummaryDto
+  status: 200
+}
+
+export type getOrderRatingSummaryResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getOrderRatingSummaryResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getOrderRatingSummaryResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getOrderRatingSummaryResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getOrderRatingSummaryResponseSuccess = (getOrderRatingSummaryResponse200) & {
+  headers: Headers;
+};
+export type getOrderRatingSummaryResponseError = (getOrderRatingSummaryResponse400 | getOrderRatingSummaryResponse403 | getOrderRatingSummaryResponse404 | getOrderRatingSummaryResponse500) & {
+  headers: Headers;
+};
+
+export type getOrderRatingSummaryResponse = (getOrderRatingSummaryResponseSuccess | getOrderRatingSummaryResponseError)
+
+export const getGetOrderRatingSummaryUrl = (params?: GetOrderRatingSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/order-ratings?${stringifiedParams}` : `/api/order-ratings`
+}
+
+/**
+ * За последние `days` дней (1–365, по умолчанию 30) по моменту оценки: сколько оценок, сколько «всё хорошо», частые причины «были проблемы», разбивка по тем, кто вёл заказ, и до 20 свежих жалоб с номером заказа, клиентом и комментарием. Право — «Отзывы: чтение».
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Клиент оценил два полученных заказа: один «всё хорошо», другой «привезли не всё» — `total=2`, `good=1`, в `reasons` `INCOMPLETE`, в `problems` второй заказ.
+ * 2. Негативный 403: сотрудник без права на отзывы.
+ * @summary Сводка оценок заказов
+ */
+export const getOrderRatingSummary = async (params?: GetOrderRatingSummaryParams, options?: Parameters<typeof apiRequest>[1]): Promise<getOrderRatingSummaryResponse> => {
+
+  return apiRequest<getOrderRatingSummaryResponse>(getGetOrderRatingSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOrderRatingSummaryQueryKey = (params?: GetOrderRatingSummaryParams,) => {
+    return [
+    `/api/order-ratings`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOrderRatingSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getOrderRatingSummary>>, TError = ErrorResponse>(params?: GetOrderRatingSummaryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrderRatingSummary>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOrderRatingSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOrderRatingSummary>>> = ({ signal }) => getOrderRatingSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOrderRatingSummary>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetOrderRatingSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getOrderRatingSummary>>>
+export type GetOrderRatingSummaryQueryError = ErrorResponse
+
+
+export function useGetOrderRatingSummary<TData = Awaited<ReturnType<typeof getOrderRatingSummary>>, TError = ErrorResponse>(
+ params: undefined |  GetOrderRatingSummaryParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrderRatingSummary>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOrderRatingSummary>>,
+          TError,
+          Awaited<ReturnType<typeof getOrderRatingSummary>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOrderRatingSummary<TData = Awaited<ReturnType<typeof getOrderRatingSummary>>, TError = ErrorResponse>(
+ params?: GetOrderRatingSummaryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrderRatingSummary>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOrderRatingSummary>>,
+          TError,
+          Awaited<ReturnType<typeof getOrderRatingSummary>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOrderRatingSummary<TData = Awaited<ReturnType<typeof getOrderRatingSummary>>, TError = ErrorResponse>(
+ params?: GetOrderRatingSummaryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrderRatingSummary>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Сводка оценок заказов
+ */
+
+export function useGetOrderRatingSummary<TData = Awaited<ReturnType<typeof getOrderRatingSummary>>, TError = ErrorResponse>(
+ params?: GetOrderRatingSummaryParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOrderRatingSummary>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetOrderRatingSummaryQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

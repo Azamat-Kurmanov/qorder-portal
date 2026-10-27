@@ -31,8 +31,10 @@ import { MapViewButton } from '../maps/MapViewButton';
 import { pointOf } from '../maps/mapProvider';
 import { TransportPayment } from './TransportPayment';
 import { OrderTotals } from './OrderTotals';
+import { RateOrder } from './RateOrder';
+import { ReportProblem } from './ReportProblem';
 import { LinkedLineThumb } from '../cart/LineThumb';
-import { orderDay, packNote } from './orderText';
+import { answerExpectedText, dayTime, orderDay, packNote } from './orderText';
 import { kindOf, lastMessage, linesOf, pieces, totalOf, type OrderKind, type Unread } from './myOrdersModel';
 
 /**
@@ -47,15 +49,6 @@ const TONE: Record<OrderKind, { stripe: string; badge: string; todo: string }> =
   done: { stripe: 'bg-ink-faint', badge: 'bg-sunk text-ink-muted', todo: 'text-ink-muted' },
   cancelled: { stripe: 'bg-gone/50', badge: 'bg-sunk text-gone', todo: 'text-ink-muted' },
 };
-
-/** Время сообщения: «сегодня, 11:40» или «21 сентября, 10:05». */
-function when(iso: string, t: (key: string) => string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const time = new Intl.DateTimeFormat(intlLocale(), { hour: '2-digit', minute: '2-digit' }).format(date);
-  const today = new Date().toDateString() === date.toDateString();
-  return `${today ? t('orders.v2.today') : orderDay(iso)}, ${time}`;
-}
 
 /**
  * Строка, которой назван вид заявки: у собранной с доставкой — своя,
@@ -138,7 +131,7 @@ export function OrderRow({ order, unread, open, onToggle }: {
             <span className={cn('min-w-0 sm:truncate', unread ? 'font-semibold text-ink' : 'text-ink-muted')}>
               {last.text ? (last.fromCustomer ? `${t('orders.v2.you')} ${last.text}` : last.text) : eventText}
             </span>
-            <span className="shrink-0 text-ink-faint">· {when(last.at, t)}</span>
+            <span className="shrink-0 text-ink-faint">· {dayTime(last.at, t)}</span>
           </span>
           {/* На узком экране сумма уходит под текст: справа ей не хватает места. */}
           <span className="flex flex-wrap items-baseline gap-x-2 sm:hidden">
@@ -286,6 +279,12 @@ function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: O
         <div className="flex flex-col gap-1">
           <Label>{t('orders.v2.where')}</Label>
           <span className="text-sm font-semibold text-ink">{whereText}</span>
+          {order.answerExpectedBy ? (
+            <span data-testid="order-answer-by" className="text-sm text-ink-muted">{answerExpectedText(order.answerExpectedBy, t)}</span>
+          ) : null}
+          {order.managerName ? (
+            <span data-testid="order-manager" className="text-sm text-ink-muted">{t('orders.manager', { name: order.managerName })}</span>
+          ) : null}
         </div>
         <div className="flex flex-col gap-1">
           <Label>{t('orders.v2.todoTitle')}</Label>
@@ -373,6 +372,8 @@ function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: O
 
         <div className="flex flex-wrap gap-2">
           {kind === 'done' ? <RateItems order={order} /> : null}
+          {kind === 'done' ? <RateOrder order={order} /> : null}
+          {kind === 'done' ? <ReportProblem order={order} /> : null}
           {/* Как в макете: у идущей заявки — вопрос продавцу, у завершённой — повтор. */}
           {!finished && !asking ? (
             <button type="button" className={SECONDARY} onClick={() => setAsking(true)}>

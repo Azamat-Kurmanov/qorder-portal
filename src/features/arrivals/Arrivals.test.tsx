@@ -108,6 +108,8 @@ describe('новые поступления в кабинете', () => {
   it('плашки объявлений ведут в свои разделы', () => {
     expect(destinationOf('NEW_ARRIVALS', 'batch-1')).toBe('/new-arrivals');
     expect(destinationOf('PROMO_STARTED', '')).toBe('/promotions');
+    // Ждавшаяся позиция — в свою карточку.
+    expect(destinationOf('BACK_IN_STOCK', 'item-1')).toBe('/catalog/item-1');
   });
 
   it('push об акции открывается и без предмета — у распродажи его нет', () => {

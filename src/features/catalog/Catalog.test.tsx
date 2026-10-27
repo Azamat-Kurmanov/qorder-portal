@@ -405,6 +405,33 @@ describe('витрина кабинета', () => {
     expect(screen.getAllByTestId('item-thumb')[0].getAttribute('style')).toBe(before);
   });
 
+  it('в рубрике — отбор по её полям: выбранный вариант уходит в запрос, другая рубрика сбрасывает отбор', async () => {
+    const { calls } = stubFetch([
+      get('/api/portal/categories', [{ id: 'cat-1', name: 'Одежда', sortOrder: 1 }, { id: 'cat-2', name: 'Обувь', sortOrder: 2 }]),
+      get('/api/portal/catalog/filters', [
+        { code: 'COLOR', name: 'Цвет', type: 'OPTION', options: [{ code: 'red', name: 'Красный', count: 2 }, { code: 'blue', name: 'Синий', count: 1 }] },
+        { code: 'WARM', name: 'Утеплённая', type: 'BOOLEAN', options: [{ code: 'true', count: 1 }] },
+      ]),
+      get('/api/portal/catalog', { page: 0, size: 50, totalElements: 1, items: [CEMENT] }),
+      get('/api/portal/cart', emptyCart),
+    ]);
+    renderScreen(<CatalogPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /^Одежда/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /Красный/ }));
+    await userEvent.click(screen.getByRole('button', { name: /Утеплённая/ }));
+
+    await waitFor(() => expect(calls.some((call) => call.url.includes('/api/portal/catalog?')
+      && call.url.includes('field=COLOR%3Ared') && call.url.includes('field=WARM%3Atrue'))).toBe(true));
+
+    await userEvent.click(screen.getByRole('button', { name: /^Обувь/ }));
+    await waitFor(() => {
+      const last = calls.filter((call) => call.url.includes('/api/portal/catalog?')).at(-1);
+      expect(last?.url).toContain('categoryId=cat-2');
+      expect(last?.url).not.toContain('field=');
+    });
+  });
+
   it('на телефоне рубрики — строкой чипов, а витрина — карточками в две колонки', async () => {
     stubFetch([
       get('/api/portal/categories', [{ id: 'cat-1', name: 'Сухие смеси', sortOrder: 1 }]),

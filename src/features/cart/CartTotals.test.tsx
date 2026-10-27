@@ -15,7 +15,7 @@ function line(unit: string, quantity: number, price: number, vatRate?: number): 
 function cart(lines: CartLineDto[], vatAmount?: number, vatPayer = true): CartDto {
   const total = lines.reduce((sum, l) => sum + l.total, 0);
   return {
-    lines, total, goodsTotal: total, volumeGoods: total, saleSavings: 0, skipped: [], ageConfirmed: false, vatAmount, vatPayer, vatIncluded: false,
+    lines, total, goodsTotal: total, volumeGoods: total, saleSavings: 0, skipped: [], ageConfirmed: false, vatAmount, vatPayer, vatIncluded: false, creditLimitExceeded: false,
   } as CartDto;
 }
 

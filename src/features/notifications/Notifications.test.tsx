@@ -163,4 +163,29 @@ describe('куда ведёт плашка', () => {
     expect(await screen.findByRole('link', { name: /заказ в пути/i })).toHaveAttribute('href', '/orders/order-2');
     expect(screen.getByRole('link', { name: /собрана в корзине/i })).toHaveAttribute('href', '/checkout');
   });
+
+  it('товар, который ждали, назван и ведёт в свою карточку', async () => {
+    stubFetch([get('/api/portal/notifications', [
+      { id: 'n5', draftId: 'item-1', kind: 'BACK_IN_STOCK', createdAt: '2026-10-27T10:00:00Z', detail: 'Цемент М400' },
+    ])]);
+
+    renderScreen(<NotificationsBell />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 1 новое' }));
+
+    expect(await screen.findByRole('link', { name: /снова в наличии: цемент м400/i })).toHaveAttribute('href', '/catalog/item-1');
+  });
+
+  it('«пора повторить заказ» объясняет интервал и ведёт в последний заказ', async () => {
+    stubFetch([get('/api/portal/notifications', [
+      { id: 'n6', draftId: 'order-7', kind: 'REORDER_DUE', createdAt: '2026-10-27T10:00:00Z', detail: '10' },
+    ])]);
+
+    renderScreen(<NotificationsBell />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Уведомления: 1 новое' }));
+
+    expect(await screen.findByRole('link', { name: /пора повторить заказ\? вы обычно заказываете раз в 10 дн/i }))
+      .toHaveAttribute('href', '/orders/order-7');
+  });
 });

@@ -196,6 +196,13 @@ export const rules = {
   PromoSubscriptionRequest: {
 
   },
+  RateOrderRequest: {
+    reason: { required: false },
+    comment: { required: false, maxLength: 1000, example: "Привезли на день позже" },
+  },
+  SetPortalLanguageRequest: {
+    language: { required: true, pattern: /^(?:ru|kk|en)$/, example: "kk" },
+  },
   SetCartLineRequest: {
     mode: { required: false },
   },
@@ -253,6 +260,9 @@ export const rules = {
     validUntil: { required: false },
   },
   SaveCustomerCreditRequest: {
+
+  },
+  SetShopShowcaseRequest: {
 
   },
   SaveCatalogSettingsRequest: {

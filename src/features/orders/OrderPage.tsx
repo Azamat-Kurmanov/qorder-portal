@@ -18,6 +18,8 @@ import {
   type SnapshotLineDto,
 } from '../../api/generated';
 import { OrderMessages } from './OrderMessages';
+import { RateOrder } from './RateOrder';
+import { ReportProblem } from './ReportProblem';
 import { OrderStateBadge } from './OrderStateBadge';
 import { PickupCode } from './PickupCode';
 import { RevisionDiff } from './RevisionDiff';
@@ -28,9 +30,9 @@ import { OrderTotals, type OrderBreakdown } from './OrderTotals';
 import type { Currency } from '../../shared/currency';
 import { LinkedLineThumb } from '../cart/LineThumb';
 import { fileNameFrom, saveFile } from '../../shared/download';
-import { decimal, money } from '../../shared/format';
+import { dayMonth, decimal, money } from '../../shared/format';
 import { quantityWithUnit } from '../../shared/units';
-import { orderDay, packNote } from './orderText';
+import { answerExpectedText, orderDay, packNote } from './orderText';
 import { ReferralCard } from '../referral/ReferralCard';
 import { ChevronLeft, MapPin } from '../../ui/icons';
 import { MapViewButton } from '../maps/MapViewButton';
@@ -180,6 +182,14 @@ export function OrderPage() {
 
       {wide ? null : <OrderStages kind={kindOf(order)} delivery={order.pickup === false} />}
 
+      {order.answerExpectedBy ? (
+        <p data-testid="order-answer-by" className="m-0 text-sm text-ink-muted">{answerExpectedText(order.answerExpectedBy, t)}</p>
+      ) : null}
+      {/* Имя без фамилии и без личного номера: звонят на общий номер магазина. */}
+      {order.managerName ? (
+        <p data-testid="order-manager" className="m-0 text-sm text-ink-muted">{t('orders.manager', { name: order.managerName })}</p>
+      ) : null}
+
       {order.pickupCode ? <PickupCode code={order.pickupCode} className="self-start" /> : null}
 
       {/* Куда идти за самовывозом — с картой (макет К2.11): код без места мало что даёт. */}
@@ -239,6 +249,10 @@ export function OrderPage() {
       ) : null}
 
       {order.issuedAt && order.id ? <OrderReturns orderId={order.id} currency={order.currency} /> : null}
+
+      {/* Недовоз, брак, пересорт — в переписку заявки, где продавец и так отвечает. */}
+      {order.state === 'ISSUED' ? <RateOrder order={order} /> : null}
+      {order.state === 'ISSUED' ? <ReportProblem order={order} /> : null}
 
       {order.transportPayment ? (
         <Card className="p-4">
@@ -382,7 +396,7 @@ function Revision({ title, lines, total, testId, breakdown, currency }: {
   /** Валюта заявки, а не открытого магазина. */
   currency: Currency | undefined;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   return (
     <Card className="p-4" data-testid={testId}>
       <p className="mb-2 font-semibold text-ink">{title}</p>
@@ -412,7 +426,7 @@ function Revision({ title, lines, total, testId, breakdown, currency }: {
                 {line.expectedOn ? (
                   <span data-testid="order-line-expected" className="text-xs font-semibold text-sale-ink">
                     {t('orders.expectedOn', {
-                      date: new Date(`${line.expectedOn}T00:00:00`).toLocaleDateString(i18n.language, { day: 'numeric', month: 'long' }),
+                      date: dayMonth(line.expectedOn),
                     })}
                   </span>
                 ) : null}

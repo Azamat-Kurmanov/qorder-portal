@@ -50,6 +50,10 @@ export function useCheckout(initialDelivery?: SubmitOrderDelivery) {
   const [stale, setStale] = useState<CartStaleResponse | null>(null);
   // Поставщик приостановлен платформой: заявку не примут, корзина остаётся.
   const [closed, setClosed] = useState(false);
+  // Отказ без своего объяснения (сбой сервера, обрыв сети) — «не отправлена»;
+  // «корзина пуста» на повторе — заявка, скорее всего, ушла, а ответ потерялся.
+  // Раньше на такие отказы экран молчал, и человек не знал, ушла ли заявка.
+  const [failed, setFailed] = useState<'error' | 'maybeSent' | null>(null);
   const options = useDeliveryOptions();
   // Товары — до скидки на заявку: скидка стоит отдельной строкой ниже,
   // и сумма к оплате складывается у человека на глазах.
@@ -72,6 +76,9 @@ export function useCheckout(initialDelivery?: SubmitOrderDelivery) {
       onError: (error) => {
         const info = (error as { info?: CartStaleResponse }).info;
         setClosed(info?.code === 'TENANT_INTAKE_CLOSED');
+        const code = info?.code as string | undefined;
+        setFailed(code === 'CART_STALE' || code === 'TENANT_INTAKE_CLOSED' ? null
+          : code === 'PORTAL_CART_EMPTY' ? 'maybeSent' : 'error');
         if (info?.code === 'CART_STALE') {
           setStale(info);
           // Корзина в теле отказа — уже пересчитанная: кладём её в кеш,
@@ -127,11 +134,15 @@ export function useCheckout(initialDelivery?: SubmitOrderDelivery) {
       loadersVat,
       total: payForGoods + shippingInTotal + loadersInTotal + deliveryVat.onTop + loadersVat.onTop,
     },
-    send: () => submit.mutate({ data: { note: note.trim() || undefined, delivery: chosen(delivery) } }),
+    send: () => {
+      setFailed(null);
+      submit.mutate({ data: { note: note.trim() || undefined, delivery: chosen(delivery) } });
+    },
     sending: submit.isPending,
     submitted,
     stale,
     closed,
+    failed,
   };
 }
 

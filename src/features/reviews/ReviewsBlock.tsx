@@ -10,7 +10,7 @@ import {
   type ItemReviewDto,
 } from '../../api/generated';
 import { intlLocale } from '../../i18n';
-import { shortDate } from '../../shared/format';
+import { dayMonth, shortDate } from '../../shared/format';
 import { cn } from '../../ui/cn';
 import { prefersReducedMotion } from '../../ui/reducedMotion';
 import { ReviewForm } from './ReviewForm';
@@ -307,7 +307,7 @@ function ReviewRow({ review, onChanged }: { review: ItemReviewDto; onChanged: (r
   const helpful = useTogglePortalReviewHelpful({
     mutation: { onSuccess: (response) => { if (response.status === 200) onChanged(response.data); } },
   });
-  const date = new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long' }).format(new Date(review.createdAt));
+  const date = dayMonth(review.createdAt);
   const shop = useCurrentShop();
 
   return (

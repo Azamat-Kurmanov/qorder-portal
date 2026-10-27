@@ -1,3 +1,4 @@
+import { dayMonth } from '../../shared/format';
 import { useTranslation } from 'react-i18next';
 import type { WhatsappArchiveMessageDto } from '../../api/generated';
 import { intlLocale } from '../../i18n';
@@ -15,7 +16,6 @@ import { intlLocale } from '../../i18n';
  */
 export function WhatsappArchive({ messages }: { messages: WhatsappArchiveMessageDto[] }) {
   const { t } = useTranslation();
-  const day = new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long', year: 'numeric' });
   const time = new Intl.DateTimeFormat(intlLocale(), { hour: '2-digit', minute: '2-digit' });
 
   let lastDay = '';
@@ -27,7 +27,7 @@ export function WhatsappArchive({ messages }: { messages: WhatsappArchiveMessage
       <ol className="flex flex-col gap-2">
         {messages.map((message, index) => {
           const date = new Date(message.at);
-          const dayLabel = day.format(date);
+          const dayLabel = dayMonth(date, true);
           const showDay = dayLabel !== lastDay;
           lastDay = dayLabel;
           const mine = !message.fromShop;
