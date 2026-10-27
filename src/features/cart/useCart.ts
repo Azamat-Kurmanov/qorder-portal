@@ -5,6 +5,7 @@ import {
   getGetPortalCartQueryKey,
   useClearPortalCart,
   useGetPortalCart,
+  usePutPortalCartWholesaleMinimum,
   useSetPortalCartLine,
   type CartDto,
 } from '../../api/generated';
@@ -67,6 +68,24 @@ export function useSetCartLine() {
         //
         // Отказ (400, 404) корзиной не является и кеш не трогает — иначе
         // на экране вместо состава оказалось бы тело ошибки.
+        if (response.status !== 200) return;
+        queryClient.setQueryData(getGetPortalCartQueryKey(), response);
+      },
+      onError: reportFailure,
+    },
+  });
+}
+
+/**
+ * «Оптом»: минимум опта поровну по размерам этого цвета (10 на три — 4 + 3 + 3),
+ * строки в режиме «Оптом». Ответ — пересчитанная корзина, как у изменения строки.
+ */
+export function useWholesaleMinimum() {
+  const queryClient = useQueryClient();
+
+  return usePutPortalCartWholesaleMinimum({
+    mutation: {
+      onSuccess: (response) => {
         if (response.status !== 200) return;
         queryClient.setQueryData(getGetPortalCartQueryKey(), response);
       },

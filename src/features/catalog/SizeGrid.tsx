@@ -8,6 +8,7 @@ import { quantityWithUnit } from '../../shared/units';
 import { cn } from '../../ui/cn';
 import { StockNote } from './StockNote';
 import { axesOf, valuesOf } from './VariantPicker';
+import type { SaleMode } from '../cart/ModeSwitch';
 
 const SIZE = /размер|өлшем|size/i;
 
@@ -34,7 +35,7 @@ export function sizeRowsOf(variants: ShowcaseVariantDto[], current: ShowcaseVari
  * опт, минимум и кратность считает корзина у каждого размера, как при обычном заказе.
  * Поле показывает то, что уже лежит в корзине: «В корзину» задаёт количества, а не прибавляет.
  */
-export function SizeGrid({ item }: { item: ShowcaseCardDto }) {
+export function SizeGrid({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMode }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   const cart = cartOf(useCart().data);
@@ -78,7 +79,7 @@ export function SizeGrid({ item }: { item: ShowcaseCardDto }) {
     try {
       for (const row of changed) {
         try {
-          await setLine.mutateAsync({ itemId: row.variant.itemId, data: { quantity: amountOf(row.variant.itemId) * perPack } });
+          await setLine.mutateAsync({ itemId: row.variant.itemId, data: { quantity: amountOf(row.variant.itemId) * perPack, mode } });
         } catch (error) {
           const detail = (error as { info?: { detail?: unknown } } | null)?.info?.detail;
           setFault(t('item.sizes.failed', { size: row.size, reason: typeof detail === 'string' && detail ? detail : t('cart.failed') }));

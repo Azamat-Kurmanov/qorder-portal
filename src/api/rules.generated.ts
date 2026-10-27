@@ -197,7 +197,7 @@ export const rules = {
 
   },
   SetCartLineRequest: {
-
+    mode: { required: false },
   },
   TrackingRequest: {
     trackingNumber: { required: false, maxLength: 64, example: "AB123456" },

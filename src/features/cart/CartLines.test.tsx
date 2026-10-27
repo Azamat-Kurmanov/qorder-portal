@@ -54,6 +54,26 @@ describe('строки корзины', () => {
     expect(await screen.findByText(/ваша цена/)).toBeInTheDocument();
   });
 
+  it('«В розницу / Оптом» — только у строки с выбором; смена шлёт то же количество с режимом', async () => {
+    const both = { ...line('item-1', 'Брюки Elegance', 'шт'), mode: 'RETAIL' };
+    const { calls } = stubFetch([
+      get('/api/portal/cart', { ...cart, lines: [both, cart.lines[1]] }),
+      method('PUT', '/api/portal/cart/lines/item-1', { ...cart, lines: [{ ...both, mode: 'WHOLESALE' }, cart.lines[1]] }),
+    ]);
+    renderScreen(<CartLines />);
+
+    const [first, second] = await screen.findAllByTestId('cart-line');
+    expect(within(second).queryByRole('button', { name: 'Оптом' })).not.toBeInTheDocument();
+    expect(within(first).getByRole('button', { name: 'В розницу' })).toHaveAttribute('aria-pressed', 'true');
+
+    await userEvent.click(within(first).getByRole('button', { name: 'Оптом' }));
+
+    const put = calls.find((call) => call.init?.method === 'PUT');
+    expect(JSON.parse(String(put?.init?.body))).toEqual({ quantity: 2, mode: 'WHOLESALE' });
+    await waitFor(() => expect(within(screen.getAllByTestId('cart-line')[0]).getByRole('button', { name: 'Оптом' }))
+      .toHaveAttribute('aria-pressed', 'true'));
+  });
+
   it('название товара ведёт на его карточку', async () => {
     stubFetch([get('/api/portal/cart', cart)]);
     renderScreen(<CartLines />);
@@ -239,5 +259,35 @@ describe('строки корзины', () => {
     const [first] = await screen.findAllByTestId('cart-line');
     expect(within(first).getByTestId('line-thumb-photo'))
       .toHaveAttribute('src', 'https://cdn.example.kz/cement.jpg');
+  });
+
+  describe('опт по модели (размеры одной модели вместе)', () => {
+    const size = (itemId: string, label: string, quantity: number, wholesale: boolean) => ({
+      ...line(itemId, 'Брюки Elegance', 'шт'), variantLabel: label, quantity,
+      price: 29990, priceAtAdding: 29990, total: quantity * (wholesale ? 22000 : 29990), modelKey: 'm1',
+      ...(wholesale ? { split: { packs: quantity, packUnit: 'шт', packQty: 1, packPrice: 22000, rest: 0 } } : {}),
+    });
+
+    it('не добрали порог — одна подсказка на модель, «любого размера»', async () => {
+      const hint = { addPieces: 1, packs: 10, packPrice: 22000, saving: 71910 };
+      stubFetch([get('/api/portal/cart', { ...cart, lines: [
+        { ...size('s44', '44', 5, false), hint }, { ...size('s46', '46', 4, false), hint },
+      ] })]);
+      renderScreen(<CartLines />);
+
+      const rows = await screen.findAllByTestId('cart-line');
+      expect(screen.getAllByTestId('next-tier')).toHaveLength(1);
+      expect(within(rows[1]).getByTestId('next-tier'))
+        .toHaveTextContent(/Добавьте ещё 1 шт\. этой модели \(любого размера\) — и все будут по 22\s000 ₸ за шт\./);
+    });
+
+    it('набрали порог — у размера оптовая цена без «упаковок по 1 шт»', async () => {
+      stubFetch([get('/api/portal/cart', { ...cart, lines: [size('s44', '44', 5, true), size('s46', '46', 5, true)] })]);
+      renderScreen(<CartLines />);
+
+      const [row] = await screen.findAllByTestId('cart-line');
+      expect(row).toHaveTextContent(/22\s000 ₸ за шт\. — оптовая цена/);
+      expect(row).not.toHaveTextContent(/по 1 шт\./);
+    });
   });
 });

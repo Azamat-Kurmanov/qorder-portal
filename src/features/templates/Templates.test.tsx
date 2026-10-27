@@ -93,4 +93,43 @@ describe('шаблоны закупки', () => {
       expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(true);
     });
   });
+
+  describe('автозаказ', () => {
+    const plain = { id: 'tpl-1', name: 'Овощи', lineCount: 3 };
+    const scheduled = { ...plain, repeatKind: 'WEEKLY', repeatDay: 4, repeatTime: '15:00:00', nextRunAt: '2026-10-29T10:00:00Z' };
+
+    it('без расписания — «выключен»; включение уходит днём недели и временем', async () => {
+      const { calls } = stubFetch([
+        get('/api/portal/templates', [plain]),
+        method('PUT', '/api/portal/templates/tpl-1/schedule', scheduled),
+        method('POST', '/api/portal/templates/tpl-1/schedule', scheduled),
+      ]);
+      renderScreen(<TemplatesPage />);
+
+      expect(await screen.findByTestId('template-schedule')).toHaveTextContent('Автозаказ выключен');
+      await userEvent.click(screen.getByRole('button', { name: 'Включить автозаказ' }));
+      await userEvent.selectOptions(screen.getByLabelText('День'), 'четверг');
+      await userEvent.clear(screen.getByLabelText('Время'));
+      await userEvent.type(screen.getByLabelText('Время'), '15:00');
+      await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+      await waitFor(() => expect(calls.some((call) => call.url.includes('/schedule'))).toBe(true));
+      const sent = calls.find((call) => call.url.includes('/schedule'));
+      expect(JSON.parse(String(sent?.init?.body))).toEqual({ kind: 'WEEKLY', day: 4, time: '15:00' });
+    });
+
+    it('с расписанием — день, время и следующий раз; выключение — DELETE', async () => {
+      const { calls } = stubFetch([
+        get('/api/portal/templates', [scheduled]),
+        method('DELETE', '/api/portal/templates/tpl-1/schedule', null, 204),
+      ]);
+      renderScreen(<TemplatesPage />);
+
+      expect(await screen.findByTestId('template-schedule')).toHaveTextContent('Автозаказ: по четвергам в 15:00 · следующий раз 29 октября');
+      await userEvent.click(screen.getByRole('button', { name: 'Изменить' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Выключить автозаказ' }));
+
+      await waitFor(() => expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(true));
+    });
+  });
 });

@@ -19,6 +19,7 @@ import {
   type OrderTemplateDto,
 } from '../../api/generated';
 import { RepeatOrderButton } from '../orders/RepeatOrderButton';
+import { TemplateSchedule } from './TemplateSchedule';
 import { useState } from 'react';
 import { Plus, ShoppingCart, X } from '../../ui/icons';
 
@@ -129,6 +130,7 @@ export function TemplatesPage() {
                 <span className="text-base font-bold text-ink">{template.name}</span>
                 <span className="text-[0.8125rem] text-ink-subtle">{t('templates.lineCount', { count: template.lineCount })}</span>
               </div>
+              <TemplateSchedule template={template} />
               <div className="flex gap-2">
                 <Button
                   className="h-11 flex-1 gap-2"

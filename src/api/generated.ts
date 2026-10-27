@@ -2854,6 +2854,52 @@ export interface CustomerFieldDto {
 }
 
 /**
+ * Снимок или ролик
+ */
+export type ItemMediaDtoKind = typeof ItemMediaDtoKind[keyof typeof ItemMediaDtoKind];
+
+
+export const ItemMediaDtoKind = {
+  PHOTO: 'PHOTO',
+  VIDEO: 'VIDEO',
+} as const;
+
+/**
+ * Ссылка на чужое хранилище или загруженный нам файл
+ */
+export type ItemMediaDtoSource = typeof ItemMediaDtoSource[keyof typeof ItemMediaDtoSource];
+
+
+export const ItemMediaDtoSource = {
+  LINK: 'LINK',
+  UPLOAD: 'UPLOAD',
+} as const;
+
+/**
+ * Фото или видео позиции каталога
+ */
+export interface ItemMediaDto {
+  /** Идентификатор медиа */
+  id: string;
+  /** Снимок или ролик */
+  kind: ItemMediaDtoKind;
+  /** Ссылка на чужое хранилище или загруженный нам файл */
+  source: ItemMediaDtoSource;
+  /** Прямой адрес файла: по нему его показывает страница */
+  url: string;
+  /** Что вставил продавец, если адрес переписали. Пусто, когда переписывать было нечего */
+  originalUrl?: string;
+  /** Подпись под снимком. Пусто — обычный случай: подписывают редко */
+  title?: string;
+  /** Место в карточке. Меньшее значение показывается раньше */
+  sortOrder: number;
+  /** Ролик, загруженный файлом, ещё готовится у Google к показу: клиентам он не виден, плеер Диска пока покажет «still being processed» */
+  processing: boolean;
+  /** Google не смог подготовить загруженный ролик к показу: его стоит удалить и загрузить заново в MP4. Клиентам такой ролик не виден */
+  failed: boolean;
+}
+
+/**
  * Условия продажи позиции в кабинете клиента
  */
 export interface ItemSaleTerms {
@@ -2983,6 +3029,8 @@ export interface ShowcaseVariantDto {
   available?: number;
   /** Поля варианта, видимые клиенту, со значениями */
   fields: CustomerFieldDto[];
+  /** Снимки и ролики варианта — в карточке: при выборе цвета клиент видит его картинки. На плитке витрины пусто */
+  media?: ItemMediaDto[];
 }
 
 /**
@@ -3137,15 +3185,28 @@ export interface CompanyRequisites {
 }
 
 /**
+ * «В розницу» или «Оптом» у позиции, которая продаётся и так, и так. Пусто — у новой строки «В розницу», у лежащей — прежний режим
+ */
+export type SetCartLineRequestMode = typeof SetCartLineRequestMode[keyof typeof SetCartLineRequestMode];
+
+
+export const SetCartLineRequestMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
+} as const;
+
+/**
  * Количество позиции в корзине; ноль убирает строку
  */
 export interface SetCartLineRequest {
   /**
-     * Количество в розничных единицах позиции (штуках). Опт считается сам: целые упаковки по цене ступени, остаток в розницу. Ноль убирает строку
+     * Количество в розничных единицах позиции (штуках). В режиме «Оптом» — целые упаковки по цене ступени, остаток в розницу. Ноль убирает строку
      * @minimum 0
      * @maximum 999999999.9999
      */
   quantity: number;
+  /** «В розницу» или «Оптом» у позиции, которая продаётся и так, и так. Пусто — у новой строки «В розницу», у лежащей — прежний режим */
+  mode?: SetCartLineRequestMode;
 }
 
 /**
@@ -3237,6 +3298,17 @@ export interface PackItemDto {
 }
 
 /**
+ * Переключатель «В розницу / Оптом» у позиции, которая продаётся и так, и так: RETAIL — розничная цена при любом количестве, WHOLESALE — опт модели. Пусто — выбора нет (только розница, только опт или своя цена клиента)
+ */
+export type CartLineDtoMode = typeof CartLineDtoMode[keyof typeof CartLineDtoMode];
+
+
+export const CartLineDtoMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
+} as const;
+
+/**
  * Строка корзины
  */
 export interface CartLineDto {
@@ -3282,6 +3354,10 @@ export interface CartLineDto {
   unitWeightKg?: number;
   /** Цена — по индивидуальному условию клиента; `oldPrice` — цена каталога */
   yourPrice?: boolean;
+  /** Ключ модели (как `CatalogModelDto.modelKey`), когда опт считается по модели: штуки всех её размеров и цветов в корзине складываются, ступень действует на все штуки модели, а `hint` у всех строк модели один — показывать его раз на модель. Пусто — опт по своей строке */
+  modelKey?: string;
+  /** Переключатель «В розницу / Оптом» у позиции, которая продаётся и так, и так: RETAIL — розничная цена при любом количестве, WHOLESALE — опт модели. Пусто — выбора нет (только розница, только опт или своя цена клиента) */
+  mode?: CartLineDtoMode;
 }
 
 /**
@@ -5091,6 +5167,8 @@ export interface CatalogSettingsDto {
   vatPayer: boolean;
   /** Ставка НДС магазина; у товара без своей ставки действует она */
   vatRate?: number;
+  /** НДС товаров уже в цене: плательщик с режимом «в цене» — карточка подписывает цену «с НДС»; иначе налог прибавляется сверху */
+  vatIncluded: boolean;
 }
 
 /**
@@ -5471,52 +5549,6 @@ export interface ModelVariantsResult {
   archived: string[];
   /** Варианты, записанные не целиком, с причиной */
   skipped: ModelVariantSkipDto[];
-}
-
-/**
- * Снимок или ролик
- */
-export type ItemMediaDtoKind = typeof ItemMediaDtoKind[keyof typeof ItemMediaDtoKind];
-
-
-export const ItemMediaDtoKind = {
-  PHOTO: 'PHOTO',
-  VIDEO: 'VIDEO',
-} as const;
-
-/**
- * Ссылка на чужое хранилище или загруженный нам файл
- */
-export type ItemMediaDtoSource = typeof ItemMediaDtoSource[keyof typeof ItemMediaDtoSource];
-
-
-export const ItemMediaDtoSource = {
-  LINK: 'LINK',
-  UPLOAD: 'UPLOAD',
-} as const;
-
-/**
- * Фото или видео позиции каталога
- */
-export interface ItemMediaDto {
-  /** Идентификатор медиа */
-  id: string;
-  /** Снимок или ролик */
-  kind: ItemMediaDtoKind;
-  /** Ссылка на чужое хранилище или загруженный нам файл */
-  source: ItemMediaDtoSource;
-  /** Прямой адрес файла: по нему его показывает страница */
-  url: string;
-  /** Что вставил продавец, если адрес переписали. Пусто, когда переписывать было нечего */
-  originalUrl?: string;
-  /** Подпись под снимком. Пусто — обычный случай: подписывают редко */
-  title?: string;
-  /** Место в карточке. Меньшее значение показывается раньше */
-  sortOrder: number;
-  /** Ролик, загруженный файлом, ещё готовится у Google к показу: клиентам он не виден, плеер Диска пока покажет «still being processed» */
-  processing: boolean;
-  /** Google не смог подготовить загруженный ролик к показу: его стоит удалить и загрузить заново в MP4. Клиентам такой ролик не виден */
-  failed: boolean;
 }
 
 /**
@@ -8555,6 +8587,9 @@ export interface DataRequestDto {
   handledBy?: string;
   handledAt?: string;
   createdAt?: string;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
 }
 
 export interface ErasureReport {
@@ -24549,6 +24584,7 @@ export const getSetPortalCartLineUrl = (itemId: string,) => {
  * 1. Задать количество 5 для позиции из витрины — в ответе корзина с этой строкой и итогом.
  * 2. Задать 7 для той же позиции — строка одна, количество новое: второе добавление не заводит двойник.
  * 3. Задать 0 — строка исчезла.
+ * 3а. У позиции «и розница, и опт» задать количество, достающее до ступени, без `mode` — цена розничная, `mode` RETAIL; повторить с `mode` WHOLESALE — цена ступени; затем без `mode` — режим прежний.
  * 4. Включить скидку на первую заявку 5% и порог за объём 3% — у нового покупателя с суммой чуть ниже порога `discount.percent` 5, а `nextTier` про 3% не приходит: порог не больше действующей скидки не подсказывается.
  * 5. Негативный 404: позиция, которой у поставщика нет либо у которой нет цены. В витрину такая не попадает, и в корзину тоже не должна.
  * 6. Негативный 400: отрицательное количество.
@@ -41665,6 +41701,121 @@ export const useAddPortalFavoritesToCart = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getAddPortalFavoritesToCartMutationOptions(options), queryClient);
+    }
+
+export type putPortalCartWholesaleMinimumResponse200 = {
+  data: CartDto
+  status: 200
+}
+
+export type putPortalCartWholesaleMinimumResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type putPortalCartWholesaleMinimumResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type putPortalCartWholesaleMinimumResponse422 = {
+  data: ErrorResponse
+  status: 422
+}
+
+export type putPortalCartWholesaleMinimumResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type putPortalCartWholesaleMinimumResponseSuccess = (putPortalCartWholesaleMinimumResponse200) & {
+  headers: Headers;
+};
+export type putPortalCartWholesaleMinimumResponseError = (putPortalCartWholesaleMinimumResponse400 | putPortalCartWholesaleMinimumResponse404 | putPortalCartWholesaleMinimumResponse422 | putPortalCartWholesaleMinimumResponse500) & {
+  headers: Headers;
+};
+
+export type putPortalCartWholesaleMinimumResponse = (putPortalCartWholesaleMinimumResponseSuccess | putPortalCartWholesaleMinimumResponseError)
+
+export const getPutPortalCartWholesaleMinimumUrl = (itemId: string,) => {
+
+
+
+
+  return `/api/portal/cart/wholesale/${itemId}`
+}
+
+/**
+ * Кладёт минимум опта модели (первая ступень × вложение), разложив его поровну по размерам этого цвета (остаток — первым размерам), и переводит их строки в «Оптом». Прежние количества этих размеров заменяются. Дальше клиент правит количества сам — опт держится по сумме штук модели
+ *
+ * **Как проверить вручную**
+ *
+ * 1. У модели из трёх размеров одного цвета завести опт «от 10 шт» (вложение 1) и вызвать адрес для любого размера — в корзине три строки 4 + 3 + 3, у всех `mode` WHOLESALE, итог по цене ступени.
+ * 2. Положить перед этим 1 шт. одного размера и вызвать снова — его количество заменено, а не прибавлено.
+ * 3. Вызвать для позиции только в розницу — отказ 404.
+ * @summary «Оптом»: минимум опта модели в корзину
+ */
+export const putPortalCartWholesaleMinimum = async (itemId: string, options?: Parameters<typeof apiRequest>[1]): Promise<putPortalCartWholesaleMinimumResponse> => {
+
+  return apiRequest<putPortalCartWholesaleMinimumResponse>(getPutPortalCartWholesaleMinimumUrl(itemId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPutPortalCartWholesaleMinimumMutationKey = () => ['putPortalCartWholesaleMinimum'] as const;
+
+export const getPutPortalCartWholesaleMinimumMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putPortalCartWholesaleMinimum>>, TError,PutPortalCartWholesaleMinimumMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof putPortalCartWholesaleMinimum>>, TError,PutPortalCartWholesaleMinimumMutationVariables, TContext> => {
+
+const mutationKey = getPutPortalCartWholesaleMinimumMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putPortalCartWholesaleMinimum>>, PutPortalCartWholesaleMinimumMutationVariables> = (props) => {
+          const {itemId} = props ?? {};
+
+          return  putPortalCartWholesaleMinimum(itemId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutPortalCartWholesaleMinimumMutationResult = NonNullable<Awaited<ReturnType<typeof putPortalCartWholesaleMinimum>>>
+
+    export type PutPortalCartWholesaleMinimumMutationError = ErrorResponse
+    export type PutPortalCartWholesaleMinimumMutationVariables = {itemId: string}
+
+    /**
+ * @summary «Оптом»: минимум опта модели в корзину
+ */
+export const usePutPortalCartWholesaleMinimum = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putPortalCartWholesaleMinimum>>, TError,PutPortalCartWholesaleMinimumMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof putPortalCartWholesaleMinimum>>,
+        TError,
+        PutPortalCartWholesaleMinimumMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPutPortalCartWholesaleMinimumMutationOptions(options), queryClient);
     }
 
 export type fillPortalCartFromTemplateResponse200 = {

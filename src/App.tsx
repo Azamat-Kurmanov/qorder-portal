@@ -3,6 +3,7 @@ import { CallbackPage } from './auth/CallbackPage';
 import { RequireAuth } from './auth/RequireAuth';
 import { ActivationPage } from './features/activation/ActivationPage';
 import { JoinPage } from './features/join/JoinPage';
+import { JoinShopPage } from './features/joinShop/JoinShopPage';
 import { Shell } from './features/shell/Shell';
 import { SupplierProvider } from './supplier/SupplierProvider';
 import { withViewTransitions } from './ui/motion/viewTransitions';
@@ -10,7 +11,7 @@ import { withViewTransitions } from './ui/motion/viewTransitions';
 /**
  * Маршруты кабинета.
  *
- * Публичных два: активация приглашения — у клиента, который открывает ссылку,
+ * Публичных три: активация приглашения — у клиента, который открывает ссылку,
  * токена ещё может не быть, — и страница приглашённого поставщика. Всё остальное закрыто входом,
  * а внутри — ещё и выбором поставщика: без него запросы уходили бы без
  * заголовка и получали отказ.
@@ -27,6 +28,8 @@ const router = withViewTransitions(createBrowserRouter(createRoutesFromElements(
     <Route path="/activate" element={<ActivationPage />} />
     {/* Страница для поставщика, которого позвал клиент: у поставщика входа нет вовсе. */}
     <Route path="/join/:code?" element={<JoinPage />} />
+    {/* Заявка клиента в магазин по его ссылке или QR — гость без входа (backend.md §18.28, п. 6). */}
+    <Route path="/join-shop/:code" element={<JoinShopPage />} />
     <Route path="/callback" element={<CallbackPage />} />
     <Route
       path="/*"

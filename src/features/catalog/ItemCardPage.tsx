@@ -5,7 +5,9 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ArrowRight, CheckCircle2, MessageCircle, Ruler, ShieldCheck, Sparkles, Star, Store, Tag, Truck, X, Zap } from '../../ui/icons';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
+  getPortalCatalogItem,
   useGetPortalCatalog,
   useGetPortalCatalogItem,
   useGetPortalCategories,
@@ -17,7 +19,9 @@ import {
 import { fieldText } from './fieldText';
 import { CartBar } from '../cart/CartBar';
 import { QuantityField } from '../cart/QuantityField';
-import { cartOf, useCart } from '../cart/useCart';
+import { cartOf, useCart, useSetCartLine, useWholesaleMinimum } from '../cart/useCart';
+import { ModeSwitch, type SaleMode } from '../cart/ModeSwitch';
+import { announceAdded } from '../cart/cartDrawer';
 import { useAddToCart } from '../cart/ageGate';
 import { firstQuantity, fitQuantity, lessQuantity, stepOf } from '../cart/saleTerms';
 import { FavoriteButton } from '../favorites/FavoriteButton';
@@ -26,7 +30,7 @@ import { AskQuestionForm } from '../questions/AskQuestionForm';
 import { useCurrentShop } from '../shell/Shops';
 import { hoursText } from '../shell/shopHours';
 import { MediaGallery } from './MediaGallery';
-import { SizeGrid } from './SizeGrid';
+import { SizeGrid, sizeRowsOf } from './SizeGrid';
 import { VariantPicker } from './VariantPicker';
 import { StockNote } from './StockNote';
 import { soldByOf } from './soldBy';
@@ -65,7 +69,8 @@ import { cn } from '../../ui/cn';
 export function ItemCardPage() {
   const { t } = useTranslation();
   const { itemId = '' } = useParams();
-  const card = useGetPortalCatalogItem(itemId);
+  const queryClient = useQueryClient();
+  const card = useGetPortalCatalogItem(itemId, { query: { placeholderData: () => variantPreview(queryClient, itemId) } });
 
   if (card.isPending) {
     return (
@@ -96,6 +101,36 @@ export function ItemCardPage() {
   // Ключом позиции: выбор другого варианта открывает другую позицию, и набранное
   // количество с формой вопроса начинаются заново.
   return <ItemCard key={card.data.data.id} item={card.data.data} />;
+}
+
+/**
+ * Выбранный вариант — сразу, как в магазинах одежды: пока его карточка едет, показывается
+ * карточка соседа с ценой, наличием и снимками варианта (`ShowcaseVariantDto.media`),
+ * а не заглушка. Пришла настоящая — встаёт на место без перерисовки.
+ */
+function variantPreview(queryClient: QueryClient, itemId: string) {
+  for (const [, response] of queryClient.getQueriesData<Awaited<ReturnType<typeof getPortalCatalogItem>>>({
+    predicate: (query) => String(query.queryKey[0]).startsWith('/api/portal/catalog/'),
+  })) {
+    const card = response?.status === 200 ? response.data as ShowcaseCardDto : undefined;
+    const variant = card?.variants?.find((entry) => entry.itemId === itemId);
+    if (!card || !variant || card.id === itemId) continue;
+    return {
+      ...response!,
+      data: {
+        ...card,
+        id: itemId,
+        price: variant.price,
+        oldPrice: variant.oldPrice,
+        discountPercent: variant.discountPercent,
+        stock: variant.stock,
+        available: variant.available,
+        fields: variant.fields,
+        media: variant.media?.length ? variant.media : card.media,
+      },
+    } as Awaited<ReturnType<typeof getPortalCatalogItem>>;
+  }
+  return undefined;
 }
 
 function ItemCard({ item }: { item: ShowcaseCardDto }) {
@@ -225,6 +260,7 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
   const { t, i18n } = useTranslation();
   const currency = useSupplierCurrency();
   const [asking, setAsking] = useState(false);
+  const mode = useSaleMode(item);
 
   // Условия, при которых цена верна, — отдельной мелкой строкой под ценой.
   // Требование о полноте торговой информации от размера шрифта не зависит:
@@ -344,6 +380,15 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
         и два второстепенных — вопрос продавцу и избранное.
       */}
       <div className="flex flex-col gap-[18px] md:rounded-[var(--radius-gallery)] md:bg-surface md:p-5 md:shadow-[0_0_0_1px_var(--color-hairline)]">
+        {mode.value && item.wholesale ? (
+          <ModeSwitch value={mode.value} onChange={mode.change} disabled={mode.busy} notes={{
+            RETAIL: t('cart.pricePerUnit', { price: money(item.price, currency), unit: unitPer(item.unit) }),
+            WHOLESALE: t('item.mode.from', {
+              price: money(Math.round(Math.min(...item.wholesale.tiers.map((tier) => tier.price)) / item.wholesale.packQty), currency),
+              unit: unitPer(item.wholesale.pieceUnit),
+            }),
+          }} />
+        ) : null}
         {(item.variants ?? []).length > 1 && (
           <VariantPicker
             itemId={item.id}
@@ -352,8 +397,8 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
           />
         )}
         {item.pack ? <PackContents label={t('pack.inPress')} members={packMembers(item.pack)} /> : null}
-        <Purchase item={item} />
-        <SizeGrid item={item} />
+        <Purchase item={item} mode={mode.value} />
+        <SizeGrid item={item} mode={mode.value} />
       </div>
 
       <DealFacts />
@@ -657,12 +702,46 @@ const PHONE_BAR = cn(
   'max-lg:bg-surface max-lg:px-4 max-lg:pb-3 max-lg:pt-3 max-lg:shadow-[0_-6px_20px_rgba(58,48,30,.1)]',
 );
 
-function Purchase({ item }: { item: ShowcaseCardDto }) {
+/**
+ * «В розницу / Оптом» в карточке — только у позиции «и розница, и опт» без своей цены клиента
+ * (иначе выбора нет, backend.md §18.32). Лежит в корзине — режим её строки; нет — выбор клиента,
+ * по умолчанию «В розницу». Смена переводит все лежащие размеры и цвета модели: опт считается по модели.
+ */
+function useSaleMode(item: ShowcaseCardDto) {
+  const cart = cartOf(useCart().data);
+  const setLine = useSetCartLine();
+  const [chosen, setChosen] = useState<SaleMode>('RETAIL');
+  const [busy, setBusy] = useState(false);
+  const model = new Set([item.id, ...(item.variants ?? []).map((variant) => variant.itemId)]);
+  const lines = (cart?.lines ?? []).filter((line) => model.has(line.itemId) && line.mode);
+  const choice = !!item.wholesale?.retail && !item.yourPrice;
+  const value = choice ? (lines.find((line) => line.itemId === item.id) ?? lines[0])?.mode ?? chosen : undefined;
+
+  async function change(next: SaleMode) {
+    setChosen(next);
+    setBusy(true);
+    try {
+      // По очереди: каждый ответ — корзина целиком, параллельные затёрли бы друг друга.
+      for (const line of lines) {
+        if (line.mode !== next) await setLine.mutateAsync({ itemId: line.itemId, data: { quantity: line.quantity, mode: next } });
+      }
+    } catch {
+      // Отказ уже назван уведомлением корзины.
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { value, change, busy };
+}
+
+function Purchase({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMode }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   const cart = cartOf(useCart().data);
   const { add, isPending } = useAddToCart();
-  const wholesale = item.wholesale;
+  // «В розницу» — опт к этой покупке не относится: ни условий, ни разбиения.
+  const wholesale = mode === 'RETAIL' ? undefined : item.wholesale;
   const only = packsOnly(item);
   // Поле считает в единицах витрины: у «только опт» — упаковки, иначе штуки.
   // Корзина хранит штуки: уложенное переводится обратно делением на вложение.
@@ -693,7 +772,7 @@ function Purchase({ item }: { item: ShowcaseCardDto }) {
   if (ordered !== undefined) {
     return (
       <div className="flex flex-col gap-3">
-        {wholesale && <WholesaleTerms item={item} wholesale={wholesale} packs={split?.packs ?? 0} />}
+        {wholesale && <WholesaleTerms item={item} wholesale={wholesale} packs={split?.packs ?? 0} mode={mode} />}
         {breakdown}
         <p role="status" className="flex items-center gap-2.5 rounded-[var(--radius-control)] bg-ok-soft px-3.5 py-3 text-body font-bold text-ok-ink">
           <CheckCircle2 aria-hidden="true" className="size-5 shrink-0" />
@@ -725,7 +804,7 @@ function Purchase({ item }: { item: ShowcaseCardDto }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {wholesale && <WholesaleTerms item={item} wholesale={wholesale} packs={split?.packs ?? 0} />}
+      {wholesale && <WholesaleTerms item={item} wholesale={wholesale} packs={split?.packs ?? 0} mode={mode} />}
       {breakdown}
       <div data-purchase-bar="" className={PHONE_BAR}>
         <div className="flex items-center gap-3 lg:flex-1 lg:flex-wrap">
@@ -748,7 +827,7 @@ function Purchase({ item }: { item: ShowcaseCardDto }) {
             // Летит текущий кадр галереи: заявка живёт наверху экрана или справа,
             // и молча нажатая кнопка заставляет класть позицию второй раз.
             const shot = document.querySelector('[data-testid="gallery-photo"]') ?? event.currentTarget;
-            const added = await add(item, wanted);
+            const added = await add(item, wanted, mode);
             if (added) flyToCart(shot);
           }}
         >
@@ -767,19 +846,25 @@ function Purchase({ item }: { item: ShowcaseCardDto }) {
  * клиент должен понимать, что сделать ради опта. Упаковка и её вложение, ступени
  * с ценой за упаковку и за штуку (текущая подсвечена), что будет при недоборе.
  */
-function WholesaleTerms({ item, wholesale, packs }: { item: ShowcaseCardDto; wholesale: ShowcaseWholesaleDto; packs: number }) {
+function WholesaleTerms({ item, wholesale, packs, mode }: { item: ShowcaseCardDto; wholesale: ShowcaseWholesaleDto; packs: number; mode?: SaleMode }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   const current = tierFor(wholesale.tiers, packs);
+  // Опт штуками (вложение 1): «шт = 1 шт.», состав упаковки и цена за штуку рядом с той же ценой — шум.
+  const packed = wholesale.packQty > 1;
   return (
     <section data-testid="wholesale-terms" aria-labelledby="wholesale-terms-title"
       className="flex flex-col gap-2 rounded-[var(--radius-tile)] bg-sunk p-3.5">
       <h3 id="wholesale-terms-title" className="text-body font-bold text-ink">{t('item.wholesale.title')}</h3>
-      <p className="text-caption font-semibold text-ink-muted">
-        {t('item.wholesale.packOf', { unit: wholesale.unit, amount: quantityWithUnit(wholesale.packQty, wholesale.pieceUnit) })}
-      </p>
-      <PackContents label={t('pack.inPack')}
-        members={[{ key: item.id, name: item.name, quantity: wholesale.packQty, unit: wholesale.pieceUnit }]} />
+      {packed ? (
+        <>
+          <p className="text-caption font-semibold text-ink-muted">
+            {t('item.wholesale.packOf', { unit: wholesale.unit, amount: quantityWithUnit(wholesale.packQty, wholesale.pieceUnit) })}
+          </p>
+          <PackContents label={t('pack.inPack')}
+            members={[{ key: item.id, name: item.name, quantity: wholesale.packQty, unit: wholesale.pieceUnit }]} />
+        </>
+      ) : null}
       <ul data-testid="wholesale-tiers" aria-label={t('item.wholesale.tiers')} className="m-0 flex list-none flex-col gap-1 p-0">
         {wholesale.tiers.map((tier) => (
           <li
@@ -793,20 +878,25 @@ function WholesaleTerms({ item, wholesale, packs }: { item: ShowcaseCardDto; who
           >
             <span>
               {t('item.wholesale.tierFrom', { amount: quantityWithUnit(tier.from, wholesale.unit) })}
-              {' '}
-              <span className="text-caption font-normal text-ink-muted">
-                ({quantityWithUnit(tier.from * wholesale.packQty, wholesale.pieceUnit)})
-              </span>
+              {packed ? (
+                <span className="text-caption font-normal text-ink-muted">
+                  {' '}({quantityWithUnit(tier.from * wholesale.packQty, wholesale.pieceUnit)})
+                </span>
+              ) : null}
             </span>
             <span className="flex items-baseline gap-2 tabular-nums">
               {tier.oldPrice !== undefined && <s className="text-caption text-ink-faint">{money(tier.oldPrice, currency)}</s>}
               {money(tier.price, currency)}
-              <span className="text-caption font-normal text-ink-muted">
-                {t('item.wholesale.perPiece', {
-                  price: money(Math.round(tier.price / wholesale.packQty), currency),
-                  unit: unitPer(wholesale.pieceUnit),
-                })}
-              </span>
+              {packed ? (
+                <span className="text-caption font-normal text-ink-muted">
+                  {t('item.wholesale.perPiece', {
+                    price: money(Math.round(tier.price / wholesale.packQty), currency),
+                    unit: unitPer(wholesale.pieceUnit),
+                  })}
+                </span>
+              ) : (
+                <span className="text-caption font-normal text-ink-muted">{t('catalog.priceNote.perUnit', { unit: unitPer(wholesale.pieceUnit) })}</span>
+              )}
             </span>
           </li>
         ))}
@@ -822,7 +912,27 @@ function WholesaleTerms({ item, wholesale, packs }: { item: ShowcaseCardDto; who
       {item.discountPercent && !wholesale.tiers[0]?.oldPrice ? (
         <p className="text-caption font-semibold text-sale-ink">{t('item.wholesale.noSale')}</p>
       ) : null}
+      {mode === 'WHOLESALE' ? <WholesaleMinimum item={item} wholesale={wholesale} /> : null}
     </section>
+  );
+}
+
+/** «Оптом в корзину: 10 шт.» — сервер раскладывает минимум опта поровну по размерам этого цвета. */
+function WholesaleMinimum({ item, wholesale }: { item: ShowcaseCardDto; wholesale: ShowcaseWholesaleDto }) {
+  const { t } = useTranslation();
+  const minimum = useWholesaleMinimum();
+  const current = (item.variants ?? []).find((variant) => variant.itemId === item.id);
+  const sizes = current ? sizeRowsOf(item.variants ?? [], current).length : 0;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Button variant="outline" disabled={minimum.isPending}
+        onClick={() => minimum.mutate({ itemId: item.id }, {
+          onSuccess: (response) => { if (response.status === 200) announceAdded(item.name); },
+        })}>
+        {t('item.wholesale.minimum', { amount: quantityWithUnit(wholesale.tiers[0].from * wholesale.packQty, wholesale.pieceUnit) })}
+      </Button>
+      {sizes > 1 ? <p className="text-caption text-ink-muted">{t('item.wholesale.minimumSizes')}</p> : null}
+    </div>
   );
 }
 

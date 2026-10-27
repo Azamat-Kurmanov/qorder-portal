@@ -82,7 +82,14 @@ export function WholesaleNote({ item, className }: { item: Pick<ShowcaseItemDto,
     // Ширина, а не `basis-full`: в строке цены переносит на свою строку так же, а в столбике
     // карточки телефона `basis-full` означал всю высоту — имя схлопывалось, под оптом зияла пустота.
     <span data-testid="wholesale-note" className={cn('w-full text-xs font-semibold text-ink-muted', className)}>
-      {wholesale.retail
+      {wholesale.retail && wholesale.packQty === 1
+        // Поштучный опт: «упаковками по 1 шт.» читалось как бессмыслица — называем порог.
+        ? t('catalog.wholesale.fromPieces', {
+          price: money(best, currency),
+          unit: unitPer(wholesale.pieceUnit),
+          amount: quantityWithUnit(Math.min(...wholesale.tiers.map((tier) => tier.from)), wholesale.pieceUnit),
+        })
+        : wholesale.retail
         ? t('catalog.wholesale.from', {
           price: money(Math.round(best / wholesale.packQty), currency),
           unit: unitPer(wholesale.pieceUnit),

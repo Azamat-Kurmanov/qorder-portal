@@ -251,9 +251,16 @@ describe('карточка товара', () => {
     };
     const BOTH = { ...CARD, price: 100, wholesale: WHOLESALE };
 
-    it('условия опта видны сразу, сумма и разбиение — по количеству в штуках', async () => {
+    it('«В розницу» по умолчанию — без условий опта; «Оптом» — условия, сумма и разбиение, строка уходит с режимом', async () => {
       const { calls } = stubFetch(cardRules(BOTH));
       renderCard();
+
+      const retail = await screen.findByRole('button', { name: /^В розницу/ });
+      expect(retail).toHaveAttribute('aria-pressed', 'true');
+      // Опт виден и в рознице — ценой на самом переключателе: 170 за упаковку из 2 = 85 за мешок.
+      expect(screen.getByRole('button', { name: /^Оптом/ })).toHaveTextContent('от 85 ₸ за мешок');
+      expect(screen.queryByTestId('wholesale-terms')).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: /^Оптом/ }));
 
       const terms = await screen.findByTestId('wholesale-terms');
       expect(within(terms).getByText('Как купить по оптовой цене')).toBeInTheDocument();
@@ -276,14 +283,52 @@ describe('карточка товара', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Добавить в корзину' }));
       await waitFor(() => {
         const sent = calls.find((call) => call.init?.method === 'PUT');
-        expect(JSON.parse(String(sent?.init?.body))).toEqual({ quantity: 6 });
+        expect(JSON.parse(String(sent?.init?.body))).toEqual({ quantity: 6, mode: 'WHOLESALE' });
       });
+    });
+
+    it('«В розницу» кладёт по розничной цене: сумма без опта, режим RETAIL', async () => {
+      const { calls } = stubFetch(cardRules(BOTH));
+      renderCard();
+
+      await screen.findByRole('button', { name: /^В розницу/ });
+      for (let i = 0; i < 5; i += 1) await userEvent.click(screen.getByRole('button', { name: 'Больше' }));
+      expect(screen.getByTestId('item-sum')).toHaveTextContent(/600 ₸/);
+      expect(screen.queryByTestId('wholesale-split')).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Добавить в корзину' }));
+      await waitFor(() => {
+        const sent = calls.find((call) => call.init?.method === 'PUT');
+        expect(JSON.parse(String(sent?.init?.body))).toEqual({ quantity: 6, mode: 'RETAIL' });
+      });
+    });
+
+    it('«Оптом в корзину» — минимум опта одним нажатием, раскладывает сервер', async () => {
+      const { calls } = stubFetch([
+        method('POST', '/api/portal/cart/wholesale/item-1', emptyCart),
+        ...cardRules(BOTH),
+      ]);
+      renderCard();
+
+      await userEvent.click(await screen.findByRole('button', { name: /^Оптом/ }));
+      await userEvent.click(screen.getByRole('button', { name: 'Оптом в корзину: 4 мешка' }));
+
+      await waitFor(() => expect(calls.some((call) => call.url.includes('/api/portal/cart/wholesale/item-1') && call.init?.method === 'POST')).toBe(true));
+    });
+
+    it('своя цена клиента — выбора нет, условия опта как раньше', async () => {
+      stubFetch(cardRules({ ...BOTH, yourPrice: true }));
+      renderCard();
+
+      expect(await screen.findByTestId('wholesale-terms')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^В розницу/ })).not.toBeInTheDocument();
     });
 
     it('распродажа без скидки на опт — пометка в условиях', async () => {
       stubFetch(cardRules({ ...BOTH, price: 90, oldPrice: 100, discountPercent: 10 }));
       renderCard();
 
+      await userEvent.click(await screen.findByRole('button', { name: /^Оптом/ }));
       expect(await screen.findByText('Скидка распродажи — только при покупке штуками')).toBeInTheDocument();
     });
 
@@ -305,6 +350,30 @@ describe('карточка товара', () => {
         expect(JSON.parse(String(sent?.init?.body))).toEqual({ quantity: 100 });
       });
     });
+  });
+
+  it('выбранный размер — сразу своя цена и снимки, пока его карточка ещё едет', async () => {
+    const variant = (itemId: string, size: string, price: number, media: unknown[] = []) => ({
+      itemId, price, media, fields: [{ code: 'SIZE', name: 'Размер', type: 'TEXT', value: size }],
+    });
+    stubFetch([
+      ...cardRules({ ...CARD, variants: [variant('item-1', 'S', 2500), variant('item-2', 'M', 2700, [
+        { id: 'm9', kind: 'PHOTO', source: 'LINK', url: 'https://cdn.example/m.jpg', title: 'Размер M', sortOrder: 10 },
+      ])] }),
+      get('/api/portal/items/item-2/reviews', []),
+    ]);
+    // Карточка размера M не приходит вовсе: всё, что видно, — из варианта.
+    const stubbed = globalThis.fetch;
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => (
+      String(input).endsWith('/api/portal/catalog/item-2') ? new Promise(() => {}) : stubbed(input, init)));
+    renderCard();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'M' }));
+
+    expect(await screen.findByText(/2\s700 ₸/, { selector: '[data-testid="item-price"] span' })).toBeInTheDocument();
+    expect(screen.queryByTestId('card-skeleton')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'M' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByRole('img').some((img) => img.getAttribute('src')?.includes('m.jpg'))).toBe(true);
   });
 
   it('пустая оценка приходит как null и не роняет карточку', async () => {

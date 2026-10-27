@@ -7,7 +7,7 @@ import {
   useGetPortalPromotions,
 } from '../../api/generated';
 import { Card } from '../../ui/Card';
-import { cn } from '../../ui/cn';
+import { Switch } from '../../ui/Switch';
 import { Bell } from '../../ui/icons';
 
 /**
@@ -44,21 +44,7 @@ export function PromoSubscription() {
         <b id="promo-subscription" className="text-body font-bold text-ink">{t('promotions.subscription.off')}</b>
         <span className="text-xs text-ink-subtle">{t('promotions.v2.sub.where')}</span>
       </span>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={subscribed}
-        aria-labelledby="promo-subscription"
-        disabled={busy}
-        onClick={() => void toggle()}
-        className={cn(
-          'relative h-[30px] w-[52px] shrink-0 cursor-pointer rounded-full border-0 p-0 transition-colors disabled:opacity-60',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-          subscribed ? 'bg-in-stock' : 'bg-ink-faint',
-        )}
-      >
-        <span className={cn('absolute top-[3px] size-6 rounded-full bg-white shadow-soft transition-[left]', subscribed ? 'left-[25px]' : 'left-[3px]')} />
-      </button>
+      <Switch on={subscribed} labelledBy="promo-subscription" disabled={busy} onToggle={() => void toggle()} />
     </Card>
   );
 }

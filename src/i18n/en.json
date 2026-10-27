@@ -204,6 +204,26 @@
       "open": "Open now",
       "news": "With news",
       "cart": "With a cart"
+    },
+    "push": {
+      "title": "Phone notifications",
+      "allOn": "All on",
+      "someOff": "Turned off: {{count}}",
+      "quietShort": "quiet {{from}}–{{to}}",
+      "lead": "These are notifications from the Q-Order app on your phone. Turn off what you do not want to hear about. Everything stays under the bell in the cabinet.",
+      "groups": {
+        "orders": "Orders",
+        "delivery": "Payment and delivery",
+        "promo": "New arrivals and sales"
+      },
+      "quiet": "Quiet hours",
+      "quietNote": "During this time notifications arrive silently. For example, from 22:00 to 08:00.",
+      "from": "From",
+      "to": "To",
+      "save": "Save",
+      "noQuiet": "Remove quiet hours",
+      "quietBoth": "Set both start and end",
+      "failed": "Could not save. Please try again."
     }
   },
   "notifications": {
@@ -308,7 +328,9 @@
     "wholesale": {
       "pack": "{{amount}} each",
       "hint": "Add {{amount}} more — {{packs}} at {{price}}, you save {{saving}}",
-      "packWord": "pack"
+      "packWord": "pack",
+      "modelPrice": "{{price}} per {{unit}} — wholesale price together with other sizes",
+      "modelHint": "Add {{amount}} more of this model (any size) — all will be {{price}} per {{unit}}, you save {{saving}}"
     },
     "withoutDiscount": "without discount",
     "vat": "VAT",
@@ -318,7 +340,12 @@
     "positions_one": "{{count}} item",
     "positions_other": "{{count}} items",
     "vatInside": "incl. VAT {{rate}}%",
-    "vatInsideAny": "incl. VAT"
+    "vatInsideAny": "incl. VAT",
+    "mode": {
+      "label": "How you buy",
+      "RETAIL": "Retail",
+      "WHOLESALE": "Wholesale"
+    }
   },
   "checkout": {
     "title": "Place your request",
@@ -554,7 +581,8 @@
       "discount": "{{percent}}% off"
     },
     "wholesale": {
-      "from": "Wholesale: {{price}} per {{unit}} — in packs of {{amount}}"
+      "from": "Wholesale: {{price}} per {{unit}} — in packs of {{amount}}",
+      "fromPieces": "Wholesale: {{price}} per {{unit}} from {{amount}}"
     },
     "yourPrice": "your price",
     "yourPriceNote": "Your price as agreed with the supplier",
@@ -831,7 +859,42 @@
     "toCart": "To the basket",
     "lineCount": "items: {{count}}",
     "deleteAria": "Delete the template {{name}}",
-    "subtitle": "Repeat a purchase in one tap"
+    "subtitle": "Repeat a purchase in one tap",
+    "auto": {
+      "off": "Auto-order is off",
+      "on": "Auto-order: {{text}}",
+      "set": "Turn on auto-order",
+      "change": "Change",
+      "when": "{{when}} at {{time}}",
+      "next": "next time {{date}}",
+      "explain": "On the chosen day this set goes into your cart by itself and you get a notification. You send the request yourself — check prices and quantities first.",
+      "save": "Save",
+      "remove": "Turn off auto-order",
+      "failed": "Could not save — please try again",
+      "kind": "How often",
+      "weekly": "Once a week",
+      "monthly": "Once a month",
+      "day": "Day",
+      "dayNumber": "Day {{day}}",
+      "time": "Time",
+      "cancel": "Cancel",
+      "shortMonth": "In months without this day, it uses the last day of the month.",
+      "monthDay": "monthly on day {{day}}",
+      "weekday1": "every Monday",
+      "weekday2": "every Tuesday",
+      "weekday3": "every Wednesday",
+      "weekday4": "every Thursday",
+      "weekday5": "every Friday",
+      "weekday6": "every Saturday",
+      "weekday7": "every Sunday",
+      "dayName1": "Monday",
+      "dayName2": "Tuesday",
+      "dayName3": "Wednesday",
+      "dayName4": "Thursday",
+      "dayName5": "Friday",
+      "dayName6": "Saturday",
+      "dayName7": "Sunday"
+    }
   },
   "questions": {
     "tabQuestions": "Questions to the seller",
@@ -1324,7 +1387,9 @@
       "split": "{{pieces}} = {{packs}} × {{price}}",
       "perPiece": "· {{price}} per {{unit}}",
       "belowMin": "Smaller quantities — retail price {{price}} per {{unit}}",
-      "onlyPacks": "Sold in packs only, minimum {{amount}}"
+      "onlyPacks": "Sold in packs only, minimum {{amount}}",
+      "minimum": "Wholesale to cart: {{amount}}",
+      "minimumSizes": "Split evenly across the sizes of this colour; you can change it in the cart"
     },
     "deal": {
       "delivery": "Delivery",
@@ -1347,6 +1412,9 @@
       "done": "Cart updated",
       "failed": "Size {{size}}: {{reason}}",
       "hint": "What is already in the cart is shown here too. The cart works out wholesale packs and discounts for each size itself."
+    },
+    "mode": {
+      "from": "from {{price}} per {{unit}}"
     }
   },
   "design": {
@@ -1902,5 +1970,49 @@
       "settings": "Settings"
     },
     "inviteSupplier": "Invite a supplier"
+  },
+  "joinShop": {
+    "via": "Request to a shop via Q-Order",
+    "loading": "Loading…",
+    "linkGoneTitle": "This link does not work",
+    "linkGone": "The shop changed or switched off this link. Ask the shop for a new one.",
+    "title": "Request to {{shop}}",
+    "lead": "Leave your number and details — the shop will open an account where you can see prices and send orders. No payment needed.",
+    "phone": "Your WhatsApp number",
+    "company": "Company name or your name",
+    "bin": "BIN or IIN (if any)",
+    "city": "City",
+    "send": "Send request",
+    "sending": "Sending…",
+    "confirmTitle": "Confirm the number is yours",
+    "confirmStep1": "Tap the green button — WhatsApp opens with a ready message to the shop.",
+    "confirmStep2": "Send the message «Код {{code}}» as is, without changes.",
+    "confirmStep3": "Come back here — the page moves on by itself.",
+    "openWhatsApp": "Open WhatsApp",
+    "codeIs": "Code {{code}} is valid until {{time}}",
+    "waiting": "Waiting for your message…",
+    "needNewCode": "To confirm the number, get a code and send it to the shop in WhatsApp.",
+    "getCode": "Get a code",
+    "newCode": "Code did not work or expired — get a new one",
+    "pendingTitle": "Request sent",
+    "pending": "{{shop}} will review it and open access for you. You can close this page: open the same link later to see the answer.",
+    "declinedTitle": "{{shop}} did not accept the request",
+    "declined": "If this is a mistake, contact the shop directly.",
+    "approvedTitle": "{{shop}} opened access for you",
+    "setPassword": "Create a password. You will sign in with the phone number from the request and this password.",
+    "savePassword": "Save password",
+    "passwordSaved": "Password saved. Sign in: your login is your phone number.",
+    "ownPassword": "You already use Q-Order — sign in with your own password, by phone number.",
+    "signIn": "Sign in",
+    "lost": "We could not find your request — the shop may have changed the link. Send the request again.",
+    "again": "Send the request again",
+    "tooOften": "Too many requests from this number. Try tomorrow.",
+    "codeLimit": "Too many codes this hour. Try later.",
+    "noChannel": "The shop has no WhatsApp connected for codes right now. Contact the shop directly.",
+    "failed": "Something went wrong — check your internet and try again."
+  },
+  "phoneGate": {
+    "title": "Confirm your phone number",
+    "lead": "The shop asks you to confirm the number is yours. It is a one-time step: tap «Get a code» and send the code to the shop in WhatsApp."
   }
 }

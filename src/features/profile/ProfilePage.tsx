@@ -8,6 +8,7 @@ import { useAuth } from '../../auth/useAuth';
 import { entryChooseUrl } from '../../auth/oidcConfig';
 import { CompanyBlock } from './CompanyBlock';
 import { PromoSubscription } from './PromoSubscription';
+import { PushBlock } from './PushBlock';
 import { ConsentsBlock } from './ConsentsBlock';
 import { ShopTile } from '../shell/Shops';
 import { SectionHead } from '../shell/SectionHead';
@@ -95,6 +96,8 @@ export function ProfilePage() {
       </div>
 
       <PromoSubscription />
+
+      <PushBlock />
 
       <InviteSupplierBlock />
 

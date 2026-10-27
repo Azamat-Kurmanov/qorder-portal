@@ -47,6 +47,21 @@ describe('цена в плитке шаблона', () => {
     expect(screen.getByTestId('wholesale-note')).toHaveTextContent(/Опт: 85 ₸ за мешок — упаковками по 20 мешков/);
   });
 
+  it('поштучный опт — порог вместо «упаковками по 1 шт.»', () => {
+    renderScreen(
+      <TemplatePrice
+        item={{
+          price: 31990, unit: 'шт',
+          wholesale: { unit: 'шт', packQty: 1, pieceUnit: 'шт.', retail: true, tiers: [{ from: 20, price: 24000 }] },
+        }}
+        look="plain"
+      />,
+    );
+
+    expect(screen.getByTestId('wholesale-note')).toHaveTextContent(/Опт: 24\s000 ₸ за шт\. от 20 шт\./);
+    expect(screen.getByTestId('wholesale-note')).not.toHaveTextContent(/упаковками/);
+  });
+
   it('товар «только опт» — вложение рядом с ценой упаковки', () => {
     renderScreen(
       <TemplatePrice

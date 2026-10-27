@@ -8,6 +8,7 @@ import {
   type ItemSaleTerms,
   type ShowcaseWholesaleDto,
 } from '../../api/generated';
+import type { SaleMode } from './ModeSwitch';
 import { toPieces } from './wholesale';
 import { cartOf, useCart, useSetCartLine } from './useCart';
 import { firstQuantity } from './saleTerms';
@@ -132,13 +133,14 @@ export function useAddToCart() {
   async function add(
     item: { id: string; name: string; terms?: ItemSaleTerms; wholesale?: ShowcaseWholesaleDto },
     quantity?: number,
+    mode?: SaleMode,
   ) {
     if (item.terms?.ageRestricted && !cart?.ageConfirmed) {
       const adult = await askAge(item.name);
       if (!adult) return false;
     }
     setLine.mutate(
-      { itemId: item.id, data: { quantity: toPieces(item, quantity ?? firstQuantity(item.terms)) } },
+      { itemId: item.id, data: { quantity: toPieces(item, quantity ?? firstQuantity(item.terms)), mode } },
       // Корзины рядом с витриной больше нет — положенное называется
       // уведомлением с кнопкой «Открыть корзину».
       { onSuccess: (response) => { if (response.status === 200) announceAdded(item.name); } },

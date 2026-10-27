@@ -55,6 +55,7 @@ import { CategoryTabs } from './layouts/CategoryTabs';
 import { ClientBar } from './layouts/ClientBar';
 import { useSupplier } from '../../supplier/useSupplier';
 import { useSupplierAccess } from '../../supplier/useSupplierAccess';
+import { PhoneGate } from '../phone/PhoneGate';
 import { SupplierCurrencyScope } from '../../supplier/SupplierCurrency';
 import { SupplierTheme } from '../../supplier/SupplierTheme';
 import { useCabinetDesign, type CabinetLayout, type TemplateStyle } from '../../supplier/cabinetDesign';
@@ -227,6 +228,8 @@ export function Shell() {
     // в каждом листе.
     <SupplierCurrencyScope>
     <MotionLevelContext.Provider value={motion}>
+    {/* Номер не подтверждён — одна просьба поверх кабинета вместо отказов на каждом экране. */}
+    <PhoneGate />
     <div
       ref={shellRef}
       data-testid="shell"

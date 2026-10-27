@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { LineThumb } from './LineThumb';
 import { closeCart } from './cartDrawer';
 import { QuantityField } from './QuantityField';
+import { ModeSwitch } from './ModeSwitch';
 import { money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import type { Currency } from '../../shared/currency';
@@ -48,6 +49,10 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
   const setLine = useSetCartLine();
   const lines = cart?.lines ?? [];
   const skipped = cart?.skipped ?? [];
+  // Подсказка опта по модели одна на модель (сервер кладёт её во все строки) — под последней строкой модели.
+  const modelHintAt = new Set(
+    lines.reduce((last, line) => (line.modelKey ? last.set(line.modelKey, line.itemId) : last), new Map<string, string>()).values(),
+  );
   // Строки, которые уже схлопываются: запрос уходит, когда строка ушла
   // с глаз, — иначе всё, что ниже, прыгало бы вверх одним рывком.
   const [leaving, setLeaving] = useState<string[]>([]);
@@ -162,7 +167,12 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
                 </div>
                 <PriceLine line={line} editable currency={currency} />
                 {line.pack ? <PackContents label={t('pack.inPress')} members={packMembers(line.pack)} /> : null}
-                <NextTier line={line} currency={currency} />
+                {!line.modelKey || modelHintAt.has(line.itemId) ? <NextTier line={line} currency={currency} /> : null}
+                {/* Выбор есть только у позиции «и розница, и опт»; количество то же, меняется цена. */}
+                {line.mode ? (
+                  <ModeSwitch value={line.mode} disabled={setLine.isPending || going} className="max-w-[16rem]"
+                    onChange={(mode) => setLine.mutate({ itemId: line.itemId, data: { quantity: line.quantity, mode } })} />
+                ) : null}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <QuantityField itemId={line.itemId} unit={line.unit} terms={line.terms} variant="line" />
                   <p
@@ -322,6 +332,8 @@ function amountLine(line: CartLineDto, editable: boolean, currency: Currency | u
 }
 
 function splitText(line: CartLineDto, split: CartSplitDto, currency: Currency | undefined, t: TFunction): string {
+  // Опт по модели: «упаковка» в одну штуку — не упаковка; говорим прямо, что цена оптовая за всю модель.
+  if (line.modelKey) return t('cart.wholesale.modelPrice', { price: money(split.packPrice, currency), unit: unitPer(line.unit) });
   const packs = `${quantityWithUnit(split.packs, split.packUnit)} (${t('cart.wholesale.pack', {
     amount: quantityWithUnit(split.packQty, line.unit),
   })}) × ${money(split.packPrice, currency)}`;
@@ -340,7 +352,12 @@ function NextTier({ line, currency }: { line: CartLineDto; currency: Currency | 
   if (!hint) return null;
   return (
     <p data-testid="next-tier" className="text-caption font-semibold text-accent-ink">
-      {t('cart.wholesale.hint', {
+      {line.modelKey ? t('cart.wholesale.modelHint', {
+        amount: quantityWithUnit(hint.addPieces, line.unit),
+        price: money(hint.packPrice, currency),
+        unit: unitPer(line.unit),
+        saving: money(hint.saving, currency),
+      }) : t('cart.wholesale.hint', {
         amount: quantityWithUnit(hint.addPieces, line.unit),
         packs: quantityWithUnit(hint.packs, line.split?.packUnit ?? t('cart.wholesale.packWord')),
         price: money(hint.packPrice, currency),
