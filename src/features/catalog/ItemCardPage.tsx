@@ -4,7 +4,7 @@ import { packsOnly, splitOf, tierFor, toPieces } from '../cart/wholesale';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, ArrowRight, CheckCircle2, MessageCircle, Ruler, ShieldCheck, Sparkles, Star, Store, Tag, Truck, X, Zap } from '../../ui/icons';
+import { ArrowLeft, ArrowRight, CheckCircle2, MessageCircle, Ruler, ShieldCheck, Star, Store, Tag, Truck, X } from '../../ui/icons';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   getPortalCatalogItem,
@@ -37,7 +37,7 @@ import { VariantPicker } from './VariantPicker';
 import { StockNote } from './StockNote';
 import { soldByOf } from './soldBy';
 import { ItemBadges, ItemFacts } from './CatalogPage';
-import { RatingBadge } from './itemParts';
+import { MarkBadge, RatingBadge, isWholesaleDeal } from './itemParts';
 import type { ShowcaseCardDtoSizeGuide, ShowcaseItemDto, ShowcaseWholesaleDto } from '../../api/generated';
 import { ItemThumb } from './ItemThumb';
 import { dayMonth, decimal, money, shortDate } from '../../shared/format';
@@ -650,26 +650,20 @@ const GHOST = cn(
 function PhotoBadges({ item }: { item: ShowcaseCardDto }) {
   const { t } = useTranslation();
   const terms = item.terms;
-  if (!terms?.ageRestricted && !item.discountPercent && !terms?.hit && !terms?.novelty) return null;
+  const deal = isWholesaleDeal(item);
+  if (!terms?.ageRestricted && !item.discountPercent && !terms?.hit && !terms?.novelty && !deal) return null;
+  // Цвет и значок признака — те же, что у фильтров каталога и меток на плитке.
+  const pill = 'flex h-8 items-center rounded-[var(--radius-pill)] px-3 text-caption font-extrabold';
   return (
     <div className="flex flex-col items-start gap-2">
       {item.discountPercent ? (
-        <span className="flex h-[34px] items-center rounded-[var(--radius-pill)] bg-sale px-3.5 text-body font-black text-white lg:h-[38px] lg:text-lead">
+        <MarkBadge mark="promo" className="flex h-[34px] items-center rounded-[var(--radius-pill)] px-3.5 text-body font-black lg:h-[38px] lg:text-lead">
           −{item.discountPercent}%
-        </span>
+        </MarkBadge>
       ) : null}
-      {terms?.hit && (
-        <span className="flex h-8 items-center gap-1.5 rounded-[var(--radius-pill)] bg-surface px-3 text-caption font-extrabold text-ink shadow-[0_1px_2px_rgb(0_0_0/0.12)]">
-          <Zap aria-hidden="true" className="size-3.5 fill-[#E0A04A] text-[#E0A04A]" />
-          {t('catalog.badge.hit')}
-        </span>
-      )}
-      {terms?.novelty && (
-        <span className="flex h-8 items-center gap-1.5 rounded-[var(--radius-pill)] bg-night px-3 text-caption font-extrabold uppercase tracking-[0.04em] text-white">
-          <Sparkles aria-hidden="true" className="size-3.5" />
-          {t('catalog.badge.new')}
-        </span>
-      )}
+      {terms?.hit && <MarkBadge mark="hit" className={pill}>{t('catalog.badge.hit')}</MarkBadge>}
+      {terms?.novelty && <MarkBadge mark="novelty" className={pill}>{t('catalog.badge.new')}</MarkBadge>}
+      {deal && <MarkBadge mark="wholesaleDeal" className={pill}>{t('catalog.marks.wholesaleDeal')}</MarkBadge>}
       {terms?.ageRestricted && (
         <span className="flex h-8 items-center rounded-[var(--radius-pill)] bg-adult px-3 text-caption font-extrabold text-white">
           {t('catalog.badge.adult')}

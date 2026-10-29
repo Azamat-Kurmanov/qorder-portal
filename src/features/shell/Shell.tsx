@@ -1,7 +1,7 @@
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { Bump } from '../../ui/Bump';
 import { getConfig } from '../../config';
-import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Suspense, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ChevronDown,
@@ -16,7 +16,6 @@ import {
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { CatalogPage } from '../catalog/CatalogPage';
 import { HomePage } from '../home/HomePage';
-import { MorePage } from './MorePage';
 import { AddedToast, CartPanel } from '../cart/CartPanel';
 import { openCart } from '../cart/cartDrawer';
 import { cartOf, useCart } from '../cart/useCart';
@@ -41,14 +40,12 @@ import { LanguagePicker } from './LanguagePicker';
 import { HelpGuide } from './HelpGuide';
 import { FirstSteps } from './FirstSteps';
 import { MyShopsBlock, ShopsDialog, useShops } from './Shops';
-import { SuppliersPage } from './SuppliersPage';
 import { AgeGateDialog } from '../cart/ageGate';
 import { InvitesCard } from './Invitations';
 import { StaffBanner } from './StaffBanner';
 import { PickupPointPicker } from './layouts/PickupPointPicker';
 import { telLink, whatsappLink } from './shopHours';
 import { MORE_SECTIONS, isActive, useMainSections, type Section } from './sections';
-import { NewArrivalsPage } from '../arrivals/NewArrivalsPage';
 import { DesignHeader } from './layouts/DesignHeader';
 import { CenterHeader } from './layouts/CenterHeader';
 import { CategoryTabs } from './layouts/CategoryTabs';
@@ -72,6 +69,7 @@ import { CART_TARGET } from '../../ui/flyToCart';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { cn } from '../../ui/cn';
 import { ScrollJumps } from './ScrollJumps';
+import { lazyPage, preloadWhenIdle } from '../../ui/lazyPage';
 import { InviteSupplierDialog } from '../referral/InviteSupplierDialog';
 
 /*
@@ -79,16 +77,33 @@ import { InviteSupplierDialog } from '../referral/InviteSupplierDialog';
  * одним файлом кабинет весил мегабайт, и телефон на мобильной сети ждал
  * страницу акций и видеоплеер ради того, чтобы показать каталог.
  */
-const ItemCardPage = lazy(() => import('../catalog/ItemCardPage').then((module) => ({ default: module.ItemCardPage })));
-const CheckoutPage = lazy(() => import('../cart/CheckoutPage').then((module) => ({ default: module.CheckoutPage })));
-const DeliveryInfoPage = lazy(() => import('../delivery/DeliveryInfoPage').then((module) => ({ default: module.DeliveryInfoPage })));
-const FavoritesPage = lazy(() => import('../favorites/FavoritesPage').then((module) => ({ default: module.FavoritesPage })));
-const PromotionsPage = lazy(() => import('../promotions/PromotionsPage').then((module) => ({ default: module.PromotionsPage })));
-const MyOrdersPage = lazy(() => import('../orders/MyOrdersPage').then((module) => ({ default: module.MyOrdersPage })));
-const OrderPage = lazy(() => import('../orders/OrderPage').then((module) => ({ default: module.OrderPage })));
-const QuestionsPage = lazy(() => import('../questions/QuestionsPage').then((module) => ({ default: module.QuestionsPage })));
-const MyReviewsPage = lazy(() => import('../reviews/MyReviewsPage').then((module) => ({ default: module.MyReviewsPage })));
-const TemplatesPage = lazy(() => import('../templates/TemplatesPage').then((module) => ({ default: module.TemplatesPage })));
+const ItemCardPage = lazyPage(() => import('../catalog/ItemCardPage').then((module) => module.ItemCardPage));
+const CheckoutPage = lazyPage(() => import('../cart/CheckoutPage').then((module) => module.CheckoutPage));
+const DeliveryInfoPage = lazyPage(() => import('../delivery/DeliveryInfoPage').then((module) => module.DeliveryInfoPage));
+const FavoritesPage = lazyPage(() => import('../favorites/FavoritesPage').then((module) => module.FavoritesPage));
+const PromotionsPage = lazyPage(() => import('../promotions/PromotionsPage').then((module) => module.PromotionsPage));
+const MyOrdersPage = lazyPage(() => import('../orders/MyOrdersPage').then((module) => module.MyOrdersPage));
+const OrderPage = lazyPage(() => import('../orders/OrderPage').then((module) => module.OrderPage));
+const QuestionsPage = lazyPage(() => import('../questions/QuestionsPage').then((module) => module.QuestionsPage));
+const MyReviewsPage = lazyPage(() => import('../reviews/MyReviewsPage').then((module) => module.MyReviewsPage));
+const NewArrivalsPage = lazyPage(() => import('../arrivals/NewArrivalsPage').then((module) => module.NewArrivalsPage));
+const MorePage = lazyPage(() => import('./MorePage').then((module) => module.MorePage));
+const SuppliersPage = lazyPage(() => import('./SuppliersPage').then((module) => module.SuppliersPage));
+const TemplatesPage = lazyPage(() => import('../templates/TemplatesPage').then((module) => module.TemplatesPage));
+/** Все разделы-куски: догружаются в простое после первого экрана (`preloadWhenIdle`). */
+const PAGES = [NewArrivalsPage, MorePage, SuppliersPage, ItemCardPage, CheckoutPage, DeliveryInfoPage, FavoritesPage, PromotionsPage, MyOrdersPage, OrderPage, QuestionsPage, MyReviewsPage, TemplatesPage];
+
+/**
+ * Куски разделов — в простое после первого экрана: первый вход в раздел не ждёт сети.
+ * Только когда запросы экрана закончились: на медленной сети куски иначе
+ * отнимали бы полосу у его данных. Отдельным компонентом — счётчик запросов
+ * меняется на каждом из них и не должен перерисовывать оболочку.
+ */
+function PreloadPages() {
+  const idle = useIsFetching() === 0;
+  useEffect(() => (idle ? preloadWhenIdle(PAGES) : undefined), [idle]);
+  return null;
+}
 
 /**
  * Сколько новостей ждёт у поставщиков, кроме текущего.
@@ -230,6 +245,7 @@ export function Shell() {
     <MotionLevelContext.Provider value={motion}>
     {/* Номер не подтверждён — одна просьба поверх кабинета вместо отказов на каждом экране. */}
     <PhoneGate />
+    <PreloadPages />
     <div
       ref={shellRef}
       data-testid="shell"

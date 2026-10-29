@@ -64,7 +64,8 @@ export function useMainSections(enabled: boolean): { sections: Section[]; deals:
   const promotions = useGetPortalPromotions({ query: { enabled } });
   const data = promotions.data?.status === 200 ? promotions.data.data : undefined;
   const hidden = data !== undefined && promotionsOff(data);
-  const counts = useGetPortalCatalogCounts(undefined, { query: { enabled } });
+  // `{}`, а не `undefined`: тот же ключ кеша, что у главной и витрины, — один запрос вместо двух.
+  const counts = useGetPortalCatalogCounts({}, { query: { enabled } });
   const arrivals = counts.data?.status === 200 ? counts.data.data.novelty ?? 0 : 0;
   const shown = hidden ? MAIN_SECTIONS.filter((section) => section.path !== '/promotions') : MAIN_SECTIONS;
   return {

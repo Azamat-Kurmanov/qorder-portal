@@ -6,6 +6,7 @@ import { money } from '../../../shared/format';
 import { useSupplierCurrency } from '../../../supplier/SupplierCurrency';
 import { quantityWithUnit, unitPer } from '../../../shared/units';
 import { cn } from '../../../ui/cn';
+import { perUnitNote, saleChannel } from '../itemParts';
 
 /** Кегль цены в плитке шаблона: как в макете — 16, 18, 20 и 22 точки. */
 const SIZES = {
@@ -42,7 +43,9 @@ export function TemplatePrice({
   const sale = item.oldPrice !== undefined;
   return (
     <span className={cn('flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5', className)}>
-      <b className={cn('whitespace-nowrap font-extrabold tabular-nums', SIZES[size], priceClass(look, sale, onImage))}>
+      <b className={cn('whitespace-nowrap font-extrabold tabular-nums', SIZES[size], priceClass(look, sale, onImage),
+        // Цена упаковки у товара «только опт» — цветом опта, чтобы её не приняли за розничную.
+        !sale && !onImage && saleChannel(item) === 'wholesale' && 'text-wholesale')}>
         {money(item.price, currency)}
       </b>
       {sale && (
@@ -52,7 +55,7 @@ export function TemplatePrice({
       )}
       {unit && (
         <span className={cn('whitespace-nowrap text-xs font-semibold', onImage ? 'text-white/80' : 'text-ink-muted')}>
-          {t('catalog.priceNote.perUnit', { unit: unitPer(item.unit) })}
+          {perUnitNote(item, t)}
         </span>
       )}
       {item.yourPrice ? (
@@ -68,9 +71,10 @@ export function TemplatePrice({
 }
 
 /**
- * Опт на плитке — условие и выгода одной строкой: «Опт: 85 за мешок — упаковками
- * по 20 мешков» (цена за штуку на лучшей ступени). Все ступени — в карточке. Товар «только опт» уже
- * показан ценой упаковки, и ему — вложение: «по 20 мешков».
+ * Опт на плитке — цена упаковки и вложение в скобках: «Оптом: от 11 000 за упаковку (10 кг)»
+ * (решение владельца 2026-10-28: опт покупают упаковкой, и цену называют её). «от» — когда
+ * ступеней несколько: дешевле всего на последней. Все ступени — в карточке. Товар «только опт»
+ * уже показан ценой упаковки, и ему — одно вложение: «(10 кг)».
  */
 export function WholesaleNote({ item, className }: { item: Pick<ShowcaseItemDto, 'wholesale'>; className?: string }) {
   const { t } = useTranslation();
@@ -78,24 +82,26 @@ export function WholesaleNote({ item, className }: { item: Pick<ShowcaseItemDto,
   const wholesale = item.wholesale;
   if (!wholesale) return null;
   const best = Math.min(...wholesale.tiers.map((tier) => tier.price));
+  const contents = quantityWithUnit(wholesale.packQty, wholesale.pieceUnit);
   return (
     // Ширина, а не `basis-full`: в строке цены переносит на свою строку так же, а в столбике
     // карточки телефона `basis-full` означал всю высоту — имя схлопывалось, под оптом зияла пустота.
-    <span data-testid="wholesale-note" className={cn('w-full text-xs font-semibold text-ink-muted', className)}>
+    // Цветом опта: это цена не за штуку, и её не должны принять за розничную.
+    <span data-testid="wholesale-note" className={cn('w-full text-xs font-semibold text-wholesale', className)}>
       {wholesale.retail && wholesale.packQty === 1
-        // Поштучный опт: «упаковками по 1 шт.» читалось как бессмыслица — называем порог.
+        // Поштучный опт: «упаковка (1 шт.)» читалось как бессмыслица — называем порог.
         ? t('catalog.wholesale.fromPieces', {
           price: money(best, currency),
           unit: unitPer(wholesale.pieceUnit),
           amount: quantityWithUnit(Math.min(...wholesale.tiers.map((tier) => tier.from)), wholesale.pieceUnit),
         })
         : wholesale.retail
-        ? t('catalog.wholesale.from', {
-          price: money(Math.round(best / wholesale.packQty), currency),
-          unit: unitPer(wholesale.pieceUnit),
-          amount: quantityWithUnit(wholesale.packQty, wholesale.pieceUnit),
+        ? t(wholesale.tiers.length > 1 ? 'catalog.wholesale.packFrom' : 'catalog.wholesale.pack', {
+          price: money(best, currency),
+          unit: unitPer(wholesale.unit),
+          amount: contents,
         })
-        : t('cart.wholesale.pack', { amount: quantityWithUnit(wholesale.packQty, wholesale.pieceUnit) })}
+        : t('catalog.wholesale.contents', { amount: contents })}
     </span>
   );
 }

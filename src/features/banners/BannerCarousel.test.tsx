@@ -174,12 +174,12 @@ describe('баннеры на витрине', () => {
     buttonText: 'Смотреть', target,
   });
 
-  it('кнопка слайда «распродажа» включает отбор «Со скидкой»', async () => {
+  it('кнопка слайда «распродажа» включает отбор «Акция»', async () => {
     const { calls } = stubFetch(rules([TO('SALE')]));
     renderShowcase();
 
     await userEvent.click(await screen.findByRole('button', { name: /Смотреть/ }));
-    await waitFor(() => expect(calls.some((call) => call.url.includes('/api/portal/catalog?') && call.url.includes('onSale=true'))).toBe(true));
+    await waitFor(() => expect(calls.some((call) => call.url.includes('/api/portal/catalog?') && call.url.includes('promo=true'))).toBe(true));
   });
 
   it('слайд «распродажа» не показывается, когда распродажа не идёт', async () => {

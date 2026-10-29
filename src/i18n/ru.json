@@ -554,7 +554,8 @@
       "perUnit": "за {{unit}}",
       "vat": "без НДС, +{{rate}}%",
       "asOf": "цена на {{date}}",
-      "vatIncluded": "с НДС {{rate}}%"
+      "vatIncluded": "с НДС {{rate}}%",
+      "perUnitRetail": "в розницу за {{unit}}"
     },
     "videoNumbered": "Видео {{number}}",
     "photoNumbered": "Снимок {{number}}",
@@ -587,7 +588,10 @@
       "new": "Новинка",
       "adult": "21+",
       "sale": "Акция",
-      "saleNew": "Акция + новинка"
+      "saleNew": "Акция + новинка",
+      "retail": "В розницу",
+      "wholesale": "Оптом",
+      "both": "Оптом и в розницу"
     },
     "toCartAmount": "В корзину — {{amount}}",
     "stepNote": "+ по {{amount}}",
@@ -624,8 +628,10 @@
       "discount": "скидка {{percent}}%"
     },
     "wholesale": {
-      "from": "Опт: {{price}} за {{unit}} — упаковками по {{amount}}",
-      "fromPieces": "Опт: {{price}} за {{unit}} от {{amount}}"
+      "fromPieces": "Оптом: {{price}} за {{unit}} от {{amount}}",
+      "pack": "Оптом: {{price}} за {{unit}} ({{amount}})",
+      "packFrom": "Оптом: от {{price}} за {{unit}} ({{amount}})",
+      "contents": "({{amount}})"
     },
     "yourPrice": "ваша цена",
     "yourPriceNote": "Ваша цена по договорённости с поставщиком",
@@ -653,6 +659,13 @@
     },
     "filters": {
       "reset": "Сбросить отбор"
+    },
+    "marks": {
+      "label": "Быстрые отборы",
+      "hit": "Хит продаж",
+      "novelty": "Новинка",
+      "promo": "Акция",
+      "wholesaleDeal": "Скидка"
     }
   },
   "orders": {
@@ -2112,6 +2125,8 @@
     "inviteSupplier": "Пригласить поставщика"
   },
   "joinShop": {
+    "expand": "Развернуть на весь экран",
+    "collapse": "Свернуть",
     "via": "Заявка в магазин через Q-Order",
     "loading": "Загружаем…",
     "linkGoneTitle": "Ссылка не работает",
@@ -2119,8 +2134,7 @@
     "title": "Заявка в магазин {{shop}}",
     "lead": "Оставьте номер и данные — магазин откроет вам кабинет, где можно смотреть цены и отправлять заказы. Платить ничего не нужно.",
     "phone": "Ваш номер WhatsApp",
-    "company": "Название компании или ваше имя",
-    "bin": "БИН или ИИН (если есть)",
+    "company": "Название компании или ИП",
     "city": "Город",
     "send": "Отправить заявку",
     "sending": "Отправляем…",
@@ -2153,7 +2167,6 @@
     "showcase": {
       "title": "Товары магазина",
       "noPrices": "Цены и наличие откроются в кабинете, когда магазин одобрит вашу заявку",
-      "request": "Получить доступ",
       "search": "Название товара",
       "categories": "Рубрики",
       "all": "Все",
@@ -2161,7 +2174,12 @@
       "prev": "Назад",
       "next": "Дальше",
       "page": "{{page}} из {{pages}}"
-    }
+    },
+    "who": "Кто вы?",
+    "whoCompany": "Компания или ИП",
+    "whoPerson": "Частное лицо",
+    "personName": "Ваше имя",
+    "bin": "БИН или ИИН ИП"
   },
   "phoneGate": {
     "title": "Подтвердите номер телефона",

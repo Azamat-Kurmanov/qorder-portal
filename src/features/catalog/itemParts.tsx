@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Plus, Star } from '../../ui/icons';
+import { Package, Plus, Sparkles, Star, Tag, type IconComponent } from '../../ui/icons';
 import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import type { ShowcaseItemDto } from '../../api/generated';
@@ -7,7 +7,7 @@ import { QuantityField } from '../cart/QuantityField';
 import { useAddToCart } from '../cart/ageGate';
 import { packsOnly } from '../cart/wholesale';
 import { firstQuantity, stepOf } from '../cart/saleTerms';
-import { quantityWithUnit } from '../../shared/units';
+import { quantityWithUnit, unitPer } from '../../shared/units';
 import { soldByOf } from './soldBy';
 import { decimal, shortDate } from '../../shared/format';
 import { Button } from '../../ui/Button';
@@ -219,6 +219,88 @@ export function priceNote(item: ShowcaseItemDto, t: TFunction): string {
   return parts.join(' · ');
 }
 
+/** Признаки товара, по которым ищут: «Хит продаж», «Новинка», «Акция», «Скидка» (опт дешевле розницы). */
+export type Mark = 'hit' | 'novelty' | 'promo' | 'wholesaleDeal';
+
+/**
+ * Цвет и значок признака — одни на фильтры каталога и метки товаров (решение владельца 2026-10-28):
+ * хит — янтарный, новинка — зелёная, акция — оранжевая, скидка на опт — синяя, как цена опта.
+ * `tone` — светлая подложка с цветным текстом; `on` — залитый выбранный фильтр (тёмный тон с
+ * текстом цвета подложки: контраст держится в обеих темах).
+ */
+export const MARK_LOOK: Record<Mark, { icon: IconComponent; tone: string; hover: string; on: string }> = {
+  hit: { icon: Star, tone: 'border-hit-ink/25 bg-hit-soft text-hit-ink', hover: 'hover:border-hit-ink', on: 'border-hit-ink bg-hit-ink text-surface' },
+  novelty: { icon: Sparkles, tone: 'border-ok-ink/25 bg-ok-soft text-ok-ink', hover: 'hover:border-ok-ink', on: 'border-ok-ink bg-ok-ink text-surface' },
+  promo: { icon: Tag, tone: 'border-sale-ink/25 bg-sale-soft text-sale-ink', hover: 'hover:border-sale-ink', on: 'border-sale-ink bg-sale-ink text-surface' },
+  wholesaleDeal: { icon: Package, tone: 'border-wholesale-ink/25 bg-wholesale-soft text-wholesale-ink', hover: 'hover:border-wholesale-ink', on: 'border-wholesale-ink bg-wholesale-ink text-surface' },
+};
+
+/** Цвета чипа фильтра: светлый, пока не выбран, залитый — выбранный. */
+export function markChip(mark: Mark): { idle: string; on: string } {
+  return { idle: cn(MARK_LOOK[mark].tone, MARK_LOOK[mark].hover), on: MARK_LOOK[mark].on };
+}
+
+export function MarkIcon({ mark, className }: { mark: Mark; className?: string }) {
+  const Icon = MARK_LOOK[mark].icon;
+  return <Icon aria-hidden="true" className={cn('size-4 shrink-0', className)} />;
+}
+
+/** Метка признака на товаре — цветом и значком его фильтра. */
+export function MarkBadge({ mark, className, children }: { mark: Mark; className?: string; children: React.ReactNode }) {
+  return (
+    <span data-testid={`mark-${mark}`} className={cn('gap-1 border', MARK_LOOK[mark].tone, className)}>
+      <MarkIcon mark={mark} className="size-3.5" />
+      {children}
+    </span>
+  );
+}
+
+/**
+ * «Скидка» — опт дешевле розницы, тем же правилом, что фильтр (CatalogItemRepository.WHOLESALE_CHEAPER):
+ * товар продаётся и штуками, и оптом, и лучшая ступень опта за единицу дешевле обычной розничной цены.
+ */
+export function isWholesaleDeal(item: Pick<ShowcaseItemDto, 'price'> & Partial<Pick<ShowcaseItemDto, 'oldPrice' | 'wholesale'>>): boolean {
+  const wholesale = item.wholesale;
+  if (!wholesale || !wholesale.retail || !(wholesale.packQty > 0) || wholesale.tiers.length === 0) return false;
+  const best = Math.min(...wholesale.tiers.map((tier) => tier.price));
+  return best / wholesale.packQty < (item.oldPrice ?? item.price);
+}
+
+/**
+ * Как продаётся позиция — метка на каждой плитке рядом с «Хит продаж» (решение владельца
+ * 2026-10-28): без опта — «В розницу», опт без штук — «Оптом», иначе — «Оптом и в розницу».
+ */
+export function saleChannel(item: Partial<Pick<ShowcaseItemDto, 'wholesale'>>): 'retail' | 'wholesale' | 'both' {
+  if (!item.wholesale) return 'retail';
+  return item.wholesale.retail ? 'both' : 'wholesale';
+}
+
+/** Пилюля канала продажи — нейтральная: это условие покупки, а не выгода. */
+export function SaleChannelBadge({ item, className }: { item: Partial<Pick<ShowcaseItemDto, 'wholesale'>>; className?: string }) {
+  const { t } = useTranslation();
+  return (
+    <span data-testid="sale-channel" className={cn('bg-surface text-ink shadow-[0_0_0_1px_var(--color-hairline)]', className)}>
+      {t(`catalog.badge.${saleChannel(item)}`)}
+    </span>
+  );
+}
+
+/**
+ * Цвет крупной цены: у товара «только опт» это цена упаковки, а не штуки, и она выделена
+ * цветом опта (`--color-wholesale`), чтобы её не приняли за розничную (решение владельца 2026-10-28).
+ */
+export function packPriceClass(item: Partial<Pick<ShowcaseItemDto, 'wholesale'>>): string {
+  return saleChannel(item) === 'wholesale' ? 'text-wholesale' : 'text-ink';
+}
+
+/**
+ * «за кг» у цены — а у товара, который продаётся и штуками, и оптом, «в розницу за кг»:
+ * рядом стоит строка опта, и без слова неясно, какая из двух цен — розница.
+ */
+export function perUnitNote(item: Pick<ShowcaseItemDto, 'unit'> & Partial<Pick<ShowcaseItemDto, 'wholesale'>>, t: TFunction): string {
+  return t(saleChannel(item) === 'both' ? 'catalog.priceNote.perUnitRetail' : 'catalog.priceNote.perUnit', { unit: unitPer(item.unit) });
+}
+
 /**
  * Метки на снимке: 21+, скидка, «Хит продаж», «Новинка».
  *
@@ -237,7 +319,7 @@ export function ItemBadges({
   words = false,
   hideDiscount = false,
 }: {
-  item: Pick<ShowcaseItemDto, 'discountPercent' | 'terms'>;
+  item: Pick<ShowcaseItemDto, 'discountPercent' | 'terms'> & Partial<Pick<ShowcaseItemDto, 'wholesale' | 'price' | 'oldPrice'>>;
   className?: string;
   words?: boolean;
   /** Без метки скидки: плитка шаблона рисует скидку своей наклейкой. */
@@ -246,9 +328,9 @@ export function ItemBadges({
   const { t } = useTranslation();
   const terms = item.terms;
   const discount = hideDiscount ? undefined : item.discountPercent;
-  if (!terms?.ageRestricted && !discount && !terms?.hit && !terms?.novelty) return null;
   const pill = 'flex h-[30px] items-center rounded-[var(--radius-pill)] px-3 text-caption font-extrabold';
   if (words) {
+    if (!terms?.ageRestricted && !discount && !terms?.hit && !terms?.novelty) return null;
     // Одна метка по старшинству, как в «Похожих товарах» макета ClientProduct:
     // «Акция» / «Акция + новинка» → «Новинка» → «Хит продаж». Две-три пилюли
     // на узком снимке переносились бы и закрывали товар.
@@ -264,17 +346,9 @@ export function ItemBadges({
         {terms?.ageRestricted && (
           <span className={cn(pill, 'bg-adult text-white')}>{t('catalog.badge.adult')}</span>
         )}
-        {label && (
-          <span
-            data-testid="promo-badge"
-            className={cn(
-              pill,
-              kind === 'sale' ? 'bg-sale text-white'
-                : kind === 'hit' ? 'bg-night text-white'
-                  : 'bg-surface text-ok-ink shadow-[0_0_0_1px_var(--color-hairline)]',
-            )}
-          >
-            {label}
+        {label && kind && (
+          <span data-testid="promo-badge" className="contents">
+            <MarkBadge mark={kind === 'sale' ? 'promo' : kind === 'new' ? 'novelty' : 'hit'} className={pill}>{label}</MarkBadge>
           </span>
         )}
       </div>
@@ -285,15 +359,13 @@ export function ItemBadges({
       {terms?.ageRestricted && (
         <span className={cn(pill, 'bg-adult text-white')}>{t('catalog.badge.adult')}</span>
       )}
-      {discount ? (
-        <span className={cn(pill, 'bg-sale text-white')}>−{discount}%</span>
-      ) : null}
-      {terms?.hit && <span className={cn(pill, 'bg-night text-white')}>{t('catalog.badge.hit')}</span>}
-      {terms?.novelty && (
-        <span className={cn(pill, 'bg-surface text-ok-ink shadow-[0_0_0_1px_var(--color-hairline)]')}>
-          {t('catalog.badge.new')}
-        </span>
+      {discount ? <MarkBadge mark="promo" className={pill}>−{discount}%</MarkBadge> : null}
+      {terms?.hit && <MarkBadge mark="hit" className={pill}>{t('catalog.badge.hit')}</MarkBadge>}
+      {terms?.novelty && <MarkBadge mark="novelty" className={pill}>{t('catalog.badge.new')}</MarkBadge>}
+      {'price' in item && isWholesaleDeal(item as Pick<ShowcaseItemDto, 'price'>) && (
+        <MarkBadge mark="wholesaleDeal" className={pill}>{t('catalog.marks.wholesaleDeal')}</MarkBadge>
       )}
+      <SaleChannelBadge item={item} className={pill} />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { PortalSupplierDto } from '../../api/generated';
 import { cn } from '../../ui/cn';
 
@@ -27,7 +28,8 @@ function shopInitials(name: string): string {
  *
  * Буква, а не пустое место: у клиента с десятком магазинов список без
  * знаков читается как столбец одинаковых строк. Цвет — тот, что выбрал
- * продавец; не выбрал — цвет платформы.
+ * продавец; не выбрал — цвет платформы. Картинка не загрузилась (ссылки
+ * Google Диска изредка не отвечают) — тоже буква, а не значок битой картинки.
  */
 export function ShopTile({
   supplier,
@@ -42,11 +44,13 @@ export function ShopTile({
   alt?: string;
   className?: string;
 }) {
-  if (supplier.logoUrl) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  if (supplier.logoUrl && supplier.logoUrl !== failedUrl) {
     return (
       <img
         src={supplier.logoUrl}
         alt={alt}
+        onError={() => setFailedUrl(supplier.logoUrl ?? null)}
         className={cn('shrink-0 rounded-[10px] border border-hairline bg-surface object-contain', className)}
       />
     );

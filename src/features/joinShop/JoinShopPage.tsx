@@ -1,10 +1,13 @@
 import { intlLocale } from '../../i18n';
 import { useId, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { cn } from '../../ui/cn';
+import { sizedPhoto } from '../../ui/sizedPhoto';
+import { Maximize2, Minimize2 } from '../../ui/icons';
 import { FieldFaultText } from '../../ui/Field';
 import { useFormRules } from '../../ui/forms/useFormRules';
 import { rules } from '../../api/rules.generated';
@@ -31,12 +34,20 @@ const INPUT = cn(
 );
 
 type Key = 'phone' | 'companyName' | 'bin' | 'city';
-const FIELDS: { key: Key; label: string; inputMode?: 'numeric' | 'tel'; autoComplete?: string }[] = [
-  { key: 'phone', label: 'joinShop.phone', inputMode: 'tel', autoComplete: 'tel' },
-  { key: 'companyName', label: 'joinShop.company', autoComplete: 'organization' },
-  { key: 'bin', label: 'joinShop.bin', inputMode: 'numeric' },
-  { key: 'city', label: 'joinShop.city', autoComplete: 'address-level2' },
-];
+type Kind = 'company' | 'person';
+/** Поля по ответу «кто вы»: БИН/ИИН — только у компании и ИП; ИИН частного лица собирать нельзя. */
+function fieldsOf(kind: Kind): { key: Key; label: string; inputMode?: 'numeric' | 'tel'; autoComplete?: string }[] {
+  return [
+    { key: 'phone', label: 'joinShop.phone', inputMode: 'tel', autoComplete: 'tel' },
+    kind === 'company'
+      ? { key: 'companyName', label: 'joinShop.company', autoComplete: 'organization' }
+      : { key: 'companyName', label: 'joinShop.personName', autoComplete: 'name' },
+    ...(kind === 'company' ? [{ key: 'bin' as const, label: 'joinShop.bin', inputMode: 'numeric' as const }] : []),
+    { key: 'city', label: 'joinShop.city', autoComplete: 'address-level2' },
+  ];
+}
+/** У компании БИН/ИИН обязателен; у частного лица поля нет, и правило пустому значению не мешает. */
+const COMPANY_RULES = { ...rules.AccessRequestRequest, bin: { ...rules.AccessRequestRequest.bin, required: true } };
 
 /**
  * Токен заявки сервер отдаёт один раз — страница помнит его сама: гость закрывает вкладку,
@@ -103,10 +114,8 @@ export function JoinShopPage() {
   const setToken = (next: string | null) => { writeToken(code, next); setTokenState(next); };
 
   return (
-    <Screen after={info?.showcase && !token ? (
-      <PublicShowcase code={code} onRequest={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />
-    ) : null}>
-      {info?.logoUrl ? <img src={info.logoUrl} alt="" className="h-14 w-14 rounded-[var(--radius-control)] object-contain" /> : null}
+    <Screen behind={info?.showcase && !token ? <PublicShowcase code={code} /> : null}>
+      {info?.logoUrl ? <img src={sizedPhoto(info.logoUrl, 112)} alt="" className="h-14 w-14 shrink-0 rounded-[var(--radius-control)] object-contain" /> : null}
       {shop.isError || !code ? (
         <>
           <h1 className="text-xl font-semibold tracking-tight text-ink">{t('joinShop.linkGoneTitle')}</h1>
@@ -134,8 +143,9 @@ function RequestForm({ code, shopName, onCreated }: { code: string; shopName: st
   const id = useId();
   const noticeQuery = useGetPortalConsentNotice();
   const notice: ConsentNoticeDto | undefined = noticeQuery.data?.status === 200 ? noticeQuery.data.data : undefined;
+  const [kind, setKind] = useState<Kind | null>(null);
   const form = useFormRules({
-    schema: rules.AccessRequestRequest,
+    schema: kind === 'company' ? COMPANY_RULES : rules.AccessRequestRequest,
     // Редакцию согласия форма не спрашивает — её подставляет отправка из прочитанного уведомления.
     initial: { phone: '', companyName: '', bin: '', city: '', consentVersion: 'notice' },
   });
@@ -152,7 +162,7 @@ function RequestForm({ code, shopName, onCreated }: { code: string; shopName: st
         data: {
           phone: form.values.phone,
           companyName: form.values.companyName.trim(),
-          bin: form.values.bin.trim() || undefined,
+          bin: kind === 'company' ? form.values.bin.trim() : undefined,
           city: form.values.city.trim(),
           consentVersion: notice.version,
         },
@@ -168,7 +178,22 @@ function RequestForm({ code, shopName, onCreated }: { code: string; shopName: st
     <>
       <h1 className="text-2xl font-semibold tracking-tight text-ink">{t('joinShop.title', { shop: shopName })}</h1>
       <p className="text-sm text-ink-muted">{t('joinShop.lead')}</p>
-      {FIELDS.map((field) => (
+      <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
+        <legend className="mb-1.5 p-0 text-sm font-medium text-ink">{t('joinShop.who')}</legend>
+        <div className="grid grid-cols-2 gap-2">
+          {(['company', 'person'] as const).map((option) => (
+            <label key={option} className={cn(
+              'flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm text-ink',
+              kind === option ? 'border-[var(--color-brand)] bg-accent-soft' : 'border-hairline bg-surface',
+            )}>
+              <input type="radio" name={`${id}-kind`} checked={kind === option} onChange={() => setKind(option)}
+                className="size-4 shrink-0 accent-[var(--color-brand)]" />
+              {t(option === 'company' ? 'joinShop.whoCompany' : 'joinShop.whoPerson')}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      {kind && fieldsOf(kind).map((field) => (
         <div key={field.key} className="flex flex-col gap-1.5">
           <label htmlFor={`${id}-${field.key}`} className="text-sm font-medium text-ink">{t(field.label)}</label>
           <input
@@ -211,7 +236,7 @@ function RequestForm({ code, shopName, onCreated }: { code: string; shopName: st
 
       {failure && <Alert>{t(failure)}</Alert>}
 
-      <Button size="lg" disabled={!accepted || !notice || create.isPending} onClick={() => void send()}>
+      <Button size="lg" disabled={!kind || !accepted || !notice || create.isPending} onClick={() => void send()}>
         {create.isPending ? t('joinShop.sending') : t('joinShop.send')}
       </Button>
     </>
@@ -397,19 +422,64 @@ function Alert({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Screen({ children, after }: { children: React.ReactNode; after?: React.ReactNode }) {
+/**
+ * Открытая витрина — каталог без цен фоном, а заявка окном поверх: гость сразу видит,
+ * что здесь продают, но закрыть окно нельзя — только заполнить. Заявка ушла — окно
+ * становится обычной карточкой (подтверждение номера, ожидание магазина).
+ */
+function Screen({ children, behind }: { children: React.ReactNode; behind?: React.ReactNode }) {
   const { t } = useTranslation();
+  const [full, setFull] = useState(false);
+  const card = (extra?: string, resize?: boolean) => (
+    <Card className={cn('flex w-full max-w-[460px] flex-col gap-4 p-6', extra)}>
+      <div className="flex items-center gap-2">
+        <span className="text-2xs leading-4 text-ink-faint">{t('joinShop.via')}</span>
+        <div className="ml-auto"><LanguagePicker /></div>
+        {resize && (
+          <button type="button" onClick={() => setFull(!full)} aria-pressed={full}
+            aria-label={t(full ? 'joinShop.collapse' : 'joinShop.expand')} title={t(full ? 'joinShop.collapse' : 'joinShop.expand')}
+            className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-control)] text-ink-muted hover:bg-ink/5 hover:text-ink">
+            {full ? <Minimize2 className="size-5" aria-hidden="true" /> : <Maximize2 className="size-5" aria-hidden="true" />}
+          </button>
+        )}
+      </div>
+      {children}
+    </Card>
+  );
+  if (!behind) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-8 p-4">
+        <LanguageAsk />
+        {card()}
+      </div>
+    );
+  }
+  const keep = (event: Event) => event.preventDefault();
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 p-4">
+    <div className="flex min-h-dvh flex-col items-center gap-8 p-4">
+      {behind}
+      {/* Окно заявки — раньше вопроса о языке: открытый позже Radix-диалог лежит сверху и кликабелен. */}
+      <Dialog.Root open>
+        <Dialog.Portal>
+          <Dialog.Overlay className="qo-scrim fixed inset-0 z-40 bg-ink/40 dark:bg-black/60" />
+          {/* Без автофокуса: иначе на кнопке языка вспыхивает рамка, а окно может открыться прокрученным. */}
+          <Dialog.Content aria-describedby={undefined} onEscapeKeyDown={keep} onPointerDownOutside={keep} onInteractOutside={keep}
+            onOpenAutoFocus={keep}
+            className={cn('fixed inset-0 z-40 flex flex-col items-center overflow-y-auto p-3 outline-none sm:p-4', full && 'p-0 sm:p-0')}>
+            <Dialog.Title className="sr-only">{t('joinShop.via')}</Dialog.Title>
+            {/* На телефоне окно внизу и не выше 60% экрана, прокручивается само — сверху виден каталог.
+                my-auto, а не justify-center: высокое окно прокручивается, а не срезается сверху. */}
+            {/* Развёрнутое — на весь экран, свёрнутое возвращается к прежнему размеру.
+                На широком экране поля отступами сжаты до ширины обычного окна — строка не растягивается на весь монитор. */}
+            <div className={cn('flex w-full justify-center', full ? 'h-full' : 'mt-auto sm:my-auto')}>
+              {full
+                ? card('h-full max-w-none gap-3 overflow-y-auto rounded-none p-4 sm:gap-4 sm:p-6 sm:px-[max(1.5rem,calc((100%_-_412px)/2))]', true)
+                : card('max-h-[60dvh] gap-3 overflow-y-auto p-4 sm:max-h-none sm:gap-4 sm:overflow-visible sm:p-6', true)}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       <LanguageAsk />
-      <Card className="flex w-full max-w-[460px] flex-col gap-4 p-6">
-        <div className="flex items-center gap-2">
-          <span className="text-2xs leading-4 text-ink-faint">{t('joinShop.via')}</span>
-          <div className="ml-auto"><LanguagePicker /></div>
-        </div>
-        {children}
-      </Card>
-      {after}
     </div>
   );
 }

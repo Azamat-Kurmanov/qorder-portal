@@ -32,7 +32,7 @@ describe('цена в плитке шаблона', () => {
     expect(screen.getByText('за шт.')).toBeInTheDocument();
   });
 
-  it('товар «оба режима» — условие опта: цена за штуку на лучшей ступени и вложение', () => {
+  it('товар «оба режима» — цена упаковки на лучшей ступени с «от» и вложение в скобках, розница подписана', () => {
     renderScreen(
       <TemplatePrice
         item={{
@@ -44,10 +44,11 @@ describe('цена в плитке шаблона', () => {
       />,
     );
 
-    expect(screen.getByTestId('wholesale-note')).toHaveTextContent(/Опт: 85 ₸ за мешок — упаковками по 20 мешков/);
+    expect(screen.getByTestId('wholesale-note')).toHaveTextContent(/Оптом: от 1\s700 ₸ за упаковку \(20 мешков\)/);
+    expect(screen.getByText('в розницу за мешок')).toBeInTheDocument();
   });
 
-  it('поштучный опт — порог вместо «упаковками по 1 шт.»', () => {
+  it('поштучный опт — порог вместо «упаковка (1 шт.)»', () => {
     renderScreen(
       <TemplatePrice
         item={{
@@ -58,11 +59,11 @@ describe('цена в плитке шаблона', () => {
       />,
     );
 
-    expect(screen.getByTestId('wholesale-note')).toHaveTextContent(/Опт: 24\s000 ₸ за шт\. от 20 шт\./);
-    expect(screen.getByTestId('wholesale-note')).not.toHaveTextContent(/упаковками/);
+    expect(screen.getByTestId('wholesale-note')).toHaveTextContent(/Оптом: 24\s000 ₸ за шт\. от 20 шт\./);
+    expect(screen.getByTestId('wholesale-note')).not.toHaveTextContent(/\(/);
   });
 
-  it('товар «только опт» — вложение рядом с ценой упаковки', () => {
+  it('товар «только опт» — вложение в скобках рядом с ценой упаковки', () => {
     renderScreen(
       <TemplatePrice
         item={{
@@ -74,7 +75,10 @@ describe('цена в плитке шаблона', () => {
       />,
     );
 
-    expect(screen.getByTestId('wholesale-note')).toHaveTextContent('по 20 мешков');
+    expect(screen.getByTestId('wholesale-note')).toHaveTextContent('(20 мешков)');
+    // Цена упаковки — цветом опта, как и строка опта: её не должны принять за розничную.
+    expect(screen.getByText(/1\s800/)).toHaveClass('text-wholesale');
+    expect(screen.getByTestId('wholesale-note')).toHaveClass('text-wholesale');
   });
 
   it('у штучного товара подписи опта нет', () => {

@@ -32,6 +32,10 @@ const SIDES: Record<Side, string> = {
     'inset-x-0 bottom-0 max-h-[85dvh]',
     'rounded-t-[var(--radius-gallery)] border-t',
     'px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3',
+    // Во всю ширину — только на телефоне: на мониторе лист шириной в экран
+    // растягивал короткие строки на метр, поэтому там он — окно по центру.
+    'lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2',
+    'lg:w-[min(32rem,calc(100vw-2rem))] lg:rounded-[calc(var(--radius-gallery)*7/6)] lg:border lg:p-6 lg:shadow-float',
   ),
   left: cn(
     // Ширина потолком, а не заданным размером: на 320px колонка в 288
@@ -76,7 +80,7 @@ export function Sheet({
             там нет.
           */}
           {side === 'bottom' ? (
-            <div aria-hidden="true" className="mx-auto mb-3 h-1 w-10 rounded-full bg-hairline" />
+            <div aria-hidden="true" className="mx-auto mb-3 h-1 w-10 rounded-full bg-hairline lg:hidden" />
           ) : null}
           <Dialog.Title className="mb-3 text-base font-semibold text-ink">{title}</Dialog.Title>
           {children}

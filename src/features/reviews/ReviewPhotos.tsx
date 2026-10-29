@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { ItemMediaDto, ReviewPhotoDto } from '../../api/generated';
 import { MediaLightbox } from '../catalog/MediaLightbox';
 import { cn } from '../../ui/cn';
+import { sizedPhoto } from '../../ui/sizedPhoto';
 
 /** Сколько фото можно приложить к отзыву — тот же предел, что на сервере. */
 export const MAX_REVIEW_PHOTOS = 3;
@@ -47,7 +48,8 @@ export function ReviewPhotoStrip({ photos, author }: { photos: ReviewPhotoDto[];
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
               )}
             >
-              {links[index] && <img src={links[index]} alt="" className="size-full object-cover" />}
+              {/* Плитка в 76 точек — копия на 160 (с запасом на 2x), не исходник; ниже экрана — когда долистают. */}
+              {links[index] && <img src={sizedPhoto(links[index], 160)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />}
             </button>
           </li>
         ))}

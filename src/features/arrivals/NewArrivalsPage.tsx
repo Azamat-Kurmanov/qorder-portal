@@ -1,3 +1,4 @@
+import { cn } from '../../ui/cn';
 import { SectionHead } from '../shell/SectionHead';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,10 +7,9 @@ import { useGetPortalCatalog, type ShowcaseItemDto } from '../../api/generated';
 import { cartOf, useCart } from '../cart/useCart';
 import { CartBar } from '../cart/CartBar';
 import { ItemTile } from '../catalog/CatalogPage';
-import { CartAction } from '../catalog/itemParts';
+import { CartAction, packPriceClass, perUnitNote } from '../catalog/itemParts';
 import { ItemThumb } from '../catalog/ItemThumb';
 import { money } from '../../shared/format';
-import { unitPer } from '../../shared/units';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { Reveal } from '../../ui/Reveal';
@@ -108,9 +108,9 @@ function ArrivalRow({ item, taken }: { item: ShowcaseItemDto; taken: boolean }) 
       </Link>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <Link to={`/catalog/${item.id}`} className="line-clamp-2 text-[0.9375rem] font-bold text-ink">{item.name}</Link>
-        <span className="text-[0.9375rem] font-extrabold tabular-nums text-ink">
+        <span className={cn('text-[0.9375rem] font-extrabold tabular-nums', packPriceClass(item))}>
           {money(item.price, currency)}{' '}
-          <span className="text-[0.8125rem] font-medium text-ink-muted">{t('catalog.priceNote.perUnit', { unit: unitPer(item.unit) })}</span>
+          <span className="text-[0.8125rem] font-medium text-ink-muted">{perUnitNote(item, t)}</span>
         </span>
         <CartAction item={item} taken={taken} roomy={false} />
       </div>

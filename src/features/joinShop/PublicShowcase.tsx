@@ -12,9 +12,9 @@ const PAGE = 24;
  *
  * Гость видит, что здесь продают, и решает, стоит ли оставлять заявку: названия,
  * снимки, рубрики. Цен, остатков и корзины нет — их он увидит в кабинете, когда
- * продавец одобрит доступ. Кнопка ведёт обратно к форме заявки.
+ * продавец одобрит доступ. Сама заявка — окном поверх витрины.
  */
-export function PublicShowcase({ code, onRequest }: { code: string; onRequest: () => void }) {
+export function PublicShowcase({ code }: { code: string }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<string | undefined>();
@@ -26,14 +26,8 @@ export function PublicShowcase({ code, onRequest }: { code: string; onRequest: (
   const pages = Math.ceil((data?.totalElements ?? 0) / PAGE);
 
   return (
-    <section aria-labelledby="public-showcase" className="flex w-full max-w-[1080px] flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h2 id="public-showcase" className="m-0 text-xl font-semibold tracking-tight text-ink">{t('joinShop.showcase.title')}</h2>
-          <p className="m-0 text-sm text-ink-muted">{t('joinShop.showcase.noPrices')}</p>
-        </div>
-        <Button variant="accent" onClick={onRequest}>{t('joinShop.showcase.request')}</Button>
-      </div>
+    <section aria-label={t('joinShop.showcase.title')} className="flex w-full max-w-[1080px] flex-col gap-4">
+      <p className="m-0 text-sm text-ink-muted">{t('joinShop.showcase.noPrices')}</p>
 
       <input type="search" value={query} aria-label={t('joinShop.showcase.search')} placeholder={t('joinShop.showcase.search')}
         onChange={(event) => { setQuery(event.target.value); setPage(0); }}

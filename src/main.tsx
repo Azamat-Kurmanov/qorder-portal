@@ -32,7 +32,16 @@ import '@fontsource/pt-serif/700.css';
 import { App } from './App';
 import { AuthProvider } from './auth/AuthProvider';
 import { rememberViewer } from './auth/oidcConfig';
-import { getGetPortalSuppliersQueryKey } from './api/generated';
+import {
+  getGetPortalBannersQueryKey,
+  getGetPortalCartQueryKey,
+  getGetPortalCatalogCountsQueryKey,
+  getGetPortalCategoriesQueryKey,
+  getGetPortalDeliveryOptionsQueryKey,
+  getGetPortalPromotionsQueryKey,
+  getGetPortalSuppliersQueryKey,
+  getGetPortalUnreadSummaryQueryKey,
+} from './api/generated';
 
 // Язык уже выбран на экране выбора кабинета — не спрашиваем второй раз.
 acceptLanguageFromUrl(window.location.search);
@@ -90,6 +99,26 @@ const queryClient = new QueryClient({
 // Возврат во вкладку перечитывает список всегда: продавец мог сменить валюту,
 // и старый знак не должен висеть ещё минуту.
 queryClient.setQueryDefaults(getGetPortalSuppliersQueryKey(), { staleTime: 60_000, refetchOnWindowFocus: 'always' });
+
+// То же — для того, что спрашивает почти каждый экран: корзина, акции, баннеры,
+// рубрики, счётчики витрины, условия доставки, сводка уведомлений. Без этого
+// каждый переход между разделами повторял пять-шесть одинаковых запросов.
+// Свои изменения кабинет кладёт в кеш сам (корзина — ответом сервера, прочтение
+// уведомления — сбросом сводки), так что полминуты — только про чужие правки:
+// их кабинет подхватит при следующем входе в раздел или возврате во вкладку.
+// Заявки, каталог и уведомления сюда не входят: новую заявку клиент обязан
+// увидеть сразу, а её список никто, кроме сервера, не обновляет.
+for (const key of [
+  getGetPortalCartQueryKey(),
+  getGetPortalPromotionsQueryKey(),
+  getGetPortalBannersQueryKey(),
+  getGetPortalCategoriesQueryKey(),
+  getGetPortalCatalogCountsQueryKey(),
+  getGetPortalDeliveryOptionsQueryKey(),
+  getGetPortalUnreadSummaryQueryKey(),
+]) {
+  queryClient.setQueryDefaults(key, { staleTime: 30_000, refetchOnWindowFocus: 'always' });
+}
 
 void i18nReady.then(() => createRoot(document.getElementById('root')!).render(
   <StrictMode>

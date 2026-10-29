@@ -64,7 +64,7 @@ describe('фото и размер в отзыве', () => {
     const strip = within(review).getByTestId('review-photos');
     // Фото лежит в хранилище поставщика и открывается постоянным адресом без входа:
     // картинка рисуется прямо по нему, без запроса с токеном и без ссылки на содержимое.
-    expect(strip.querySelector('img')).toHaveAttribute('src', PHOTO_URL);
+    expect(strip.querySelector('img')).toHaveAttribute('src', `${PHOTO_URL}?w=160`);
     expect(calls.some((call) => call.url.includes(PHOTO_URL))).toBe(false);
 
     // По нажатию — увеличение тем же окном, что снимки товара; курсор — лупа.

@@ -162,17 +162,18 @@ describe('витрина кабинета', () => {
     expect(screen.queryByLabelText('Поиск по каталогу')).not.toBeInTheDocument();
   });
 
-  it('в распродаже набранный поиск не пропадает: уходит вместе с «Со скидкой»', async () => {
+  it('в «Акции» набранный поиск не пропадает: адрес «?sale=1» включает отбор вместе с поиском', async () => {
     const { calls } = stubFetch(catalogRules());
 
     renderScreen(<CatalogPage />, { route: '/catalog?q=цемент&sale=1' });
 
     await waitFor(() => {
-      expect(calls.some((call) => call.url.includes('onSale=true')
+      expect(calls.some((call) => call.url.includes('promo=true')
         && call.url.includes('query=%D1%86%D0%B5%D0%BC%D0%B5%D0%BD%D1%82'))).toBe(true);
     });
-    // Порядок у распродажи свой — сначала с большей скидкой.
-    expect(calls.filter((call) => call.url.includes('onSale=true')).every((call) => !call.url.includes('sort='))).toBe(true);
+    // «Акция» — обычный отбор витрины: прежний отдельный список распродажи больше не спрашивается.
+    expect(calls.some((call) => call.url.includes('onSale=true'))).toBe(false);
+    expect(await screen.findByRole('button', { name: /^Акция/ })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('на телефоне запрос тоже берётся из адреса: поле поиска стоит в шапке', async () => {
@@ -577,14 +578,14 @@ describe('витрина по макету: порядок, числа, метк
     vi.restoreAllMocks();
   });
 
-  const COUNTS = { all: 12, sale: 0, novelty: 2, byCategory: { 'cat-1': 5 } };
+  const COUNTS = { all: 12, sale: 0, novelty: 2, byCategory: { 'cat-1': 5 }, hit: 4, wholesaleDeal: 0 };
 
   /** Числа разделов — своим правилом и первым: адрес начинается так же, как у страницы. */
   function withCounts(rules: StubbedResponse[], counts: unknown = COUNTS): StubbedResponse[] {
     return [get('/api/portal/catalog/counts', counts), ...rules];
   }
 
-  it('у чипов стоят числа, а «Новинки» отбирают товары с меткой', async () => {
+  it('у чипов стоят числа, а быстрые отборы сочетаются по «и» — между собой и с рубрикой', async () => {
     const { calls } = stubFetch(withCounts([
       get('/api/portal/categories', [{ id: 'cat-1', name: 'Сухие смеси', sortOrder: 0 }]),
       ...catalogRules(),
@@ -594,17 +595,27 @@ describe('витрина по макету: порядок, числа, метк
 
     expect(await screen.findByRole('button', { name: 'Все товары 12' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Сухие смеси 5' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Новинки 2' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Новинка 2' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Хит продаж 4' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Сухие смеси 5' }));
 
-    await waitFor(() => expect(calls.some((call) => call.url.includes('novelty=true'))).toBe(true));
-    expect(screen.getByRole('button', { name: 'Новинки 2' })).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(calls.some((call) => call.url.includes('novelty=true') && call.url.includes('hit=true')
+      && call.url.includes('categoryId=cat-1'))).toBe(true));
+    expect(screen.getByRole('button', { name: 'Новинка 2' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Хит продаж 4' })).toHaveAttribute('aria-pressed', 'true');
+    // Повторное нажатие снимает отбор: это переключатель, а не рубрика.
+    await userEvent.click(screen.getByRole('button', { name: 'Хит продаж 4' }));
+    expect(screen.getByRole('button', { name: 'Хит продаж 4' })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('чипы стоят и при одних новинках — без рубрик и распродажи', async () => {
-    stubFetch(withCounts(catalogRules(), { all: 12, sale: 0, novelty: 2, byCategory: {} }));
+  it('быстрые отборы стоят всегда, а пустой отбор виден, но не нажимается', async () => {
+    stubFetch(withCounts(catalogRules(), { all: 12, sale: 0, novelty: 2, byCategory: {}, hit: 0, wholesaleDeal: 0 }));
     renderScreen(<CatalogPage />);
 
-    expect(await screen.findByRole('button', { name: 'Новинки 2' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Новинка 2' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Акция 0' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Хит продаж 0' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Скидка 0' })).toBeDisabled();
   });
 
   it('адрес «?novelty=1» открывает новинки', async () => {
@@ -612,7 +623,7 @@ describe('витрина по макету: порядок, числа, метк
     renderScreen(<CatalogPage />, { route: '/catalog?novelty=1' });
 
     await waitFor(() => expect(calls.some((call) => call.url.includes('novelty=true'))).toBe(true));
-    expect(await screen.findByRole('button', { name: 'Новинки 2' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await screen.findByRole('button', { name: 'Новинка 2' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   describe('витрина по страницам, а не первые пятьдесят', () => {
@@ -781,9 +792,12 @@ describe('витрина по макету: порядок, числа, метк
 
     renderScreen(<CatalogPage />);
 
-    expect(await screen.findByText('Хит продаж')).toBeInTheDocument();
-    expect(screen.getByText('Новинка')).toBeInTheDocument();
-    expect(screen.getByText('−10%')).toBeInTheDocument();
+    const tile = await screen.findByTestId('item-tile');
+    expect(within(tile).getByText('Хит продаж')).toBeInTheDocument();
+    expect(within(tile).getByText('Новинка')).toBeInTheDocument();
+    expect(within(tile).getByText('−10%')).toBeInTheDocument();
+    // Канал продажи — на каждой плитке: у цемента опта нет.
+    expect(within(tile).getByTestId('sale-channel')).toHaveTextContent('В розницу');
     expect(screen.getByText('Заказ от 10 мешков')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'В корзину — 10 мешков' }));

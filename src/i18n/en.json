@@ -526,7 +526,8 @@
       "perUnit": "per {{unit}}",
       "vat": "excl. VAT, +{{rate}}%",
       "asOf": "price as of {{date}}",
-      "vatIncluded": "incl. {{rate}}% VAT"
+      "vatIncluded": "incl. {{rate}}% VAT",
+      "perUnitRetail": "retail, per {{unit}}"
     },
     "videoNumbered": "Video {{number}}",
     "photoNumbered": "Photo {{number}}",
@@ -559,7 +560,10 @@
       "new": "New",
       "adult": "21+",
       "sale": "Sale",
-      "saleNew": "Sale + new"
+      "saleNew": "Sale + new",
+      "retail": "Retail",
+      "wholesale": "Wholesale",
+      "both": "Wholesale & retail"
     },
     "toCartAmount": "Add to basket — {{amount}}",
     "stepNote": "+ by {{amount}}",
@@ -594,8 +598,10 @@
       "discount": "{{percent}}% off"
     },
     "wholesale": {
-      "from": "Wholesale: {{price}} per {{unit}} — in packs of {{amount}}",
-      "fromPieces": "Wholesale: {{price}} per {{unit}} from {{amount}}"
+      "fromPieces": "Wholesale: {{price}} per {{unit}} from {{amount}}",
+      "pack": "Wholesale: {{price}} per {{unit}} ({{amount}})",
+      "packFrom": "Wholesale: from {{price}} per {{unit}} ({{amount}})",
+      "contents": "({{amount}})"
     },
     "yourPrice": "your price",
     "yourPriceNote": "Your price as agreed with the supplier",
@@ -623,6 +629,13 @@
     },
     "filters": {
       "reset": "Clear filters"
+    },
+    "marks": {
+      "label": "Quick filters",
+      "hit": "Bestseller",
+      "novelty": "New",
+      "promo": "Sale",
+      "wholesaleDeal": "Discount"
     }
   },
   "orders": {
@@ -2042,6 +2055,8 @@
     "inviteSupplier": "Invite a supplier"
   },
   "joinShop": {
+    "expand": "Expand to full screen",
+    "collapse": "Collapse",
     "via": "Request to a shop via Q-Order",
     "loading": "Loading…",
     "linkGoneTitle": "This link does not work",
@@ -2049,8 +2064,7 @@
     "title": "Request to {{shop}}",
     "lead": "Leave your number and details — the shop will open an account where you can see prices and send orders. No payment needed.",
     "phone": "Your WhatsApp number",
-    "company": "Company name or your name",
-    "bin": "BIN or IIN (if any)",
+    "company": "Company name",
     "city": "City",
     "send": "Send request",
     "sending": "Sending…",
@@ -2083,7 +2097,6 @@
     "showcase": {
       "title": "Shop items",
       "noPrices": "Prices and stock open in the cabinet once the shop approves your request",
-      "request": "Get access",
       "search": "Item name",
       "categories": "Categories",
       "all": "All",
@@ -2091,7 +2104,12 @@
       "prev": "Back",
       "next": "Next",
       "page": "{{page}} of {{pages}}"
-    }
+    },
+    "who": "Who are you?",
+    "whoCompany": "Company or sole proprietor",
+    "whoPerson": "Private person",
+    "personName": "Your name",
+    "bin": "BIN (or IIN for a sole proprietor)"
   },
   "phoneGate": {
     "title": "Confirm your phone number",

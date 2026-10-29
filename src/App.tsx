@@ -1,9 +1,6 @@
 import { createBrowserRouter, createRoutesFromElements, Route, RouterProvider } from 'react-router-dom';
 import { CallbackPage } from './auth/CallbackPage';
 import { RequireAuth } from './auth/RequireAuth';
-import { ActivationPage } from './features/activation/ActivationPage';
-import { JoinPage } from './features/join/JoinPage';
-import { JoinShopPage } from './features/joinShop/JoinShopPage';
 import { Shell } from './features/shell/Shell';
 import { SupplierProvider } from './supplier/SupplierProvider';
 import { withViewTransitions } from './ui/motion/viewTransitions';
@@ -20,16 +17,19 @@ import { withViewTransitions } from './ui/motion/viewTransitions';
  * этот файл отвечает за то, что открыто без входа, и ни за что больше.
  */
 /**
+ * Публичные страницы — отдельными кусками (`lazy` маршрута): клиенту кабинета
+ * они не нужны вовсе, а гостю по ссылке не нужен кабинет.
+ *
  * Data-router — ради плавных переходов между экранами (`viewTransition`, см.
  * `ui/motion/viewTransitions.ts`); разделы по-прежнему вложенными `<Routes>` оболочки.
  */
 const router = withViewTransitions(createBrowserRouter(createRoutesFromElements(
   <>
-    <Route path="/activate" element={<ActivationPage />} />
+    <Route path="/activate" lazy={() => import('./features/activation/ActivationPage').then((module) => ({ Component: module.ActivationPage }))} />
     {/* Страница для поставщика, которого позвал клиент: у поставщика входа нет вовсе. */}
-    <Route path="/join/:code?" element={<JoinPage />} />
+    <Route path="/join/:code?" lazy={() => import('./features/join/JoinPage').then((module) => ({ Component: module.JoinPage }))} />
     {/* Заявка клиента в магазин по его ссылке или QR — гость без входа (backend.md §18.28, п. 6). */}
-    <Route path="/join-shop/:code" element={<JoinShopPage />} />
+    <Route path="/join-shop/:code" lazy={() => import('./features/joinShop/JoinShopPage').then((module) => ({ Component: module.JoinShopPage }))} />
     <Route path="/callback" element={<CallbackPage />} />
     <Route
       path="/*"

@@ -1,0 +1,22 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "kz.qorder.mobile",
+      "sha256_cert_fingerprints": [
+        "90:73:89:8A:DB:32:F6:2C:91:48:88:AD:86:54:86:CF:EF:C5:82:5B:7E:2A:C2:CF:8D:AE:92:8C:66:C4:A8:3B"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "kz.qorder.mobile.local",
+      "sha256_cert_fingerprints": [
+        "90:73:89:8A:DB:32:F6:2C:91:48:88:AD:86:54:86:CF:EF:C5:82:5B:7E:2A:C2:CF:8D:AE:92:8C:66:C4:A8:3B"
+      ]
+    }
+  }
+]

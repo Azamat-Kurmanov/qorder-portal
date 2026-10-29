@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 import { JoinShopPage } from './JoinShopPage';
@@ -40,8 +40,10 @@ describe('заявка в магазин по ссылке', () => {
     open();
 
     expect(await screen.findByRole('heading', { name: 'Заявка в магазин ИП Мухамедиева' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('radio', { name: 'Частное лицо' }));
+    expect(screen.queryByLabelText(/БИН/)).toBeNull();
     await userEvent.type(screen.getByLabelText('Ваш номер WhatsApp'), '+7 701 000 00 12');
-    await userEvent.type(screen.getByLabelText('Название компании или ваше имя'), 'Ержан');
+    await userEvent.type(screen.getByLabelText('Ваше имя'), 'Ержан');
     await userEvent.type(screen.getByLabelText('Город'), 'Астана');
     const send = screen.getByRole('button', { name: 'Отправить заявку' });
     expect(send).toBeDisabled();
@@ -56,6 +58,29 @@ describe('заявка в магазин по ссылке', () => {
     expect(await screen.findByRole('link', { name: 'Открыть WhatsApp' })).toHaveAttribute('href', phoneCode.waLink);
     expect(screen.getByText(/Отправьте сообщение «Код 123456»/)).toBeInTheDocument();
     expect(localStorage.getItem('qo.portal.joinShop.abc')).toBe('t1');
+  });
+
+  it('компания или ИП: без БИН/ИИН заявка не уходит, с ним — уходит вместе с БИН', async () => {
+    const { calls } = stubFetch([
+      get('/api/portal/consent-notice', notice),
+      method('POST', '/api/portal/join-shop/abc/requests', { token: 't1', status: 'UNVERIFIED', phoneCode }, 201),
+      get('/api/portal/join-shop/abc/requests/t1', { status: 'UNVERIFIED' }),
+      shop,
+    ]);
+    open();
+
+    await userEvent.click(await screen.findByRole('radio', { name: 'Компания или ИП' }));
+    await userEvent.type(screen.getByLabelText('Ваш номер WhatsApp'), '+77010000012');
+    await userEvent.type(screen.getByLabelText('Название компании или ИП'), 'ТОО Ромашка');
+    await userEvent.type(screen.getByLabelText('Город'), 'Астана');
+    await userEvent.click(await screen.findByRole('checkbox'));
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить заявку' }));
+    expect(calls.some((call) => call.init?.method === 'POST')).toBe(false);
+
+    await userEvent.type(screen.getByLabelText('БИН или ИИН ИП'), '123456789013');
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить заявку' }));
+    const post = calls.find((call) => call.init?.method === 'POST');
+    expect(JSON.parse(String(post?.init?.body))).toMatchObject({ companyName: 'ТОО Ромашка', bin: '123456789013' });
   });
 
   it('вернулся из WhatsApp и вкладка перезагрузилась — код на месте, новый не нужен', async () => {
@@ -109,8 +134,8 @@ describe('заявка в магазин по ссылке', () => {
     expect(localStorage.getItem('qo.portal.joinShop.abc')).toBeNull();
   });
 
-  it('открытая витрина: товары без цен под формой, поиск и рубрики', async () => {
-    const { calls } = stubFetch([
+  it('открытая витрина: товары без цен фоном, заявка окном поверх, и его не закрыть', async () => {
+    stubFetch([
       get('/api/portal/consent-notice', notice),
       get('/api/portal/join-shop/abc/items', { page: 0, size: 24, totalElements: 1, items: [
         { id: 'i1', name: 'Цемент М400', unit: 'мешок', imageUrl: 'https://cdn.example.kz/c.jpg' },
@@ -120,14 +145,21 @@ describe('заявка в магазин по ссылке', () => {
     ]);
     open();
 
-    const showcase = await screen.findByRole('region', { name: 'Товары магазина' });
+    const dialog = await screen.findByRole('dialog');
+    expect(await screen.findByRole('heading', { name: 'Заявка в магазин ИП Мухамедиева' })).toBeInTheDocument();
+    const showcase = await screen.findByRole('region', { name: 'Товары магазина', hidden: true });
     expect(await screen.findByText('Цемент М400')).toBeInTheDocument();
     expect(showcase).toHaveTextContent('Цены и наличие откроются в кабинете');
     expect(showcase).not.toHaveTextContent('₸');
-    await userEvent.type(screen.getByRole('searchbox', { name: 'Название товара' }), 'цем');
-    await userEvent.click(screen.getByRole('radio', { name: 'Сухие смеси' }));
-    expect(calls.some((call) => call.url.includes('/items') && call.url.includes('query=%D1%86%D0%B5%D0%BC')
-      && call.url.includes('categoryId=c1'))).toBe(true);
+
+    await userEvent.keyboard('{Escape}');
+    expect(dialog).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Развернуть на весь экран' }));
+    const collapse = within(dialog).getByRole('button', { name: 'Свернуть' });
+    expect(collapse).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(collapse);
+    expect(within(dialog).getByRole('button', { name: 'Развернуть на весь экран' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('закрытая витрина — товаров нет и их не спрашивают', async () => {
