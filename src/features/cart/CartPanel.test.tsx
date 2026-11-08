@@ -43,8 +43,34 @@ describe('корзина на телефоне — нижний лист', () =>
     expect(handle).toHaveAttribute('aria-hidden', 'true');
     expect(handle).toHaveClass('sm:hidden');
     const title = within(sheet).getByRole('heading', { name: 'Корзина' });
-    expect(title).toHaveClass('text-base', 'sm:text-[1.625rem]');
+    expect(title).toHaveClass('text-base', 'sm:text-display');
     expect(await within(sheet).findByText('Цемент М400')).toBeInTheDocument();
+  });
+
+  it('галочки: снятая позиция остаётся в корзине, но не в итоге; без отмеченных к оформлению не пройти', async () => {
+    const sand = { itemId: 'item-2', name: 'Песок', quantity: 2, unit: 'мешок', priceAtAdding: 900, price: 900, priceChanged: false, total: 1800 };
+    stubFetch([
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза' }]),
+      get('/api/portal/cart', { ...cart, lines: [...cart.lines, sand], total: 6800, goodsTotal: 6800 }),
+    ]);
+    renderScreen(<CartPanel />);
+    act(() => openCart());
+
+    const sheet = await screen.findByTestId('cart-panel');
+    expect(await within(sheet).findByText('В заявку: 2 из 2')).toBeInTheDocument();
+    fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Взять в заявку: Песок' }));
+
+    expect(within(sheet).getByText('В заявку: 1 из 2')).toBeInTheDocument();
+    expect(within(sheet).getByText('Песок')).toBeInTheDocument();
+    expect(within(sheet).getByTestId('cart-breakdown')).toHaveTextContent('5 000');
+
+    // «Выбрать все» при частичном выборе отмечает всё, повторно — снимает всё.
+    const all = within(sheet).getByRole('checkbox', { name: /Выбрать все/ });
+    fireEvent.click(all);
+    expect(within(sheet).getByText('В заявку: 2 из 2')).toBeInTheDocument();
+    fireEvent.click(all);
+    expect(within(sheet).getByText('В заявку: 0 из 2')).toBeInTheDocument();
+    expect(within(sheet).getByRole('link', { name: /оформить/i })).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('за кредитным лимитом — предупреждение без сумм; в пределах лимита — тишина', async () => {

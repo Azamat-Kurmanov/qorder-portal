@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import i18n from 'i18next';
 import { announceFailed } from './cartDrawer';
+import { reportShareCart } from '../joinShop/shareVisit';
 import {
   getGetPortalCartQueryKey,
   useClearPortalCart,
@@ -60,7 +61,7 @@ export function useSetCartLine() {
 
   return useSetPortalCartLine({
     mutation: {
-      onSuccess: (response) => {
+      onSuccess: (response, variables) => {
         // Ответ на изменение — это уже пересчитанная корзина: она кладётся
         // в кеш целиком, вместе со статусом. Класть одно тело нельзя: экраны
         // сужают объединение типов по статусу, и корзина без него для них
@@ -70,6 +71,7 @@ export function useSetCartLine() {
         // на экране вместо состава оказалось бы тело ошибки.
         if (response.status !== 200) return;
         queryClient.setQueryData(getGetPortalCartQueryKey(), response);
+        if (variables.data.quantity > 0) reportShareCart();
       },
       onError: reportFailure,
     },

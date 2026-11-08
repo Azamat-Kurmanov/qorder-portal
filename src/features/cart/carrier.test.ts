@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chosenCarrier, paysCarrierDirectly, terminalAllowed } from './carrier';
+import { chosenCarrier, ownCarrierChosen, paysCarrierDirectly, terminalAllowed } from './carrier';
 
 const cdek = { id: 'c1', name: 'СДЭК', terminalAddress: 'Астана, терминал' };
 const baiterek = { id: 'c2', name: 'Байтерек' };
@@ -25,5 +25,14 @@ describe('перевозчик на оформлении', () => {
     expect(paysCarrierDirectly(method({ transportPayee: 'DIRECT' }))).toBe(true);
     expect(paysCarrierDirectly(method({}))).toBe(false);
     expect(paysCarrierDirectly(undefined)).toBe(false);
+  });
+
+  it('свой перевозчик — только где продавец разрешил, и платит клиент сам', () => {
+    const allowed = method({ allowOwnCarrier: true });
+    expect(ownCarrierChosen(allowed, { ownCarrier: '' })).toBe(true);
+    expect(ownCarrierChosen(method({}), { ownCarrier: 'inDriver' })).toBe(false);
+    expect(chosenCarrier(allowed, { ownCarrier: 'inDriver' })).toBeUndefined();
+    expect(paysCarrierDirectly(allowed, { ownCarrier: 'inDriver' })).toBe(true);
+    expect(paysCarrierDirectly(allowed, {})).toBe(false);
   });
 });

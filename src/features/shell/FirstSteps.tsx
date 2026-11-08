@@ -64,9 +64,11 @@ export function FirstSteps({ active }: { active: boolean }) {
   };
 
   // Справа — место под плавающую кнопку «вниз» (ScrollJumps): иначе она закрывает «Скрыть».
+  // На широком экране поле справа и так шире кнопки — там края полосы по краям страницы
+  // (76rem + 2rem, как у шапки и main), иначе полоса торчала к краям окна.
   return (
-    <section aria-label={t('firstSteps.title')} className="border-b border-hairline bg-accent-soft/50 py-3 pl-4 pr-16 lg:pl-7 lg:pr-24">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center gap-x-4 gap-y-2">
+    <section aria-label={t('firstSteps.title')} className="border-b border-hairline bg-accent-soft/50 py-3 pl-4 pr-16 lg:pl-8 lg:pr-24 2xl:pr-8">
+      <div className="mx-auto flex w-full max-w-[76rem] flex-wrap items-center gap-x-4 gap-y-2">
         <span className="text-sm font-semibold text-ink">{t('firstSteps.title')}</span>
         <ol className="m-0 flex list-none flex-wrap items-center gap-2 p-0">
           {steps.map((step, index) => (
@@ -74,7 +76,7 @@ export function FirstSteps({ active }: { active: boolean }) {
               <Link
                 to={step.href}
                 className={cn(
-                  'inline-flex min-h-10 items-center gap-2 rounded-full border px-3 text-[13px] font-medium',
+                  'inline-flex min-h-10 items-center gap-2 rounded-full border px-3 text-caption font-medium',
                   step.done ? 'border-transparent text-ink-muted line-through' : 'border-hairline bg-surface text-ink hover:border-accent',
                 )}
               >
@@ -94,11 +96,12 @@ export function FirstSteps({ active }: { active: boolean }) {
             </li>
           ))}
         </ol>
-        <span className="text-[13px] text-ink-muted">{t('firstSteps.noPay')}</span>
+        {/* На мониторе полоса шириной страницы, и подпись выталкивала «Скрыть» на вторую строку; «Платить сейчас не нужно» есть на оформлении. */}
+        <span className="text-caption text-ink-muted lg:hidden">{t('firstSteps.noPay')}</span>
         <button
           type="button"
           onClick={hide}
-          className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-[var(--radius-control)] px-2 text-[13px] text-ink-muted hover:text-ink"
+          className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-[var(--radius-control)] px-2 text-caption text-ink-muted hover:text-ink"
         >
           <X aria-hidden="true" className="size-4" />
           {t('firstSteps.hide')}

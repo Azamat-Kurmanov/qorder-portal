@@ -107,7 +107,7 @@ export function ReportProblem({ order }: { order: PortalOrderDto }) {
         <legend className="sr-only">{t('orders.problem.title')}</legend>
         {PROBLEMS.map((kind) => (
           <label key={kind}
-            className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-[var(--radius-pill)] border-[1.5px] border-solid border-line px-4 text-[0.8125rem] font-semibold text-ink has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
+            className="qo-hit inline-flex h-9 cursor-pointer items-center gap-2 rounded-[var(--radius-pill)] border-[1.5px] border-solid border-line px-4 text-caption font-semibold text-ink has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
             <input type="radio" name={`${formId}-kind`} value={kind} checked={problem === kind}
               onChange={() => setProblem(kind)} className="sr-only" />
             {t(`orders.problem.kind.${kind}`)}
@@ -138,7 +138,7 @@ export function ReportProblem({ order }: { order: PortalOrderDto }) {
                   <input type="number" inputMode="decimal" min="0" max={line.quantity} step="any" value={amount}
                     // Больше, чем было в заказе, сообщить нельзя: «не довезли 50 из 5» менеджер не разберёт.
                     onChange={(event) => setPicked((current) => ({ ...current, [index]: clamp(event.target.value, line.quantity) }))}
-                    className="h-9 w-24 rounded-[var(--radius-control)] border-[1.5px] border-solid border-line bg-surface px-2 text-sm text-ink focus:border-accent focus:outline-none" />
+                    className="h-9 w-24 rounded-[var(--radius-control)] border-[1.5px] border-solid border-field-line bg-surface px-2 text-sm text-ink focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none" />
                   {line.unit ?? ''}
                 </label>
               ) : null}
@@ -152,7 +152,7 @@ export function ReportProblem({ order }: { order: PortalOrderDto }) {
         <textarea rows={3} value={details} maxLength={rules.AskAboutOrderRequest.text.maxLength}
           placeholder={t('orders.problem.detailsPlaceholder')}
           onChange={(event) => setDetails(event.target.value)}
-          className="resize-y rounded-[var(--radius-control)] border-[1.5px] border-solid border-line bg-surface px-3 py-2 text-sm font-normal text-ink placeholder:text-ink-subtle focus:border-accent focus:outline-none" />
+          className="resize-y rounded-[var(--radius-control)] border-[1.5px] border-solid border-field-line bg-surface px-3 py-2 text-sm font-normal text-ink placeholder:text-ink-subtle focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none" />
       </label>
 
       {failed ? <p role="alert" className="m-0 text-sm text-gone">{t('orders.v2.askFailed')}</p> : null}

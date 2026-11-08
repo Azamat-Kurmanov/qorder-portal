@@ -148,7 +148,7 @@ describe('согласия в профиле', () => {
 
     renderScreen(<ProfilePage />, { supplierId: null });
 
-    await screen.findByText('СтройБаза Алматы');
+    await screen.findByRole('link', { name: /Мои магазины/ });
     expect(calls.some((call) => call.url.includes('/api/portal/consents'))).toBe(false);
   });
 });

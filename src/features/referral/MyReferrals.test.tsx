@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MyReferrals } from './MyReferrals';
 import { renderScreen } from '../../test/render';
 import { get, stubFetch } from '../../test/http';
@@ -10,6 +11,8 @@ const row = (id: string, status: string, extra: Record<string, unknown> = {}) =>
 });
 
 describe('«Мои приглашения»', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it('называет каждое состояние словами', async () => {
     stubFetch([get('/api/portal/referrals', [
       row('1', 'SENT', { label: 'Хлеб' }),
@@ -44,6 +47,21 @@ describe('«Мои приглашения»', () => {
     expect(within(rows[0]).getByRole('button', { name: 'Удалить приглашение' })).toBeInTheDocument();
     expect(within(rows[1]).getByRole('button', { name: 'Удалить приглашение' })).toBeInTheDocument();
     expect(within(rows[2]).queryByRole('button', { name: 'Удалить приглашение' })).toBeNull();
+  });
+
+  it('«Напомнить» — у неотвеченного: WhatsApp с той же ссылкой', async () => {
+    const open = vi.fn(() => null);
+    vi.stubGlobal('open', open);
+    stubFetch([get('/api/portal/referrals', [row('1', 'OPENED'), row('2', 'CONNECTED')])]);
+    renderScreen(<MyReferrals />);
+
+    const [waiting, connected] = await screen.findAllByTestId('referral-row');
+    expect(within(connected).queryByRole('button', { name: 'Напомнить' })).toBeNull();
+    await userEvent.click(within(waiting).getByRole('button', { name: 'Напомнить' }));
+
+    const href = decodeURIComponent(String((open.mock.calls[0] as unknown[])[0]));
+    expect(href).toContain('https://wa.me/?text=Напоминаю');
+    expect(href).toContain('http://x/join/code-1');
   });
 
   it('пустой список не рисует раздел', async () => {

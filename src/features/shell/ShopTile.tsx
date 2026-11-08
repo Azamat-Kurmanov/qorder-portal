@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { PortalSupplierDto } from '../../api/generated';
 import { cn } from '../../ui/cn';
+import { readableOn } from '../../supplier/supplierTheme';
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
@@ -46,12 +47,14 @@ export function ShopTile({
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   if (supplier.logoUrl && supplier.logoUrl !== failedUrl) {
+    // Подложка логотипа белая и ночью: логотипы рисуют под светлый фон, и прозрачный
+    // логотип с тёмными буквами на тёмной карточке пропадал.
     return (
       <img
         src={supplier.logoUrl}
         alt={alt}
         onError={() => setFailedUrl(supplier.logoUrl ?? null)}
-        className={cn('shrink-0 rounded-[10px] border border-hairline bg-surface object-contain', className)}
+        className={cn('shrink-0 rounded-[10px] border border-hairline bg-white object-contain', className)}
       />
     );
   }
@@ -60,7 +63,9 @@ export function ShopTile({
   return (
     <span
       aria-hidden="true"
-      style={color ? { backgroundColor: color } : undefined}
+      // Надпись — по цвету этого магазина: `on-brand` посчитан для открытого магазина,
+      // и на чужом цвете буква сливалась (белая на жёлтом — 1,6:1).
+      style={color ? { backgroundColor: color, color: readableOn(color) } : undefined}
       className={cn(
         'flex shrink-0 items-center justify-center rounded-[10px] bg-banner font-extrabold text-on-brand',
         className,

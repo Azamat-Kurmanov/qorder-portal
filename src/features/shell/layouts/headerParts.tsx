@@ -6,8 +6,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useGetPortalDeliveryOptions } from '../../../api/generated';
 import { toggleCart, useCartDrawer } from '../../cart/cartDrawer';
 import { cartOf, useCart } from '../../cart/useCart';
-import { NotificationsBell } from '../../notifications/NotificationsBell';
-import { HelpGuide } from '../HelpGuide';
 import { money, phone as formatPhone } from '../../../shared/format';
 import { useSupplierCurrency } from '../../../supplier/SupplierCurrency';
 import { CART_TARGET } from '../../../ui/flyToCart';
@@ -16,11 +14,8 @@ import { FontScalePicker } from '../FontScale';
 import { usePendingInvitations } from '../Invitations';
 import { LanguagePicker } from '../LanguagePicker';
 import { ShopTile, useShops } from '../Shops';
-import { ThemeToggle } from '../ThemeToggle';
-import { ViewerBadge } from '../ViewerBadge';
 import { hoursNow, hoursText, telLink, whatsappLink, type HoursNow } from '../shopHours';
 import { useSupplier } from '../../../supplier/useSupplier';
-import { PickupPointPicker } from './PickupPointPicker';
 
 /*
  * Части шапки кабинета с опубликованным дизайном: поиск, корзина, значки,
@@ -134,8 +129,12 @@ export const ICON_BUTTON = cn(
  * Поле поиска шапки шаблона. `grow` — во всю оставшуюся ширину; иначе
  * фиксированной ширины, как у шапки дока и колонки «разворота».
  */
-export function SearchField({ grow = true, className, bare = false, autoFocus = false }: {
+export function SearchField({ grow = true, className, bare = false, autoFocus = false, placeholder, hint = true }: {
   grow?: boolean;
+  /** Своя подсказка — короткая на телефоне: длинная обрезалась в узком поле. */
+  placeholder?: string;
+  /** Значок клавиши «/» — подсказка для клавиатуры; на телефоне её нет. */
+  hint?: boolean;
   className?: string;
   /** Поле раскрыто нажатием на значок — курсор сразу в нём. */
   autoFocus?: boolean;
@@ -164,12 +163,12 @@ export function SearchField({ grow = true, className, bare = false, autoFocus = 
         autoFocus={autoFocus}
         aria-label={t('shell.search')}
         aria-keyshortcuts="/"
-        placeholder={bare ? t('shell.search') : t('shell.searchPlaceholder')}
+        placeholder={placeholder ?? (bare ? t('shell.search') : t('shell.searchPlaceholder'))}
         value={query}
         onChange={(event) => setQuery(event.currentTarget.value)}
         className="h-full min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-muted"
       />
-      {bare ? null : (
+      {bare || !hint ? null : (
         <kbd
           aria-hidden="true"
           className="flex h-6 items-center rounded-[var(--radius-small)] border border-line px-2 font-sans text-xs font-semibold text-ink-subtle"
@@ -238,37 +237,6 @@ export function CartButton({ ready, className, label = true }: { ready: boolean;
   );
 }
 
-/** Тема, уведомления точкой и чип вошедшего — справа в шапке шаблона. */
-export function HeaderTools({ activated, ready, chip = true, initialsOnly = false, phone = false }: {
-  activated: boolean;
-  ready: boolean;
-  chip?: boolean;
-  /** Телефонная шапка К1: только колокольчик, остальное — в листе «Ещё». */
-  phone?: boolean;
-  /** Чип вошедшего — одними инициалами, имя остаётся для диктора. */
-  initialsOnly?: boolean;
-}) {
-  return (
-    <>
-      {/* Точка самовывоза: по её складу витрина считает наличие — и у клиента, и у сотрудника в просмотре. */}
-      {!phone && <PickupPointPicker ready={ready} />}
-      {/* Тема — значком рядом с корзиной; язык и размер шрифта — в полосе графика. */}
-      <div data-testid="header-settings" className="hidden items-center gap-0.5 lg:flex">
-        <ThemeToggle compact className="size-[2.625rem] justify-center rounded-[var(--radius-small)] px-0" />
-      </div>
-      {!phone && <HelpGuide className="size-10 rounded-[var(--radius-small)] border border-line text-ink-muted hover:border-accent hover:text-ink lg:size-[2.625rem]" />}
-      {activated && (
-        <NotificationsBell
-          active={ready}
-          dot
-          className="size-10 rounded-[var(--radius-small)] border border-line text-ink-muted hover:border-accent hover:text-ink lg:size-[2.625rem]"
-        />
-      )}
-      {chip ? <ViewerBadge active={ready} chip initialsOnly={initialsOnly} /> : null}
-    </>
-  );
-}
-
 /**
  * Знак и имя магазина в шапке шаблона — кнопкой, открывающей «Мои магазины».
  *
@@ -325,7 +293,7 @@ export function DesignShopButton({
       )}
       <span className={cn('flex min-w-0 flex-1 flex-col gap-0.5', !plain && 'lg:w-[11.5rem] lg:flex-none xl:w-[14.375rem]')}>
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate font-heading text-[1.0625rem] font-extrabold text-ink lg:text-body lg:font-bold">
+          <span className="truncate font-heading text-lead font-extrabold text-ink lg:text-body lg:font-bold">
             {current?.name ?? t('shell.supplier')}
           </span>
           <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-ink-muted" />
@@ -338,7 +306,7 @@ export function DesignShopButton({
           )}
         </span>
         {plain ? null : <span className="truncate text-xs text-ink-muted max-lg:hidden">{switchText}</span>}
-        <span className={cn('truncate text-[0.8125rem] font-semibold lg:hidden', status?.open ? 'text-in-stock' : 'text-ink-muted')}>{phoneNote}</span>
+        <span className={cn('truncate text-caption font-semibold lg:hidden', status?.open ? 'text-in-stock' : 'text-ink-muted')}>{phoneNote}</span>
       </span>
     </button>
   );

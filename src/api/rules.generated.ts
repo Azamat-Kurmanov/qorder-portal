@@ -75,6 +75,11 @@ export const rules = {
     tenantId: { required: false },
     note: { required: false, maxLength: 500 },
   },
+  SavePaymentBankRequest: {
+    country: { required: true, pattern: /^(?:^[A-Z]{2}$)$/, minLength: 1, example: "KZ" },
+    code: { required: true, pattern: /^(?:^[A-Z0-9_]{2,20}$)$/, minLength: 1, example: "HALYK" },
+    name: { required: true, maxLength: 60, example: "Halyk" },
+  },
   UpdateWhatsappPackageRequest: {
 
   },
@@ -100,7 +105,6 @@ export const rules = {
     occasion: { required: false, example: "NAURYZ" },
     occasionFrom: { required: false, example: "2027-03-14" },
     occasionUntil: { required: false, example: "2027-03-23" },
-    backdrop: { required: false, example: "GLOW" },
     motion: { required: false, example: "LIVELY" },
     slideTransition: { required: false, example: "WIPE" },
     pattern: { required: false, example: "FOOD" },
@@ -170,6 +174,58 @@ export const rules = {
     token: { required: true, maxLength: 512 },
     platform: { required: true },
   },
+  SaveSupplierRequest: {
+    name: { required: true, maxLength: 255 },
+    direction: { required: true },
+    contact: { required: false, maxLength: 255 },
+    note: { required: false, maxLength: 1000 },
+    currency: { required: true },
+  },
+  SavePurchaseRequest: {
+    supplierId: { required: true },
+    direction: { required: false },
+    supplierNumber: { required: false, maxLength: 64 },
+    title: { required: true, maxLength: 255 },
+    documentDate: { required: true },
+    currency: { required: true },
+    status: { required: true },
+  },
+  SaveShipmentRequest: {
+    shippedOn: { required: true },
+    placesText: { required: false, maxLength: 64 },
+    note: { required: false, maxLength: 500 },
+  },
+  SavePlaceRequest: {
+    kind: { required: true, maxLength: 16 },
+    number: { required: false, maxLength: 32 },
+    description: { required: false, maxLength: 255 },
+  },
+  SaveLineRequest: {
+    supplierArticle: { required: false, maxLength: 64 },
+    name: { required: false, maxLength: 255 },
+    unit: { required: true, minLength: 1 },
+  },
+  SaveSizesRequest: {
+
+  },
+  LinkLineRequest: {
+    itemId: { required: false },
+  },
+  SaveExpenseRequest: {
+    kind: { required: true },
+    currency: { required: true },
+    note: { required: false, maxLength: 500 },
+  },
+  SaveBatchRequest: {
+    kind: { required: false, maxLength: 16 },
+    carrier: { required: false, maxLength: 255 },
+    clientCode: { required: false, maxLength: 64 },
+    route: { required: false, maxLength: 255 },
+    periodFrom: { required: false },
+    periodTo: { required: false },
+    currency: { required: true },
+    note: { required: false, maxLength: 500 },
+  },
   SavePromoSettingsRequest: {
     saleTitle: { required: false, maxLength: 60, example: "Осенняя распродажа верхней одежды" },
     saleText: { required: false, maxLength: 200 },
@@ -188,6 +244,9 @@ export const rules = {
   NoveltyPeriodRequest: {
     startsOn: { required: true, example: "2026-10-22" },
     endsOn: { required: true, example: "2026-11-05" },
+  },
+  UpdateTemplateRequest: {
+    name: { required: true, maxLength: 255, example: "Еженедельный завоз" },
   },
   TemplateScheduleRequest: {
     kind: { required: true, pattern: /^(?:WEEKLY|MONTHLY)$/, example: "WEEKLY" },
@@ -214,6 +273,9 @@ export const rules = {
   },
   ExchangeSettingsRequest: {
     invoiceSource: { required: true, pattern: /^(?:INTERNAL|EXTERNAL_1C)$/, example: "EXTERNAL_1C" },
+  },
+  LinkItemCodeRequest: {
+    code: { required: true, maxLength: 64, example: "00-000012391" },
   },
   UpdateDraftRequest: {
     customerName: { required: false },
@@ -253,11 +315,23 @@ export const rules = {
     terminalAddress: { required: false, maxLength: 512, example: "Алматы, Толе би 101" },
     note: { required: false, maxLength: 512, example: "Звонят за час до приезда" },
   },
+  ReorderRunStopsRequest: {
+
+  },
+  SetCustomerManagerRequest: {
+    managerId: { required: false },
+  },
   SaveCustomerPriceTermRequest: {
     scope: { required: true },
     itemId: { required: false },
     categoryId: { required: false },
     validUntil: { required: false },
+  },
+  DebtInstallmentRequest: {
+    dueDate: { required: true, example: "2026-11-20" },
+  },
+  DebtPlanRequest: {
+
   },
   SaveCustomerCreditRequest: {
 
@@ -308,6 +382,7 @@ export const rules = {
     categoryId: { required: false },
     storageLocation: { required: false, maxLength: 255, example: "Склад · ряд 2, полка 3" },
     article: { required: false, maxLength: 64, example: "LOW-CIT" },
+    ageRule: { required: false },
   },
   SetItemVisibilityRequest: {
 
@@ -333,11 +408,17 @@ export const rules = {
     name: { required: true, maxLength: 255, example: "Сухие смеси" },
     parentId: { required: false },
   },
+  SetCategoryImageRequest: {
+    imageUrl: { required: false, maxLength: 2048, example: "https://drive.google.com/file/d/1AbC_dEfG-42/view" },
+  },
   BulkVisibilityRequest: {
 
   },
   BulkCategoryRequest: {
     categoryId: { required: false },
+  },
+  SavingsNormRequest: {
+
   },
   CreateStaffRequest: {
     phone: { required: true, pattern: /^(?:7\d{10}|[1-689]\d{7,14})$/, minLength: 1, example: "77010000105" },
@@ -365,6 +446,13 @@ export const rules = {
     opensAt: { required: false, example: "10:00" },
     closesAt: { required: false, example: "16:00" },
     title: { required: false, maxLength: 128, example: "Инвентаризация" },
+  },
+  CreateSubstitutionRequest: {
+    absentId: { required: true },
+    substituteId: { required: true },
+    reason: { required: true },
+    from: { required: true, example: "2026-11-05" },
+    until: { required: false, example: "2026-11-12" },
   },
   WriteOffLotRequest: {
     lotId: { required: true },
@@ -422,6 +510,24 @@ export const rules = {
   RejectReviewRequest: {
     reason: { required: false, example: "SPAM" },
   },
+  SaveReceiptRequest: {
+    shipmentId: { required: true },
+    warehouseId: { required: true },
+    receivedOn: { required: true },
+  },
+  RecostReceiptRequest: {
+
+  },
+  PostReceiptRequest: {
+
+  },
+  SavePaymentRequest: {
+    paidOn: { required: true },
+    note: { required: false, maxLength: 500 },
+  },
+  InvoiceImportRequest: {
+
+  },
   NoveltyBatchRequest: {
     startsOn: { required: true, example: "2026-10-22" },
     endsOn: { required: true, example: "2026-11-05" },
@@ -443,6 +549,7 @@ export const rules = {
   },
   SubmitOrderRequest: {
     note: { required: false, maxLength: 1000, example: "позвоните за час" },
+    mode: { required: false },
   },
   PaymentReportRequest: {
     paymentRef: { required: false, maxLength: 64, example: "OP-7781" },
@@ -452,6 +559,13 @@ export const rules = {
   AskAboutOrderRequest: {
     text: { required: true, maxLength: 2000, example: "Можно забрать завтра после шести?" },
   },
+  DeclineOrderRequest: {
+    reason: { required: false, example: "PRICE" },
+    comment: { required: false, maxLength: 500, example: "Нашёл дешевле" },
+  },
+  AnswerOrderRequest: {
+    message: { required: false, maxLength: 2000, example: "Замену беру, если цвет тёмный" },
+  },
   SupplierLeadRequest: {
     code: { required: false, maxLength: 32 },
     name: { required: true, maxLength: 255, example: "ТОО \"Хлеб\"" },
@@ -460,8 +574,29 @@ export const rules = {
     city: { required: false, maxLength: 100, example: "Алматы" },
     consentVersion: { required: true, maxLength: 32, example: "2026-10-20" },
   },
+  ForwardReferralRequest: {
+    sellerName: { required: true, maxLength: 120, example: "Ерлан" },
+    sellerPhone: { required: true, pattern: /^(?:\s*\+?[\s()\-]*(\d[\s()\-]*){8,15})$/, minLength: 1, example: "+7 701 555 12 34" },
+  },
+  StaffJoinPasswordRequest: {
+    password: { required: true, minLength: 8, maxLength: 128 },
+  },
+  SupplierSignupRequest: {
+    name: { required: true, maxLength: 255, example: "ТОО \"Хлеб\"" },
+    binIin: { required: true, pattern: /^(?:\d{12})$/, minLength: 1, example: "123456789012" },
+    ownerName: { required: true, maxLength: 255, example: "Асхат" },
+    phone: { required: true, pattern: /^(?:\s*\+?[\s()\-]*(\d[\s()\-]*){8,15})$/, minLength: 1, example: "+7 701 612 22 05" },
+    email: { required: true, maxLength: 255, format: "email", example: "owner@example.kz" },
+    consentVersion: { required: true, maxLength: 32, example: "2026-10-20" },
+    ownerToken: { required: false, maxLength: 64 },
+    referralCode: { required: false, maxLength: 32 },
+  },
+  SignupConfirmRequest: {
+    token: { required: true, maxLength: 128 },
+    password: { required: true, minLength: 8, maxLength: 128 },
+  },
   AccessRequestRequest: {
-    phone: { required: true, pattern: /^(?:^\+?\d{10,15}$)$/, minLength: 1, example: "77011234567" },
+    phone: { required: false, pattern: /^(?:^\+?\d{10,15}$)$/, example: "77011234567" },
     companyName: { required: true, maxLength: 255, example: "ТОО Кафе" },
     bin: { required: false, pattern: /^(?:^\d{12}$)$/, example: "123456789013" },
     city: { required: true, maxLength: 255, example: "Астана" },
@@ -478,6 +613,15 @@ export const rules = {
     consentVersion: { required: true, example: "2026-09-10" },
     password: { required: false, maxLength: 128 },
   },
+  DebtClaimLineRequest: {
+    orderLineId: { required: true },
+  },
+  DebtClaimRequest: {
+    method: { required: false, example: "KASPI" },
+    comment: { required: false, maxLength: 500, example: "Kaspi, чек 7781" },
+    bank: { required: false, pattern: /^(?:^[A-Z0-9_]{2,20}$)$/, example: "HALYK" },
+    bankTarget: { required: false, example: "CARD" },
+  },
   CreateOrderReturnRequest: {
     reason: { required: true, maxLength: 500, example: "Клиент не подошёл цвет" },
   },
@@ -487,12 +631,24 @@ export const rules = {
   ReceiveOrderPaymentRequest: {
     comment: { required: false, maxLength: 500, example: "наличными" },
     method: { required: false, example: "KASPI" },
+    bank: { required: false, pattern: /^(?:^[A-Z0-9_]{2,20}$)$/, example: "HALYK" },
   },
   CancelOrderPaymentRequest: {
     reason: { required: true, maxLength: 500, example: "ошиблись суммой" },
   },
   LinkUnmatchedLineRequest: {
     itemId: { required: true },
+  },
+  RejectDebtClaimRequest: {
+    reason: { required: true, maxLength: 500, example: "перевод не пришёл" },
+  },
+  IssueInvitationRequest: {
+    phone: { required: true, pattern: /^(?:7\d{10}|[1-689]\d{7,14})$/, minLength: 1, example: "77010000001" },
+    email: { required: false, maxLength: 255, format: "email", example: "prorab@example.kz" },
+    name: { required: false, maxLength: 255, example: "Асхат" },
+  },
+  HandoverRequest: {
+    fromId: { required: true },
   },
   CreateManagerDraftRequest: {
     phone: { required: false, pattern: /^(?:7\d{10}|[1-689]\d{7,14})$/, example: "77010000312" },
@@ -511,6 +667,9 @@ export const rules = {
   ReplyToCustomerRequest: {
     text: { required: true, maxLength: 2000, example: "Доставка на Абая 15 завтра после обеда, 2 000. Подходит?" },
   },
+  RenegotiateRequest: {
+    note: { required: false, maxLength: 500, example: "Есть аналог, по посадке ближе всего" },
+  },
   AnswerQuestionRequest: {
     text: { required: true, maxLength: 2000 },
   },
@@ -519,6 +678,9 @@ export const rules = {
   },
   CreditOverrideRequest: {
     reason: { required: true, maxLength: 500, example: "Клиент платит в пятницу" },
+  },
+  CreditDecisionRequest: {
+
   },
   AssignDraftRequest: {
     expectedAssigneeId: { required: false },
@@ -547,14 +709,14 @@ export const rules = {
   ReceiveCustomerPaymentRequest: {
     method: { required: true, example: "KASPI" },
     comment: { required: false, maxLength: 500 },
+    bank: { required: false, pattern: /^(?:^[A-Z0-9_]{2,20}$)$/, example: "HALYK" },
+  },
+  AcceptReferralRequest: {
+    referralCode: { required: false, maxLength: 64, example: "k3J9xQ" },
+    ownerToken: { required: false, maxLength: 64 },
   },
   CabinetOfferAnswerRequest: {
 
-  },
-  IssueInvitationRequest: {
-    phone: { required: true, pattern: /^(?:7\d{10}|[1-689]\d{7,14})$/, minLength: 1, example: "77010000001" },
-    email: { required: false, maxLength: 255, format: "email", example: "prorab@example.kz" },
-    name: { required: false, maxLength: 255, example: "Асхат" },
   },
   DeclineAccessRequest: {
     reason: { required: false, maxLength: 500, example: "Работаем только с Астаной" },

@@ -74,10 +74,6 @@ export function CallbackPage() {
             Клиент попадает сюда по присланной ссылке и из одного знака
             не поймёт, куда именно вошёл. */}
         <p className="text-base font-semibold text-ink">{t('auth.appName')}</p>
-        <span
-          aria-hidden="true"
-          className="size-6 animate-spin rounded-full border-2 border-hairline border-t-accent"
-        />
         <p className="text-ink-subtle">{t('auth.completing')}</p>
       </div>
     </div>

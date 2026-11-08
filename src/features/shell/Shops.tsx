@@ -1,3 +1,5 @@
+import { ScanQrButton } from '../scanQr/ScanQrButton';
+import { CHIP_ROW } from '../../ui/chipRow';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -10,7 +12,8 @@ import {
   type PortalSupplierDto,
 } from '../../api/generated';
 import { useSupplier } from '../../supplier/useSupplier';
-import { togglePin, useShopMemory } from '../../supplier/shopMemory';
+import { useShopMemory } from '../../supplier/shopMemory';
+import { ShopActions } from './ShopActions';
 import { cn } from '../../ui/cn';
 import { ShopTile } from './ShopTile';
 import { InvitesSection } from './Invitations';
@@ -62,7 +65,9 @@ export function useCurrentShop(): PortalSupplierDto | undefined {
 function sideOrder(list: PortalSupplierDto[], currentId: string | null, pinned: string[], recent: string[]) {
   const ids: string[] = [];
   [currentId, ...pinned, ...recent].forEach((id) => {
-    if (id && !ids.includes(id) && list.some((supplier) => supplier.supplierId === id)) ids.push(id);
+    // Скрытый — только когда клиент сейчас в нём: иначе колонка возвращала бы то, что он убрал с глаз.
+    if (id && !ids.includes(id)
+      && list.some((supplier) => supplier.supplierId === id && (!supplier.hidden || id === currentId))) ids.push(id);
   });
   return ids.slice(0, 5).map((id) => list.find((supplier) => supplier.supplierId === id)!);
 }
@@ -169,7 +174,7 @@ export function ShopsDialog({
 }) {
   const { t } = useTranslation();
   const { list, supplierId, unreadOf } = useShops();
-  const { pinned, recent } = useShopMemory();
+  const { pinned } = useShopMemory();
   const [query, setQuery] = useState('');
   // «Все» — по умолчанию: фильтр по виду товаров не выбран, пока клиент
   // не нажал чип сам.
@@ -203,9 +208,26 @@ export function ShopsDialog({
 
   const byId = (id: string) => filtered.find((supplier) => supplier.supplierId === id);
 
+  // Группы (решение владельца 2026-10-30): закреплённые → с новостями и корзиной → все А–Я,
+  // скрытые — свёрнутыми внизу. Поиск находит и скрытые: иначе вернуть магазин было бы негде найти.
+  const pinnedRows = pinned.map(byId)
+    .filter((supplier): supplier is PortalSupplierDto => !!supplier && !supplier.hidden);
+  const busyRows = filtered
+    .filter((supplier) => !supplier.hidden && !pinned.includes(supplier.supplierId)
+      && (unreadOf(supplier.supplierId) > 0 || (supplier.cartLines ?? 0) > 0))
+    .sort((a, b) => sortKey(a.name).localeCompare(sortKey(b.name), 'ru'));
+  const hiddenRows = filtered.filter((supplier) => supplier.hidden)
+    .sort((a, b) => sortKey(a.name).localeCompare(sortKey(b.name), 'ru'));
+  const [hiddenOpen, setHiddenOpen] = useState(false);
+  const others = (supplier: PortalSupplierDto) =>
+    list.filter((one) => one.supplierId !== supplier.supplierId && !one.hidden);
+
+  // Кто уже стоит выше — закреплённые и с новостями, — в общем списке не повторяется.
+  const above = searching ? '' : [...pinnedRows, ...busyRows].map((supplier) => supplier.supplierId).join(',');
   const groups = useMemo(() => {
     const matched = filtered
-      .filter((supplier) => !needle || supplier.name.toLowerCase().includes(needle))
+      .filter((supplier) => (needle ? supplier.name.toLowerCase().includes(needle)
+        : !supplier.hidden && !above.split(',').includes(supplier.supplierId)))
       .sort((a, b) => sortKey(a.name).localeCompare(sortKey(b.name), 'ru'));
     const result: { letter: string; items: PortalSupplierDto[] }[] = [];
     matched.forEach((supplier) => {
@@ -215,20 +237,12 @@ export function ShopsDialog({
       else result.push({ letter, items: [supplier] });
     });
     return result;
-  }, [filtered, needle]);
-
-  const pinnedRows = pinned.map(byId).filter((supplier): supplier is PortalSupplierDto => !!supplier);
-  const recentRows = recent
-    .filter((id) => !pinned.includes(id))
-    .map(byId)
-    .filter((supplier): supplier is PortalSupplierDto => !!supplier)
-    .slice(0, 4);
+  }, [filtered, needle, above]);
 
   const row = (supplier: PortalSupplierDto) => {
     const current = supplier.supplierId === supplierId;
     const pin = pinned.includes(supplier.supplierId);
     const unread = unreadOf(supplier.supplierId);
-    const pinLabel = t(pin ? 'shops.unpin' : 'shops.pin', { name: supplier.name });
     return (
       <div
         key={supplier.supplierId}
@@ -252,35 +266,21 @@ export function ShopsDialog({
             <span className="truncate text-base font-bold text-ink">{supplier.name}</span>
             {/* Подпись продавца — та же, что в колонке: чем магазин торгует. */}
             {(unread > 0 || supplier.tagline) && (
-              <span className="truncate text-[0.8438rem] text-ink-muted">
+              <span className="truncate text-caption text-ink-muted">
                 {unread > 0 ? t('shops.news', { count: unread }) : supplier.tagline}
               </span>
             )}
           </span>
           {current ? (
-            <span className="flex h-7 shrink-0 items-center rounded-[var(--radius-pill)] bg-accent-soft px-2.5 text-[0.7812rem] font-bold text-accent-ink">
+            <span className="flex h-7 shrink-0 items-center rounded-[var(--radius-pill)] bg-accent-soft px-2.5 text-caption font-bold text-accent-ink">
               {t('shops.here')}
             </span>
           ) : (
             <ChevronRight aria-hidden="true" className="size-[18px] shrink-0 text-ink-subtle" />
           )}
         </button>
-        <button
-          type="button"
-          aria-pressed={pin}
-          aria-label={pinLabel}
-          title={pinLabel}
-          onClick={() => togglePin(supplier.supplierId)}
-          className={cn(
-            'flex size-12 shrink-0 items-center justify-center rounded-[var(--radius-control)] hover:bg-canvas',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-          )}
-        >
-          <Star
-            aria-hidden="true"
-            className={cn('size-5', pin ? 'fill-[#D97706] text-[#D97706]' : 'text-ink-subtle')}
-          />
-        </button>
+        {pin && <Star role="img" aria-hidden={false} aria-label={t('shops.pinnedMark')} className="size-4 shrink-0 fill-star text-star" />}
+        <ShopActions supplier={supplier} pinned={pin} others={others(supplier)} />
       </div>
     );
   };
@@ -326,10 +326,10 @@ export function ShopsDialog({
                 </Dialog.Close>
               )}
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <Dialog.Title className={wide ? 'text-[1.625rem] font-extrabold tracking-[-0.02em] text-ink' : 'text-[1.375rem] font-black tracking-[-0.02em] text-ink'}>
+                <Dialog.Title className={wide ? 'text-display font-extrabold tracking-[-0.02em] text-ink' : 'text-title font-black tracking-[-0.02em] text-ink'}>
                   {t('shops.title')}
                 </Dialog.Title>
-                <p id="shops-dialog-note" className={wide ? 'text-body text-ink-muted' : 'text-[0.8125rem] text-ink-muted'}>
+                <p id="shops-dialog-note" className={wide ? 'text-body text-ink-muted' : 'text-caption text-ink-muted'}>
                   {t('shops.note', { count: list.length })}
                 </p>
                 {onShowAll && (
@@ -380,7 +380,7 @@ export function ShopsDialog({
             </label>
 
             {showKinds && (
-              <div role="group" aria-label={t('shops.kinds')} className="flex flex-wrap gap-2">
+              <div role="group" aria-label={t('shops.kinds')} className={cn(CHIP_ROW, 'gap-2')}>
                 <button
                   type="button"
                   aria-pressed={active === 'all'}
@@ -428,30 +428,33 @@ export function ShopsDialog({
             {!searching && pinnedRows.length > 0 && (
               <section className="flex flex-col gap-1.5">
                 <h3 className="flex items-center gap-2 px-1 text-sm font-extrabold text-ink">
-                  <Star aria-hidden="true" className="size-4 fill-[#D97706] text-[#D97706]" />
+                  <Star aria-hidden="true" className="size-4 fill-star text-star" />
                   {t('shops.pinned')}
                 </h3>
                 {pinnedRows.map(row)}
               </section>
             )}
 
-            {!searching && recentRows.length > 0 && (
+            {!searching && busyRows.length > 0 && (
               <section className="flex flex-col gap-1.5">
                 <h3 className="flex items-center gap-2 px-1 text-sm font-extrabold text-ink">
                   <Clock aria-hidden="true" className="size-4 text-ink-muted" />
-                  {t('shops.recent')}
+                  {t('shops.busy')}
                 </h3>
-                {recentRows.map(row)}
+                {busyRows.map(row)}
               </section>
             )}
 
+            {/* Все магазины уже показаны выше и клиент не искал — пустой «Остальные» ни к чему. */}
+            {searching || groups.length > 0 || !above ? (
             <section className="flex flex-col gap-1.5">
               <h3 className="px-1 text-sm font-extrabold text-ink">
-                {searching ? t('shops.found') : t('shops.everything')}
+                {searching ? t('shops.found') : above ? t('shops.rest') : t('shops.everything')}
               </h3>
               {groups.length === 0 && (
                 <p className="rounded-[calc(var(--radius-tile)*1.125)] bg-sunk px-4 py-7 text-center text-body leading-normal text-ink-muted">
-                  {t('shops.nothing')}
+                  {/* «Проверьте название» — только после поиска; без него магазинов просто ещё нет. */}
+                  {searching ? t('shops.nothing') : t('shops.none')}
                 </p>
               )}
               {groups.map((group) => (
@@ -463,6 +466,22 @@ export function ShopsDialog({
                 </div>
               ))}
             </section>
+            ) : null}
+
+            {!searching && hiddenRows.length > 0 && (
+              <section className="flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  aria-expanded={hiddenOpen}
+                  onClick={() => setHiddenOpen((was) => !was)}
+                  className="flex items-center gap-2 self-start px-1 text-sm font-extrabold text-ink-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <ChevronRight aria-hidden="true" className={cn('size-4 transition-transform duration-200', hiddenOpen && 'rotate-90')} />
+                  {t('shops.hidden', { count: hiddenRows.length })}
+                </button>
+                {hiddenOpen && hiddenRows.map(row)}
+              </section>
+            )}
 
             {!searching && <p className="px-1 text-caption text-ink-subtle">{t('shops.pinHint')}</p>}
 
@@ -490,11 +509,13 @@ export function ShopsDialog({
                   <Plus className="size-[1.375rem]" />
                 </span>
                 <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="text-[0.9375rem] font-bold text-accent-ink">{t('referral.shopsItem')}</span>
-                  <span className="text-[0.8125rem] text-ink-muted">{t('referral.shopsItemNote')}</span>
+                  <span className="text-body font-bold text-accent-ink">{t('referral.shopsItem')}</span>
+                  <span className="text-caption text-ink-muted">{t('referral.shopsItemNote')}</span>
                 </span>
               </button>
             ))}
+            {/* QR магазина или продавца — камерой приложения; в браузере кнопки нет. */}
+            <ScanQrButton onScanned={() => onOpenChange(false)} />
           </div>
         </Dialog.Content>
       </Dialog.Portal>

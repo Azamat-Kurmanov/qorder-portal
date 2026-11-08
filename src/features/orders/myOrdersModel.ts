@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import type { PortalNotificationDto, PortalOrderDto } from '../../api/generated';
 
 /**
@@ -20,6 +21,19 @@ export function kindOf(order: PortalOrderDto): OrderKind {
   }
 }
 
+/**
+ * Продавец ничего не менял, а только назвал сумму, которой не было (договорная доставка,
+ * грузчики): о чём он спрашивает — «стоимость доставки», «грузчиков» или обеих.
+ * Пусто — в ответе продавца есть настоящие правки, или ответа не ждут.
+ */
+export function namedPriceOf(order: PortalOrderDto): 'delivery' | 'loaders' | 'both' | null {
+  const diff = order.diff ?? [];
+  if (!order.needsAnswer || diff.length === 0 || diff.some((change) => change.kind !== 'PRICE_NAMED')) return null;
+  const loaders = diff.some((change) => change.name === 'Грузчики');
+  const delivery = diff.some((change) => change.name !== 'Грузчики');
+  return loaders && delivery ? 'both' : loaders ? 'loaders' : 'delivery';
+}
+
 /** Фильтры-чипы над списком. «У продавца» — всё, где ход не за клиентом и заявка ещё идёт. */
 export const FILTERS = ['all', 'answer', 'ready', 'seller', 'done', 'cancelled'] as const;
 export type OrderFilter = (typeof FILTERS)[number];
@@ -30,9 +44,6 @@ export function matchesFilter(order: PortalOrderDto, filter: OrderFilter): boole
   if (filter === 'seller') return kind === 'review' || kind === 'accepted';
   return kind === filter;
 }
-
-export const SORTS = ['recent', 'newest', 'oldest', 'sumDesc', 'sumAsc'] as const;
-export type OrderSort = (typeof SORTS)[number];
 
 /** Сколько заявок на странице: по умолчанию первое — десять, как в макете. */
 export const ORDER_SIZES = [10, 20, 50];
@@ -47,7 +58,8 @@ export interface Unread {
 export function unreadByOrder(notifications: PortalNotificationDto[]): Map<string, Unread> {
   const map = new Map<string, Unread>();
   for (const notification of notifications) {
-    if (!notification.draftId) continue;
+    // Ответы на вопросы и отзывы — в своих разделах, не у заявок.
+    if (!notification.draftId || notification.kind === 'QUESTION_ANSWERED' || notification.kind === 'REVIEW_ANSWERED') continue;
     const entry = map.get(notification.draftId) ?? { count: 0, latest: notification.createdAt, ids: [] };
     entry.count += 1;
     entry.ids.push(notification.id);
@@ -83,11 +95,6 @@ export function lastMessage(order: PortalOrderDto, unread?: Unread): LastMessage
   return { at: eventAt };
 }
 
-/** Количество штук в заявке: сумма количеств по строкам. */
-export function pieces(order: PortalOrderDto): number {
-  return linesOf(order).reduce((sum, line) => sum + line.quantity, 0);
-}
-
 /**
  * Что показывать составом: у заявки, ждущей ответа, — то, что предлагает
  * продавец, ведь согласие относится к нему; у остальных — отправленное.
@@ -110,41 +117,19 @@ export function matchesSearch(order: PortalOrderDto, query: string): boolean {
 }
 
 /**
- * Порядок списка.
- *
- * «По последнему сообщению» поднимает заявки с новым наверх, а внутри —
- * по времени последнего сообщения: за этим клиент сюда и пришёл.
+ * Порядок списка: заявки с новым — наверх, внутри — по времени последнего сообщения:
+ * за этим клиент сюда и пришёл.
  */
-export function sorted(
-  orders: PortalOrderDto[],
-  sort: OrderSort,
-  unread: Map<string, Unread>,
-): PortalOrderDto[] {
-  const copy = [...orders];
-  switch (sort) {
-    case 'recent':
-      return copy.sort((a, b) => {
-        const fresh = Number(unread.has(b.id)) - Number(unread.has(a.id));
-        if (fresh !== 0) return fresh;
-        return lastMessage(b, unread.get(b.id)).at.localeCompare(lastMessage(a, unread.get(a.id)).at);
-      });
-    case 'newest':
-      return copy.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    case 'oldest':
-      return copy.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    case 'sumDesc':
-      return copy.sort((a, b) => totalOf(b) - totalOf(a));
-    case 'sumAsc':
-      return copy.sort((a, b) => totalOf(a) - totalOf(b));
-  }
+export function sorted(orders: PortalOrderDto[], unread: Map<string, Unread>): PortalOrderDto[] {
+  return [...orders].sort((a, b) => {
+    const fresh = Number(unread.has(b.id)) - Number(unread.has(a.id));
+    if (fresh !== 0) return fresh;
+    return lastMessage(b, unread.get(b.id)).at.localeCompare(lastMessage(a, unread.get(a.id)).at);
+  });
 }
 
-/**
- * Заявки, которые открыты сразу: где ход за клиентом и есть новое — как
- * в макете. Прочитанную заявку клиент уже видел, и раскрытой она только
- * отодвигала бы остальные вниз.
- */
-export function openByDefault(order: PortalOrderDto, unread?: Unread): boolean {
-  const kind = kindOf(order);
-  return (kind === 'answer' || kind === 'ready') && unread !== undefined;
+/** «Продавец изменил заявку» — или, если он только назвал сумму, «назвал стоимость доставки». */
+export function answerText(order: PortalOrderDto, t: TFunction): string {
+  const named = namedPriceOf(order);
+  return named ? t(`orders.v2.priceNamed.${named}`) : t('orders.v2.whereText.answer');
 }

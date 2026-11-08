@@ -1,182 +1,206 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '../../ui/Button';
-import { Card } from '../../ui/Card';
-import { useGetPortalSuppliers, useGetPortalUnreadSummary, type PortalSupplierDto } from '../../api/generated';
-import { useSupplier } from '../../supplier/useSupplier';
+import { Link, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { useGetPortalProfile, useGetPortalSuppliers } from '../../api/generated';
 import { useAuth } from '../../auth/useAuth';
-import { entryChooseUrl } from '../../auth/oidcConfig';
+import { currentViewer, entryChooseUrl } from '../../auth/oidcConfig';
+import { phone as formatPhone } from '../../shared/format';
+import { SUPPORTED_LANGUAGES, currentLanguage } from '../../i18n';
+import { useAccountLanguage } from '../language/accountLanguage';
+import { FONT_SCALES, applyFontScale, currentFontScale, rememberFontScale } from '../../ui/fontScale';
+import { chooseTheme, useTheme } from '../../ui/theme';
+import { Switch } from '../../ui/Switch';
+import { BackTitle } from '../../ui/BackTitle';
+import { cn } from '../../ui/cn';
+import { ALargeSmall, ChevronLeft, ChevronRight, Globe, LogOut, Moon, Plus, Store, User } from '../../ui/icons';
+import { useWideScreen } from '../../ui/useWideScreen';
+import { useLogoutConfirm } from '../shell/LogoutConfirm';
+import { BACK } from '../shell/SectionHead';
+import { HOME } from '../../ui/sectionBack';
+import { useCurrentShop } from '../shell/Shops';
+import { InviteSupplierDialog } from '../referral/InviteSupplierDialog';
+import { InvitesPill } from '../shell/Invitations';
+import { MyReferrals } from '../referral/MyReferrals';
 import { CompanyBlock } from './CompanyBlock';
 import { PromoSubscription } from './PromoSubscription';
 import { PushBlock } from './PushBlock';
 import { ConsentsBlock } from './ConsentsBlock';
-import { ShopTile } from '../shell/Shops';
-import { SectionHead } from '../shell/SectionHead';
-import { hoursNow } from '../shell/shopHours';
-import { cn } from '../../ui/cn';
-import { MapPin, Search } from '../../ui/icons';
-import { InviteSupplierBlock } from '../referral/InviteSupplierBlock';
 
 /**
- * Профиль: с кем клиент работает и как переключиться.
+ * Профиль — «Вариант Б» (макеты SimplePicProfile / SimplePicWebProfile): кто вы, магазины,
+ * реквизиты, уведомления, согласия и то, как кабинет читается (язык, размер текста, тема).
  *
- * Переключатель здесь, а не в шапке каждого экрана: поставщиков у большинства
- * один, и постоянный выбор на виду создавал бы вопрос там, где его нет.
+ * Список магазинов живёт на «Мои магазины» (/shops) — здесь на него одна строка.
+ * Монитор: реквизиты слева, остальное справа, как в макете.
  */
 export function ProfilePage() {
   const { t } = useTranslation();
-  const suppliers = useGetPortalSuppliers();
-  const { supplierId, select } = useSupplier();
-  const { logout } = useAuth();
+  const wide = useWideScreen();
+  const fromHub = (useLocation().state as { from?: string } | null)?.from === 'all-shops';
+  const back = fromHub ? '/all-shops' : HOME;
+  const { phone } = useAuth();
+  const profile = useGetPortalProfile();
+  const name = profile.data?.status === 200 ? profile.data.data.customerName : undefined;
+  const number = phone ? formatPhone(phone) : undefined;
+  const logoutAsk = useLogoutConfirm();
   const chooseHref = entryChooseUrl();
 
-  const list = suppliers.data?.status === 200 ? suppliers.data.data : [];
+  const settings = <ReadingSettings />;
+  const logout = (
+    <button type="button" onClick={logoutAsk.ask}
+      className="flex h-16 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-control)] border-2 border-solid border-sale-ink/30 bg-surface text-lead font-extrabold text-sale-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+      <LogOut aria-hidden="true" className="size-5" />
+      {t('profile.logout')}
+    </button>
+  );
+  const switchCabinet = chooseHref ? (
+    <a href={chooseHref} className="self-center min-h-11 py-3 text-sm font-semibold text-accent-ink underline-offset-4 hover:underline">
+      {t('profile.switchCabinet')}
+    </a>
+  ) : null;
 
-  const summary = useGetPortalUnreadSummary();
-  const unreadOf = (id: string) => (summary.data?.status === 200 ? summary.data.data : [])
-    .find((row) => row.supplierId === id)?.unread ?? 0;
-
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<SupplierFilter>('all');
-  const needle = query.trim().toLocaleLowerCase();
-  const passes = (supplier: PortalSupplierDto, key: SupplierFilter) => {
-    if (key === 'open') return hoursNow(supplier.hours, t)?.open === true;
-    if (key === 'news') return unreadOf(supplier.supplierId) > 0;
-    if (key === 'cart') return (supplier.cartLines ?? 0) > 0;
-    return true;
-  };
-  const shown = list.filter((supplier) => passes(supplier, filter)
-    && (!needle || supplier.name.toLocaleLowerCase().includes(needle) || (supplier.tagline ?? '').toLocaleLowerCase().includes(needle)));
+  if (wide) {
+    return (
+      <div className="flex flex-col gap-5">
+        <BackTitle to={back} title={t('profile.pageTitle')} subtitle={[name, number].filter(Boolean).join(' · ') || undefined} />
+        <div className="grid grid-cols-[40rem_minmax(0,1fr)] items-start gap-7">
+          <div className="flex flex-col gap-3.5">
+            <CompanyBlock />
+            <ShopsCard />
+          </div>
+          <div className="flex flex-col gap-3.5">
+            <PushBlock />
+            <PromoSubscription />
+            {settings}
+            <ConsentsBlock />
+            <div className="flex gap-3">{logout}</div>
+            {switchCabinet}
+          </div>
+        </div>
+        {logoutAsk.sheet}
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Список поставщиков — по макетам К2.19 и ПК-К2.6: поиск, отборы и карточки
-          с часами, адресом и тем, что ждёт клиента у каждого. */}
-      <SectionHead title={t('profile.title')} subtitle={list.length > 0 ? t('profile.count', { count: list.length }) : undefined} />
-
-      {list.length === 0 && (
-        <p className="text-ink-subtle">{t('profile.empty')}</p>
-      )}
-
-      {list.length > 3 && (
-        <label className="relative flex items-center">
-          <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 size-5 text-ink-faint" />
-          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('shops.searchPlaceholder')} aria-label={t('shops.search')}
-            className="h-12 w-full rounded-[0.875rem] border-0 bg-surface pl-11 pr-3 text-[0.9375rem] text-ink placeholder:text-ink-subtle focus:outline-none focus:ring-2 focus:ring-accent" />
-        </label>
-      )}
-
-      {list.length > 1 && (
-        <div role="group" aria-label={t('profile.filters.label')} className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:px-0">
-          {SUPPLIER_FILTERS.map((key) => {
-            const count = list.filter((supplier) => passes(supplier, key)).length;
-            if (key !== 'all' && count === 0) return null;
-            const active = filter === key;
-            return (
-              <button key={key} type="button" aria-pressed={active} onClick={() => setFilter(key)}
-                className={cn(
-                  'inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-pill)] px-3.5 text-sm font-semibold',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                  active ? 'bg-ink text-on-ink' : 'bg-surface text-ink',
-                )}>
-                {t(`profile.filters.${key}`)}
-                <span className="opacity-60">{count}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[repeat(2,minmax(0,1fr))] lg:gap-5">
-        {shown.map((supplier) => (
-          <SupplierCard key={supplier.supplierId} supplier={supplier} current={supplier.supplierId === supplierId}
-            unread={unreadOf(supplier.supplierId)} onSelect={() => select(supplier.supplierId)} />
-        ))}
+    <div className="flex flex-col gap-2.5 pb-4">
+      <div className="flex items-center gap-3.5 pt-1 pb-1">
+        {/* «Назад» на «Главную» магазина, а из «Все магазины» — обратно в «Дела» (просьба владельца 2026-11-07). */}
+        <Link to={back} aria-label={t('common.back')} className={BACK}>
+          <ChevronLeft aria-hidden="true" className="size-7" />
+        </Link>
+        <span aria-hidden="true" className="flex size-16 shrink-0 items-center justify-center rounded-full bg-ok-soft text-shop-ink">
+          <User className="size-8" />
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <h1 className="m-0 truncate text-title font-extrabold leading-tight text-ink">{name ?? t('profile.pageTitle')}</h1>
+          {number ? <span className="text-body text-ink-muted">{number}</span> : null}
+        </span>
       </div>
-
-      <PromoSubscription />
-
-      <PushBlock />
-
-      <InviteSupplierBlock />
-
-      {/*
-        Согласия здесь, а не отдельным разделом в рельсе: это справка о себе,
-        за которой приходят раз в год, и место в постоянной навигации она
-        занимала бы у экранов, которыми пользуются каждый день.
-      */}
+      <ShopsCard />
       <CompanyBlock />
-
+      <PushBlock />
       <ConsentsBlock />
-
-      {/* На экран выбора «Кто вы?» единого входа; сессия здесь не закрывается. */}
-      {chooseHref ? (
-        <a href={chooseHref} className="self-start min-h-11 py-3 text-sm font-semibold text-accent-ink underline-offset-4 hover:underline">
-          {t('profile.switchCabinet')}
-        </a>
-      ) : null}
-      <Button variant="ghost" onClick={logout}>{t('profile.logout')}</Button>
+      <PromoSubscription />
+      {settings}
+      {logout}
+      {switchCabinet}
+      {logoutAsk.sheet}
     </div>
   );
 }
 
-const SUPPLIER_FILTERS = ['all', 'open', 'news', 'cart'] as const;
-type SupplierFilter = (typeof SUPPLIER_FILTERS)[number];
+const ROW = 'flex w-full cursor-pointer items-center gap-3.5 bg-transparent px-4 py-3.5 text-left text-ink no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent';
 
-/** Карточка поставщика: кто, чем торгует, открыт ли, где — и что ждёт клиента у него. */
-function SupplierCard({ supplier, current, unread, onSelect }: {
-  supplier: PortalSupplierDto;
-  current: boolean;
-  unread: number;
-  onSelect: () => void;
-}) {
-  const { t } = useTranslation();
-  const live = hoursNow(supplier.hours, t);
-  const cart = supplier.cartLines ?? 0;
+function RowBody({ icon, label, hint, note }: { icon: ReactNode; label: string; hint?: string; note?: ReactNode }) {
   return (
-    <Card
-      data-testid="supplier-row"
-      className={cn('flex flex-col gap-3 p-4', current && 'shadow-[inset_0_0_0_2px_var(--color-accent)]')}
-    >
-      <div className="flex items-center gap-3">
-        <ShopTile supplier={supplier} className="size-[3.25rem] rounded-2xl text-lg" />
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-base font-bold text-ink">{supplier.name}</span>
-          <span className="truncate text-[0.8125rem] text-ink-muted">
-            {[supplier.tagline, live?.short].filter(Boolean).join(' · ')}
-          </span>
-        </div>
-        {current ? (
-          <span className="inline-flex h-6 shrink-0 items-center rounded-[var(--radius-pill)] bg-accent-soft px-2.5 text-xs font-bold text-accent-ink">
-            {t('profile.selected')}
-          </span>
-        ) : (
-          <Button variant="soft" className="h-10 shrink-0 px-4" onClick={onSelect}>{t('profile.switch')}</Button>
+    <>
+      <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-[0.875rem] bg-ok-soft text-shop-ink">{icon}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <b className="text-lead font-extrabold">{label}</b>
+        {hint ? <span className="truncate text-caption text-ink-muted">{hint}</span> : null}
+        {note}
+      </span>
+      <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-ink-faint" />
+    </>
+  );
+}
+
+/** «Мои магазины» и «Пригласить поставщика» — одной карточкой, как в макете. */
+function ShopsCard() {
+  const { t } = useTranslation();
+  const suppliers = useGetPortalSuppliers();
+  const count = suppliers.data?.status === 200 ? suppliers.data.data.length : 0;
+  const shop = useCurrentShop();
+  const [inviting, setInviting] = useState(false);
+  const staff = currentViewer() === 'staff';
+  const hint = [count > 0 ? t('profile.shops', { count }) : null, shop ? t('more.rows.shops', { name: shop.name }) : null]
+    .filter(Boolean).join(' · ');
+  return (
+    <>
+      <div className="overflow-hidden rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface">
+        <Link to="/shops" className={ROW}>
+          <RowBody icon={<Store className="size-6" />} label={t('more.myShops')} hint={hint || undefined} note={<InvitesPill />} />
+        </Link>
+        {staff ? null : (
+          <button type="button" onClick={() => setInviting(true)} className={cn(ROW, 'border-0 border-t-2 border-solid border-hairline')}>
+            <RowBody icon={<Plus className="size-6" />} label={t('more.inviteSupplier')} hint={t('more.rows.invite')} />
+          </button>
         )}
       </div>
-      {supplier.address && (
-        <span className="flex items-center gap-2 text-[0.8125rem] text-ink-muted">
-          <MapPin aria-hidden="true" className="size-4 shrink-0" />
-          <span className="truncate">{supplier.address}</span>
-        </span>
-      )}
-      {(unread > 0 || cart > 0) && (
-        <div className="flex flex-wrap gap-1.5">
-          {/* Ноль не рисуется — пустая пилюля читается как неполадка. */}
-          {unread > 0 && (
-            <span role="img" aria-label={t('profile.unread', { count: unread })}
-              className="inline-flex h-6 items-center rounded-[var(--radius-pill)] bg-sale-soft px-2.5 text-xs font-bold text-sale-ink">
-              {t('shops.news', { count: unread })}
-            </span>
-          )}
-          {cart > 0 && (
-            <span className="inline-flex h-6 items-center rounded-[var(--radius-pill)] bg-sage-soft px-2.5 text-xs font-bold text-accent-ink">
-              {t('shops.inCart', { count: cart })}
-            </span>
-          )}
-        </div>
-      )}
-    </Card>
+      {staff ? null : <MyReferrals />}
+      <InviteSupplierDialog open={inviting} onOpenChange={setInviting} />
+    </>
+  );
+}
+
+const CHOICE = 'flex min-h-12 flex-1 cursor-pointer items-center justify-center rounded-2xl border-[3px] border-solid px-1.5 text-center text-caption font-extrabold leading-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+const on = (active: boolean) => (active ? 'border-shop bg-shop text-on-shop' : 'border-line bg-surface text-ink');
+
+/** Язык, размер текста и тема — крупными кнопками на виду, а не в меню. */
+function ReadingSettings() {
+  const { t, i18n } = useTranslation();
+  const queryClient = useQueryClient();
+  const { save } = useAccountLanguage();
+  const language = currentLanguage();
+  const [scale, setScale] = useState(currentFontScale);
+  const dark = useTheme() === 'dark';
+  const heading = (icon: ReactNode, text: string, id?: string) => (
+    <b id={id} className="flex items-center gap-1.5 text-lead font-extrabold text-ink">
+      <span aria-hidden="true" className="text-shop-ink">{icon}</span>{text}
+    </b>
+  );
+  return (
+    <section className="flex flex-col gap-2.5 rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface p-4">
+      {heading(<Globe className="size-5" />, t('more.language'))}
+      <div role="group" aria-label={t('more.language')} className="flex gap-1.5">
+        {SUPPORTED_LANGUAGES.map((lng) => (
+          <button key={lng} type="button" aria-pressed={lng === language} className={cn(CHOICE, on(lng === language))}
+            onClick={() => {
+              if (lng === language) return;
+              void i18n.changeLanguage(lng);
+              // Ответы сервера переведены по заголовку — старые тексты не должны пережить смену языка.
+              queryClient.clear();
+              save(lng);
+            }}>
+            {t(`language.full.${lng}`)}
+          </button>
+        ))}
+      </div>
+      {heading(<ALargeSmall className="size-5" />, t('more.fontSize'))}
+      <div role="group" aria-label={t('more.fontSize')} className="flex gap-1.5">
+        {FONT_SCALES.map((step) => (
+          <button key={step} type="button" aria-pressed={step === scale} className={cn(CHOICE, on(step === scale))}
+            onClick={() => { setScale(step); applyFontScale(step); rememberFontScale(step); }}>
+            {t(`fontScale.${step}`)}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="flex-1">{heading(<Moon className="size-5" />, t('theme.label'), 'profile-dark')}</span>
+        <Switch on={dark} labelledBy="profile-dark" onToggle={() => chooseTheme(dark ? 'light' : 'dark')} />
+      </div>
+    </section>
   );
 }

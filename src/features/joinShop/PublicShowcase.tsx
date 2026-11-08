@@ -4,6 +4,7 @@ import { useGetJoinShopCategories, useGetJoinShopItems } from '../../api/generat
 import { Button } from '../../ui/Button';
 import { cn } from '../../ui/cn';
 import { ItemThumb } from '../catalog/ItemThumb';
+import { CHIP_ROW } from '../../ui/chipRow';
 
 const PAGE = 24;
 
@@ -14,12 +15,20 @@ const PAGE = 24;
  * снимки, рубрики. Цен, остатков и корзины нет — их он увидит в кабинете, когда
  * продавец одобрит доступ. Сама заявка — окном поверх витрины.
  */
-export function PublicShowcase({ code }: { code: string }) {
+export function PublicShowcase({ code, categoryId: initialCategory, novelty = false, personal = false }: {
+  code: string;
+  /** Личная ссылка продавца: одобрения нет — цены откроются, как только номер подтверждён. */
+  personal?: boolean;
+  /** Раздел из ссылки «Поделиться» — выбран сразу. */
+  categoryId?: string;
+  /** Ссылка «Поделиться» на новинки: только они. */
+  novelty?: boolean;
+}) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
-  const [categoryId, setCategoryId] = useState<string | undefined>();
+  const [categoryId, setCategoryId] = useState<string | undefined>(initialCategory);
   const [page, setPage] = useState(0);
-  const items = useGetJoinShopItems(code, { query: query.trim() || undefined, categoryId, page, size: PAGE });
+  const items = useGetJoinShopItems(code, { query: query.trim() || undefined, categoryId, novelty: novelty || undefined, page, size: PAGE });
   const categories = useGetJoinShopCategories(code);
   const data = items.data?.status === 200 ? items.data.data : undefined;
   const roots = (categories.data?.status === 200 ? categories.data.data : []).filter((category) => !category.parentId);
@@ -27,19 +36,19 @@ export function PublicShowcase({ code }: { code: string }) {
 
   return (
     <section aria-label={t('joinShop.showcase.title')} className="flex w-full max-w-[1080px] flex-col gap-4">
-      <p className="m-0 text-sm text-ink-muted">{t('joinShop.showcase.noPrices')}</p>
+      <p className="m-0 text-sm text-ink-muted">{t(personal ? 'joinShop.showcase.noPricesPersonal' : 'joinShop.showcase.noPrices')}</p>
 
       <input type="search" value={query} aria-label={t('joinShop.showcase.search')} placeholder={t('joinShop.showcase.search')}
         onChange={(event) => { setQuery(event.target.value); setPage(0); }}
-        className="h-11 rounded-[var(--radius-control)] border-[1.5px] border-solid border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-subtle focus:border-accent focus:outline-none" />
+        className="h-11 rounded-[var(--radius-control)] border-[1.5px] border-solid border-field-line bg-surface px-3 text-sm text-ink placeholder:text-ink-subtle focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none" />
 
       {roots.length > 0 ? (
-        <div role="radiogroup" aria-label={t('joinShop.showcase.categories')} className="flex flex-wrap gap-2">
+        <div role="radiogroup" aria-label={t('joinShop.showcase.categories')} className={cn(CHIP_ROW, 'gap-2')}>
           {[{ id: undefined, name: t('joinShop.showcase.all') }, ...roots].map((category) => (
             <button key={category.id ?? 'all'} type="button" role="radio" aria-checked={categoryId === category.id}
               onClick={() => { setCategoryId(category.id); setPage(0); }}
               className={cn(
-                'h-9 cursor-pointer rounded-[var(--radius-pill)] border-[1.5px] border-solid px-4 text-[0.8125rem] font-semibold',
+                'qo-hit h-9 cursor-pointer rounded-[var(--radius-pill)] border-[1.5px] border-solid px-4 text-caption font-semibold',
                 categoryId === category.id ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line bg-surface text-ink',
               )}>
               {category.name}

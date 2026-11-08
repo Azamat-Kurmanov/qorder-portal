@@ -91,7 +91,7 @@ describe('фото и размер в отзыве', () => {
 
     expect(await screen.findByText('Оцените товар')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Отправить отзыв' })).toBeInTheDocument();
-    expect(screen.queryByText(/Вы покупали этот товар/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Вы заказывали этот товар/)).not.toBeInTheDocument();
     expect(screen.queryByText(/после покупки/i)).not.toBeInTheDocument();
   });
 

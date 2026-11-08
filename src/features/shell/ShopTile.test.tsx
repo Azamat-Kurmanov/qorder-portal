@@ -10,4 +10,14 @@ describe('знак магазина', () => {
     expect(screen.queryByRole('img')).toBeNull();
     expect(screen.getByText('ИМ')).toBeInTheDocument();
   });
+
+  /** Буква на чужом цвете: надпись по цвету этого магазина, а не по `on-brand` открытого. */
+  it('буква читается на светлом и на тёмном цвете магазина', () => {
+    renderScreen(<>
+      <ShopTile supplier={{ name: 'Жёлтый', brandColor: '#FFC629' }} />
+      <ShopTile supplier={{ name: 'Синий', brandColor: '#0038FF' }} />
+    </>);
+    expect(screen.getByText('Ж')).toHaveStyle({ color: '#1A1917' });
+    expect(screen.getByText('С')).toHaveStyle({ color: '#FFFFFF' });
+  });
 });

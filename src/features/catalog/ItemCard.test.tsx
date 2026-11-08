@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 import { ItemCardPage } from './ItemCardPage';
 import { renderScreen } from '../../test/render';
 import { get, method, stubFetch, type StubbedResponse } from '../../test/http';
@@ -79,6 +79,23 @@ function renderCard() {
   return renderScreen(
     <Routes>
       <Route path="/catalog/:itemId" element={<ItemCardPage />} />
+    </Routes>,
+    { route: '/catalog/item-1' },
+  );
+}
+
+/** Куда увела кнопка вопроса: путь с запросом. */
+function Where() {
+  const { pathname, search } = useLocation();
+  return <h1>{pathname + search}</h1>;
+}
+
+/** Карточка и переписка: вопрос о товаре ведёт в «Вопрос продавцу». */
+function renderCardWithQuestions() {
+  return renderScreen(
+    <Routes>
+      <Route path="/catalog/:itemId" element={<ItemCardPage />} />
+      <Route path="/questions/*" element={<Where />} />
     </Routes>,
     { route: '/catalog/item-1' },
   );
@@ -215,8 +232,7 @@ describe('карточка товара', () => {
       'Объём1.5 л',
       'МаркаМ400',
       'Вес50 кг',
-      // Как продаётся — выведено из единицы и кратности, строкой в конце.
-      'Продаётсяв единицах «мешок»',
+      // «Продаётся — в единицах «мешок»» не выводится: единица видна у цены (2026-11-06).
     ]);
 
     // Характеристика без значения заняла бы строку сообщением ни о чём.
@@ -276,7 +292,7 @@ describe('карточка товара', () => {
     }));
     renderCard();
 
-    const toggle = await screen.findByRole('button', { name: 'Что в прессе' });
+    const toggle = await screen.findByRole('button', { name: 'Что внутри' });
     expect(screen.getByTestId('pack-contents')).not.toBeVisible();
     await userEvent.click(toggle);
     expect(screen.getByTestId('pack-contents')).toHaveTextContent('Худи · S');
@@ -290,23 +306,41 @@ describe('карточка товара', () => {
     };
     const BOTH = { ...CARD, price: 100, wholesale: WHOLESALE };
 
+    it('товар одного способа: на чужом способе — предупреждение, на своём — нет', async () => {
+      stubFetch([
+        get('/api/portal/catalog/counts', { all: 2, sale: 0, novelty: 0, byCategory: {}, retail: 1, wholesale: 1, both: 0 }),
+        ...cardRules(CARD),
+      ]);
+      renderCard();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Оптом' }));
+      expect(screen.getByRole('status')).toHaveTextContent('Этот товар продаётся только в розницу');
+      await userEvent.click(screen.getByRole('button', { name: 'В розницу' }));
+      expect(screen.queryByText('Этот товар продаётся только в розницу')).not.toBeInTheDocument();
+    });
+
     it('«В розницу» по умолчанию — без условий опта; «Оптом» — условия, сумма и разбиение, строка уходит с режимом', async () => {
       const { calls } = stubFetch(cardRules(BOTH));
       renderCard();
 
       const retail = await screen.findByRole('button', { name: /^В розницу/ });
       expect(retail).toHaveAttribute('aria-pressed', 'true');
-      // Опт виден и в рознице — ценой на самом переключателе: 170 за упаковку из 2 = 85 за мешок.
-      expect(screen.getByRole('button', { name: /^Оптом/ })).toHaveTextContent('от 85 ₸ за мешок');
+      // В «В розницу» об опте не говорится ничего — даже ценой на переключателе (решение владельца 2026-11-06).
+      expect(screen.getByRole('button', { name: /^Оптом/ })).toHaveTextContent(/^Оптом$/);
+      expect(screen.queryByText(/за упаковку|от 85 ₸/)).not.toBeInTheDocument();
       expect(screen.queryByTestId('wholesale-terms')).not.toBeInTheDocument();
       await userEvent.click(screen.getByRole('button', { name: /^Оптом/ }));
 
       const terms = await screen.findByTestId('wholesale-terms');
-      expect(within(terms).getByText('Как купить по оптовой цене')).toBeInTheDocument();
-      expect(terms).toHaveTextContent(/2 упаковки и больше \(4 мешка\).*При меньшем количестве — по розничной цене 100 ₸ за мешок/);
+      expect(within(terms).getByText('Оптовые цены')).toBeInTheDocument();
+      expect(terms).toHaveTextContent('1 упаковка = 2 мешка');
+      // Крупно — цена за мешок и выгода к рознице, мельче — цена упаковки.
+      const [first] = within(terms).getAllByTestId('wholesale-tier');
+      expect(first).toHaveTextContent(/2 упаковки и больше\s*4 мешка\s*−10%\s*90 ₸\s*за мешок\s*180 ₸ за упаковку/);
+      expect(terms).toHaveTextContent('При меньшем количестве — по розничной цене 100 ₸ за мешок');
+      // Сколько добрать до опта.
+      expect(within(terms).getByTestId('wholesale-next')).toHaveTextContent('Ещё 3 мешка — и цена 90 ₸ за мешок');
       expect(screen.queryByRole('radiogroup', { name: 'Как покупать' })).not.toBeInTheDocument();
-      await userEvent.click(within(terms).getByRole('button', { name: 'Что в упаковке' }));
-      expect(within(terms).getByTestId('pack-contents')).toHaveTextContent(/Цемент М400\s*2 мешка/);
       expect(screen.getByTestId('item-sum')).toHaveTextContent(/100 ₸/);
 
       for (let i = 0; i < 4; i += 1) await userEvent.click(screen.getByRole('button', { name: 'Больше' }));
@@ -342,17 +376,17 @@ describe('карточка товара', () => {
       });
     });
 
-    it('«Оптом в корзину» — минимум опта одним нажатием, раскладывает сервер', async () => {
-      const { calls } = stubFetch([
-        method('POST', '/api/portal/cart/wholesale/item-1', emptyCart),
-        ...cardRules(BOTH),
-      ]);
+    it('нажатая ступень опта подставляет её количество; отдельной «Оптом в корзину» у товара без размеров нет', async () => {
+      stubFetch(cardRules(BOTH));
       renderCard();
 
       await userEvent.click(await screen.findByRole('button', { name: /^Оптом/ }));
-      await userEvent.click(screen.getByRole('button', { name: 'Оптом в корзину: 4 мешка' }));
-
-      await waitFor(() => expect(calls.some((call) => call.url.includes('/api/portal/cart/wholesale/item-1') && call.init?.method === 'POST')).toBe(true));
+      expect(screen.queryByRole('button', { name: /Оптом в корзину|Разложить минимум/ })).not.toBeInTheDocument();
+      await userEvent.click(within(screen.getAllByTestId('wholesale-tier')[1]).getByRole('button'));
+      // 3 упаковки = 6 мешков по 170 за упаковку.
+      expect(screen.getByTestId('item-sum')).toHaveTextContent(/510 ₸/);
+      expect(screen.getAllByTestId('wholesale-tier')[1]).toHaveAttribute('aria-current', 'true');
+      expect(screen.queryByTestId('wholesale-next')).not.toBeInTheDocument();
     });
 
     it('своя цена клиента — выбора нет, условия опта как раньше', async () => {
@@ -368,7 +402,7 @@ describe('карточка товара', () => {
       renderCard();
 
       await userEvent.click(await screen.findByRole('button', { name: /^Оптом/ }));
-      expect(await screen.findByText('Скидка распродажи — только при покупке штуками')).toBeInTheDocument();
+      expect(await screen.findByText('Скидка распродажи — только при заказе штуками')).toBeInTheDocument();
     });
 
     it('товар «только опт» — счёт упаковками, в корзину уходят штуки', async () => {
@@ -388,6 +422,18 @@ describe('карточка товара', () => {
         const sent = calls.find((call) => call.init?.method === 'PUT');
         expect(JSON.parse(String(sent?.init?.body))).toEqual({ quantity: 100 });
       });
+    });
+
+    it('линейка продаётся сама собой: «за линейку», без строки «1 линейка = 1 линейка × цена»', async () => {
+      stubFetch(cardRules({
+        ...CARD, unit: 'линейка', price: 80000,
+        terms: { hit: false, novelty: false, ageRestricted: false, minQuantity: 1, quantityStep: 1 },
+        wholesale: { ...WHOLESALE, unit: 'линейка', pieceUnit: 'линейка', packQty: 1, retail: false, tiers: [{ from: 1, price: 80000 }] },
+      }));
+      renderCard();
+
+      expect(await screen.findByTestId('wholesale-terms')).toHaveTextContent('за линейку');
+      expect(screen.queryByTestId('wholesale-split')).not.toBeInTheDocument();
     });
   });
 
@@ -483,8 +529,8 @@ describe('карточка товара', () => {
     renderCard();
 
     expect(await screen.findByText('Оцените товар')).toBeInTheDocument();
-    expect(screen.queryByText('Оцените покупку')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Вы покупали этот товар/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Оцените заказанный товар')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Вы заказывали этот товар/)).not.toBeInTheDocument();
     expect(screen.queryByText(/после покупки/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Мои заявки/ })).not.toBeInTheDocument();
 
@@ -494,16 +540,16 @@ describe('карточка товара', () => {
     expect(await screen.findByText('Спасибо за отзыв!')).toBeInTheDocument();
   });
 
-  it('покупатель с заявкой видит «Оцените покупку» и строку «Вы покупали · заявка №…»', async () => {
+  it('покупатель с заявкой видит «Оцените заказанный товар» и строку «Вы заказывали · заявка №…»', async () => {
     stubFetch(cardRules({ ...CARD, purchaseOrderNumber: '2026-00042', purchasedAt: '2026-09-12T10:00:00Z' }));
 
     renderCard();
 
-    expect(await screen.findByText('Оцените покупку')).toBeInTheDocument();
-    expect(screen.getByText(/Вы покупали этот товар · заявка №2026-00042/)).toBeInTheDocument();
+    expect(await screen.findByText('Оцените заказанный товар')).toBeInTheDocument();
+    expect(screen.getByText(/Вы заказывали этот товар · заявка №2026-00042/)).toBeInTheDocument();
   });
 
-  it('цена набрана крупно, а ставка и дата стоят отдельной строкой', async () => {
+  it('цена набрана крупно, ставка — отдельной строкой, даты цены нет', async () => {
     stubFetch(cardRules());
 
     renderCard();
@@ -514,9 +560,9 @@ describe('карточка товара', () => {
     expect(price).toHaveTextContent('2 500 ₸');
     expect(price).toHaveTextContent('за мешок');
 
-    // Условия, при которых цена верна, не пропадают: требование о полноте
-    // торговой информации — про них, а не про размер шрифта.
-    expect(screen.getByText(/без НДС, НДС 12% прибавляется сверху · цена на 04\.09/)).toBeInTheDocument();
+    expect(screen.getByText('без НДС, НДС 12% прибавляется сверху')).toBeInTheDocument();
+    // «Цена на 04.09» в карточке не пишется (просьба владельца 2026-11-06).
+    expect(screen.queryByText(/цена на/)).not.toBeInTheDocument();
   });
 
   it('в другой валюте магазина цена, «Сумма» и подсказка объёма — с её знаком', async () => {
@@ -574,7 +620,7 @@ describe('карточка товара', () => {
     });
     stubFetch(cardRules({ ...CARD, sizeGuide: 'CLOTHING', variants: [variant('item-1', 'S'), variant('item-2', 'M')] }));
 
-    renderCard();
+    renderCardWithQuestions();
 
     const link = await screen.findByRole('button', { name: 'Как подобрать размер' });
     await userEvent.click(link);
@@ -594,10 +640,8 @@ describe('карточка товара', () => {
     await userEvent.click(link);
     const again = await screen.findByRole('dialog', { name: 'Как подобрать размер' });
     await userEvent.click(within(again).getByRole('button', { name: 'Спросить продавца' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    // Окно закрылось — курсор сразу в поле вопроса, а не на ссылке «Как подобрать размер».
-    const question = await screen.findByLabelText('Вопрос');
-    await waitFor(() => expect(question).toHaveFocus());
+    // Вопрос о размере — в переписку с продавцом, новым вопросом об этой позиции.
+    expect(await screen.findByRole('heading', { name: '/questions?item=item-1' })).toBeInTheDocument();
   });
 
   /**
@@ -772,10 +816,23 @@ describe('карточка товара', () => {
 
     // «Назад» — кружок на снимке, а не строчка над содержимым: большой палец
     // держит телефон за нижний край, а угол снимка он всё же достаёт.
-    const back = await screen.findByRole('link', { name: 'В каталог' });
-    expect(back).toHaveAttribute('href', '/catalog');
+    expect(await screen.findByRole('button', { name: 'Назад' })).toBeInTheDocument();
     // Сердечко на снимке и кнопка «В избранное» в панели покупки — как в макете.
     expect(screen.getAllByRole('button', { name: 'В избранное' })).toHaveLength(2);
+  });
+
+  it('«Назад» карточки, открытой по ссылке, ведёт в каталог', async () => {
+    stubFetch(cardRules());
+    renderScreen(
+      <Routes>
+        <Route path="/catalog/:itemId" element={<ItemCardPage />} />
+        <Route path="/catalog" element={<h1>Каталог</h1>} />
+      </Routes>,
+      { route: '/catalog/item-1' },
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Назад' }));
+    expect(await screen.findByRole('heading', { name: 'Каталог' })).toBeInTheDocument();
   });
 
   /**
@@ -889,17 +946,14 @@ describe('карточка товара', () => {
     });
   });
 
-  it('вопрос продавцу скрыт за кнопкой и не занимает низ карточки формой', async () => {
+  it('вопрос продавцу ведёт в переписку о позиции', async () => {
     stubFetch(cardRules());
 
-    renderCard();
+    renderCardWithQuestions();
 
-    const ask = await screen.findByRole('button', { name: 'Спросить продавца' });
-    expect(screen.queryByLabelText('Вопрос')).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Спросить продавца' }));
 
-    await userEvent.click(ask);
-
-    expect(await screen.findByLabelText('Вопрос')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '/questions?item=item-1' })).toBeInTheDocument();
   });
 
   it('избранное переключается прямо из карточки', async () => {
@@ -988,7 +1042,7 @@ describe('карточка товара', () => {
     });
   });
 
-  it('метка «Покупал в магазине» — только у отзыва с заявкой, а чужой отзыв можно отметить полезным', async () => {
+  it('метка «Заказывал в магазине» — только у отзыва с заявкой, а чужой отзыв можно отметить полезным', async () => {
     const other = {
       id: 'r9', itemId: 'item-1', authorName: 'Айгерим С.', rating: 5, text: 'Отлично', status: 'PUBLISHED',
       createdAt: '2026-09-14T10:00:00Z', reply: 'Спасибо!', tags: ['GOOD_QUALITY'], helpful: 4, helpfulByMe: false, mine: false,
@@ -1007,8 +1061,8 @@ describe('карточка товара', () => {
     renderCard();
 
     const [review, withoutOrder] = await screen.findAllByTestId('review');
-    expect(within(review).getByText('✓ Покупал в магазине')).toBeInTheDocument();
-    expect(within(withoutOrder).queryByText('✓ Покупал в магазине')).not.toBeInTheDocument();
+    expect(within(review).getByText('✓ Заказывал в магазине')).toBeInTheDocument();
+    expect(within(withoutOrder).queryByText('✓ Заказывал в магазине')).not.toBeInTheDocument();
     expect(within(review).getByText('Хорошее качество')).toBeInTheDocument();
     expect(within(review).getByText('Ответ магазина')).toBeInTheDocument();
     expect(screen.getByTestId('reviews-summary')).toHaveTextContent('5,0');

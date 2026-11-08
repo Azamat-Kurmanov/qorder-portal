@@ -68,7 +68,9 @@ export function chosenLoaders(
   value: SubmitOrderDelivery,
   lines: LoadersLine[],
 ): { amount?: number; direct: boolean } | undefined {
-  if (!loaders || loaders.mode !== 'ON_REQUEST' || value.loaders !== true) return undefined;
+  if (!loaders) return undefined;
+  // Обязательные грузчики считаются всегда, без флажка клиента.
+  if (loaders.mode !== 'REQUIRED' && (loaders.mode !== 'ON_REQUEST' || value.loaders !== true)) return undefined;
   const quote = loadersPrice(loaders, lines, value.floor, value.hasLift === true);
   return { amount: quote.amount, direct: loaders.payee === 'DIRECT' };
 }

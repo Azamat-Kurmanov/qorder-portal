@@ -1,3 +1,4 @@
+import { RotateCcw } from '../../ui/icons';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
@@ -41,14 +42,16 @@ export function TemplateSchedule({ template }: { template: OrderTemplateDto }) {
 
   if (editing) return <ScheduleForm template={template} onDone={() => setEditing(false)} />;
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span data-testid="template-schedule" className={cn('text-[0.8125rem]', text ? 'font-semibold text-accent-ink' : 'text-ink-subtle')}>
+    <div className="flex flex-wrap items-center gap-2">
+      <span data-testid="template-schedule" className={cn('min-w-0 flex-1 text-body',
+        text ? 'flex items-center gap-2 rounded-[0.875rem] bg-ok-soft px-3 py-2.5 font-bold text-ok-ink' : 'text-ink-muted')}>
+        {text ? <RotateCcw aria-hidden="true" className="size-4 shrink-0" /> : null}
         {text ? t('templates.auto.on', { text }) : t('templates.auto.off')}
       </span>
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="min-h-11 text-[0.8125rem] font-semibold text-accent-ink underline underline-offset-2"
+        className="min-h-11 shrink-0 cursor-pointer rounded-[var(--radius-control)] border-2 border-solid border-line bg-surface px-4 text-body font-extrabold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         {t(text ? 'templates.auto.change' : 'templates.auto.set')}
       </button>
@@ -82,7 +85,7 @@ function ScheduleForm({ template, onDone }: { template: OrderTemplateDto; onDone
         save.mutate({ id: template.id, data: { kind, day, time } });
       }}
     >
-      <p className="text-[0.8125rem] text-ink">{t('templates.auto.explain')}</p>
+      <p className="text-caption text-ink">{t('templates.auto.explain')}</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <label className="flex flex-col gap-1 text-sm font-medium text-ink">
           {t('templates.auto.kind')}

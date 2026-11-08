@@ -1,3 +1,4 @@
+import { CHIP_ROW } from '../../ui/chipRow';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -99,7 +100,7 @@ export function ReviewsBlock({
   return (
     <section ref={section} id="reviews" aria-labelledby="h-reviews" className="flex scroll-mt-32 flex-col gap-5">
       <div className="flex flex-col gap-1 lg:flex-row lg:items-baseline lg:justify-between lg:gap-4">
-        <h2 id="h-reviews" className="text-2xl font-extrabold tracking-[-0.02em] text-ink lg:text-[2rem] lg:font-black">{t('reviews.v2.title')}</h2>
+        <h2 id="h-reviews" className="text-2xl font-extrabold tracking-[-0.02em] text-ink lg:text-display lg:font-black">{t('reviews.v2.title')}</h2>
         {/*
           Сотрудник магазина в своей витрине отзывов не пишет — сервер не даёт
           ему формы и отвечает отказом. Без пояснения пустое место под сводкой
@@ -133,7 +134,7 @@ export function ReviewsBlock({
                   <span className="w-7 shrink-0 tabular-nums">{stars} ★</span>
                   <span aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-sunk">
                     <span
-                      className="block h-full rounded-full bg-[#E0A04A]"
+                      className="block h-full rounded-full bg-star-soft"
                       style={{ width: `${published.length ? Math.round((counts[stars] / published.length) * 100) : 0}%` }}
                     />
                   </span>
@@ -231,7 +232,7 @@ export function ReviewsBlock({
         <div className="flex flex-col gap-3">
           {list.length > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div role="group" aria-label={t('reviews.v2.filter')} className="flex flex-wrap gap-2">
+              <div role="group" aria-label={t('reviews.v2.filter')} className={cn(CHIP_ROW, 'min-w-0 gap-2')}>
                 {([
                   ['all', t('reviews.v2.all', { count: list.length })],
                   ['5', `5 ★ · ${list.filter((r) => r.rating === 5).length}`],
@@ -246,7 +247,7 @@ export function ReviewsBlock({
                     className={cn(
                       'h-[38px] rounded-[var(--radius-pill)] border px-3.5 text-sm font-semibold',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                      filter === key ? 'border-ink bg-ink text-surface' : 'border-line bg-surface text-ink-muted hover:border-ink/50',
+                      filter === key ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface text-ink-muted hover:border-ink/50',
                     )}
                   >
                     {label}
@@ -259,10 +260,10 @@ export function ReviewsBlock({
 
           {list.length === 0 ? (
             <div className="flex flex-col items-center gap-2.5 rounded-[var(--radius-card)] border border-dashed border-line px-5 py-12 text-center lg:py-[70px]">
-              <span aria-hidden="true" className="flex size-[76px] items-center justify-center rounded-full bg-sunk text-[#E0A04A]">
+              <span aria-hidden="true" className="flex size-[76px] items-center justify-center rounded-full bg-sunk text-star-soft">
                 <Star filled={false} className="size-9" />
               </span>
-              <b className="text-[1.1875rem] text-ink">{t('reviews.v2.emptyTitle')}</b>
+              <b className="text-lead text-ink">{t('reviews.v2.emptyTitle')}</b>
               <p className="max-w-[340px] text-body leading-normal text-ink-muted">{t('reviews.v2.emptyText')}</p>
             </div>
           ) : (

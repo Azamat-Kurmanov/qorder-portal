@@ -17,7 +17,8 @@ import { cn } from '../../ui/cn';
 import { compressImage } from '../../api/compressImage';
 import { UploadProgress } from '../../ui/UploadProgress';
 import { Star } from './Stars';
-import { ImagePlus, Link2, X } from '../../ui/icons';
+import { ImagePlus, Link2, Send, X } from '../../ui/icons';
+import { CHIP_ROW } from '../../ui/chipRow';
 import {
   MAX_REVIEW_PHOTO_MB,
   MAX_REVIEW_PHOTOS,
@@ -234,14 +235,16 @@ export function ReviewForm({
 
   return (
     <Card className={cn('flex flex-col gap-3', plain ? 'border-0 bg-transparent p-0 shadow-none' : 'p-4')}>
-      <StarsInput value={rating} onChange={setRating} large={plain} />
+      <StarsInput value={rating} onChange={setRating} />
 
       {/*
         Метки — после оценки, одним касанием: главное о покупке без набора
         текста. Раньше оценки их нет — сначала решают, понравилось ли.
       */}
       {rating > 0 && (
-        <div role="group" aria-label={t('reviews.tagsLabel')} className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2">
+        <span aria-hidden="true" className="text-lead font-extrabold text-ink">{t('reviews.tagsTitle')}</span>
+        <div role="group" aria-label={t('reviews.tagsLabel')} className={cn(CHIP_ROW, 'gap-2 pb-0.5')}>
           {offered.map((tag) => {
             const on = tags.includes(tag);
             return (
@@ -251,11 +254,9 @@ export function ReviewForm({
                 aria-pressed={on}
                 onClick={() => setTags(on ? tags.filter((one) => one !== tag) : [...tags, tag])}
                 className={cn(
-                  'h-10 rounded-[var(--radius-pill)] border-[1.5px] px-3.5 text-sm font-semibold transition-colors duration-200',
+                  'min-h-12 shrink-0 cursor-pointer whitespace-nowrap rounded-2xl border-[3px] border-solid px-3.5 text-body font-extrabold transition-colors duration-200',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                  // В карточке товара — как в макете: невыбранная метка пунктиром.
-                  on ? 'border-accent bg-accent-soft text-accent-ink'
-                    : cn('border-line bg-surface text-ink-muted hover:border-ink', plain && 'border-dashed bg-transparent'),
+                  on ? 'border-shop bg-shop text-on-shop' : 'border-line bg-surface text-ink hover:border-ink',
                 )}
               >
                 {t(`reviews.tags.${tag}`)}
@@ -263,9 +264,10 @@ export function ReviewForm({
             );
           })}
         </div>
+        </div>
       )}
 
-      <label className={cn('flex flex-col gap-1.5 text-sm text-ink-muted', plain && 'font-semibold')}>
+      <label className="flex flex-col gap-1.5 text-body font-semibold text-ink-muted">
         {t('reviews.reviewOptional')}
         <textarea
           value={text}
@@ -274,10 +276,9 @@ export function ReviewForm({
           onChange={(event) => setText(event.currentTarget.value)}
           placeholder={t(sizeTags ? 'reviews.textPlaceholderSized' : 'reviews.textPlaceholder')}
           className={cn(
-            'w-full resize-y rounded-[var(--radius-control)] border border-hairline bg-surface',
-            plain && 'min-h-[110px] rounded-[var(--radius-control)] px-4 py-3.5',
-            'p-3 text-body text-ink placeholder:text-ink-faint',
-            'transition-[border-color,box-shadow] duration-150 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent',
+            'min-h-[5.5rem] w-full resize-y rounded-2xl border-2 border-solid border-field-line bg-surface px-4 py-3',
+            'text-lead text-ink placeholder:text-ink-faint',
+            'transition-[border-color] duration-150 focus:border-shop focus:ring-1 focus:ring-shop focus:outline-none',
           )}
         />
       </label>
@@ -333,7 +334,7 @@ export function ReviewForm({
                 placeholder="https://drive.google.com/file/d/…"
                 onChange={(event) => setLink(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addLink(); } }}
-                className="h-11 min-w-0 grow rounded-[var(--radius-tile)] border border-line bg-surface px-3 text-body text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" />
+                className="h-14 min-w-0 grow rounded-[var(--radius-control)] border-2 border-field-line bg-surface px-4 text-base text-ink focus:border-shop focus:ring-1 focus:ring-shop focus-visible:outline-none" />
               <Button type="button" disabled={!link.trim()} onClick={addLink}>{t('reviews.photos.linkAdd')}</Button>
               <Button type="button" variant="ghost" onClick={() => { setLinking(false); setLink(''); setPhotoErrors([]); }}>
                 {t('reviews.cancel')}
@@ -383,23 +384,27 @@ export function ReviewForm({
         </p>
       )}
 
-      <div className={cn('flex flex-wrap items-center justify-between gap-3', plain && 'flex-col-reverse items-stretch')}>
-        <p className="text-caption text-ink-subtle">{note ?? t('reviews.afterCheck')}</p>
-        <div className={cn('flex items-center gap-2', plain && '[&>button:last-child]:h-[52px] [&>button:last-child]:flex-1 [&>button:last-child]:rounded-[var(--radius-tile)] [&>button:last-child]:text-base')}>
+      {/* Как в макете SimplePicReviewForm: крупная «Отправить» во всю ширину, под ней — когда появится. */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
           {onCancel && (
-            <Button type="button" variant="ghost" onClick={onCancel}>
+            <Button type="button" variant="outline" size="lg" onClick={onCancel}>
               {t('reviews.cancel')}
             </Button>
           )}
           <Button
             type="button"
+            size="lg"
+            className="h-16 flex-1 gap-2 rounded-[1.375rem] text-lead"
             disabled={rating === 0}
             busy={busy}
             onClick={() => void send()}
           >
+            <Send aria-hidden="true" className="size-5" />
             {submitLabel ?? t('reviews.leave')}
           </Button>
         </div>
+        <p className="m-0 text-center text-body text-ink-muted">{note ?? t('reviews.afterCheck')}</p>
       </div>
     </Card>
   );
@@ -414,7 +419,7 @@ interface PickedPhoto {
 }
 
 const PHOTO_BUTTON = cn(
-  'inline-flex h-11 items-center gap-2 rounded-[var(--radius-tile)] border border-line bg-surface px-4 text-body font-semibold text-ink',
+  'inline-flex h-14 items-center gap-2 rounded-[var(--radius-control)] border-2 border-dashed border-line bg-surface px-4 text-body font-extrabold text-shop-ink',
   'hover:bg-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
   'disabled:cursor-not-allowed disabled:opacity-50',
 );
@@ -426,14 +431,16 @@ function release(one: PickedPhoto) {
 /** Миниатюра снимка в форме с кнопкой «убрать». */
 function PhotoTile({ src, removeLabel, onRemove }: { src?: string; removeLabel: string; onRemove: () => void }) {
   return (
-    <li className="relative size-[76px] overflow-hidden rounded-[var(--radius-tile)] bg-sunk shadow-[0_0_0_1px_var(--color-hairline)]">
-      {src && <img src={src} alt="" className="size-full object-cover" />}
+    // Без `overflow-hidden` на плитке: он обрезал бы зону нажатия крестика (`qo-hit`, 44 точки).
+    // Углы снимка скругляет сам снимок — радиус плитки минус её рамка.
+    <li className="relative size-[4.2rem] rounded-[0.875rem] border-2 border-solid border-hairline bg-sunk">
+      {src && <img src={src} alt="" className="size-full rounded-[calc(0.875rem-2px)] object-cover" />}
       <button
         type="button"
         aria-label={removeLabel}
         onClick={onRemove}
         className={cn(
-          'absolute right-1 top-1 inline-flex size-7 items-center justify-center rounded-full bg-black/60 text-white',
+          'qo-hit absolute right-1 top-1 inline-flex size-7 items-center justify-center rounded-full bg-black/60 text-white',
           'hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
         )}
       >
@@ -458,12 +465,9 @@ const SIZE_TAGS: SubmitReviewRequestTagsItem[] = ['TRUE_TO_SIZE', 'RUNS_SMALL', 
 function StarsInput({
   value,
   onChange,
-  large = false,
 }: {
   value: number;
   onChange: (rating: number) => void;
-  /** Крупные звёзды и слово под ними — форма в карточке товара. */
-  large?: boolean;
 }) {
   const { t } = useTranslation();
   // Наведение подсвечивает звёзды до курсора и называет оценку словом:
@@ -471,8 +475,9 @@ function StarsInput({
   const [hover, setHover] = useState(0);
   const shown = hover || value;
   return (
-    <div className={cn('flex flex-wrap items-center gap-3', large && 'flex-col items-start gap-1')}>
-      <div role="radiogroup" aria-label={t('reviews.rating')} className={cn('flex items-center gap-1', large && '-ml-2 gap-0')}>
+    // «Вариант Б»: пять крупных звёзд по центру и оценка словом под ними.
+    <div className="flex flex-col items-center gap-1">
+      <div role="radiogroup" aria-label={t('reviews.rating')} className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((rating) => (
           <button
             key={rating}
@@ -484,18 +489,17 @@ function StarsInput({
             onMouseEnter={() => setHover(rating)}
             onMouseLeave={() => setHover(0)}
             className={cn(
-              'inline-flex size-11 items-center justify-center rounded-full',
-              large && 'size-[54px] rounded-[var(--radius-control)] hover:scale-110',
+              'inline-flex size-[3.1rem] items-center justify-center rounded-[var(--radius-control)] hover:scale-110',
               'transition-all duration-300 active:scale-95',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-              rating <= shown ? 'text-[#D97706]' : 'text-ink-faint hover:text-ink-muted',
+              rating <= shown ? 'text-star' : 'text-ink-faint hover:text-ink-muted',
             )}
           >
-            <Star filled={rating <= shown} className={large ? 'size-10' : undefined} />
+            <Star filled={rating <= shown} className="size-[2.4rem]" />
           </button>
         ))}
       </div>
-      <span aria-hidden="true" className={cn('text-sm font-semibold', large && 'min-h-5 text-body font-bold', shown ? 'text-[#B45309] dark:text-[#E0A04A]' : 'text-ink-subtle')}>
+      <span aria-hidden="true" className={cn('min-h-6 text-lead font-extrabold', shown ? 'text-ink' : 'text-ink-subtle')}>
         {shown ? t(`reviews.word.${shown}`) : t('reviews.pickStar')}
       </span>
     </div>

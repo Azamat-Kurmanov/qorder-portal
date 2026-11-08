@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MyOrdersPage } from './MyOrdersPage';
 import { renderScreen } from '../../test/render';
@@ -78,12 +78,10 @@ const fresh = [
   { id: 'n-ready', draftId: 'order-ready', kind: 'ACCEPTED', createdAt: '2026-09-06T09:30:00Z' },
 ];
 
-/**
- * Раскрываемые карточки остались у магазина с шаблоном на мониторе; телефон
- * показывает короткие строки, монитор без шаблона — список и панель. Тесты
- * карточек открывают список именно так.
- */
+/** Телефон показывает короткие строки, монитор — список и панель заявки справа. */
 let cards = true;
+/** Магазин принимает отзывы и оценки (R-17); тест на выключенные снимает признак сам. */
+let shopReviews: boolean | undefined = true;
 
 function openOrders(
   orders: unknown[] = wholeList,
@@ -101,14 +99,23 @@ function openOrders(
     get('/api/portal/notifications', notifications),
     get('/api/portal/orders', orders),
     ...(cards ? [get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Магазин', currency: 'KZT',
-      design: { template: 'NEON', theme: 'TEMPLATE', published: true } }])] : []),
+      reviews: shopReviews}])] : []),
   ]);
   renderScreen(<MyOrdersPage />, shopCurrency === undefined ? {} : { currency: shopCurrency });
   return stub;
 }
 
-const card = (number: string): HTMLElement => screen.getByRole('article', { name: `Заявка №${number}` });
-const toggleOf = (number: string) => screen.getByRole('button', { name: `Подробнее о заявке №${number}` });
+/** Строка заявки в списке слева. */
+const rowOf = (number: string): HTMLElement => {
+  const row = screen.getAllByTestId('order-row').find((element) => element.textContent?.includes(`№${number}`));
+  if (!row) throw new Error(`нет строки заявки №${number}`);
+  return row;
+};
+/** Заявка в панели справа: если открыта другая, нажатие строки открывает эту. */
+const card = (number: string): HTMLElement => {
+  if (screen.queryByTestId('order-pane')?.getAttribute('aria-label') !== `Заявка №${number}`) fireEvent.click(rowOf(number));
+  return screen.getByTestId('order-pane');
+};
 const chip = (name: RegExp) => within(screen.getByRole('group', { name: 'Какие заявки показать' }))
   .getByRole('button', { name });
 
@@ -131,43 +138,18 @@ describe('мои заявки', () => {
 
     await userEvent.click(chip(/У продавца/));
     expect(screen.getAllByTestId('order-row')).toHaveLength(2);
-    expect(card('1040')).toHaveTextContent('Принята');
+    expect(rowOf('1040')).toHaveTextContent('Принята');
   });
 
-  it('заявки, где ход за клиентом и есть новое, открыты сразу; остальные — свёрнуты', async () => {
-    openOrders();
-    await screen.findAllByTestId('order-row');
-
-    expect(toggleOf('1046')).toHaveAttribute('aria-expanded', 'true');
-    expect(toggleOf('1045')).toHaveAttribute('aria-expanded', 'true');
-    expect(toggleOf('1043')).toHaveAttribute('aria-expanded', 'false');
-
-    await userEvent.click(toggleOf('1043'));
-    expect(toggleOf('1043')).toHaveAttribute('aria-expanded', 'true');
-    expect(within(card('1043')).getByText('Позиция 6')).toBeInTheDocument();
-  });
-
-  it('«Свернуть все» и «Развернуть все»', async () => {
-    openOrders();
-    await screen.findAllByTestId('order-row');
-
-    await userEvent.click(screen.getByRole('button', { name: 'Свернуть все' }));
-    expect(screen.getAllByRole('button', { name: /Подробнее о заявке/ })
-      .every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true);
-    await userEvent.click(screen.getByRole('button', { name: 'Развернуть все' }));
-    expect(screen.getAllByRole('button', { name: /Подробнее о заявке/ })
-      .every((button) => button.getAttribute('aria-expanded') === 'true')).toBe(true);
-  });
-
-  it('в заявке, ждущей ответа, видно, что изменил продавец, и сумму было → стало', async () => {
+  it('в заявке, ждущей ответа, — тот же ответ на изменения, что на экране заявки', async () => {
     openOrders();
     await screen.findAllByTestId('order-row');
     const need = card('1046');
 
-    expect(within(need).getByTestId('diff')).toHaveTextContent(
-      'Продавец изменил состав: Песок — количество 1 → 0,8, Цемент М400 — цена 2 500 ₸ → 2 450 ₸',
-    );
-    expect(within(need).getByText(/Сумма:/)).toHaveTextContent(/62\s500\s₸\s→\s61\s500\s₸/);
+    const changes = within(need).getByTestId('line-answers');
+    expect(changes).toHaveTextContent('Поставщик предлагает изменения');
+    expect(within(changes).getByTestId('diff')).toHaveTextContent('Песок — количество 1 → 0,8');
+    expect(within(changes).getByTestId('diff')).toHaveTextContent('Цемент М400 — цена 2 500 ₸ → 2 450 ₸');
     // Составом показано предложенное: согласие относится к нему.
     expect(within(need).getByText('Песок')).toBeInTheDocument();
     expect(within(need).getByText(/23 мешка × 2 500/)).toBeInTheDocument();
@@ -179,10 +161,7 @@ describe('мои заявки', () => {
     await screen.findAllByTestId('order-row');
     const need = card('1046');
 
-    expect(within(need).getByTestId('diff')).toHaveTextContent(
-      'Продавец изменил состав: Песок — количество 1 → 0,8, Цемент М400 — цена 2 500 ₽ → 2 450 ₽',
-    );
-    expect(within(need).getByText(/Сумма:/)).toHaveTextContent(/62\s500\s₽\s→\s61\s500\s₽/);
+    expect(within(need).getByTestId('diff')).toHaveTextContent('Цемент М400 — цена 2 500 ₽ → 2 450 ₽');
     expect(need.textContent).not.toContain('$');
   });
 
@@ -198,7 +177,8 @@ describe('мои заявки', () => {
       ],
     });
     openOrders([rub], [], [], 'USD');
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1050' }));
+    await screen.findAllByTestId('order-row');
+    card('1050');
     const row = card('1050');
 
     // Цена за единицу.
@@ -223,12 +203,13 @@ describe('мои заявки', () => {
       ],
     });
     openOrders([packs], [], [], 'KZT');
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1051' }));
+    await screen.findAllByTestId('order-row');
+    card('1051');
     const row = card('1051');
 
     expect(within(row).getByText(/3 упаковки × 1\s800 ₸ · 60 мешков/)).toBeInTheDocument();
     expect(within(row).getByText(/2 коробки × 900 ₸ · по 50/)).toBeInTheDocument();
-    await userEvent.click(within(row).getByRole('button', { name: 'Что в прессе' }));
+    await userEvent.click(within(row).getByRole('button', { name: 'Что внутри' }));
     expect(within(row).getByTestId('pack-contents')).toHaveTextContent('Худи · S');
   });
 
@@ -237,7 +218,9 @@ describe('мои заявки', () => {
       method('POST', '/api/portal/orders/order-need/confirm', { ...needsAnswer, state: 'ACCEPTED', needsAnswer: false }),
     ]);
 
-    await userEvent.click(await screen.findByRole('button', { name: /согласен с изменениями в заявке от 4 сентября/i }));
+    await screen.findAllByTestId('order-row');
+    card('1046');
+    await userEvent.click(screen.getByRole('button', { name: 'Согласен со всем' }));
     await waitFor(() => {
       expect(calls.some((call) => call.url.includes('/order-need/confirm'))).toBe(true);
     });
@@ -256,27 +239,27 @@ describe('мои заявки', () => {
       },
       get('/api/portal/notifications', fresh),
       { match: (url, init) => url.includes('/api/portal/orders') && (init?.method ?? 'GET') === 'GET', get body() { return list; } },
-      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Магазин', currency: 'KZT',
-        design: { template: 'NEON', theme: 'TEMPLATE', published: true } }]),
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Магазин', currency: 'KZT'}]),
     ]);
     stubWideScreen();
     setCurrentSupplierId('supplier-1');
     renderScreen(<MyOrdersPage />);
 
-    await userEvent.click(await screen.findByRole('button', { name: /согласен с изменениями в заявке от 4 сентября/i }));
-    await waitFor(() => expect(card('1046')).toHaveTextContent('Принята'));
-    expect(toggleOf('1046')).toHaveAttribute('aria-expanded', 'true');
+    await screen.findAllByTestId('order-row');
+    card('1046');
+    await userEvent.click(screen.getByRole('button', { name: 'Согласен со всем' }));
+    await waitFor(() => expect(card('1046')).toHaveTextContent('Ничего делать не нужно — собираем заявку'));
   });
 
-  it('отказ уходит своей кнопкой', async () => {
-    const { calls } = openOrders(wholeList, [
-      method('POST', '/api/portal/orders/order-need/decline', { ...needsAnswer, state: 'CLOSED', needsAnswer: false }),
-    ]);
+  it('отказа одним касанием в списке нет — только через окно с причиной', async () => {
+    const { calls } = openOrders(wholeList);
 
-    await userEvent.click(await screen.findByRole('button', { name: /отменить заявку от 4 сентября/i }));
-    await waitFor(() => {
-      expect(calls.some((call) => call.url.includes('/order-need/decline'))).toBe(true);
-    });
+    await screen.findAllByTestId('order-row');
+    card('1046');
+    await userEvent.click(screen.getByRole('button', { name: 'Отказаться от заявки…' }));
+    const dialog = screen.getByTestId('decline-dialog');
+    expect(within(dialog).getByRole('button', { name: 'Остаться' })).toHaveFocus();
+    expect(calls.some((call) => call.url.includes('/decline'))).toBe(false);
   });
 
   it('собранная заявка говорит, где забрать', async () => {
@@ -287,18 +270,9 @@ describe('мои заявки', () => {
     expect(within(card('1045')).getByText('Барахолка «Кенжехан-2» · ряд 4 · 7:00–17:00')).toBeInTheDocument();
   });
 
-  it('прочитанная заявка, где ход за клиентом, свёрнута — как в макете', async () => {
-    openOrders(wholeList, [], []);
-    await screen.findAllByTestId('order-row');
-
-    expect(toggleOf('1046')).toHaveAttribute('aria-expanded', 'false');
-    expect(toggleOf('1045')).toHaveAttribute('aria-expanded', 'false');
-  });
-
   it('у идущей заявки — «Задать вопрос», у завершённой — «Заказать то же ещё раз»', async () => {
     openOrders([atSupplier, order({ id: 'order-issued', orderNumber: '1030', state: 'ISSUED', cancellable: false })]);
     await screen.findAllByTestId('order-row');
-    await userEvent.click(screen.getByRole('button', { name: 'Развернуть все' }));
 
     expect(within(card('1043')).getByRole('button', { name: 'Задать вопрос' })).toBeInTheDocument();
     expect(within(card('1043')).queryByRole('button', { name: /заказать то же ещё раз/i })).not.toBeInTheDocument();
@@ -308,7 +282,8 @@ describe('мои заявки', () => {
 
   it('отменённая заявка говорит, кто её закрыл и почему', async () => {
     openOrders();
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1039' }));
+    await screen.findAllByTestId('order-row');
+    card('1039');
 
     expect(within(card('1039')).getAllByText('Продавец отменил заявку').length).toBeGreaterThan(0);
     expect(within(card('1039')).getByText(/Товар снят с производства/)).toBeInTheDocument();
@@ -336,27 +311,23 @@ describe('мои заявки', () => {
     expect(screen.getAllByTestId('order-row').length).toBeGreaterThan(1);
   });
 
-  it('новое по заявке — метка, счётчик и отбор «Только с новыми»; раскрытие читает уведомления', async () => {
+  it('новое по заявке — метка у строки и наверху списка; открытие читает уведомления', async () => {
     const { calls } = openOrders(wholeList, [
       method('POST', '/api/portal/notifications/n-1/read', null, 204),
     ], [
       { id: 'n-1', draftId: 'order-review', kind: 'ORDER_ANSWERED', createdAt: '2026-09-06T10:00:00Z' },
     ]);
 
-    expect(await screen.findByText('1 новое сообщение')).toBeInTheDocument();
-    expect(within(card('1043')).getByText('Новое')).toBeInTheDocument();
-    // «По последнему сообщению» поднимает заявку с новым наверх.
-    expect(screen.getAllByTestId('order-row')[0]).toBe(card('1043'));
+    await screen.findAllByTestId('order-row');
+    // Заявка с новым поднимается наверх.
+    expect(screen.getAllByTestId('order-row')[0]).toBe(rowOf('1043'));
+    expect(within(rowOf('1043')).getByRole('img', { name: 'Новое' })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Только с новыми сообщениями' }));
-    expect(screen.getAllByTestId('order-row')).toHaveLength(1);
-
-    await userEvent.click(toggleOf('1043'));
+    await userEvent.click(rowOf('1043'));
     await waitFor(() => {
       expect(calls.some((call) => call.url.includes('/notifications/n-1/read'))).toBe(true);
     });
   });
-
   it('последнее сообщение переписки — строкой в карточке', async () => {
     openOrders([order({
       messages: [
@@ -375,7 +346,8 @@ describe('мои заявки', () => {
       }),
     ]);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1043' }));
+    await screen.findAllByTestId('order-row');
+    card('1043');
     await userEvent.click(within(card('1043')).getByRole('button', { name: 'Задать вопрос' }));
     expect(screen.getByRole('textbox', { name: 'Ваш вопрос продавцу' })).toHaveClass('placeholder:text-ink-subtle');
     await userEvent.type(screen.getByRole('textbox', { name: 'Ваш вопрос продавцу' }), 'Когда будет?');
@@ -393,7 +365,8 @@ describe('мои заявки', () => {
       method('POST', '/api/portal/orders/order-issued/questions', issued),
     ]);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1030' }));
+    await screen.findAllByTestId('order-row');
+    card('1030');
     await userEvent.click(within(card('1030')).getByRole('button', { name: 'Сообщить о проблеме' }));
     await userEvent.click(screen.getByRole('radio', { name: 'Брак' }));
     await userEvent.click(screen.getByRole('checkbox', { name: 'Цемент М400' }));
@@ -421,8 +394,9 @@ describe('мои заявки', () => {
       method('PUT', '/api/portal/orders/order-issued/rating', { ...issued, rating: { good: false, reason: 'LATE' } }),
     ]);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1030' }));
-    await userEvent.click(within(card('1030')).getByRole('button', { name: 'Были проблемы' }));
+    await screen.findAllByTestId('order-row');
+    card('1030');
+    await userEvent.click(await within(card('1030')).findByRole('button', { name: 'Были проблемы' }));
     await userEvent.click(screen.getByRole('radio', { name: 'Опоздали' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Пара слов продавцу' }), 'На день позже');
     await userEvent.click(screen.getByRole('button', { name: 'Отправить оценку' }));
@@ -433,18 +407,34 @@ describe('мои заявки', () => {
     });
   });
 
+  it('магазин без отзывов: ни оценки заказа, ни «Оценить товар» (R-17)', async () => {
+    shopReviews = undefined;
+    try {
+      openOrders([order({ id: 'order-issued', orderNumber: '1030', state: 'ISSUED', cancellable: false,
+        lines: [{ lineNo: 1, name: 'Цемент', itemId: 'item-1', quantity: 1, unit: 'шт', unitPrice: 100, amount: 100 }] })]);
+      await screen.findAllByTestId('order-row');
+    card('1030');
+      expect(within(card('1030')).queryByRole('button', { name: 'Были проблемы' })).not.toBeInTheDocument();
+      expect(within(card('1030')).queryByText('Оценить товар')).not.toBeInTheDocument();
+    } finally {
+      shopReviews = true;
+    }
+  });
+
   it('поставленная оценка видна словами, и её можно изменить', async () => {
     openOrders([order({ id: 'order-issued', orderNumber: '1030', state: 'ISSUED', cancellable: false, rating: { good: false, reason: 'INCOMPLETE' } })]);
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1030' }));
+    await screen.findAllByTestId('order-row');
+    card('1030');
 
-    expect(within(card('1030')).getByTestId('order-rating')).toHaveTextContent('Ваша оценка: были проблемы — привезли не всё');
+    expect(await within(card('1030')).findByTestId('order-rating')).toHaveTextContent('Ваша оценка: были проблемы — привезли не всё');
     await userEvent.click(within(card('1030')).getByRole('button', { name: 'Изменить' }));
     expect(within(card('1030')).getByRole('button', { name: 'Всё хорошо' })).toBeInTheDocument();
   });
 
   it('у идущей заявки сообщить о проблеме нельзя — товар ещё не получен', async () => {
     openOrders([atSupplier]);
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1043' }));
+    await screen.findAllByTestId('order-row');
+    card('1043');
 
     expect(within(card('1043')).queryByRole('button', { name: 'Сообщить о проблеме' })).toBeNull();
   });
@@ -456,7 +446,8 @@ describe('мои заявки', () => {
       }),
     ]);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1043' }));
+    await screen.findAllByTestId('order-row');
+    card('1043');
     await userEvent.click(within(card('1043')).getByRole('button', { name: 'Задать вопрос' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Ваш вопрос продавцу' }), 'Когда будет?{Enter}');
 
@@ -482,11 +473,12 @@ describe('мои заявки', () => {
 
   describe('этапы заявки, подсказка о статусах и звонок продавцу', () => {
     const shop = (phone?: string) => get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'ИП «Мухамедиева»', phone,
-      currency: 'KZT', design: { template: 'NEON', theme: 'TEMPLATE', published: true } }]);
+      currency: 'KZT'}]);
 
     it('у идущей заявки шкала из четырёх этапов и отмечено, где она сейчас', async () => {
       openOrders([atSupplier]);
-      await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1043' }));
+      await screen.findAllByTestId('order-row');
+    card('1043');
 
       const stages = within(card('1043')).getByRole('list', { name: 'Этапы заявки' });
       expect(within(stages).getAllByRole('listitem')).toHaveLength(4);
@@ -497,7 +489,8 @@ describe('мои заявки', () => {
 
     it('у собранной с доставкой последний этап — «Собрана»', async () => {
       openOrders([{ ...ready, pickup: false, pickupPoint: undefined, pickupCode: undefined }], [], []);
-      await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1045' }));
+      await screen.findAllByTestId('order-row');
+    card('1045');
 
       const stages = within(card('1045')).getByRole('list', { name: 'Этапы заявки' });
       expect(within(stages).getByText('Собрана').closest('li')).toHaveAttribute('aria-current', 'step');
@@ -505,20 +498,15 @@ describe('мои заявки', () => {
 
     it('у полученной и отменённой заявки шкалы нет', async () => {
       openOrders([closed], [], []);
-      await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1039' }));
+      await screen.findAllByTestId('order-row');
+    card('1039');
       expect(within(card('1039')).queryByRole('list', { name: 'Этапы заявки' })).not.toBeInTheDocument();
-    });
-
-    it('«Что значит статус» объясняет четыре статуса', async () => {
-      openOrders();
-      const help = await screen.findByRole('complementary', { name: 'Что значит статус' });
-      expect(within(help).getByText('Нужен ваш ответ')).toBeInTheDocument();
-      expect(within(help).getByText('Товар собран и ждёт вас в магазине.')).toBeInTheDocument();
     });
 
     it('«Позвонить продавцу» набирает номер магазина у идущей заявки', async () => {
       openOrders([atSupplier], [shop('+7 701 000 00 11')]);
-      await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1043' }));
+      await screen.findAllByTestId('order-row');
+    card('1043');
 
       const call = await within(card('1043')).findByRole('link', { name: 'Позвонить продавцу' });
       expect(call).toHaveAttribute('href', 'tel:+77010000011');
@@ -526,7 +514,8 @@ describe('мои заявки', () => {
 
     it('без телефона магазина звонить некуда — кнопки нет', async () => {
       openOrders([atSupplier], [shop(undefined)]);
-      await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1043' }));
+      await screen.findAllByTestId('order-row');
+    card('1043');
       await screen.findByRole('list', { name: 'Этапы заявки' });
       expect(within(card('1043')).queryByRole('link', { name: 'Позвонить продавцу' })).not.toBeInTheDocument();
     });
@@ -550,8 +539,8 @@ describe('мои заявки', () => {
       method('POST', '/api/portal/cart/from-order/order-closed', { lines: [], total: 0, skipped: [] }),
     ]);
     await screen.findAllByTestId('order-row');
-    await userEvent.click(screen.getByRole('button', { name: 'Развернуть все' }));
 
+    card('1039');
     await userEvent.click(screen.getByRole('button', { name: 'Заказать то же ещё раз: Заявка №1039' }));
     await waitFor(() => {
       expect(calls.some((call) => call.url.includes('/cart/from-order/order-closed'))).toBe(true);
@@ -568,26 +557,15 @@ describe('мои заявки', () => {
     expect(within(card('1045')).getByText(/Кенжехан-2/)).toBeInTheDocument();
   });
 
-  it('сортировка по сумме — в обе стороны', async () => {
-    openOrders();
-    await screen.findAllByTestId('order-row');
-    const numbers = () => screen.getAllByTestId('order-row').map((row) => row.getAttribute('aria-label'));
-
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /Сортировка/ }), 'Сначала дорогие');
-    expect(numbers()[0]).toBe('Заявка №1043');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /Сортировка/ }), 'Сначала дешёвые');
-    expect(numbers()[0]).toBe('Заявка №1039');
-  });
-
   it('у полученной заявки с одним товаром «Оценить товар» ведёт к отзывам в его карточке', async () => {
     openOrders([order({
       id: 'order-issued', orderNumber: '1030', state: 'ISSUED', cancellable: false,
       submitted: [{ name: 'Цемент М400', quantity: 5, unit: 'мешок', price: 2500, amount: 12500, itemId: 'item-1' }],
     })]);
     await screen.findAllByTestId('order-row');
-    await userEvent.click(toggleOf('1030'));
+    card('1030');
 
-    expect(within(card('1030')).getByRole('link', { name: 'Оценить товар' }))
+    expect(await within(card('1030')).findByRole('link', { name: 'Оценить товар' }))
       .toHaveAttribute('href', '/catalog/item-1#reviews');
   });
 
@@ -601,9 +579,9 @@ describe('мои заявки', () => {
       ],
     })]);
     await screen.findAllByTestId('order-row');
-    await userEvent.click(toggleOf('1030'));
+    card('1030');
 
-    const rate = within(card('1030')).getByRole('button', { name: 'Оценить товар' });
+    const rate = await within(card('1030')).findByRole('button', { name: 'Оценить товар' });
     expect(rate).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(rate);
     expect(rate).toHaveAttribute('aria-expanded', 'true');
@@ -639,7 +617,8 @@ describe('снимки товаров в заявке', () => {
 
   it('«Что вы заказали» — строка со снимком ведёт на карточку, без снимка — заглушка', async () => {
     openOrders([pictured], [], []);
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1041' }));
+    await screen.findAllByTestId('order-row');
+    card('1041');
     const row = card('1041');
 
     const cement = within(row).getByRole('link', { name: 'Открыть товар: Цемент М400' });
@@ -675,7 +654,8 @@ describe('итог заявки в списке', () => {
 
   it('строки «Товары / Скидка за объём / Доставка / Итого»', async () => {
     openOrders([discounted], [], []);
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1041' }));
+    await screen.findAllByTestId('order-row');
+    card('1041');
     const totals = within(card('1041')).getByTestId('order-totals');
 
     expect(within(totals).getByTestId('order-goods')).toHaveTextContent(/Товары\s*12\s500\s₸/);
@@ -690,7 +670,8 @@ describe('итог заявки в списке', () => {
     openOrders([order({
       total: 11250, goodsTotal: 12500, discount: { kind: 'FIRST_ORDER', percent: 10, amount: 1250 }, deliveryPrice: 0,
     })], [], []);
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1041' }));
+    await screen.findAllByTestId('order-row');
+    card('1041');
     const totals = within(card('1041')).getByTestId('order-totals');
 
     expect(within(totals).getByTestId('order-discount')).toHaveTextContent(/Скидка на первую заявку −10%\s*−1\s250\s₸/);
@@ -699,7 +680,8 @@ describe('итог заявки в списке', () => {
 
   it('без разбивки — одна строка «Итого», без «Товары», скидки и доставки', async () => {
     openOrders([order()], [], []);
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1041' }));
+    await screen.findAllByTestId('order-row');
+    card('1041');
     const totals = within(card('1041')).getByTestId('order-totals');
 
     expect(within(totals).queryByTestId('order-goods')).not.toBeInTheDocument();
@@ -710,7 +692,8 @@ describe('итог заявки в списке', () => {
 
   it('разбивка итога — в валюте заявки, а не открытого магазина', async () => {
     openOrders([{ ...discounted, currency: 'RUB' }], [], [], 'USD');
-    await userEvent.click(await screen.findByRole('button', { name: 'Подробнее о заявке №1041' }));
+    await screen.findAllByTestId('order-row');
+    card('1041');
     const totals = within(card('1041')).getByTestId('order-totals');
 
     expect(within(totals).getByTestId('order-goods')).toHaveTextContent(/Товары\s*12\s500\s₽/);
@@ -756,12 +739,14 @@ describe('мои заявки на телефоне', () => {
   beforeEach(() => { cards = false; });
   afterEach(() => { vi.unstubAllGlobals(); cards = true; });
 
-  it('короткие строки: «Ждут вас» отдельно, строка ведёт на экран заявки', async () => {
+  it('короткие строки: непрочитанные — самым верхом, свежие первыми; строка ведёт на экран заявки', async () => {
     openOrders();
 
-    const waiting = await screen.findByRole('region', { name: 'Ждут вас' });
-    const rows = within(waiting).getAllByTestId('order-row');
-    expect(rows.map((row) => row.getAttribute('href'))).toEqual(expect.arrayContaining(['/orders/order-need', '/orders/order-ready']));
+    const regions = await screen.findAllByRole('region');
+    expect(regions[0]).toHaveAccessibleName('Новые сообщения');
+    const rows = within(regions[0]).getAllByRole('link');
+    // По дате последнего сообщения: «собрана» (9:30) новее «изменений» (9:00).
+    expect(rows.map((row) => row.getAttribute('href'))).toEqual(['/orders/order-ready', '/orders/order-need']);
     expect(within(screen.getByRole('region', { name: 'Остальные' })).getAllByTestId('order-row')).toHaveLength(3);
     // Раскрывать в списке нечего — всё на экране заявки.
     expect(screen.queryByRole('button', { name: /^Подробнее о заявке/ })).toBeNull();

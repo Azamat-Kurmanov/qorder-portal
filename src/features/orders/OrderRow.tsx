@@ -1,54 +1,54 @@
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useOrderMode } from '../cart/orderMode';
+import { NothingAdded, useStayIfEmpty } from './stayIfEmpty';
+import { SaveAsTemplate } from './SaveAsTemplate';
+import { useId, useState, type ReactNode } from 'react';
+import { PhoneLine } from '../shell/PhoneLine';
+import { LineAnswers } from './LineAnswers';
+import { DeclineDialog } from './DeclineDialog';
 import { PackContents, packMembers } from '../catalog/PackContents';
-import { Link, useNavigate } from 'react-router-dom';
-import { ChevronDown, MessageCircle, MessageCircleQuestion, Phone, RotateCcw, Star } from '../../ui/icons';
+import { Link } from 'react-router-dom';
+import { Check, ChevronDown, ChevronRight, MessageCircleQuestion, RotateCcw, Star } from '../../ui/icons';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   getGetMyPortalOrdersQueryKey,
-  getGetPortalCartQueryKey,
-  useAskAboutMyPortalOrder,
-  useConfirmMyPortalOrder,
   useDeclineMyPortalOrder,
   useFillPortalCartFromOrder,
   type PortalOrderDto,
 } from '../../api/generated';
-import { rules } from '../../api/rules.generated';
 import { intlLocale } from '../../i18n';
 import { decimal, money } from '../../shared/format';
 import { quantityWithUnit } from '../../shared/units';
-import { Button } from '../../ui/Button';
 import { cn } from '../../ui/cn';
-import { sendOnEnter } from '../../ui/sendOnEnter';
-import { OrderMessages } from './OrderMessages';
+import { AskForm, OrderMessages } from './OrderMessages';
 import { OrderStages } from './OrderStages';
 import { PickupCode } from './PickupCode';
 import { useCurrentShop } from '../shell/Shops';
 import { telLink } from '../shell/shopHours';
-import { RevisionDiff } from './RevisionDiff';
 import { OrderDelivery } from './OrderDelivery';
 import { MapViewButton } from '../maps/MapViewButton';
 import { pointOf } from '../maps/mapProvider';
-import { TransportPayment } from './TransportPayment';
 import { OrderTotals } from './OrderTotals';
 import { RateOrder } from './RateOrder';
 import { ReportProblem } from './ReportProblem';
-import { LinkedLineThumb } from '../cart/LineThumb';
-import { answerExpectedText, dayTime, orderDay, packNote } from './orderText';
-import { kindOf, lastMessage, linesOf, pieces, totalOf, type OrderKind, type Unread } from './myOrdersModel';
+import { LineThumb, LinkedLineThumb } from '../cart/LineThumb';
+import { answerExpectedText, orderDay, packNote } from './orderText';
+import { answerText, kindOf, namedPriceOf, linesOf, totalOf, type OrderKind, type Unread } from './myOrdersModel';
 
 /**
  * Цвет вида заявки: полоса слева и пилюля. Палитра — светлая, кабинета
  * клиента; из макета взята раскладка, а не тёмные цвета.
  */
 const TONE: Record<OrderKind, { stripe: string; badge: string; todo: string }> = {
-  answer: { stripe: 'bg-accent', badge: 'bg-accent-soft text-accent-ink', todo: 'text-accent-ink' },
+  answer: { stripe: 'bg-sale', badge: 'bg-sale-soft text-sale-ink', todo: 'text-sale-ink' },
   ready: { stripe: 'bg-in-stock', badge: 'bg-ok-soft text-ok-ink', todo: 'text-ok-ink' },
-  review: { stripe: 'bg-brand', badge: 'bg-brand-soft text-brand', todo: 'text-ink-muted' },
-  accepted: { stripe: 'bg-ok-ink/50', badge: 'bg-sage-soft text-ok-ink', todo: 'text-ink-muted' },
-  done: { stripe: 'bg-ink-faint', badge: 'bg-sunk text-ink-muted', todo: 'text-ink-muted' },
+  // Решение владельца 2026-10-30: проверяет — жёлтым, принята — синим, получена — зелёным, отменена — красным.
+  review: { stripe: 'bg-hit-ink', badge: 'bg-hit-soft text-hit-ink', todo: 'text-ink-muted' },
+  accepted: { stripe: 'bg-wholesale-ink', badge: 'bg-wholesale-soft text-wholesale-ink', todo: 'text-ink-muted' },
+  done: { stripe: 'bg-ok-ink', badge: 'bg-ok-soft text-ok-ink', todo: 'text-ink-muted' },
   cancelled: { stripe: 'bg-gone/50', badge: 'bg-sunk text-gone', todo: 'text-ink-muted' },
 };
+
 
 /**
  * Строка, которой назван вид заявки: у собранной с доставкой — своя,
@@ -59,107 +59,9 @@ function variantKey(order: PortalOrderDto, kind: OrderKind): string {
 }
 
 /**
- * Заявка в списке: свёрнутая строка и раскрытые подробности.
- *
- * Заголовок — кнопка раскрытия целиком, а не маленькая стрелка: по строке
- * списка попадают пальцем, и цель должна быть большой. Кнопки подробностей
- * лежат ниже, вне заголовка, — кнопка в кнопке недопустима.
- */
-export function OrderRow({ order, unread, open, onToggle }: {
-  order: PortalOrderDto;
-  unread?: Unread;
-  open: boolean;
-  onToggle: () => void;
-}) {
-  const { t } = useTranslation();
-  const kind = kindOf(order);
-  const tone = TONE[kind];
-  const variant = variantKey(order, kind);
-  const last = lastMessage(order, unread);
-  const lines = linesOf(order);
-  const detailsId = useId();
-  const eventText = kind === 'cancelled'
-    ? t(`orders.v2.event.${order.closedBy ?? 'cancelled'}`)
-    : t(`orders.v2.event.${variant}`);
-
-  return (
-    <article
-      data-testid="order-row"
-      aria-label={t('orders.v2.title', { number: order.orderNumber })}
-      className={cn(
-        'overflow-hidden rounded-[var(--radius-card)] shadow-[0_0_0_1px_var(--color-hairline)]',
-        // Где ход за клиентом, рамка цвета вида; новое — чуть тёплым фоном.
-        unread ? 'bg-accent-soft/40' : 'bg-surface',
-        kind === 'answer' && 'shadow-[0_0_0_1.5px_var(--color-accent)]',
-        kind === 'ready' && 'shadow-[0_0_0_1.5px_var(--color-in-stock)]',
-      )}
-    >
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={detailsId}
-        aria-label={t('orders.v2.details', { number: order.orderNumber })}
-        onClick={onToggle}
-        className={cn(
-          'flex w-full cursor-pointer items-stretch gap-4 bg-transparent p-4 text-left lg:px-5',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent',
-        )}
-      >
-        <span aria-hidden="true" className={cn('w-1.5 shrink-0 rounded-full', tone.stripe)} />
-        <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span className={cn('inline-flex h-6 items-center rounded-md px-2 text-xs font-bold', tone.badge)}>
-              {t(`orders.v2.kind.${kind}`)}
-            </span>
-            <span className="text-base font-extrabold text-ink">{t('orders.v2.title', { number: order.orderNumber })}</span>
-            <span className="text-caption text-ink-subtle">
-              {t('orders.v2.meta', {
-                day: orderDay(order.createdAt),
-                goods: t('orders.v2.goods', { count: lines.length }),
-                pieces: decimal(pieces(order)),
-              })}
-            </span>
-          </span>
-          <span className={cn('text-sm font-semibold', tone.todo)}>{t(`orders.v2.todo.${variant}`)}</span>
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-caption sm:flex-nowrap">
-            {unread ? (
-              <span className="inline-flex h-5 shrink-0 items-center rounded bg-accent px-1.5 text-[0.6562rem] font-extrabold uppercase tracking-[0.04em] text-on-accent">
-                {t('orders.v2.new')}
-              </span>
-            ) : null}
-            <MessageCircle aria-hidden="true" className="size-3.5 shrink-0 text-ink-faint" />
-            <span className={cn('min-w-0 sm:truncate', unread ? 'font-semibold text-ink' : 'text-ink-muted')}>
-              {last.text ? (last.fromCustomer ? `${t('orders.v2.you')} ${last.text}` : last.text) : eventText}
-            </span>
-            <span className="shrink-0 text-ink-faint">· {dayTime(last.at, t)}</span>
-          </span>
-          {/* На узком экране сумма уходит под текст: справа ей не хватает места. */}
-          <span className="flex flex-wrap items-baseline gap-x-2 sm:hidden">
-            <span className="whitespace-nowrap text-lg font-extrabold tabular-nums text-ink">{money(totalOf(order), order.currency)}</span>
-            <span className="text-[0.7188rem] text-ink-subtle">{t('orders.v2.payOnPickup')}</span>
-          </span>
-        </span>
-        <span className="flex shrink-0 items-start gap-3">
-          <span className="hidden flex-col items-end sm:flex">
-            <span className="whitespace-nowrap text-xl font-extrabold tabular-nums tracking-[-0.01em] text-ink">{money(totalOf(order), order.currency)}</span>
-            <span className="text-[0.7188rem] text-ink-subtle">{t('orders.v2.payOnPickup')}</span>
-          </span>
-          <span aria-hidden="true" className="inline-flex size-9 items-center justify-center rounded-[var(--radius-control)] shadow-[0_0_0_1px_var(--color-line)]">
-            <ChevronDown className={cn('size-4 text-ink transition-transform duration-200', open && 'rotate-180')} />
-          </span>
-        </span>
-      </button>
-
-      <div id={detailsId} hidden={!open}>
-        {open ? <OrderDetails order={order} kind={kind} variant={variant} /> : null}
-      </div>
-    </article>
-  );
-}
-
 /**
- * Строка списка слева на мониторе (макет ПК-К5): номер, сумма, когда и сколько
- * товаров, вид заявки. Нажатием открывает заявку в панели справа.
+ * Строка списка слева на мониторе («Вариант Б»): снимок, номер и день, вид заявки, сумма.
+ * Нажатием открывает заявку в панели справа.
  */
 export function OrderPick({ order, unread, selected, onPick }: {
   order: PortalOrderDto;
@@ -174,9 +76,9 @@ export function OrderPick({ order, unread, selected, onPick }: {
       aria-pressed={selected}
       onClick={onPick}
       className={cn(
-        'flex w-full cursor-pointer flex-col gap-1.5 rounded-[1.125rem] border-0 bg-transparent px-4 py-3.5 text-left',
+        'flex w-full cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border-solid bg-surface px-3.5 py-3 text-left',
         'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-        selected ? 'bg-surface shadow-[0_0_0_2px_var(--color-sale)]' : 'hover:bg-surface/60',
+        selected ? 'border-[3px] border-shop bg-ok-soft/40' : 'border-2 border-hairline hover:border-line',
       )}
     >
       <PickLines order={order} unread={unread} />
@@ -185,50 +87,88 @@ export function OrderPick({ order, unread, selected, onPick }: {
 }
 
 /**
- * Заявка строкой на телефоне (макеты «Кабинет клиента 2.0»): номер, сумма,
- * дата и статус, у ждущей ответа — что сделать. Всё о заявке — на её экране,
- * а не раскрытием в списке: раскрытые карточки делали список нечитаемым.
+ * Заявка карточкой на телефоне (макет SimplePicOrders): у ждущей ответа — что случилось
+ * и «Посмотреть и ответить», у собранной — код для получения; остальные — короткой строкой.
+ * Всё о заявке — на её экране, а не раскрытием в списке.
  */
 export function OrderLink({ order, unread }: { order: PortalOrderDto; unread?: Unread }) {
   const { t } = useTranslation();
   const kind = kindOf(order);
+  if (kind === 'answer' || (kind === 'ready' && order.pickupCode)) {
+    const answer = kind === 'answer';
+    return (
+      <article
+        data-testid="order-row"
+        aria-label={t('orders.v2.title', { number: order.orderNumber })}
+        className={cn('flex flex-col gap-2.5 rounded-[var(--radius-card)] border-[3px] border-solid bg-surface p-4', answer ? 'border-sale' : 'border-shop')}
+      >
+        <span className="flex items-center justify-between gap-2">
+          <Pill kind={kind} big />
+          <b className="whitespace-nowrap text-lead font-extrabold tabular-nums text-ink">{money(totalOf(order), order.currency)}</b>
+        </span>
+        {answer ? <p className="m-0 text-lead font-extrabold text-ink">{answerText(order, t)}</p> : null}
+        {!answer && order.pickupCode ? <PickupCode code={order.pickupCode} /> : null}
+        <p className="m-0 flex items-center gap-2 text-caption text-ink-muted">
+          {unread ? <span role="img" aria-label={t('orders.v2.new')} className="size-2.5 shrink-0 rounded-full bg-sale" /> : null}
+          {t('orders.v2.title', { number: order.orderNumber })} · {orderDay(order.createdAt)} · {t('orders.v2.goods', { count: linesOf(order).length })}
+        </p>
+        <Link to={`/orders/${order.id}`} className={answer ? BIG_PRIMARY : BIG_SECONDARY}>
+          {t(answer ? 'orders.v2.viewAnswer' : 'orders.v2.open')}
+          <ChevronRight aria-hidden="true" className="size-6" />
+        </Link>
+      </article>
+    );
+  }
   return (
     <Link
       to={`/orders/${order.id}`}
       data-testid="order-row"
-      className="flex flex-col gap-1.5 px-4 py-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+      className="flex items-center gap-3 rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface px-3.5 py-3 text-ink no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       <PickLines order={order} unread={unread} />
-      {kind === 'answer' ? (
-        <span className={cn('text-[0.8125rem] font-semibold', TONE[kind].todo)}>{t(`orders.v2.todo.${variantKey(order, kind)}`)}</span>
-      ) : null}
     </Link>
+  );
+}
+
+/** Пилюля вида заявки — цвета макета: ответ — тёплым, забрать — зелёным, проверка — жёлтым. */
+function Pill({ kind, big = false }: { kind: OrderKind; big?: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <span className={cn('inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full font-extrabold',
+      big ? 'h-8 px-3.5 text-caption' : 'mt-1 h-7 px-3 text-caption', TONE[kind].badge)}>
+      {kind === 'done' ? <Check aria-hidden="true" className="size-3.5" /> : null}
+      {t(`orders.v2.kind.${kind}`)}
+    </span>
   );
 }
 
 function PickLines({ order, unread }: { order: PortalOrderDto; unread?: Unread }) {
   const { t } = useTranslation();
   const kind = kindOf(order);
+  const first = linesOf(order)[0];
   return (
     <>
-      <span className="flex items-baseline justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2 text-[0.9375rem] font-extrabold text-ink">
-          <span className="truncate">{t('orders.v2.title', { number: order.orderNumber })}</span>
-          {unread ? <span role="img" aria-label={t('orders.v2.new')} className="size-2 shrink-0 rounded-full bg-accent" /> : null}
+      <LineThumb seed={first?.itemId ?? first?.name ?? order.id} src={first?.imageUrl} className="size-14 rounded-[0.875rem]" />
+      <span className="flex min-w-0 flex-1 flex-col items-start">
+        <span className="flex max-w-full items-center gap-2 text-body font-extrabold text-ink">
+          <span className="truncate">{t('orders.v2.title', { number: order.orderNumber })} · {orderDay(order.createdAt)}</span>
+          {unread ? <span role="img" aria-label={t('orders.v2.new')} className="size-2.5 shrink-0 rounded-full bg-sale" /> : null}
         </span>
-        <span className="whitespace-nowrap text-[0.9375rem] font-extrabold tabular-nums text-ink">{money(totalOf(order), order.currency)}</span>
+        <Pill kind={kind} />
       </span>
-      <span className="flex items-center justify-between gap-3">
-        <span className="truncate text-[0.8125rem] text-ink-muted">
-          {orderDay(order.createdAt)} · {t('orders.v2.goods', { count: linesOf(order).length })}
-        </span>
-        <span className={cn('inline-flex h-6 shrink-0 items-center rounded-md px-2 text-xs font-bold', TONE[kind].badge)}>
-          {t(`orders.v2.kind.${kind}`)}
-        </span>
-      </span>
+      <b className="whitespace-nowrap text-body font-extrabold tabular-nums text-ink">{money(totalOf(order), order.currency)}</b>
     </>
   );
 }
+
+const BIG_PRIMARY = cn(
+  'inline-flex min-h-14 items-center justify-center gap-2 rounded-[var(--radius-control)] border-2 border-solid border-shop bg-shop px-4',
+  'text-base font-extrabold text-on-shop no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
+);
+const BIG_SECONDARY = cn(
+  'inline-flex min-h-14 items-center justify-center gap-2 rounded-[var(--radius-control)] border-2 border-solid border-shop bg-surface px-4',
+  'text-base font-extrabold text-shop-ink no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+);
 
 /** Заявка панелью справа на мониторе (макет ПК-К5): заголовок, сумма и всё о ней — без раскрытия. */
 export function OrderPane({ order }: { order: PortalOrderDto }) {
@@ -238,16 +178,16 @@ export function OrderPane({ order }: { order: PortalOrderDto }) {
     <article
       data-testid="order-pane"
       aria-label={t('orders.v2.title', { number: order.orderNumber })}
-      className="overflow-hidden rounded-[1.5rem] bg-surface shadow-[2px_3px_6px_rgba(58,48,30,.07)]"
+      className="overflow-hidden rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface"
     >
       <div className="flex items-start justify-between gap-4 px-6 pb-4 pt-6">
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-[1.625rem] font-black tracking-[-0.02em] text-ink">{t('orders.v2.title', { number: order.orderNumber })}</h2>
+          <h2 className="text-display font-black tracking-[-0.02em] text-ink">{t('orders.v2.title', { number: order.orderNumber })}</h2>
           <span className={cn('text-sm font-semibold', TONE[kind].todo)}>{t(`orders.v2.todo.${variantKey(order, kind)}`)}</span>
         </div>
         <span className="flex shrink-0 flex-col items-end">
           <span className="whitespace-nowrap text-2xl font-black tabular-nums text-ink">{money(totalOf(order), order.currency)}</span>
-          <span className="text-[0.7188rem] text-ink-subtle">{t('orders.v2.payOnPickup')}</span>
+          <span className="text-2xs text-ink-subtle">{t('orders.v2.payOnPickup')}</span>
         </span>
       </div>
       <OrderDetails order={order} kind={kind} variant={variantKey(order, kind)} />
@@ -262,16 +202,18 @@ function Label({ children }: { children: ReactNode }) {
 function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: OrderKind; variant: string }) {
   const { t } = useTranslation();
   const lines = linesOf(order);
-  const [asking, setAsking] = useState(false);
+  // Открыта ли форма вопроса и на какой ответ продавца он отвечает.
+  const [asking, setAsking] = useState<false | { quote?: string }>(false);
   const finished = kind === 'done' || kind === 'cancelled';
   // Звонок — магазину, у которого заявка: кабинет открыт на нём.
-  const tel = telLink(useCurrentShop()?.phone);
+  const shop = useCurrentShop();
+  const tel = telLink(shop?.phone);
   const placed = new Date(order.createdAt);
   const placedText = Number.isNaN(placed.getTime()) ? order.createdAt
     : `${orderDay(order.createdAt)}, ${new Intl.DateTimeFormat(intlLocale(), { hour: '2-digit', minute: '2-digit' }).format(placed)}`;
   const whereText = kind === 'cancelled' && order.closedBy
     ? t(`orders.v2.event.${order.closedBy}`)
-    : t(`orders.v2.whereText.${variant}`);
+    : kind === 'answer' ? answerText(order, t) : t(`orders.v2.whereText.${variant}`);
 
   return (
     <div className="flex flex-col border-0 border-t border-solid border-hairline">
@@ -285,11 +227,21 @@ function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: O
           {order.managerName ? (
             <span data-testid="order-manager" className="text-sm text-ink-muted">{t('orders.manager', { name: order.managerName })}</span>
           ) : null}
+          {order.saleMode ? (
+            <span data-testid="order-sale-mode" className={cn('text-sm font-bold', order.saleMode === 'WHOLESALE' ? 'text-wholesale' : 'text-ink')}>
+              {t(`orders.saleMode.${order.saleMode}`)}
+            </span>
+          ) : null}
+          {order.creditRequest ? (
+            <span data-testid="order-credit" className={cn('text-sm font-semibold', order.creditRequest === 'DECLINED' ? 'text-sale-ink' : 'text-ink')}>
+              {t(`orders.credit.${order.creditRequest}`)}
+            </span>
+          ) : null}
         </div>
         <div className="flex flex-col gap-1">
           <Label>{t('orders.v2.todoTitle')}</Label>
           <span className={cn('text-sm font-semibold', kind === 'answer' || kind === 'ready' ? TONE[kind].todo : 'text-ink')}>
-            {t(`orders.v2.doText.${variant}`)}
+            {kind === 'answer' && namedPriceOf(order) ? t('orders.v2.doText.priceNamed') : t(`orders.v2.doText.${variant}`)}
           </span>
         </div>
         <div className="flex flex-col gap-1 sm:items-end">
@@ -336,9 +288,6 @@ function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: O
             ))}
           </ul>
           {order.delivery ? <OrderDelivery delivery={order.delivery} /> : null}
-          {order.transportPayment ? (
-            <TransportPayment orderId={order.id} payment={order.transportPayment} currency={order.currency} />
-          ) : null}
           {/* Разбивка — у отправленного состава; предложенный продавцом идёт одним итогом. */}
           <OrderTotals
             total={totalOf(order)}
@@ -348,7 +297,7 @@ function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: O
           />
         </section>
 
-        {kind === 'answer' ? <Changes order={order} /> : null}
+        {kind === 'answer' ? <Changes order={order} onAsk={(quote) => setAsking({ quote })} /> : null}
 
         {kind === 'ready' && (order.pickupPoint || order.pickupCode) ? (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -366,9 +315,9 @@ function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: O
           </div>
         ) : null}
 
-        <OrderMessages messages={order.messages} />
+        <OrderMessages messages={order.messages} onReply={(quote) => setAsking({ quote })} />
 
-        {asking ? <AskForm order={order} onDone={() => setAsking(false)} /> : null}
+        {asking ? <AskForm key={asking.quote ?? ''} order={order} quote={asking.quote} onDone={() => setAsking(false)} /> : null}
 
         <div className="flex flex-wrap gap-2">
           {kind === 'done' ? <RateItems order={order} /> : null}
@@ -376,19 +325,16 @@ function OrderDetails({ order, kind, variant }: { order: PortalOrderDto; kind: O
           {kind === 'done' ? <ReportProblem order={order} /> : null}
           {/* Как в макете: у идущей заявки — вопрос продавцу, у завершённой — повтор. */}
           {!finished && !asking ? (
-            <button type="button" className={SECONDARY} onClick={() => setAsking(true)}>
+            <button type="button" className={SECONDARY} onClick={() => setAsking({})}>
               <MessageCircleQuestion aria-hidden="true" className="size-[18px]" />
               {t('orders.ask')}
             </button>
           ) : null}
           {!finished && tel ? (
-            // Обычная ссылка, а не `<Link>`: у `tel:` своя схема адреса.
-            <a href={tel} className={SECONDARY}>
-              <Phone aria-hidden="true" className="size-[18px]" />
-              {t('orders.callSeller')}
-            </a>
+            <PhoneLine phone={shop?.phone} callLabel={t('orders.callSeller')} className="px-1" />
           ) : null}
           {finished ? <RepeatThis order={order} /> : null}
+          {finished ? <SaveAsTemplate order={order} /> : null}
           <Link to={`/orders/${order.id}`} className={SECONDARY}>{t('orders.v2.open')}</Link>
         </div>
       </div>
@@ -408,8 +354,10 @@ function RateItems({ order }: { order: PortalOrderDto }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const listId = useId();
+  const reviews = useCurrentShop()?.reviews;
   const lines = linesOf(order);
-  if (!lines.some((line) => line.itemId)) return null;
+  // Отзывы выключены у магазина (R-17) — оценивать товар негде.
+  if (!reviews || !lines.some((line) => line.itemId)) return null;
 
   if (lines.length === 1) {
     return (
@@ -471,99 +419,31 @@ const SECONDARY = cn(
 );
 
 /**
- * «Что изменил продавец» и ответ на это.
- *
- * Оба действия необратимы, поэтому названы вместе с заявкой: «Согласен»
- * само по себе не отличить от соседнего ни на слух, ни в перечне диктора.
+ * «Поставщик предлагает изменения» — тот же ответ по строкам, что на экране заявки
+ * (замена названа заменой, у неё карточка товара), и отказ только через окно с причиной.
+ * Раньше здесь была фраза и «Согласен» — замену из неё было не понять.
  */
-function Changes({ order }: { order: PortalOrderDto }) {
-  const { t } = useTranslation();
+function Changes({ order, onAsk }: { order: PortalOrderDto; onAsk: (quote: string) => void }) {
   const queryClient = useQueryClient();
-  const day = orderDay(order.createdAt);
-  const refresh = {
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: getGetMyPortalOrdersQueryKey() }),
-  };
-  const confirm = useConfirmMyPortalOrder({ mutation: refresh });
-  const decline = useDeclineMyPortalOrder({ mutation: refresh });
-  const busy = confirm.isPending || decline.isPending;
-  const changedTotal = order.proposedTotal !== undefined && order.proposedTotal !== order.total;
-
-  return (
-    <div className="flex flex-wrap items-center gap-4 rounded-[var(--radius-control)] bg-accent-soft px-4 py-3">
-      <div className="flex min-w-0 basis-full flex-col gap-1 sm:basis-0 sm:flex-1">
-        <Label>{t('orders.v2.changed')}</Label>
-        <RevisionDiff diff={order.diff} variant="sentence" currency={order.currency} />
-        {changedTotal ? (
-          <span className="text-sm text-ink">
-            {t('orders.v2.sum')}{' '}
-            <s className="text-ink-faint">{money(order.total, order.currency)}</s>
-            {' → '}
-            <b className="font-extrabold">{money(order.proposedTotal as number, order.currency)}</b>
-          </span>
-        ) : null}
-      </div>
-      <div className="flex gap-2">
-        <Button variant="accent" aria-label={t('orders.agreeAria', { day })} disabled={busy}
-          onClick={() => confirm.mutate({ id: order.id })}>
-          {confirm.isPending ? t('orders.sending') : t('orders.agree')}
-        </Button>
-        <Button variant="outline" aria-label={t('orders.cancelAria', { day })} disabled={busy}
-          onClick={() => decline.mutate({ id: order.id })}>
-          {decline.isPending ? t('orders.sending') : t('orders.decline')}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** Вопрос продавцу по этой заявке: уходит в её переписку. */
-function AskForm({ order, onDone }: { order: PortalOrderDto; onDone: () => void }) {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const [text, setText] = useState('');
-  const fieldId = useId();
-  const ask = useAskAboutMyPortalOrder({
+  const [declining, setDeclining] = useState(false);
+  const decline = useDeclineMyPortalOrder({
     mutation: {
-      onSuccess: (response) => {
-        if (response.status !== 200) return;
+      onSuccess: () => {
+        setDeclining(false);
         void queryClient.invalidateQueries({ queryKey: getGetMyPortalOrdersQueryKey() });
-        onDone();
       },
     },
   });
-  const failed = ask.isError || (ask.data !== undefined && ask.data.status !== 200);
-
-  const send = () => {
-    if (!text.trim() || ask.isPending) return;
-    ask.mutate({ id: order.id, data: { text: text.trim() } });
-  };
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    send();
-  };
-
+  const failed = decline.isError || (decline.data !== undefined && decline.data.status !== 200);
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2">
-      <label htmlFor={fieldId} className="text-sm font-semibold text-ink">{t('orders.v2.askLabel')}</label>
-      <textarea
-        id={fieldId}
-        rows={3}
-        maxLength={rules.AskAboutOrderRequest.text.maxLength}
-        autoFocus
-        value={text}
-        placeholder={t('orders.v2.askPlaceholder')}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={sendOnEnter(send)}
-        className="resize-y rounded-[var(--radius-control)] border-[1.5px] border-solid border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle focus:border-accent focus:outline-none"
-      />
-      {failed ? <p role="alert" className="m-0 text-sm text-gone">{t('orders.v2.askFailed')}</p> : null}
-      <div className="flex gap-2">
-        <Button type="submit" variant="accent" disabled={!text.trim() || ask.isPending}>
-          {ask.isPending ? t('orders.sending') : t('orders.v2.send')}
-        </Button>
-        <Button type="button" variant="ghost" onClick={onDone}>{t('orders.v2.askCancel')}</Button>
-      </div>
-    </form>
+    <div className="flex flex-col gap-3">
+      <LineAnswers order={order} busy={decline.isPending} onAsk={onAsk}
+        onDecline={() => setDeclining(true)} onAnswered={() => {}} />
+      {declining ? (
+        <DeclineDialog pending={decline.isPending} failed={failed} onStay={() => setDeclining(false)}
+          onDecline={(reason, comment) => decline.mutate({ id: order.id, data: { reason, comment: comment || undefined } })} />
+      ) : null}
+    </div>
   );
 }
 
@@ -573,27 +453,23 @@ function AskForm({ order, onDone }: { order: PortalOrderDto; onDone: () => void 
  */
 function RepeatThis({ order }: { order: PortalOrderDto }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const repeat = useFillPortalCartFromOrder({
-    mutation: {
-      onSuccess: (response) => {
-        if (response.status !== 200) return;
-        queryClient.setQueryData(getGetPortalCartQueryKey(), response);
-        navigate('/checkout');
-      },
-    },
-  });
+  // Товар «оптом и в розницу» ложится в заявку, в которой клиент сейчас (решение владельца 2026-11-06).
+  const [orderMode] = useOrderMode();
+  const { done, nothing, start } = useStayIfEmpty();
+  const repeat = useFillPortalCartFromOrder({ mutation: { onSuccess: done } });
   return (
-    <button
-      type="button"
-      className={SECONDARY}
-      disabled={repeat.isPending}
-      aria-label={`${t('orders.again')}: ${t('orders.v2.title', { number: order.orderNumber })}`}
-      onClick={() => repeat.mutate({ orderId: order.id })}
-    >
-      <RotateCcw aria-hidden="true" className="size-[18px]" />
-      {repeat.isPending ? t('orders.collecting') : t('orders.again')}
-    </button>
+    <>
+      <button
+        type="button"
+        className={SECONDARY}
+        disabled={repeat.isPending}
+        aria-label={`${t('orders.again')}: ${t('orders.v2.title', { number: order.orderNumber })}`}
+        onClick={() => { start(); repeat.mutate({ orderId: order.id, params: { mode: orderMode } }); }}
+      >
+        <RotateCcw aria-hidden="true" className="size-[18px]" />
+        {repeat.isPending ? t('orders.collecting') : t('orders.again')}
+      </button>
+      <NothingAdded skipped={nothing} />
+    </>
   );
 }

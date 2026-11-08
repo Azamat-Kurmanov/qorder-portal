@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ActivationPage } from './ActivationPage';
 import { renderScreen } from '../../test/render';
@@ -58,6 +58,49 @@ describe('активация приглашения', () => {
       });
     });
     expect(window.localStorage.getItem('qo.portal.supplier')).toBe('supplier-7');
+  });
+
+  it('по коду из ссылки называет магазин: «Вас пригласил …»', async () => {
+    stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      get('/api/portal/invitation/preview', { name: '«Лето» — женская одежда' }),
+    ]);
+    renderScreen(<ActivationPage />, { route: '/activate?code=abc123', auth: { authenticated: false, token: null } });
+    const inviter = await screen.findByTestId('activation-inviter');
+    expect(inviter).toHaveTextContent('Вас пригласил');
+    expect(inviter).toHaveTextContent('«Лето» — женская одежда');
+  });
+
+  it('у кого учётная запись уже есть, тому вместо пароля — вход', async () => {
+    const login = vi.fn();
+    stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      get('/api/portal/invitation/preview', { name: '«Лето»', signInRequired: true }),
+    ]);
+    renderScreen(<ActivationPage />, { route: '/activate?code=abc123', auth: { authenticated: false, token: null, login } });
+    await screen.findByTestId('activation-sign-in-first');
+    expect(screen.queryByLabelText(/пароль/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Войти' }));
+    expect(login).toHaveBeenCalled();
+  });
+
+  it('запертую частотой ссылку называет запертой, а не просит пароль молча', async () => {
+    stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      get('/api/portal/invitation/preview', { code: 'PORTAL_TOO_MANY_ATTEMPTS' }, 429),
+    ]);
+    renderScreen(<ActivationPage />, { route: '/activate?code=abc123', auth: { authenticated: false, token: null } });
+    expect(await screen.findByRole('alert')).toHaveTextContent(i18n.t('activation.tooManyAttempts'));
+  });
+
+  it('негодный код магазин не называет — отказ скажет сама активация', async () => {
+    stubFetch([
+      get('/api/portal/consent-notice', NOTICE),
+      get('/api/portal/invitation/preview', { code: 'INVITATION_INVALID' }, 401),
+    ]);
+    renderScreen(<ActivationPage />, { route: '/activate?code=bad', auth: { authenticated: false, token: null } });
+    await screen.findByRole('checkbox');
+    expect(screen.queryByTestId('activation-inviter')).not.toBeInTheDocument();
   });
 
   /**
@@ -286,6 +329,28 @@ describe('активация приглашения', () => {
 
     expect(await screen.findByRole('button', { name: /Язык интерфейса/ }))
       .toBeInTheDocument();
+  });
+
+  it('сменили язык — галочка снята, согласие даётся заново на новом тексте', async () => {
+    stubFetch([get('/api/portal/consent-notice', NOTICE)]);
+    renderScreen(<ActivationPage />, { route: '/activate?code=abc123', auth: { authenticated: false, token: null } });
+    await userEvent.click(await screen.findByRole('checkbox'));
+    expect(screen.getByRole('checkbox')).toBeChecked();
+
+    await act(async () => { await i18n.changeLanguage('kk'); });
+    // Текст пришёл на русском — на казахском экране он не годится.
+    expect(await screen.findByText(i18n.t('join.consentFailed'))).toBeInTheDocument();
+    await act(async () => { await i18n.changeLanguage('ru'); });
+    expect(screen.getByRole('checkbox')).not.toBeChecked();
+  });
+
+  it('текст согласия не загрузился — причина и «Повторить», а не немая серая кнопка', async () => {
+    stubFetch([get('/api/portal/consent-notice', { code: 'DOWN' }, 503)]);
+    renderScreen(<ActivationPage />, { route: '/activate?code=abc123', auth: { authenticated: false, token: null } });
+
+    expect(await screen.findByText('Не удалось загрузить текст согласия.', {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
+    expect(screen.getByText('Не загрузился текст согласия')).toBeInTheDocument();
   });
 
   it('смена языка перечитывает уведомление о согласии', async () => {

@@ -102,7 +102,7 @@ function SizePicker({ size, sizes, onSize }: { size: number; sizes: number[]; on
         id={id}
         value={size}
         onChange={(event) => onSize(Number(event.currentTarget.value))}
-        className="h-9 rounded-[var(--radius-control)] border border-line bg-surface px-2.5 text-caption text-ink focus:border-accent focus:outline-none"
+        className="h-9 rounded-[var(--radius-control)] border border-field-line bg-surface px-2.5 text-caption text-ink focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none"
       >
         {sizes.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>
@@ -131,7 +131,7 @@ function GoTo({ count, current, onGo }: { count: number; current: number; onGo: 
           onGo(Number(value));
           setValue('');
         }}
-        className="h-9 w-16 rounded-[var(--radius-control)] border border-line bg-surface px-2 text-caption text-ink tabular-nums focus:border-accent focus:outline-none"
+        className="h-9 w-16 rounded-[var(--radius-control)] border border-field-line bg-surface px-2 text-caption text-ink tabular-nums focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none"
       />
       <span className="hidden lg:inline">{t('pager.ofPages', { page: current, count })}</span>
     </span>
@@ -154,7 +154,7 @@ function PageButton({ label, current, disabled, className, onClick, children }: 
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'inline-flex h-9 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-[var(--radius-control)] px-2 text-caption font-medium tabular-nums',
+        'qo-hit inline-flex h-9 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-[var(--radius-control)] px-2 text-caption font-medium tabular-nums',
         'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
         'disabled:cursor-default disabled:opacity-35',
         current ? 'bg-accent-soft font-bold text-accent-ink' : 'text-ink-muted hover:bg-sunk hover:text-ink',

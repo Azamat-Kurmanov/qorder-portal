@@ -60,8 +60,10 @@ export async function apiRequest<T>(url: string, options: ApiRequestOptions = {}
   const token = getSessionToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
+  // Свой заголовок у вызова — его магазин: «Все магазины» отмечают прочитанным в другом магазине,
+  // не переключаясь в него.
   const supplier = currentSupplierId();
-  if (supplier) headers.set(SUPPLIER_HEADER, supplier);
+  if (supplier && !headers.has(SUPPLIER_HEADER)) headers.set(SUPPLIER_HEADER, supplier);
   // Точка самовывоза из шапки: по её складу сервер считает наличие витрины и корзины.
   const point = currentPickupPoint();
   if (point) headers.set('X-Pickup-Point', point);
@@ -104,7 +106,9 @@ export async function apiRequest<T>(url: string, options: ApiRequestOptions = {}
   }
 
   const body = NO_BODY_STATUSES.has(response.status) ? null : await response.text();
-  const data = body ? JSON.parse(body) : undefined;
+  // Отказ прокси (502 от nginx) приходит HTML-страницей: разбор тела не должен
+  // съесть статус, иначе сбой сервера выглядел бы обрывом сети.
+  const data = body ? (response.ok ? JSON.parse(body) : parseOrUndefined(body)) : undefined;
 
   if (!response.ok) {
     const error = new Error(`Request to ${url} failed with status ${response.status}`) as Error & {
@@ -163,3 +167,22 @@ function responseHeaders(raw: string): Headers {
   return headers;
 }
 
+
+function parseOrUndefined(body: string): unknown {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Статус отказа сервера; `undefined` — ответа не было вовсе (обрыв сети). */
+export function statusOf(error: unknown): number | undefined {
+  return (error as { status?: number } | null)?.status;
+}
+
+/** Того, что спрашивали, нет и не будет (404, 410): повтор не поможет — в отличие от сети, 5xx и 429. */
+export function isGone(error: unknown): boolean {
+  const status = statusOf(error);
+  return status === 404 || status === 410;
+}

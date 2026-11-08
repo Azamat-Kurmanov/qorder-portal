@@ -7,11 +7,14 @@
  * крупный текст в прежние тесные кнопки: читать стало бы легче, а попадать
  * труднее, чем было.
  *
- * Ступеней три, а не ползунок: человек, которому мелко, выбирает «крупнее»
+ * Ступеней две, а не ползунок: человек, которому мелко, выбирает «крупнее»
  * и возвращается к делу, а не подбирает проценты. Названы они словами,
  * а не числами, по той же причине.
  */
-export const FONT_SCALES = ['normal', 'large', 'huge'] as const;
+export const FONT_SCALES = ['normal', 'large'] as const;
+
+/** «Очень крупный» убран (2026-11-05): ломал вёрстку. Кто его выбирал — получает «Крупный». */
+const RETIRED: Record<string, FontScale> = { huge: 'large' };
 
 export type FontScale = (typeof FONT_SCALES)[number];
 
@@ -37,8 +40,9 @@ function storage(): Storage | null {
 /** Выбранная ступень — или обычная, если не выбирали или выбрали неизвестное. */
 export function currentFontScale(): FontScale {
   try {
-    const stored = storage()?.getItem(KEY);
-    return (FONT_SCALES as readonly string[]).includes(stored ?? '')
+    const raw = storage()?.getItem(KEY) ?? '';
+    const stored = RETIRED[raw] ?? raw;
+    return (FONT_SCALES as readonly string[]).includes(stored)
       ? (stored as FontScale)
       : 'normal';
   } catch {

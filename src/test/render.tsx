@@ -59,7 +59,7 @@ export function renderScreen(
   options: {
     supplierId?: string | null;
     auth?: Partial<AuthContextValue>;
-    route?: string;
+    route?: string | { pathname: string; state?: unknown };
     /**
      * Валюта открытого магазина: в бою её ставит `SupplierCurrencyScope`
      * из списка поставщиков — здесь она подставляется прямо, чтобы экран

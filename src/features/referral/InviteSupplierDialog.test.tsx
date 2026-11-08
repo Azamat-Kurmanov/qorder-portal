@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { InviteSupplierDialog } from './InviteSupplierDialog';
 import { renderScreen } from '../../test/render';
+import { stubWideScreen } from '../../test/wideScreen';
 import { get, method, stubFetch } from '../../test/http';
 
 const LINK = 'http://localhost:5174/join/AbCdEfGhIjKlMnOpQrStUv';
@@ -67,6 +68,31 @@ describe('окно «Пригласить поставщика»', () => {
 
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(LINK));
     expect(await screen.findByText('Ссылка скопирована')).toBeInTheDocument();
+  });
+
+  it('«Показать QR» создаёт приглашение и рисует QR с той же ссылкой', async () => {
+    const { calls } = stubFetch(rules());
+    renderScreen(<InviteSupplierDialog open onOpenChange={() => {}} />);
+    await screen.findByDisplayValue('ТОО "Кафе Сауле"');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Показать QR' }));
+
+    const qr = await screen.findByRole('img', { name: 'QR-код приглашения' });
+    expect(qr.querySelector('svg')).not.toBeNull();
+    expect(screen.getByText(LINK)).toBeInTheDocument();
+    expect(calls.filter((call) => call.init?.method === 'POST')).toHaveLength(1);
+  });
+
+  it('на мониторе крестик в углу закрывает окно', async () => {
+    stubWideScreen();
+    stubFetch(rules());
+    const onOpenChange = vi.fn();
+    renderScreen(<InviteSupplierDialog open onOpenChange={onOpenChange} />);
+    await screen.findByDisplayValue('ТОО "Кафе Сауле"');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('предел приглашений называется словами', async () => {

@@ -41,36 +41,6 @@ export function navItemClass(nav: NavLook, active: boolean, vertical: boolean): 
   );
 }
 
-export type ChipLook = TemplateStyle['chip'];
-
-/**
- * Чип рубрики: заливка цветом магазина (`pill`), рамка с мягкой подложкой
- * (`outline`) или подчёркивание (`underline`). `sale` — чип «Со скидкой»
- * в тонах скидки, пока он не выбран.
- */
-export function chipClass(chip: ChipLook, selected: boolean, sale = false): string {
-  if (chip === 'underline') {
-    return cn(
-      'h-[2.375rem] rounded-none border-0 border-b-2 px-0.5',
-      selected ? 'border-ink font-bold text-ink' : cn('border-transparent hover:text-ink', sale ? 'text-sale-ink' : 'text-ink-muted'),
-    );
-  }
-  if (chip === 'outline') {
-    return cn(
-      'h-[2.375rem] rounded-[min(var(--radius-small),6px)] border px-3.5',
-      selected
-        ? 'border-shop bg-accent-soft text-accent-ink'
-        : sale ? 'border-sale-line bg-sale-soft text-sale-ink hover:border-sale' : 'border-hairline bg-surface text-ink hover:border-ink',
-    );
-  }
-  return cn(
-    'h-[2.375rem] rounded-[var(--radius-chip)] border px-4',
-    selected
-      ? 'border-accent bg-accent text-on-accent shadow-[0_8px_16px_-12px_var(--color-brand-deep)]'
-      : sale ? 'border-sale-line bg-sale-soft text-sale-ink hover:border-sale' : 'border-hairline bg-surface text-ink hover:border-ink',
-  );
-}
-
 export type PriceLook = TemplateStyle['price'];
 
 /**

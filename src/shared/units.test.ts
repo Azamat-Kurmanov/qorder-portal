@@ -50,6 +50,10 @@ describe('единица после «за»', () => {
     expect(unitPer('шт.')).toBe('шт.');
     expect(unitPer('упаковка')).toBe('упаковку');
     expect(unitPer('коробка')).toBe('коробку');
+    // Опт одежды — после «за» тоже по-русски: «за линейку», а не «за линейка».
+    expect(unitPer('линейка')).toBe('линейку');
+    expect(unitPer('пресс')).toBe('пресс');
+    expect(quantityWithUnit(5, 'линейка')).toBe('5 линеек');
     expect(unitPer('бутылка')).toBe('бутылку');
     expect(unitPer('канистра')).toBe('канистру');
     expect(unitPer('Упаковка')).toBe('упаковку');

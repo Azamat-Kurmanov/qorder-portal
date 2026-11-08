@@ -19,7 +19,18 @@ interface QOrderBridge {
   pushToken?: () => Promise<PushDevice | null>;
   /** Уведомление, которого коснулись, — отдаётся один раз; нет — `null`. */
   takeNotification?: () => Promise<OpenedPush | null>;
+  /** Открыть нативный сканер; коды приходят событием {@link SCAN_EVENT}. */
+  startScan?: () => void;
+  /** Закрыть нативный сканер. */
+  stopScan?: () => void;
+  /** Строка под видоискателем нативного сканера: что вышло из последнего кода. */
+  scanStatus?: (tone: 'ok' | 'error', text: string) => void;
 }
+
+/** Код от нативного сканера: `CustomEvent`, `detail` — строка кода. */
+export const SCAN_EVENT = 'qorder-scan';
+/** Человек закрыл нативный сканер сам. */
+export const SCAN_CLOSED_EVENT = 'qorder-scan-closed';
 
 /** Устройство для регистрации на сервере (`RegisterDeviceRequest`). */
 export interface PushDevice {
@@ -108,4 +119,21 @@ export async function takeNotification(): Promise<OpenedPush | null> {
   } catch {
     return null;
   }
+}
+
+/** Есть ли у приложения сканер: в браузере кнопки сканирования нет. */
+export function hasNativeScan(): boolean {
+  return typeof window !== 'undefined' && typeof window.QOrderBridge?.startScan === 'function';
+}
+
+export function startScan(): void {
+  window.QOrderBridge?.startScan?.();
+}
+
+export function stopScan(): void {
+  window.QOrderBridge?.stopScan?.();
+}
+
+export function scanStatus(tone: 'ok' | 'error', text: string): void {
+  window.QOrderBridge?.scanStatus?.(tone, text);
 }

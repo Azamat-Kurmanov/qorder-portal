@@ -78,12 +78,12 @@ function Field({
         onChange={(event) => onChange(event.currentTarget.value)}
         onBlur={onBlur}
         className={cn(
-          'h-10 w-full rounded-[var(--radius-control)] border bg-surface px-3',
+          'h-11 w-full rounded-[var(--radius-control)] border bg-surface px-3',
           'text-sm text-ink outline-none disabled:cursor-not-allowed disabled:opacity-60',
           // Фокус — рамкой в два пикселя цветом магазина (ошибка — красным): смена
           // оттенка однопиксельной рамки на глаз не читалась вовсе.
           'transition-[border-color,box-shadow] duration-150 focus:ring-1',
-          fault ? 'border-gone focus:ring-gone' : 'border-line focus:border-accent focus:ring-accent',
+          fault ? 'border-gone focus:ring-gone' : 'border-field-line focus:border-accent focus:ring-accent',
         )}
       />
       {hint ? <span id={hintId} className="text-caption text-ink-faint">{hint}</span> : null}

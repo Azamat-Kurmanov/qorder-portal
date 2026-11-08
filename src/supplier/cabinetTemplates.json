@@ -706,7 +706,6 @@
           "weight": 700,
           "tracking": -0.03
         },
-        "backdrop": "GLOW",
         "motion": "LIVELY",
         "announce": false,
         "bannerSkin": "glass"
@@ -736,7 +735,7 @@
       "font": "golos",
       "heading": "wix",
       "dark": true,
-      "brand": "#7C5CFF",
+      "brand": "#7958FF",
       "background": "NEUTRAL",
       "card": "none",
       "scale": 1,
@@ -757,7 +756,6 @@
           "weight": 700,
           "tracking": -0.03
         },
-        "backdrop": "SHIMMER",
         "motion": "LIVELY",
         "announce": false,
         "bannerSkin": "glass"
@@ -808,7 +806,6 @@
           "weight": 700,
           "tracking": -0.035
         },
-        "backdrop": "NONE",
         "motion": "LIVELY",
         "announce": false,
         "bannerSkin": "depth"
@@ -859,7 +856,6 @@
           "weight": 700,
           "tracking": -0.035
         },
-        "backdrop": "GLOW",
         "motion": "LIVELY",
         "announce": false,
         "bannerSkin": "depth"
@@ -910,7 +906,6 @@
           "weight": 600,
           "tracking": -0.02
         },
-        "backdrop": "HORIZON",
         "motion": "LIVELY",
         "announce": false,
         "bannerSkin": "neon"
@@ -961,7 +956,6 @@
           "weight": 600,
           "tracking": -0.02
         },
-        "backdrop": "PARTICLES",
         "motion": "LIVELY",
         "announce": false,
         "bannerSkin": "neon"
@@ -1012,7 +1006,6 @@
           "weight": 800,
           "tracking": -0.02
         },
-        "backdrop": "BLOBS",
         "motion": "LIVELY",
         "announce": false,
         "bannerSkin": "soft"
@@ -1063,7 +1056,6 @@
           "weight": 800,
           "tracking": -0.02
         },
-        "backdrop": "BLOBS",
         "motion": "VIVID",
         "announce": false,
         "bannerSkin": "soft"
@@ -1114,7 +1106,6 @@
           "weight": 200,
           "tracking": -0.06
         },
-        "backdrop": "SPOTLIGHT",
         "motion": "LIVELY",
         "announce": false,
         "bannerSkin": "studio"
@@ -1165,7 +1156,6 @@
           "weight": 200,
           "tracking": -0.06
         },
-        "backdrop": "SPOTLIGHT",
         "motion": "LIVELY",
         "announce": true,
         "bannerSkin": "studio"
@@ -1216,7 +1206,6 @@
           "weight": 400,
           "tracking": 0.025
         },
-        "backdrop": "NONE",
         "motion": "LIVELY",
         "announce": true,
         "bannerSkin": "lookbook"
@@ -1267,7 +1256,6 @@
           "weight": 400,
           "tracking": 0.025
         },
-        "backdrop": "SCROLLTINT",
         "motion": "LIVELY",
         "announce": true,
         "bannerSkin": "lookbook"

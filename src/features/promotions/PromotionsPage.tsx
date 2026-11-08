@@ -1,8 +1,10 @@
+import { takenIn } from '../cart/cartPart';
+import { useOrderMode } from '../cart/orderMode';
 import { LoadFailed } from '../../ui/LoadFailed';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Box, Check, Clock, Info, Layers, Plus, Sparkles, Ticket } from '../../ui/icons';
+import { Link, useNavigate } from 'react-router-dom';
+import { ChevronLeft, Check, Clock, Layers, ShoppingCart, Ticket } from '../../ui/icons';
 import {
   useGetPortalBanners,
   useGetPortalCatalog,
@@ -16,7 +18,6 @@ import {
 } from '../../api/generated';
 import { cartOf, useCart, useSetCartLine } from '../cart/useCart';
 import { useAddToCart } from '../cart/ageGate';
-import { openCart } from '../cart/cartDrawer';
 import { ItemThumb } from '../catalog/ItemThumb';
 import { dayMonth, money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
@@ -31,6 +32,8 @@ import { resolveDesign } from '../../supplier/cabinetDesign';
 import { promotionsOff } from './promotionsOff';
 import { useReadOnOpen } from '../notifications/useReadOnOpen';
 import { PromoSubscription } from '../profile/PromoSubscription';
+import { HOME } from '../../ui/sectionBack';
+import { BACK } from '../shell/SectionHead';
 
 /** С какой ширины колонки товары распродажи встают в четыре карточки — как на витрине. */
 const FOUR_FROM = 1040;
@@ -43,9 +46,6 @@ const COMPACT_BELOW = 640;
 
 /** Фирменный цвет платформы — для слайдов баннеров, если у магазина своего нет. */
 const PLATFORM_BRAND = '#015640';
-
-/** Силуэты одежды на слайде распродажи — те же, что у шаблона «Распродажа» баннеров. */
-const COAT = 'M46 16l14 7 14-7 22 9 10 70-16 4-6-40v76H46V59l-6 40-16-4 10-70z';
 
 /** Отсчёт обновляется раз в минуту: секунды на экране акций только суетят. */
 const TICK_MS = 60_000;
@@ -65,7 +65,6 @@ const TICK_MS = 60_000;
 export function PromotionsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
   const promotions = useGetPortalPromotions();
   const data = promotions.data?.status === 200 ? promotions.data.data : undefined;
   useReadOnOpen('PROMO_STARTED');
@@ -77,56 +76,22 @@ export function PromotionsPage() {
   const bannerSlides = liveBanners(banners.data?.status === 200 ? banners.data.data : [], data?.dealCount);
 
   const nothing = data && promotionsOff(data);
-  const active = data
-    ? [data.sale, data.volumeTiers.length > 0, data.firstOrder?.status === 'ELIGIBLE'].filter(Boolean).length
-    : 0;
 
-  // Назад — туда, откуда пришли; открытому по ссылке возвращаться некуда
-  // (первая запись истории роутера — `default`), и тогда — в каталог.
-  const back = () => {
-    if (location.key === 'default') navigate('/catalog');
-    else navigate(-1);
-  };
+  // Стрелка у имени раздела — всегда на «Главную» (решение владельца 2026-11-05).
+  const back = () => navigate(HOME);
 
   return (
-    <div ref={columnRef} className="flex flex-col gap-8 lg:gap-9">
-      {/*
-        Своего заголовка у оболочки на телефоне нет — в верхней панели магазин
-        и поиск, — поэтому заголовок остаётся здесь, а рядом встаёт «назад».
-        Пилюля на телефоне короткая: длинная фраза переносилась под заголовок.
-      */}
-      <div className={cn('flex flex-wrap justify-between gap-3', compact ? 'items-center' : 'items-end')}>
-        <div className={cn('flex gap-1.5', compact ? 'min-w-0 items-center gap-2.5' : 'flex-col')}>
-          {compact ? (
-            <button
-              type="button"
-              onClick={back}
-              aria-label={t('promotions.v2.back')}
-              className={cn(
-                'inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-ink shadow-[0_0_0_1px_var(--color-hairline)]',
-                'transition-all duration-300 active:scale-95',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-              )}
-            >
-              <ArrowLeft aria-hidden="true" className="size-[18px]" />
-            </button>
-          ) : null}
-          <h1 className={cn('font-extrabold tracking-[-0.02em] text-ink', compact ? 'truncate text-[1.375rem]' : 'text-[1.625rem] lg:text-[2.25rem]')}>
-            {t('promotions.title')}
-          </h1>
-          {compact ? null : <p className="text-body text-ink-muted">{t('promotions.v2.lead')}</p>}
-        </div>
-        {active > 0 && (
-          <span
-            className={cn(
-              'flex items-center gap-2 rounded-[var(--radius-pill)] bg-surface font-semibold text-ink-muted shadow-[0_0_0_1px_var(--color-hairline)]',
-              compact ? 'h-8 px-3 text-caption' : 'h-10 px-3.5 text-sm',
-            )}
-          >
-            <span aria-hidden="true" className="size-2 rounded-full bg-in-stock" />
-            {t(compact ? 'promotions.v2.activeShort' : 'promotions.v2.active', { count: active })}
-          </span>
-        )}
+    <div ref={columnRef} className="flex flex-col gap-4 lg:gap-6">
+      {/* «Вариант Б» (SimplePicPromotions): «Назад», заголовок и строка «Скидки считаются в корзине сами». */}
+      <div className="flex items-center gap-3.5 pt-1">
+        <button type="button" onClick={back} aria-label={t('promotions.v2.back')} className={BACK}>
+          <ChevronLeft aria-hidden="true" className="size-7" />
+          <span aria-hidden="true" className="hidden lg:inline">{t('promotions.v2.back')}</span>
+        </button>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <h1 className="m-0 text-title font-extrabold leading-tight text-ink lg:text-display">{t('promotions.title')}</h1>
+          <span className="text-body text-ink-muted">{t('promotions.v2.lead')}</span>
+        </span>
       </div>
 
       {promotions.isPending ? (
@@ -134,33 +99,33 @@ export function PromotionsPage() {
       ) : promotions.isError ? (
         <LoadFailed onRetry={() => void promotions.refetch()} />
       ) : nothing || !data ? (
-        <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] bg-surface px-6 py-14 text-center shadow-[0_0_0_1px_var(--color-hairline)]">
+        <div className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] bg-surface px-6 py-14 text-center border-2 border-solid border-hairline">
           <p className="text-title font-bold text-ink">{t('promotions.emptyTitle')}</p>
           <p className="max-w-[26rem] text-base leading-normal text-ink-muted">{t('promotions.emptyText')}</p>
         </div>
       ) : (
-        <>
-          <MySavings data={data} cart={cart} compact={compact} />
+        // «Вариант Б» (SimplePicPromotions / SimplePicWebPromotions): распродажа и товары со скидкой —
+        // слева, «Моя выгода», первая заявка и подписка — справа; на телефоне — одной колонкой.
+        <div className={cn('flex flex-col gap-3.5', !compact && 'lg:grid lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-start lg:gap-7')}>
+          <div className="flex min-w-0 flex-col gap-3.5">
+            {data.sale || bannerSlides.length ? (
+              <section aria-label={t('promotions.v2.now')}>
+                <NowCarousel sale={data.sale} banners={bannerSlides} compact={compact} />
+              </section>
+            ) : null}
 
-          {data.sale || bannerSlides.length ? (
-            <section aria-labelledby="h-now" className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id="h-now" className="text-2xl font-extrabold tracking-[-0.01em] text-ink">{t('promotions.v2.now')}</h2>
-                {bannerSlides.length && !compact ? (
-                  <span className="text-sm text-ink-subtle">{t('promotions.v2.fromEditor')}</span>
-                ) : null}
-              </div>
-              <NowCarousel sale={data.sale} dealCount={data.dealCount} banners={bannerSlides} compact={compact} />
-            </section>
-          ) : null}
+            {data.deals.length ? (
+              <Deals deals={data.deals} dealCount={data.dealCount} rubrics={data.saleCategories ?? []} four={columnWidth >= FOUR_FROM} compact={compact} />
+            ) : data.sale ? (
+              <Link to="/catalog?sale=1" className={SEE_ALL}>{t('promotions.sale.cta')}</Link>
+            ) : null}
+          </div>
 
-          {data.deals.length ? (
-            <Deals deals={data.deals} dealCount={data.dealCount} rubrics={data.saleCategories ?? []} four={columnWidth >= FOUR_FROM} compact={compact} />
-          ) : null}
-
-          <HowAndSubscribe data={data} compact={compact} />
-          <PromoSubscription />
-        </>
+          <div className="flex flex-col gap-3.5">
+            <MySavings data={data} cart={cart} compact={compact} />
+            <PromoSubscription />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -180,23 +145,18 @@ function MySavings({ data, cart, compact }: { data: PortalPromotionsDto; cart: C
   return (
     <section
       aria-label={t('promotions.v2.mine')}
-      className={cn('grid gap-5', hasVolume && first && 'lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]')}
+      className="flex flex-col gap-3.5"
     >
       {hasVolume ? <VolumeHero data={data} cart={cart} compact={compact} /> : null}
       {first ? (
-        <div className="flex flex-col gap-3.5">
+        <div className="flex flex-col gap-2">
           {compact ? (
             <CompactFirstOrderTicket percent={first.percent} status={first.status} minTotal={first.minTotal} cart={cart} hasVolume={hasVolume} />
           ) : (
             <FirstOrderTicket percent={first.percent} status={first.status} minTotal={first.minTotal} cart={cart} />
           )}
           {hasVolume && !compact && (
-            <p className="flex items-center gap-3 rounded-[var(--radius-tile)] bg-surface px-4 py-3.5 text-sm leading-[1.4] text-ink-muted shadow-[0_0_0_1px_var(--color-hairline)]">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-[calc(var(--radius-control)*5/7)] bg-accent-soft text-accent-ink">
-                <Info aria-hidden="true" className="size-4" />
-              </span>
-              {t('promotions.v2.noStack')}
-            </p>
+            <p className="m-0 px-1 text-body leading-[1.4] text-ink-muted">{t('promotions.v2.noStack')}</p>
           )}
         </div>
       ) : null}
@@ -248,70 +208,40 @@ function VolumeHero({ data, cart, compact }: { data: PortalPromotionsDto; cart: 
   }
 
   return (
-    <div className="relative flex flex-col gap-5 overflow-hidden rounded-[var(--radius-gallery)] bg-accent-soft px-6 py-6 lg:gap-[22px] lg:px-[30px] lg:py-7">
-      {/* Контур коробки — тот же знак «оптом», что в макете; только украшение. */}
+    <div className={cn(CARD, 'gap-2.5')}>
       {compact ? null : (
-        <Box aria-hidden="true" strokeWidth={1.2} className="pointer-events-none absolute -right-8 -top-6 size-[260px] text-accent/10" />
+        <b className="text-lead font-extrabold text-ink">{t('promotions.v2.mine')} · {t('promotions.v2.byCart')}</b>
       )}
-      <div className="relative flex flex-wrap items-center gap-2.5">
-        <span className="flex h-[30px] items-center gap-1.5 rounded-[var(--radius-pill)] bg-surface px-3 text-caption font-bold text-accent-ink">
-          <Layers aria-hidden="true" className="size-4" />
-          {t('promotions.volume.title')}
-        </span>
-        <span className="text-sm text-accent-ink/80">{t('promotions.v2.byCart')}</span>
-      </div>
-      <div className="relative flex flex-col gap-2">
-        <h2 className="text-2xl font-extrabold leading-[1.1] tracking-[-0.02em] text-ink lg:text-[2.125rem]">{title}</h2>
-        {compact ? null : <p className="max-w-[35rem] text-base leading-normal text-ink-muted">{text}</p>}
-      </div>
+      <span className="flex items-center gap-2 text-lead font-extrabold text-ink">
+        <Layers aria-hidden="true" className="size-5 text-shop-ink" />
+        {t('promotions.volume.title')}
+      </span>
+      <h2 className="m-0 text-lead font-extrabold leading-snug text-ok-ink">{title}</h2>
+      {compact ? null : <p className="m-0 text-body leading-normal text-ink-muted">{text}</p>}
       {showBar ? (
-      <div className="relative flex flex-col gap-2.5">
-        <div
-          role="progressbar"
-          aria-label={t('promotions.v2.progress')}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={progress}
-          className="h-3 overflow-hidden rounded-full bg-surface lg:h-4"
-        >
-          <div className="h-full rounded-full bg-accent transition-[width] duration-500" style={{ width: `${progress}%` }} />
+        <div className="relative flex flex-col gap-1.5">
+          <div
+            role="progressbar"
+            aria-label={t('promotions.v2.progress')}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress}
+            className="h-3.5 overflow-hidden rounded-full bg-sunk"
+          >
+            <div className="h-full bg-shop transition-[width] duration-500" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="flex flex-wrap justify-between gap-2 text-caption font-semibold text-ink-muted">
+            <span>{t('promotions.v2.inCart')} <b className="text-ink">{money(goods, currency)}</b></span>
+            {/* На телефоне справа только порог: «→ −5%» на узкой строке уезжал под сумму. */}
+            {compact ? <span>{money(target.from, currency)}</span> : (
+              <span>{money(target.from, currency)} → <b className="text-sale-ink">−{target.percent}%</b></span>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap justify-between gap-2 text-sm font-semibold text-ink-muted">
-          <span>{t('promotions.v2.inCart')} <b className="text-ink">{money(goods, currency)}</b></span>
-          {/* На телефоне справа только порог, как в макете: «→ −5%» на узкой строке уезжал под сумму. */}
-          {compact ? <span>{money(target.from, currency)}</span> : (
-            <span>{money(target.from, currency)} → <b className="text-sale-ink">−{target.percent}%</b></span>
-          )}
-        </div>
-      </div>
       ) : null}
-      <div className="relative flex flex-wrap items-center gap-3">
-        <Link
-          to="/catalog"
-          className={cn(
-            'flex h-12 items-center gap-2 rounded-[var(--radius-control)] bg-accent px-5 text-body font-bold text-on-accent',
-            compact && 'w-full justify-center',
-            'transition-colors duration-200 hover:bg-accent-hover',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-          )}
-        >
-          {next ? t('promotions.v2.addMore') : t('promotions.v2.keepShopping')}
-          <ArrowRight aria-hidden="true" className="size-[18px]" />
-        </Link>
-        {compact ? null : (
-        <button
-          type="button"
-          onClick={openCart}
-          className={cn(
-            'h-12 rounded-[var(--radius-control)] border-[1.5px] border-accent/40 bg-surface px-5 text-body font-semibold text-accent-ink',
-            'transition-colors duration-200 hover:border-accent',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-          )}
-        >
-          {t('cart.open')}
-        </button>
-        )}
-      </div>
+      <Link to="/catalog" className={cn(SEE_ALL, 'h-14 border-line text-ink')}>
+        {next ? t('promotions.v2.addMore') : t('promotions.v2.keepShopping')}
+      </Link>
     </div>
   );
 }
@@ -370,40 +300,17 @@ function FirstOrderTicket(props: FirstOrderProps) {
       : applies ? t('promotions.v2.first.appliesNote', { amount: money(save, currency) }) : t('promotions.v2.first.waitNote');
 
   return (
-    <div
-      className={cn(
-        'relative flex flex-1 flex-col rounded-[var(--radius-gallery)]',
-        eligible ? 'bg-surface text-ink shadow-[0_0_0_1px_var(--color-hairline)]' : 'bg-sunk text-ink-muted',
-      )}
-    >
-      <div className="flex flex-col gap-2.5 px-6 pb-4 pt-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.04em] opacity-75">
-            <Ticket aria-hidden="true" className="size-4" />
-            {t('promotions.v2.first.title')}
-          </span>
-          <span
-            className={cn(
-              'flex h-7 items-center gap-1.5 rounded-[var(--radius-pill)] px-2.5 text-caption font-bold',
-              applies ? 'bg-ok-soft text-ok-ink' : 'bg-canvas text-ink-muted',
-            )}
-          >
-            {applies && <span aria-hidden="true" className="size-1.5 rounded-full bg-in-stock" />}
-            {status === 'USED' && <Check aria-hidden="true" className="size-3.5" />}
-            {pill}
-          </span>
-        </div>
-        <div className="flex items-baseline gap-3">
-          <span className="text-[3.5rem] font-black leading-[0.9] tracking-[-0.04em] lg:text-[4.75rem]">−{percent}%</span>
-          <span className="text-base font-semibold leading-[1.3] opacity-85">{t('promotions.v2.first.wholeOrder')}</span>
-        </div>
-      </div>
-      {/* Линия отрыва с полукруглыми вырезами цвета фона по краям. */}
-      <div aria-hidden="true" className="relative mx-6 border-t-2 border-dashed border-line">
-        <span className="absolute -left-9 -top-3 size-6 rounded-full bg-canvas" />
-        <span className="absolute -right-9 -top-3 size-6 rounded-full bg-canvas" />
-      </div>
-      <p className="px-6 pb-6 pt-4 text-sm leading-normal opacity-85">{note}</p>
+    <div className={cn(CARD, 'flex-row items-start gap-3', !eligible && 'bg-sunk text-ink-muted')}>
+      <span aria-hidden="true" className={GIFT}><Ticket className="size-6" /></span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <b className="text-lead font-extrabold">−{percent}% {t('promotions.v2.first.wholeOrder')}</b>
+        <span className={cn('inline-flex items-center gap-1.5 self-start rounded-full px-2.5 py-0.5 text-caption font-bold',
+          applies ? 'bg-ok-soft text-ok-ink' : 'bg-canvas text-ink-muted')}>
+          {status === 'USED' && <Check aria-hidden="true" className="size-3.5" />}
+          {pill}
+        </span>
+        <span className="text-body leading-normal text-ink-muted">{note}</span>
+      </span>
     </div>
   );
 }
@@ -425,33 +332,16 @@ function CompactFirstOrderTicket({ hasVolume, ...props }: FirstOrderProps & { ha
   const line = eligible && !belowMin && !yieldsToVolume ? t('promotions.v2.first.appliesShort') : pill;
 
   return (
-    <div
-      data-testid="first-ticket"
-      className={cn(
-        'relative flex flex-col rounded-[calc(var(--radius-tile)*1.25)]',
-        eligible ? 'bg-surface text-ink shadow-[0_0_0_1px_var(--color-hairline)]' : 'bg-sunk text-ink-muted',
-      )}
-    >
-      <div className="flex items-center gap-3.5 px-4 py-4">
-        <span className="text-[2.5rem] font-black leading-none tracking-[-0.04em]">−{props.percent}%</span>
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <b className="text-body">{t('promotions.v2.first.onFirst')}</b>
-          <span className={cn('flex items-center gap-1.5 text-caption', applies ? 'font-semibold text-ok-ink' : 'opacity-85')}>
-            {applies && <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-in-stock" />}
-            {props.status === 'USED' && <Check aria-hidden="true" className="size-3.5 shrink-0" />}
-            {line}
-          </span>
+    <div data-testid="first-ticket" className={cn(CARD, 'flex-row items-center gap-3', !eligible && 'bg-sunk text-ink-muted')}>
+      <span aria-hidden="true" className={GIFT}><Ticket className="size-6" /></span>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <b className="text-lead font-extrabold"><span>−{props.percent}%</span> <span>{t('promotions.v2.first.onFirst')}</span></b>
+        <span className={cn('flex items-center gap-1.5 text-caption', applies ? 'font-semibold text-ok-ink' : 'text-ink-muted')}>
+          {props.status === 'USED' && <Check aria-hidden="true" className="size-3.5 shrink-0" />}
+          {line}
         </span>
-      </div>
-      {hasVolume ? (
-        <>
-          <div aria-hidden="true" className="relative mx-4 border-t-2 border-dashed border-line">
-            <span className="absolute -left-7 -top-3 size-6 rounded-full bg-canvas" />
-            <span className="absolute -right-7 -top-3 size-6 rounded-full bg-canvas" />
-          </div>
-          <p className="px-4 pb-3.5 pt-3 text-caption leading-[1.4] opacity-85">{t('promotions.v2.first.noStackShort')}</p>
-        </>
-      ) : null}
+        {hasVolume ? <span className="text-caption text-ink-muted">{t('promotions.v2.first.noStackShort')}</span> : null}
+      </span>
     </div>
   );
 }
@@ -471,81 +361,49 @@ function useCountdown(endsAt: string | undefined) {
 }
 
 /** Идущая распродажа: название, пара слов, «Смотреть N товаров» и отсчёт до конца. */
-function SaleHero({ sale, dealCount, compact }: {
+function SaleHero({ sale, compact }: {
   sale: NonNullable<PortalPromotionsDto['sale']>;
-  dealCount: number;
   compact: boolean;
 }) {
   const { t } = useTranslation();
   const left = useCountdown(sale.endsAt);
   const lastDay = sale.endsOn ? dayMonth(sale.endsOn) : null;
 
+  const timeLeft = left && sale.countdown !== false
+    ? (left.days > COUNTDOWN_DAYS && lastDay ? t('promotions.v2.untilShort', { date: lastDay }) : t('promotions.v2.dh', { days: left.days, hours: left.hours }))
+    : null;
   return (
     <div
       aria-labelledby="h-sale"
       className={cn(
-        // Глубокий тон распродажи из макета — `sale-text`, самый тёмный в её гамме.
-        // Ночью `sale-text` светлый (им пишут по тёмному), и белые буквы на нём
-        // пропали бы — там плита берёт фирменную заливку баннера, как в макете.
-        'relative flex min-h-[280px] flex-col overflow-hidden rounded-[calc(var(--radius-gallery)*7/6)] bg-sale-text text-white dark:bg-banner',
-        compact ? 'min-h-[240px] gap-4 px-5 py-6' : 'gap-8 px-6 py-8 lg:flex-row lg:items-center lg:px-10 lg:py-9',
+        // Ночью `sale` светлеет — плита берёт фирменную заливку баннера, чтобы белые буквы не пропали.
+        'flex flex-col gap-2 rounded-[1.5rem] bg-sale p-4 text-white dark:bg-banner',
+        !compact && 'lg:flex-row lg:items-center lg:gap-5 lg:p-6',
       )}
     >
-      {/* Силуэты одежды — как у шаблона «Распродажа» баннеров; только украшение. */}
-      <svg aria-hidden="true" viewBox="0 0 120 150" className={cn('absolute fill-white/10', compact ? '-bottom-12 -right-8 h-[210px]' : 'bottom-[-40px] right-[28%] hidden h-[300px] lg:block')}>
-        <path d={COAT} />
-      </svg>
-      {compact ? null : (
-        <svg aria-hidden="true" viewBox="0 0 120 150" className="absolute bottom-[-30px] right-[38%] hidden h-[210px] fill-white/[0.07] lg:block">
-          <path d={COAT} />
-        </svg>
-      )}
-      <div className="relative flex max-w-[480px] flex-col gap-4">
-        <span className="flex h-8 items-center self-start rounded-[var(--radius-pill)] bg-surface px-3.5 text-sm font-extrabold text-sale-text">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <span className="inline-flex h-8 items-center self-start rounded-full bg-white px-3.5 text-caption font-extrabold text-sale-ink">
           {t('promotions.sale.badge', { percent: sale.maxPercent })}
         </span>
-        <h3 id="h-sale" className="text-[1.75rem] font-black leading-none tracking-[-0.03em] lg:text-[2.75rem]">
-          {sale.title}
-        </h3>
-        {/* На телефоне описания нет, как в макете: плита и без него в экран высотой, а главное — срок и кнопка. */}
-        {compact ? null : sale.text ? <p className="text-base leading-normal text-white/80">{sale.text}</p> : (
-          <p className="text-body text-white/80">{t('promotions.sale.noCode')}</p>
-        )}
-        {compact && left && sale.countdown !== false ? (
-          <p className="flex items-center gap-2 text-caption font-bold text-white/85">
+        <h3 id="h-sale" className={cn('m-0 text-title font-extrabold leading-tight', !compact && 'lg:text-display')}>{sale.title}</h3>
+        {compact && timeLeft ? (
+          <p role="timer" aria-label={t('promotions.sale.leftLabel', left ?? undefined)} className="m-0 flex items-center gap-1.5 text-body font-bold">
             <Clock aria-hidden="true" className="size-4" />
-            {/* Отсчёт — только когда конец близко; издалека — одна дата («до 30 сентября»). */}
-            {left.days > COUNTDOWN_DAYS && lastDay
-              ? t('promotions.v2.untilShort', { date: lastDay })
-              : <>{t('promotions.v2.leftShort', { days: left.days, hours: left.hours })}{lastDay ? ` · ${t('promotions.v2.untilShort', { date: lastDay })}` : ''}</>}
+            {t('promotions.sale.until')}: {timeLeft}
           </p>
         ) : null}
-        <Link
-          to="/catalog?sale=1"
-          className={cn(
-            'flex h-12 items-center gap-2.5 rounded-[var(--radius-control)] bg-white px-5 text-body font-bold text-[#1A1917] transition-colors hover:bg-[#FCEBDD]',
-            compact ? 'w-full justify-center' : 'self-start',
-          )}
-        >
-          {dealCount > 0 ? t('promotions.v2.seeDeals', { count: dealCount }) : t('promotions.sale.cta')}
-          <ArrowRight aria-hidden="true" className="size-5" />
-        </Link>
+        {/* На телефоне описания нет: главное — срок; что скидка уже в цене — одной строкой. */}
+        <p className="m-0 text-body opacity-90">{!compact && sale.text ? sale.text : t('promotions.sale.noCode')}</p>
       </div>
-      {compact ? null : left && sale.countdown !== false ? (
-        <div className="relative flex flex-col gap-2.5 self-start lg:ml-auto">
-          <div className="text-sm font-semibold text-white/80">{t('promotions.sale.until')}</div>
-          <div className="flex gap-2" role="timer" aria-label={t('promotions.sale.leftLabel', left)}>
-            <TimeBox value={String(left.days)} label={t('promotions.sale.days', { count: left.days })} />
-            <TimeBox value={String(left.hours).padStart(2, '0')} label={t('promotions.sale.hours', { count: left.hours })} />
-            <TimeBox value={String(left.minutes).padStart(2, '0')} label={t('promotions.sale.minutes', { count: left.minutes })} />
-          </div>
-          {lastDay ? <div className="text-sm text-white/80">{t('promotions.sale.lastDay', { date: lastDay })}</div> : null}
+      {compact ? null : timeLeft ? (
+        <div role="timer" aria-label={t('promotions.sale.leftLabel', left ?? undefined)} className="shrink-0 text-center">
+          <span className="text-caption opacity-90">{t('promotions.sale.until')}</span>
+          <b className="block text-display font-extrabold tabular-nums">{timeLeft}</b>
+          {lastDay ? <span className="text-caption opacity-80">{t('promotions.sale.lastDay', { date: lastDay })}</span> : null}
         </div>
       ) : lastDay ? (
-        // Магазин выключил отсчёт — долгой акции тикающие минуты ни к чему; остаётся последний день.
-        <div className="relative self-start text-body font-semibold text-white/80 lg:ml-auto">
-          {t('promotions.sale.lastDay', { date: lastDay })}
-        </div>
+        // Магазин выключил отсчёт — остаётся последний день.
+        <div className="shrink-0 text-body font-semibold opacity-90">{t('promotions.sale.lastDay', { date: lastDay })}</div>
       ) : null}
     </div>
   );
@@ -555,9 +413,8 @@ function SaleHero({ sale, dealCount, compact }: {
  * «Сейчас в магазине»: распродажа первым слайдом, за ней баннеры из
  * редактора магазина — точками, как в макете. Один слайд — без точек.
  */
-function NowCarousel({ sale, dealCount, banners, compact }: {
+function NowCarousel({ sale, banners, compact }: {
   sale: PortalPromotionsDto['sale'];
-  dealCount: number;
   banners: ShowcaseBannerDto[];
   compact: boolean;
 }) {
@@ -589,7 +446,7 @@ function NowCarousel({ sale, dealCount, banners, compact }: {
           <BannerSlide slide={banner} brand={brand} compact={compact} hidden={false} onAction={() => open(banner)} />
         </div>
       ) : sale ? (
-        <SaleHero sale={sale} dealCount={dealCount} compact={compact} />
+        <SaleHero sale={sale} compact={compact} />
       ) : null}
       {count > 1 ? (
         // На телефоне точки — под слайдом: поверх они наезжали бы на кнопку во всю ширину.
@@ -609,14 +466,6 @@ function NowCarousel({ sale, dealCount, banners, compact }: {
   );
 }
 
-function TimeBox({ value, label }: { value: string; label: string }) {
-  return (
-    <div aria-hidden="true" className="flex h-[76px] min-w-[76px] flex-col items-center justify-center rounded-[var(--radius-tile)] bg-white/10 leading-none">
-      <span className="text-[1.875rem] font-extrabold tabular-nums">{value}</span>
-      <span className="mt-1.5 text-xs text-night-sub">{label}</span>
-    </div>
-  );
-}
 
 /**
  * Товары со скидкой: на мониторе — один ряд сеткой (четыре или три карточки)
@@ -650,22 +499,16 @@ function Deals({ deals, dealCount, rubrics, four, compact }: {
     ? deals
     : loaded ?? deals.filter((deal) => deal.categoryId === rubric);
   const cart = cartOf(useCart().data);
-  const inCart = new Set((cart?.lines ?? []).map((line) => line.itemId));
+  const [orderMode] = useOrderMode();
+  const inCart = takenIn(cart, orderMode);
 
   const chip = (on: boolean) => cn(
-    'flex h-10 shrink-0 items-center rounded-[var(--radius-pill)] border-[1.5px] px-3.5 text-sm font-semibold',
-    on ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface text-ink-muted',
+    'flex min-h-12 shrink-0 items-center rounded-2xl border-[3px] border-solid px-3.5 text-body font-extrabold',
+    on ? 'border-shop bg-shop text-on-shop' : 'border-line bg-surface text-ink',
   );
 
   return (
-    <section id="deals" aria-labelledby="h-deals" className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="h-deals" className="text-2xl font-extrabold tracking-[-0.01em] text-ink">{t('promotions.deals.title')}</h2>
-        {/* На телефоне — просто «Все»: число товаров уже на кнопке распродажи и в отборе «Все · N». */}
-        <Link to="/catalog?sale=1" className="text-body font-bold text-accent-ink hover:underline">
-          {compact ? t('promotions.v2.allShort') : `${t('promotions.v2.allDeals', { count: dealCount })} →`}
-        </Link>
-      </div>
+    <section id="deals" aria-label={t('promotions.deals.title')} className="flex flex-col gap-3">
       {rubrics.length >= 2 && (
         <div role="group" aria-label={t('catalog.rubrics')} className={cn('-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]', !compact && 'lg:hidden')}>
           <button type="button" aria-pressed={rubric === null} onClick={() => setRubric(null)} className={chip(rubric === null)}>
@@ -678,26 +521,21 @@ function Deals({ deals, dealCount, rubrics, four, compact }: {
           ))}
         </div>
       )}
-      <div
-        className={cn(
-          // Телефон: лента карточек по 200 точек, до края экрана.
-          '-mr-4 flex gap-3 overflow-x-auto pr-4 [scrollbar-width:none]',
-          !compact && 'lg:mr-0 lg:grid lg:gap-5 lg:overflow-visible lg:pr-0',
-          !compact && (four ? 'lg:grid-cols-4' : 'lg:grid-cols-3'),
-        )}
-      >
+      <div className={cn('grid grid-cols-2 gap-2.5', !compact && (four ? 'lg:grid-cols-4 lg:gap-3.5' : 'lg:grid-cols-3 lg:gap-3.5'))}>
         {shown.map((deal, index) => (
           <DealCard
             key={deal.id}
             deal={deal}
             inCart={inCart.has(deal.id)}
             compact={compact}
-            // На мониторе — ровно один ряд, остальное за «Все N товаров →»;
-            // на телефоне лента листается пальцем и показывает всё.
+            // На мониторе — ровно один ряд, остальное за кнопкой; на телефоне — все.
             beyondRow={!compact && index >= (four ? 4 : 3)}
           />
         ))}
       </div>
+      <Link to="/catalog?sale=1" className={cn(SEE_ALL, !compact && 'lg:self-start lg:px-8')}>
+        {t('promotions.v2.seeSale', { count: dealCount })}
+      </Link>
     </section>
   );
 }
@@ -717,29 +555,31 @@ function DealCard({ deal, inCart, compact, beyondRow = false }: {
   const currency = useSupplierCurrency();
   const { add, isPending } = useAddToCart();
   const setLine = useSetCartLine();
+  // «Убрать» — только из заявки, в которой клиент сейчас: розничная не трогает оптовую.
+  const [orderMode] = useOrderMode();
+  const mode = deal.wholesale?.retail ? orderMode : undefined;
   const save = deal.oldPrice != null ? deal.oldPrice - deal.price : 0;
 
   return (
     <article
       data-testid="deal-card"
       className={cn(
-        'flex w-[200px] shrink-0 flex-col overflow-hidden rounded-[calc(var(--radius-tile)*1.25)] bg-surface shadow-[0_0_0_1px_var(--color-hairline)]',
-        !compact && 'lg:w-auto',
+        'flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface',
         beyondRow && 'lg:hidden',
       )}
     >
       <Link to={`/catalog/${deal.id}`} className="relative block" aria-label={deal.name}>
-        <ItemThumb itemId={deal.id} src={deal.thumbnailUrl} className={cn('h-[150px] w-full', !compact && 'lg:h-[190px]')} />
+        <ItemThumb itemId={deal.id} src={deal.thumbnailUrl} className="h-[8rem] w-full" />
         {deal.discountPercent ? (
-          <span className="absolute left-2.5 top-2.5 flex h-[30px] items-center rounded-[var(--radius-pill)] bg-sale px-3 text-sm font-extrabold text-white">
+          <span className="absolute left-2 top-2 flex h-7 items-center rounded-full bg-sale px-2.5 text-caption font-extrabold text-on-sale">
             −{deal.discountPercent}%
           </span>
         ) : null}
       </Link>
-      <div className={cn('flex flex-1 flex-col gap-2 p-3', !compact && 'lg:px-4 lg:pb-4 lg:pt-3.5')}>
-        <h3 className="line-clamp-2 min-h-10 text-body font-semibold leading-[1.35] text-ink">{deal.name}</h3>
+      <div className="flex flex-1 flex-col gap-1.5 p-2.5">
+        <h3 className="m-0 line-clamp-2 text-body font-semibold leading-tight text-ink">{deal.name}</h3>
         <div className="flex flex-wrap items-baseline gap-2">
-          <span className={cn('text-lg font-extrabold tracking-[-0.01em] text-sale', !compact && 'lg:text-title')}>{money(deal.price, currency)}</span>
+          <span className="text-lead font-extrabold text-sale">{money(deal.price, currency)}</span>
           {deal.oldPrice != null && <s className="text-sm text-ink-faint">{money(deal.oldPrice, currency)}</s>}
         </div>
         {save > 0 && !compact && (
@@ -750,10 +590,10 @@ function DealCard({ deal, inCart, compact, beyondRow = false }: {
           <button
             type="button"
             disabled={setLine.isPending}
-            onClick={() => setLine.mutate({ itemId: deal.id, data: { quantity: 0 } })}
+            onClick={() => setLine.mutate({ itemId: deal.id, data: { quantity: 0, mode } })}
             aria-label={t('promotions.v2.removeAria', { name: deal.name })}
             className={cn(
-              'flex h-11 items-center justify-center gap-2 rounded-[calc(var(--radius-control)*6/7)] bg-accent-soft text-sm font-bold text-accent-ink',
+              'flex h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-accent-soft text-body font-extrabold text-accent-ink',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
             )}
           >
@@ -766,12 +606,12 @@ function DealCard({ deal, inCart, compact, beyondRow = false }: {
             disabled={isPending}
             onClick={() => void add(deal)}
             className={cn(
-              'flex h-11 items-center justify-center gap-2 rounded-[calc(var(--radius-control)*6/7)] bg-accent text-sm font-bold text-on-accent',
+              'flex h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-accent text-body font-extrabold text-on-accent',
               'transition-colors duration-200 hover:bg-accent-hover',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
             )}
           >
-            <Plus aria-hidden="true" className="size-4" strokeWidth={2.4} />
+            <ShoppingCart aria-hidden="true" className="size-4" />
             {t('catalog.toCart')}
           </button>
         )}
@@ -780,30 +620,11 @@ function DealCard({ deal, inCart, compact, beyondRow = false }: {
   );
 }
 
-/** «Как работают скидки» — на мониторе; на телефоне рядом с делом не помещается. */
-function HowAndSubscribe({ data, compact }: { data: PortalPromotionsDto; compact: boolean }) {
-  if (compact || (data.volumeTiers.length === 0 && !data.firstOrder)) return null;
-  return <HowItWorks />;
-}
 
-function HowItWorks() {
-  const { t } = useTranslation();
-  const facts = ['auto', 'together', 'one'] as const;
-  return (
-    <div className="flex flex-col gap-3.5 rounded-[var(--radius-gallery)] bg-surface p-6 shadow-[0_0_0_1px_var(--color-hairline)]">
-      <h2 className="mb-1 text-title font-extrabold text-ink">{t('promotions.v2.how.title')}</h2>
-      {facts.map((fact) => (
-        <div key={fact} className="flex gap-3.5">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-[calc(var(--radius-control)*6/7)] bg-accent-soft text-accent-ink">
-            <Sparkles aria-hidden="true" className="size-5" />
-          </span>
-          <div className="flex flex-col gap-1">
-            <b className="text-base text-ink">{t(`promotions.v2.how.${fact}.title`)}</b>
-            <span className="text-sm leading-[1.45] text-ink-muted">{t(`promotions.v2.how.${fact}.text`)}</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
+const CARD = 'flex flex-col rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface p-4';
+const GIFT = 'flex size-12 shrink-0 items-center justify-center rounded-[0.875rem] bg-hit-soft text-hit-ink';
+const SEE_ALL = cn(
+  'flex h-14 items-center justify-center gap-2 rounded-[var(--radius-control)] border-2 border-solid border-shop bg-surface px-4',
+  'text-lead font-extrabold text-shop-ink no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+);

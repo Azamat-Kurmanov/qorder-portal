@@ -18,12 +18,13 @@ export function Switch({ on, onToggle, disabled, labelledBy, label }: {
       disabled={disabled}
       onClick={onToggle}
       className={cn(
-        'relative h-[30px] w-[52px] shrink-0 cursor-pointer rounded-full border-0 p-0 transition-colors disabled:opacity-60',
+        'relative h-[1.75rem] w-[3.25rem] shrink-0 cursor-pointer rounded-full border-0 p-0 transition-colors disabled:opacity-60',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
         on ? 'bg-in-stock' : 'bg-ink-faint',
       )}
     >
-      <span className={cn('absolute top-[3px] size-6 rounded-full bg-white shadow-soft transition-[left]', on ? 'left-[25px]' : 'left-[3px]')} />
+      {/* Все размеры в rem: кружок в rem внутри дорожки в px вылезал за край при крупном шрифте корня. */}
+      <span className={cn('absolute top-[0.1875rem] size-[1.375rem] rounded-full bg-white shadow-soft transition-[left]', on ? 'left-[1.6875rem]' : 'left-[0.1875rem]')} />
     </button>
   );
 }

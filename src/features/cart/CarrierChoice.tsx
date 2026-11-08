@@ -1,6 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import type { DeliveryOptionsDto, SubmitOrderDelivery } from '../../api/generated';
-import { chosenCarrier, terminalAllowed } from './carrier';
+import { chosenCarrier, ownCarrierChosen, terminalAllowed } from './carrier';
+
+/** Значение списка «Другой перевозчик». */
+const OWN = '__own__';
 
 type Method = DeliveryOptionsDto['methods'][number];
 
@@ -18,21 +21,40 @@ export function CarrierChoice({ method, value, onChange, fieldClass }: {
   const carriers = method.carriers ?? [];
   if (carriers.length === 0) return null;
   const carrier = chosenCarrier(method, value);
+  const own = ownCarrierChosen(method, value);
+  const allowOwn = !!method.allowOwnCarrier;
 
   return (
     <div data-testid="carrier" className="flex flex-col gap-2">
-      {carriers.length > 1 ? (
+      {carriers.length > 1 || allowOwn ? (
         <label className="flex min-w-0 flex-col gap-1">
           <span className="text-xs text-ink-subtle">{t('checkout.delivery.carrier')}</span>
-          <select value={value.carrierId ?? ''} className={fieldClass}
-            onChange={(event) => onChange({ ...value, carrierId: event.currentTarget.value || undefined, deliverTo: undefined })}>
-            <option value="">{t('checkout.delivery.chooseCarrier')}</option>
+          <select value={own ? OWN : value.carrierId ?? (carriers.length === 1 ? carriers[0].id : '')} className={fieldClass}
+            onChange={(event) => {
+              const picked = event.currentTarget.value;
+              onChange(picked === OWN
+                ? { ...value, carrierId: undefined, deliverTo: undefined, ownCarrier: '' }
+                : { ...value, carrierId: picked || undefined, deliverTo: undefined, ownCarrier: undefined });
+            }}>
+            {carriers.length > 1 ? <option value="">{t('checkout.delivery.chooseCarrier')}</option> : null}
             {carriers.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+            {allowOwn ? <option value={OWN}>{t('checkout.delivery.ownCarrier')}</option> : null}
           </select>
         </label>
       ) : (
         <p className="text-sm text-ink">{t('checkout.delivery.carrierOne', { name: carrier?.name })}</p>
       )}
+      {own ? (
+        <div data-testid="own-carrier" className="flex flex-col gap-1">
+          <label className="flex min-w-0 flex-col gap-1">
+            <span className="text-xs text-ink-subtle">{t('checkout.delivery.ownCarrierName')}</span>
+            <input value={value.ownCarrier ?? ''} maxLength={255} className={fieldClass}
+              placeholder={t('checkout.delivery.ownCarrierPlaceholder')}
+              onChange={(event) => onChange({ ...value, ownCarrier: event.currentTarget.value })} />
+          </label>
+          <p className="text-xs text-ink-subtle">{t('checkout.delivery.ownCarrierPays')}</p>
+        </div>
+      ) : null}
       {carrier && (carrier.phone || carrier.note) ? (
         <p className="text-xs text-ink-subtle">{[carrier.phone, carrier.note].filter(Boolean).join(' · ')}</p>
       ) : null}

@@ -57,7 +57,7 @@ export function MapViewButton({ title, address, point, className }: {
           <span aria-hidden="true" className="qo-thumb-placeholder" />
         )}
         <span aria-hidden="true" className="qo-thumb-pin" />
-        <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-[var(--radius-pill)] bg-surface px-2.5 py-1 text-[0.75rem] font-semibold text-ink shadow-[var(--shadow-soft)] transition-colors group-hover:text-accent-ink">
+        <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-[var(--radius-pill)] bg-surface px-2.5 py-1 text-caption font-semibold text-ink shadow-[var(--shadow-soft)] transition-colors group-hover:text-accent-ink">
           <MapPin aria-hidden="true" className="size-3.5" /> {point ? t('maps.openMap') : t('maps.findOnMap')}
         </span>
       </button>

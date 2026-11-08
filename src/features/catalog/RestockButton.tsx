@@ -32,7 +32,7 @@ export function RestockButton({ itemId }: { itemId: string }) {
       disabled={busy}
       onClick={() => (subscribed ? unsubscribe : subscribe).mutate({ itemId })}
       className={cn(
-        'inline-flex h-[34px] cursor-pointer items-center gap-1.5 rounded-[var(--radius-pill)] px-3 text-[0.8125rem] font-semibold',
+        'inline-flex h-[34px] cursor-pointer items-center gap-1.5 rounded-[var(--radius-pill)] px-3 text-caption font-semibold',
         'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default',
         subscribed ? 'bg-sage-soft text-accent-ink' : 'bg-accent-soft text-accent-ink hover:brightness-[0.97]',
       )}

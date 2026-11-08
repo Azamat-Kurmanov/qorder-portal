@@ -10,9 +10,10 @@ import {
   Star,
   Tag,
   Truck,
+  Wallet,
   type IconComponent,
 } from '../../ui/icons';
-import { useGetPortalCatalogCounts, useGetPortalPromotions } from '../../api/generated';
+import { useGetPortalCatalogCounts, useGetPortalDebt, useGetPortalPromotions } from '../../api/generated';
 import { NewArrivalsIcon } from '../arrivals/NewArrivalsIcon';
 import { promotionsOff } from '../promotions/promotionsOff';
 
@@ -80,12 +81,23 @@ export function useMainSections(enabled: boolean): { sections: Section[]; deals:
  * отнимать у главных место и взгляд.
  */
 export const MORE_SECTIONS: Section[] = [
+  { key: 'debt', path: '/debt', icon: Wallet },
   { key: 'templates', path: '/templates', icon: LayoutTemplate },
   { key: 'questions', path: '/questions', icon: MessageCircleQuestion },
   { key: 'reviews', path: '/reviews', icon: Star },
   { key: 'delivery', path: '/delivery', icon: Truck },
   { key: 'profile', path: '/profile', icon: Building2 },
 ];
+
+/**
+ * Разделы под «Ещё», которые стоит показать: «Долг» — только тому, кто брал товар в долг
+ * или под реализацию; остальным пустой раздел ни к чему. Ответ — тот же, что у страницы долга.
+ */
+export function useMoreSections(enabled: boolean): Section[] {
+  const debt = useGetPortalDebt({ query: { enabled } });
+  const owes = debt.data?.status === 200 && debt.data.data.orders.length > 0;
+  return owes ? MORE_SECTIONS : MORE_SECTIONS.filter((section) => section.path !== '/debt');
+}
 
 /** Открыт ли раздел: у заявок и карточек есть вложенные адреса. */
 export function isActive(section: Section, current: string): boolean {

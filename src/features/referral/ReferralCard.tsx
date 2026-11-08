@@ -47,7 +47,7 @@ export function ReferralCard({ confirmed }: { confirmed: boolean }) {
         type="button"
         aria-label={t('referral.cardClose')}
         onClick={close}
-        className="flex size-10 items-center justify-center rounded-full text-ink-muted hover:bg-ink/5"
+        className="qo-hit flex size-10 items-center justify-center rounded-full text-ink-muted hover:bg-ink/5"
       >
         <X aria-hidden="true" className="size-4" />
       </button>

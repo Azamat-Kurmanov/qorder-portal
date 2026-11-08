@@ -9,6 +9,7 @@ import {
   type ShowcaseWholesaleDto,
 } from '../../api/generated';
 import type { SaleMode } from './ModeSwitch';
+import { useOrderMode } from './orderMode';
 import { toPieces } from './wholesale';
 import { cartOf, useCart, useSetCartLine } from './useCart';
 import { firstQuantity } from './saleTerms';
@@ -100,7 +101,7 @@ export function AgeGateDialog() {
           >
             21+
           </span>
-          <Dialog.Title className="text-[1.5rem] font-extrabold tracking-[-0.02em] text-ink">
+          <Dialog.Title className="text-title font-extrabold lg:text-display tracking-[-0.02em] text-ink">
             {t('catalog.age.title')}
           </Dialog.Title>
           <p id="age-gate-text" className="text-base leading-normal text-ink-muted">
@@ -129,6 +130,8 @@ export function AgeGateDialog() {
 export function useAddToCart() {
   const cart = cartOf(useCart().data);
   const setLine = useSetCartLine();
+  // Товар «оптом и в розницу» ложится в ту заявку, в которой клиент сейчас («Оптом / В розницу»).
+  const [orderMode] = useOrderMode();
 
   async function add(
     item: { id: string; name: string; terms?: ItemSaleTerms; wholesale?: ShowcaseWholesaleDto },
@@ -139,8 +142,13 @@ export function useAddToCart() {
       const adult = await askAge(item.name);
       if (!adult) return false;
     }
+    const chosen = mode ?? (item.wholesale?.retail ? orderMode : undefined);
+    // В оптовую заявку товар «оптом и в розницу» ложится сразу первой ступенью опта, а не штукой.
+    const pieces = quantity === undefined && chosen === 'WHOLESALE' && item.wholesale
+      ? item.wholesale.packQty * (item.wholesale.tiers[0]?.from ?? 1)
+      : toPieces(item, quantity ?? firstQuantity(item.terms));
     setLine.mutate(
-      { itemId: item.id, data: { quantity: toPieces(item, quantity ?? firstQuantity(item.terms)), mode } },
+      { itemId: item.id, data: { quantity: pieces, mode: chosen } },
       // Корзины рядом с витриной больше нет — положенное называется
       // уведомлением с кнопкой «Открыть корзину».
       { onSuccess: (response) => { if (response.status === 200) announceAdded(item.name); } },

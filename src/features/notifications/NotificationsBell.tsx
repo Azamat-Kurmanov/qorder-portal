@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BackTitle } from '../../ui/BackTitle';
 import type { TFunction } from 'i18next';
 import { Link } from 'react-router-dom';
 import { Bell, Check, FileText, MessageCircle, PenLine, ShoppingCart, Sparkles, Tag, Truck, type IconComponent } from '../../ui/icons';
@@ -29,10 +30,12 @@ import { shortDate } from '../../shared/format';
  */
 const KNOWN_REASONS = [
   'RENEGOTIATION',
+  'PRICE_NAMED',
   'DEADLINE_SOON',
   'ACCEPTED',
   'QUESTION_ANSWERED',
   'ORDER_ANSWERED',
+  'REVIEW_ANSWERED',
   'TRANSPORT_RECEIPT_SENT',
   'TRANSPORT_PAYMENT_REJECTED',
   'INVOICE_SENT',
@@ -43,9 +46,14 @@ const KNOWN_REASONS = [
   'TEMPLATE_READY',
   'BACK_IN_STOCK',
   'REORDER_DUE',
+  'DEBT_PAYMENT_CONFIRMED',
+  'DEBT_PAYMENT_REJECTED',
+  'DEBT_PAYMENT_RECEIVED',
+  'DEBT_PAYMENT_DUE',
+  'MANAGER_CHANGED',
 ];
 
-function reasonOf(kind: string, t: TFunction, detail?: string): string {
+export function reasonOf(kind: string, t: TFunction, detail?: string): string {
   // Причина отклонения — слова продавца: подставляются как есть, без перевода.
   if (kind === 'TRANSPORT_PAYMENT_REJECTED' && detail) return t('notifications.reasons.transportRejectedWith', { reason: detail });
   // Число товаров объявления: «Новые поступления: 30 товаров».
@@ -53,6 +61,8 @@ function reasonOf(kind: string, t: TFunction, detail?: string): string {
   if (kind === 'BACK_IN_STOCK' && detail) return t('notifications.reasons.BACK_IN_STOCK_named', { name: detail });
   // Обычный интервал клиента в днях — чтобы напоминание объясняло, почему пришло.
   if (kind === 'REORDER_DUE' && detail) return t('notifications.reasons.REORDER_DUE_every', { days: detail });
+  // Имя нового менеджера: клиенту важно, кому он теперь пишет.
+  if (kind === 'MANAGER_CHANGED' && detail) return t('notifications.reasons.MANAGER_CHANGED_named', { name: detail });
   if ((kind === 'NEW_ARRIVALS' || kind === 'PROMO_STARTED') && detail) {
     return t(`notifications.reasons.${kind}_count`, { count: Number(detail) });
   }
@@ -71,7 +81,8 @@ function reasonOf(kind: string, t: TFunction, detail?: string): string {
  */
 /** Повод, которому для перехода предмет не нужен: раздел один на магазин. */
 export function opensWithoutSubject(kind: string): boolean {
-  return kind === 'QUESTION_ANSWERED' || kind === 'NEW_ARRIVALS' || kind === 'PROMO_STARTED' || kind === 'TEMPLATE_READY';
+  return kind === 'QUESTION_ANSWERED' || kind === 'REVIEW_ANSWERED' || kind === 'NEW_ARRIVALS' || kind === 'PROMO_STARTED' || kind === 'TEMPLATE_READY'
+    || kind.startsWith('DEBT_PAYMENT_') || kind === 'MANAGER_CHANGED';
 }
 
 export function destinationOf(kind: string, draftId: string): string {
@@ -79,10 +90,16 @@ export function destinationOf(kind: string, draftId: string): string {
   if (kind === 'PROMO_STARTED') return '/promotions';
   // Шаблон по расписанию уже разложен в корзину — клиенту остаётся проверить и отправить.
   if (kind === 'TEMPLATE_READY') return '/checkout';
+  // Оплата долга — подтверждена, отклонена (причина там же) или принята у кассы: всё видно в «Долге».
+  if (kind.startsWith('DEBT_PAYMENT_')) return '/debt';
   // Предмет — позиция: в её карточку, где её и заказывают.
   if (kind === 'BACK_IN_STOCK') return `/catalog/${draftId}`;
   // Ответ продавца — в свою ветку (draftId — id ветки); без него — к списку вопросов.
   if (kind === 'QUESTION_ANSWERED') return draftId ? `/questions/${draftId}` : '/questions';
+  // Ответ на отзыв — в «Мои отзывы»: открыв их, клиент его и прочитал.
+  if (kind === 'REVIEW_ANSWERED') return '/reviews';
+  // Новый менеджер ведёт те же заказы — к ним.
+  if (kind === 'MANAGER_CHANGED') return '/orders';
   return `/orders/${draftId}`;
 }
 
@@ -185,9 +202,35 @@ export function NotificationsBell({
   );
 }
 
+/**
+ * «Уведомления» экраном — «Вариант Б» (SimplePicNotifications): тот же список, что в листе
+ * колокольчика, крупными строками; открывается из «Всех разделов».
+ */
+export function NotificationsPage() {
+  const { t } = useTranslation();
+  const notifications = useGetPortalNotifications();
+  const list = notifications.data?.status === 200 ? notifications.data.data : [];
+  return (
+    <div className="flex flex-col gap-4">
+      <BackTitle title={t('notifications.title')}
+        subtitle={list.length > 0 ? t('notifications.withCount', { count: list.length }) : undefined} />
+      {list.length === 0 ? (
+        <p className="rounded-[var(--radius-card)] border-2 border-line bg-surface p-5 text-ink-muted">{t('notifications.empty')}</p>
+      ) : (
+        <ul className="flex flex-col divide-y-2 divide-hairline rounded-[var(--radius-card)] border-2 border-line bg-surface px-2">
+          {list.map((notification) => (
+            <li key={notification.id}><NotificationRow notification={notification} onFollowed={() => undefined} /></li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** Значок повода: уведомления узнают по нему с одного взгляда (макеты «Кабинет клиента 2.0»). */
-const LOOKS: Record<string, { icon: IconComponent; tone: string }> = {
+export const LOOKS: Record<string, { icon: IconComponent; tone: string }> = {
   RENEGOTIATION: { icon: PenLine, tone: 'bg-sale-soft text-sale-ink' },
+  PRICE_NAMED: { icon: PenLine, tone: 'bg-sale-soft text-sale-ink' },
   DEADLINE_SOON: { icon: PenLine, tone: 'bg-sale-soft text-sale-ink' },
   ACCEPTED: { icon: Check, tone: 'bg-ok-soft text-ok-ink' },
   QUESTION_ANSWERED: { icon: MessageCircle, tone: 'bg-sage-soft text-accent-ink' },
@@ -202,6 +245,7 @@ const LOOKS: Record<string, { icon: IconComponent; tone: string }> = {
   TEMPLATE_READY: { icon: ShoppingCart, tone: 'bg-sage-soft text-accent-ink' },
   BACK_IN_STOCK: { icon: Bell, tone: 'bg-ok-soft text-ok-ink' },
   REORDER_DUE: { icon: ShoppingCart, tone: 'bg-accent-soft text-accent-ink' },
+  MANAGER_CHANGED: { icon: MessageCircle, tone: 'bg-sage-soft text-accent-ink' },
 };
 
 function NotificationRow({

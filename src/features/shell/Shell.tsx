@@ -1,23 +1,16 @@
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
+import { PhoneLine } from './PhoneLine';
+import { messageCounts } from './messageCounts';
 import { Bump } from '../../ui/Bump';
 import { getConfig } from '../../config';
-import { Suspense, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ChevronDown,
-  ClipboardList,
-  House,
-  Menu,
-  MessageCircle,
-  MoreHorizontal,
-  Phone,
-  ShoppingCart,
-} from '../../ui/icons';
-import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { HomeCart, HomeCatalog, HomeDelivery, HomeHouse, HomeMessages } from '../home/homeIcons';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { CatalogPage } from '../catalog/CatalogPage';
 import { HomePage } from '../home/HomePage';
+import { NotificationsPage } from '../notifications/NotificationsBell';
 import { AddedToast, CartPanel } from '../cart/CartPanel';
-import { openCart } from '../cart/cartDrawer';
 import { cartOf, useCart } from '../cart/useCart';
 import { LanguageAsk } from '../language/LanguageAsk';
 import { destinationOf, opensWithoutSubject } from '../notifications/NotificationsBell';
@@ -26,9 +19,11 @@ import { ProfilePage } from '../profile/ProfilePage';
 import { RequireSupplier } from '../profile/RequireSupplier';
 import {
   getGetPortalNotificationsQueryKey,
+  getGetPortalPendingInvitationsQueryKey,
   getGetPortalUnreadSummaryQueryKey,
+  useGetPortalDebt,
+  useGetPortalNotifications,
   readPortalNotification,
-  useGetPortalFavorites,
   useGetPortalSuppliers,
   useGetPortalUnreadSummary,
 } from '../../api/generated';
@@ -39,25 +34,20 @@ import { ThemeToggle } from './ThemeToggle';
 import { LanguagePicker } from './LanguagePicker';
 import { HelpGuide } from './HelpGuide';
 import { FirstSteps } from './FirstSteps';
-import { MyShopsBlock, ShopsDialog, useShops } from './Shops';
+import { ShopsDialog, useShops } from './Shops';
 import { AgeGateDialog } from '../cart/ageGate';
-import { InvitesCard } from './Invitations';
 import { StaffBanner } from './StaffBanner';
 import { PickupPointPicker } from './layouts/PickupPointPicker';
-import { telLink, whatsappLink } from './shopHours';
-import { MORE_SECTIONS, isActive, useMainSections, type Section } from './sections';
-import { DesignHeader } from './layouts/DesignHeader';
-import { CenterHeader } from './layouts/CenterHeader';
-import { CategoryTabs } from './layouts/CategoryTabs';
+import { telLink } from './shopHours';
+import { isActive, useMainSections, useMoreSections, type Section } from './sections';
 import { ClientBar } from './layouts/ClientBar';
 import { useSupplier } from '../../supplier/useSupplier';
 import { useSupplierAccess } from '../../supplier/useSupplierAccess';
 import { PhoneGate } from '../phone/PhoneGate';
 import { SupplierCurrencyScope } from '../../supplier/SupplierCurrency';
 import { SupplierTheme } from '../../supplier/SupplierTheme';
-import { useCabinetDesign, type CabinetLayout, type TemplateStyle } from '../../supplier/cabinetDesign';
+import { useCabinetDesign, type TemplateStyle } from '../../supplier/cabinetDesign';
 import { MotionLevelContext, useMotionLevel } from '../../ui/motion/motionLevel';
-import { Backdrop } from '../../ui/motion/Backdrop';
 import { BackgroundLayer } from '../../ui/motion/BackgroundLayer';
 import { attachPointerFx, pointerFxEnabled } from '../../ui/motion/pointerFx';
 import { ShopAnnounceBar } from './AnnounceBar';
@@ -69,7 +59,10 @@ import { CART_TARGET } from '../../ui/flyToCart';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { cn } from '../../ui/cn';
 import { ScrollJumps } from './ScrollJumps';
+import { toTop } from './toTop';
 import { lazyPage, preloadWhenIdle } from '../../ui/lazyPage';
+import { useTrackTrail } from '../../ui/sectionBack';
+import { OpenShopsContext } from './openShops';
 import { InviteSupplierDialog } from '../referral/InviteSupplierDialog';
 
 /*
@@ -79,6 +72,7 @@ import { InviteSupplierDialog } from '../referral/InviteSupplierDialog';
  */
 const ItemCardPage = lazyPage(() => import('../catalog/ItemCardPage').then((module) => module.ItemCardPage));
 const CheckoutPage = lazyPage(() => import('../cart/CheckoutPage').then((module) => module.CheckoutPage));
+const AllShopsPage = lazyPage(() => import('../allShops/AllShopsPage').then((module) => module.AllShopsPage));
 const DeliveryInfoPage = lazyPage(() => import('../delivery/DeliveryInfoPage').then((module) => module.DeliveryInfoPage));
 const FavoritesPage = lazyPage(() => import('../favorites/FavoritesPage').then((module) => module.FavoritesPage));
 const PromotionsPage = lazyPage(() => import('../promotions/PromotionsPage').then((module) => module.PromotionsPage));
@@ -90,8 +84,10 @@ const NewArrivalsPage = lazyPage(() => import('../arrivals/NewArrivalsPage').the
 const MorePage = lazyPage(() => import('./MorePage').then((module) => module.MorePage));
 const SuppliersPage = lazyPage(() => import('./SuppliersPage').then((module) => module.SuppliersPage));
 const TemplatesPage = lazyPage(() => import('../templates/TemplatesPage').then((module) => module.TemplatesPage));
+const DebtPage = lazyPage(() => import('../debt/DebtPage').then((module) => module.DebtPage));
+const MessagesPage = lazyPage(() => import('./MessagesPage').then((module) => module.MessagesPage));
 /** Все разделы-куски: догружаются в простое после первого экрана (`preloadWhenIdle`). */
-const PAGES = [NewArrivalsPage, MorePage, SuppliersPage, ItemCardPage, CheckoutPage, DeliveryInfoPage, FavoritesPage, PromotionsPage, MyOrdersPage, OrderPage, QuestionsPage, MyReviewsPage, TemplatesPage];
+const PAGES = [NewArrivalsPage, MorePage, SuppliersPage, ItemCardPage, CheckoutPage, DeliveryInfoPage, FavoritesPage, PromotionsPage, MyOrdersPage, OrderPage, QuestionsPage, MyReviewsPage, TemplatesPage, DebtPage, MessagesPage];
 
 /**
  * Куски разделов — в простое после первого экрана: первый вход в раздел не ждёт сети.
@@ -149,20 +145,41 @@ export function Shell() {
   const navigate = useNavigate();
   const [opened, setOpened] = useState(false);
   const [shopsOpen, setShopsOpen] = useState(false);
+  const openShops = useCallback(() => setShopsOpen(true), []);
   const [inviting, setInviting] = useState(false);
   const [toast, setToast] = useState('');
   const wide = useWideScreen();
-  // Колонка развёрнута, пока её не сложили: человек, открывший кабинет
-  // впервые, обязан увидеть разделы, а не догадаться нажать на полоски.
-  const [railOpen, setRailOpen] = useState(true);
   const location = useLocation();
+  const navigation = useNavigationType();
+  useTrackTrail();
+  const home = location.pathname === '/home';
+  // Переход в раздел — с самого верха (решение владельца 2026-10-30): иначе новый раздел открывался
+  // на высоте прошлого. Назад браузером (POP) не трогаем; смена фильтров в адресе — тот же раздел.
+  useEffect(() => {
+    if (navigation !== 'POP') toTop();
+  }, [location.pathname, navigation]);
   const others = useOthersUnread();
   const { activated, ready } = useSupplierAccess();
   const { sections: mainSections } = useMainSections(ready);
+  const moreSections = useMoreSections(ready);
   const { list, supplierId, select } = useShopsSwitch();
+  // Единственный магазин выбирается сам и на экранах без `RequireSupplier` («Сообщения»,
+  // «Ещё», «Поставщики»): открытые первыми по ссылке, они показывали в шапке «Поставщик».
+  const onlyShop = list.length === 1 ? list[0].supplierId : null;
+  useEffect(() => {
+    if (onlyShop && supplierId !== onlyShop) select(onlyShop);
+  }, [onlyShop, supplierId, select]);
   const queryClient = useQueryClient();
   // Касание push в приложении: магазин уведомления и туда же, куда ведёт плашка.
   usePushDevice((push) => {
+    // Приглашение нового магазина: его кабинет ещё не открыт — ни выбирать магазин, ни читать
+    // плашку в нём нельзя. Принимают приглашение в окне «Мои магазины»; список перечитывается,
+    // иначе свежее приглашение ждало бы следующего опроса.
+    if (push.kind === 'PORTAL_INVITATION') {
+      void queryClient.invalidateQueries({ queryKey: getGetPortalPendingInvitationsQueryKey() });
+      setShopsOpen(true);
+      return;
+    }
     if (!push.kind || (!push.subjectId && !opensWithoutSubject(push.kind))) return;
     if (push.tenantId && push.tenantId !== supplierId) select(push.tenantId);
     // Коснулся уведомления — прочитал его. После смены магазина: плашка
@@ -190,22 +207,7 @@ export function Shell() {
     const root = shellRef.current;
     return root ? attachPointerFx(root, () => pointerFxEnabled(root)) : undefined;
   }, [suppliersPending]);
-  const { layout, style } = design;
-  // Новая шапка макета — только у опубликованного дизайна. Без него кабинет
-  // остаётся прежним целиком, как и обещано в `cabinetDesign.ts`: молча
-  // переделать чужую витрину тем, кто ничего не выбирал, нельзя.
-  const designed = design.template !== null;
-  // Строка разделов под шапкой — у «меню сверху» и «нижнего меню», как в макете.
-  const hasTopNav = layout === 'top' || layout === 'bottom';
-  // Колонку складывает «Меню» только там, где колонка есть; в остальных
-  // раскладках та же кнопка открывает лист со всеми разделами — иначе
-  // редкие разделы на мониторе было бы не найти.
-  const hasColumn = layout === 'side' || layout === 'rail';
-  // Раскладки со своей шапкой вместо обычной — только на мониторе и только
-  // у дизайна: на телефоне у всех шаблонов одна шапка и нижнее меню.
-  const own = designed && wide ? layout : null;
-  // Монитор без шаблона — по макетам ПК-К: одна панель сверху, без колонки разделов.
-  const client = wide && !designed;
+  const { layout } = design;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => () => clearTimeout(toastTimer.current), []);
@@ -224,7 +226,7 @@ export function Shell() {
     if (id === supplierId) return;
     const name = list.find((supplier) => supplier.supplierId === id)?.name ?? '';
     select(id);
-    navigate(own ? '/catalog' : '/home');
+    navigate('/home');
     setToast(t('shops.switched', { name }));
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 3200);
@@ -237,11 +239,23 @@ export function Shell() {
     return <div data-testid="shell-pending" aria-busy="true" className="min-h-screen bg-canvas" />;
   }
 
+  // «Все магазины» — над магазинами, а не внутри одного (ряд 17 канвы): своя раскладка — нижнее меню
+  // на телефоне, боковое на мониторе; шапки и меню открытого магазина здесь нет.
+  if (location.pathname === '/all-shops') {
+    return (
+      <SupplierCurrencyScope>
+        <PhoneGate />
+        <Suspense fallback={null}><AllShopsPage onSwitch={switchShop} /></Suspense>
+      </SupplierCurrencyScope>
+    );
+  }
+
   return (
     // Валюта открытого магазина — на весь кабинет: скоуп стоит корнем оболочки,
     // чтобы им пользовался любой экран внутри, без нового useGetPortalSuppliers
     // в каждом листе.
     <SupplierCurrencyScope>
+      <OpenShopsContext.Provider value={openShops}>
     <MotionLevelContext.Provider value={motion}>
     {/* Номер не подтверждён — одна просьба поверх кабинета вместо отказов на каждом экране. */}
     <PhoneGate />
@@ -259,15 +273,14 @@ export function Shell() {
       // дизайна — прежняя бумага.
       // `isolate` — своя стековая группа: слой живого фона (z-index: -1)
       // ложится над подложкой оболочки, а не под ней.
-      className={cn('relative min-h-screen isolate', designed ? 'qo-canvas' : 'bg-canvas')}
+      // «Главная» — на белом, без фактуры и живого фона продавца (решение владельца 2026-10-30).
+      className="relative isolate min-h-screen bg-canvas"
       // Строка разделов под шапкой делает шапку выше, и всё, что липнет
       // под ней (колонка оформления), должно знать её настоящую высоту.
-      style={client ? ({ '--header-h': '4.5rem' } as CSSProperties) : headerHeight(designed, own ?? (hasTopNav ? 'top' : 'side'), layout)}
+      style={{ '--header-h': '4rem' } as CSSProperties}
     >
-      {/* Узор или фото продавца — под живым фоном, позади всего содержимого. */}
-      <BackgroundLayer pattern={design.pattern} photo={design.photo} />
-      {/* Живой фон — позади всего содержимого оболочки. */}
-      <Backdrop code={design.backdrop} level={motion} season={design.template?.id === 'SEASON'} />
+      {/* Узор или фото продавца — позади всего содержимого. */}
+      {!home && <BackgroundLayer pattern={design.pattern} photo={design.photo} />}
       {/* Цвет шапки и фон подложки задаёт поставщик в своих реквизитах. */}
       <SupplierTheme />
       {/*
@@ -279,21 +292,11 @@ export function Shell() {
       {/* Полоса объявлений — у тем, где она есть (Вспышка, Лукбук, Сезон). */}
       <ShopAnnounceBar enabled={!!design.style?.announce} />
       {/* На телефоне шапка одна у всех магазинов — по макету К1, с шаблоном и без. */}
-      {client ? (
-        <ClientBar activated={activated} ready={ready} others={others} onOpenShops={() => setShopsOpen(true)} current={location.pathname} />
-      ) : (
-        <ShellHeader
-          layout={own}
-          activated={activated}
-          ready={ready}
-          others={others}
-          nav={style?.nav ?? 'pill'}
-          onOpenSections={() => (wide && hasColumn ? setRailOpen((open) => !open) : setOpened(true))}
-          onOpenShops={() => setShopsOpen(true)}
-          onMore={() => setOpened(true)}
-          topNav={hasTopNav}
-        />
-      )}
+      {/* «Вариант Б»: на мониторе — одна шапка у всех магазинов; на телефоне шапки нет вовсе —
+          у каждого экрана своё «Назад» и имя, внизу — нижнее меню. */}
+      {wide ? (
+        <ClientBar activated={activated} ready={ready} others={others} onOpenShops={openShops} current={location.pathname} />
+      ) : null}
 
       {/*
         Полоса арендатора стоит под шапкой и над всем остальным: она объясняет,
@@ -328,7 +331,7 @@ export function Shell() {
         </div>
 
         <nav aria-label={t('shell.sectionsNav')} className="flex flex-col gap-1">
-          {[...mainSections, ...MORE_SECTIONS].map((section) => (
+          {[...mainSections, ...moreSections].map((section) => (
             <SectionLink
               key={section.path}
               section={section}
@@ -362,7 +365,7 @@ export function Shell() {
           setInviting(true);
         }}
         // Страница «Поставщики» — только у монитора без шаблона (ПК-К2.6).
-        onShowAll={client ? () => {
+        onShowAll={wide ? () => {
           setShopsOpen(false);
           navigate('/shops');
         } : undefined}
@@ -377,37 +380,18 @@ export function Shell() {
           'mx-auto flex w-full max-w-[1440px] lg:grid',
           // Сложенная колонка отдаёт свою ширину витрине, а не оставляет
           // пустую дорожку: ради этого её и складывают.
-          client ? 'lg:grid-cols-[minmax(0,1fr)]' : gridColumns(layout, railOpen, designed),
+          'lg:grid-cols-[minmax(0,1fr)]',
         )}
       >
-        {!client && railOpen && layout === 'side' && (
-          <Rail
-            current={location.pathname}
-            others={others}
-            cartActive={ready}
-            onOpenShops={() => setShopsOpen(true)}
-            onSwitch={switchShop}
-            designed={designed}
-            nav={style?.nav}
-          />
-        )}
-        {!client && railOpen && layout === 'rail' && (
-          <SlimRail
-            current={location.pathname}
-            others={others}
-            cartActive={ready}
-            onMore={() => setOpened(true)}
-            nav={style?.nav}
-          />
-        )}
-
         <div className="flex min-w-0 flex-1 flex-col">
           <main
             className={cn(
-              'min-w-0 flex-1 px-4 pt-4 lg:px-8 lg:pb-24 lg:pt-7',
-              // Запас снизу — под нижнее меню телефона и стрелку «наверх» над ним:
-              // без него последняя строка экрана остаётся под ними и до неё не долистать.
-              'pb-[calc(10rem+env(safe-area-inset-bottom))]',
+              'min-w-0 flex-1 px-4 pt-4 lg:px-8 lg:pt-7',
+              // Запас снизу — под нижнее меню телефона (4rem) и поднятую над ним круглую кнопку
+              // каталога (ещё 1.75rem): без него последняя строка — итог корзины, кнопка, сумма —
+              // уходит под них. Прежде запас держала подпись «Работает на Q-Order»; её убрали
+              // (2026-11-05), и низ экранов закрывала кнопка (замечание владельца 2026-11-06).
+              activated ? 'pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8' : 'pb-[calc(10rem+env(safe-area-inset-bottom))] lg:pb-24',
             )}
           >
             {/*
@@ -420,7 +404,7 @@ export function Shell() {
             <div
               key={`${supplierId ?? ''}:${location.pathname}`}
               // Лента по центру — узкой колонкой в 900 точек, как в макете.
-              className={cn('animate-page', own === 'center' && 'mx-auto max-w-[56.25rem]', client && 'mx-auto max-w-[76rem]')}
+              className={cn('animate-page', wide && 'mx-auto max-w-[76rem]')}
             >
               <Suspense fallback={null}>
               <Routes>
@@ -437,13 +421,14 @@ export function Shell() {
                 <Route path="/questions" element={<RequireSupplier><QuestionsPage /></RequireSupplier>} />
                 <Route path="/questions/:threadId" element={<RequireSupplier><QuestionsPage /></RequireSupplier>} />
                 <Route path="/reviews" element={<RequireSupplier><MyReviewsPage /></RequireSupplier>} />
+                <Route path="/debt" element={<RequireSupplier><DebtPage /></RequireSupplier>} />
+                <Route path="/messages" element={<MessagesPage />} />
                 <Route path="/delivery" element={<RequireSupplier><DeliveryInfoPage /></RequireSupplier>} />
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/notifications" element={<RequireSupplier><NotificationsPage /></RequireSupplier>} />
                 <Route
                   path="/shops"
-                  element={client
-                    ? <SuppliersPage onSwitch={switchShop} onInvite={currentViewer() === 'staff' ? undefined : () => setInviting(true)} />
-                    : <Navigate to="/home" replace />}
+                  element={<SuppliersPage onSwitch={switchShop} onInvite={currentViewer() === 'staff' ? undefined : () => setInviting(true)} />}
                 />
                 <Route
                   path="/more"
@@ -452,26 +437,20 @@ export function Shell() {
                       others={others}
                       onInvite={currentViewer() === 'staff' ? undefined : () => setInviting(true)}
                       extras={(
-                        <div className="rounded-[1.375rem] bg-surface px-3.5 pt-3 shadow-[2px_3px_6px_rgba(58,48,30,.07)]">
+                        <div className="rounded-[1.375rem] bg-surface px-3.5 pt-3 border-2 border-solid border-hairline empty:hidden">
                           <PhoneExtras ready={ready} />
                         </div>
                       )}
-                      footer={<SystemMark />}
                     />
                   )}
                 />
-                {/* Кабинет открывается витриной — макеты К1 и ПК-К1; шаблон на мониторе — своим каталогом. */}
-                <Route path="*" element={<Navigate to={own ? '/catalog' : '/home'} replace />} />
+                {/* Кабинет открывается «Главной» — макеты Варианта Б. */}
+                <Route path="*" element={<Navigate to="/home" replace />} />
               </Routes>
               </Suspense>
             </div>
           </main>
-          {/* Тихая подпись: поставщик, которого не звали, найдёт, где оставить заявку. */}
-          {activated && (
-            <footer className="px-4 pb-24 pt-6 text-center lg:pb-6">
-              <a href="/join" className="text-caption text-ink-subtle hover:text-ink-muted">{t('referral.poweredBy')}</a>
-            </footer>
-          )}
+          {/* «Работает на Q-Order» убран со всех страниц (решение владельца 2026-11-05). */}
         </div>
       </div>
 
@@ -502,6 +481,7 @@ export function Shell() {
       )}
     </div>
     </MotionLevelContext.Provider>
+      </OpenShopsContext.Provider>
     </SupplierCurrencyScope>
   );
 }
@@ -513,254 +493,10 @@ function useShopsSwitch() {
   return { list, supplierId, select };
 }
 
-/**
- * Высота шапки для всего, что липнет под ней.
- *
- * Без дизайна — прежняя (`index.css`). Шапка шаблона — панель 68 точек
- * и полоса графика 34, как в макете, и ещё строка разделов 52 у «меню
- * сверху» и «нижнего меню». В `rem`: при крупном шрифте полосы растут.
- */
-function headerHeight(designed: boolean, own: CabinetLayout, layout: CabinetLayout): CSSProperties | undefined {
-  if (!designed) return undefined;
-  const heights: Partial<Record<CabinetLayout, string>> = {
-    top: 'calc(6.375rem + 3.25rem)',
-    center: '7.5rem',
-    tabs: 'calc(6.375rem + 5.25rem)',
-  };
-  // На телефоне раскладка своей шапки не рисует — там высота обычной.
-  const height = heights[own] ?? (layout === 'top' || layout === 'bottom' ? heights.top : '6.375rem');
-  return { '--header-h': height } as CSSProperties;
-}
 
-/**
- * Шапка кабинета с дизайном — по раскладке шаблона на мониторе.
- *
- * `layout` пуст на телефоне: там у всех шаблонов одна шапка и нижнее меню.
- * Плавающая панель, шапка дока и шапка по центру — свои; «разворот» шапки
- * не имеет вовсе (его колонка и верхняя строка стоят в сетке); остальные —
- * обычная шапка, под которой строка разделов или вкладки рубрик.
- */
-function ShellHeader({
-  layout,
-  activated,
-  ready,
-  others,
-  nav,
-  onOpenSections,
-  onOpenShops,
-  onMore,
-  topNav,
-}: {
-  layout: CabinetLayout | null;
-  activated: boolean;
-  ready: boolean;
-  others: number;
-  nav: TemplateStyle['nav'];
-  onOpenSections: () => void;
-  onOpenShops: () => void;
-  onMore: () => void;
-  topNav: boolean;
-}) {
-  const location = useLocation();
-  const common = { activated, ready, othersUnread: others, onOpenShops };
-  switch (layout) {
-    case 'center':
-      return <CenterHeader {...common} onMore={onMore} />;
-    default:
-      return (
-        <DesignHeader
-          {...common}
-          onOpenSections={onOpenSections}
-          below={topNav ? (
-            <TopNav current={location.pathname} others={others} cartActive={ready} onMore={onMore} nav={nav} />
-          ) : layout === 'tabs' ? <CategoryTabs ready={ready} /> : null}
-        />
-      );
-  }
-}
 
-/**
- * Колонки сетки на мониторе: колонка разделов, узкая рейка или ничего.
- *
- * Рейка — 72 точки, как в макете: значок и короткая подпись под ним.
- * У раскладок «меню сверху» и «нижнее меню» колонки слева нет вовсе —
- * витрине достаётся вся ширина.
- */
-function gridColumns(layout: CabinetLayout, railOpen: boolean, designed: boolean): string {
-  // Колонка шаблона — 232 точки, как в макете; без дизайна — прежние 256.
-  if (railOpen && layout === 'side') {
-    return designed ? 'lg:grid-cols-[232px_minmax(0,1fr)]' : 'lg:grid-cols-[256px_minmax(0,1fr)]';
-  }
-  if (railOpen && layout === 'rail') return 'lg:grid-cols-[72px_minmax(0,1fr)]';
-  return 'lg:grid-cols-[minmax(0,1fr)]';
-}
 
-/**
- * Строка разделов под шапкой — шаблоны с меню сверху («Витрина», «Маркет»).
- *
- * Только главные разделы и «Ещё»: десять пунктов в строку не помещаются,
- * а редкие разделы открывает тот же лист, что и «Меню» в шапке.
- * Выбранный раздел — мягкой подложкой, как в макете: сплошная заливка
- * в строке из пяти пунктов спорила бы с кнопкой корзины рядом.
- */
-function TopNav({
-  current,
-  others,
-  cartActive,
-  onMore,
-  nav = 'pill',
-}: {
-  current: string;
-  others: number;
-  cartActive: boolean;
-  onMore: () => void;
-  /** Вид пункта по шаблону: подложка, подчёркивание во всю высоту строки или полоса снизу. */
-  nav?: TemplateStyle['nav'];
-}) {
-  const { t } = useTranslation();
-  const lines = cartOf(useCart(cartActive).data)?.lines.length ?? 0;
-  const { sections, deals, arrivals } = useMainSections(cartActive);
-  const inMore = MORE_SECTIONS.some((section) => isActive(section, current));
-  const item = (active: boolean) => cn(
-    'flex shrink-0 items-center gap-2 whitespace-nowrap px-3.5 text-sm',
-    nav === 'underline' ? 'h-full' : 'h-9',
-    'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-    navItemClass(nav, active, false),
-  );
-  // Счётчик — цветом скидки, как в макете: он зовёт к выгоде, а не к кнопке.
-  const pill = 'inline-flex h-5 min-w-5 items-center justify-center rounded-[var(--radius-pill)] bg-sale px-1.5 text-2xs font-extrabold text-white';
 
-  return (
-    <nav
-      aria-label={t('shell.sectionsRail')}
-      data-testid="top-nav"
-      className="hidden border-b border-hairline bg-surface lg:block"
-    >
-      <div className="mx-auto flex h-13 w-full max-w-[1440px] items-center gap-1.5 overflow-x-auto px-[22px] [scrollbar-width:none]">
-        {sections.map((section) => {
-          const Icon = section.icon;
-          if (section.path === '/checkout') {
-            return (
-              <button key={section.path} type="button" aria-haspopup="dialog" onClick={openCart} className={item(false)}>
-                <Icon aria-hidden="true" className="size-[18px]" />
-                {t(`shell.sections.${section.key}`)}
-                {lines > 0 && (
-                  <span role="img" aria-label={t('shell.inCart', { count: lines })} className={pill}><Bump value={lines}>{lines}</Bump></span>
-                )}
-              </button>
-            );
-          }
-          const active = isActive(section, current);
-          return (
-            <NavLink
-              key={section.path}
-              to={section.path}
-              aria-current={active ? 'page' : undefined}
-              className={item(active)}
-            >
-              <Icon aria-hidden="true" className="size-[18px]" />
-              {t(`shell.sections.${section.key}`)}
-              {section.path === '/promotions' && deals > 0 && (
-                <span role="img" aria-label={t('shell.deals', { count: deals })} className={pill}>{deals}</span>
-              )}
-              {section.path === '/new-arrivals' && (
-                <span role="img" aria-label={t('shell.arrivals', { count: arrivals })} className={pill}>{arrivals}</span>
-              )}
-            </NavLink>
-          );
-        })}
-        <button type="button" onClick={onMore} className={item(inMore)}>
-          <MoreHorizontal aria-hidden="true" className="size-[18px]" />
-          {t('shell.more')}
-          {others > 0 && (
-            <span role="img" aria-label={t('shell.unread', { count: others })} className={pill}>{others}</span>
-          )}
-        </button>
-      </div>
-    </nav>
-  );
-}
-
-/**
- * Узкая рейка — шаблоны «Строгий» и «Техно».
- *
- * Значок и короткая подпись под ним: одни значки — загадка для того, кто
- * открыл кабинет впервые, а полные названия в 72 точки не помещаются.
- * Подписи — те же короткие, что в нижнем меню телефона. Полное название
- * стоит в `title`: мышью его можно подсмотреть.
- */
-function SlimRail({
-  current,
-  others,
-  cartActive,
-  onMore,
-  nav = 'pill',
-}: {
-  current: string;
-  others: number;
-  cartActive: boolean;
-  onMore: () => void;
-  nav?: TemplateStyle['nav'];
-}) {
-  const { t } = useTranslation();
-  const lines = cartOf(useCart(cartActive).data)?.lines.length ?? 0;
-  const { sections } = useMainSections(cartActive);
-  const inMore = MORE_SECTIONS.some((section) => isActive(section, current));
-  const item = (active: boolean) => cn(
-    'relative flex w-[3.75rem] flex-col items-center gap-1 px-0.5 py-[9px] text-center text-[0.6562rem] leading-tight',
-    'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-    navItemClass(nav, active, true),
-    'font-bold',
-  );
-  const dot = 'absolute right-1 top-1 inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-[var(--radius-pill)] bg-accent px-1 text-[0.625rem] font-bold text-on-accent';
-
-  return (
-    <nav
-      aria-label={t('shell.sectionsRail')}
-      data-testid="slim-rail"
-      className={cn(
-        'hidden flex-col items-center gap-2 border-r border-hairline bg-surface py-4 lg:flex',
-        'lg:sticky lg:top-[var(--header-h)] lg:h-[calc(100dvh-var(--header-h))] lg:overflow-y-auto',
-      )}
-    >
-      {sections.map((section) => {
-        const Icon = section.icon;
-        const title = t(`shell.sections.${section.key}`);
-        if (section.path === '/checkout') {
-          return (
-            <button key={section.path} type="button" aria-haspopup="dialog" title={title} onClick={openCart} className={item(false)}>
-              <Icon aria-hidden="true" className="size-5" />
-              {t(`shell.tabs.${section.key}`)}
-              {lines > 0 && (
-                <span role="img" aria-label={t('shell.inCart', { count: lines })} className={dot}><Bump value={lines}>{lines}</Bump></span>
-              )}
-            </button>
-          );
-        }
-        const active = isActive(section, current);
-        return (
-          <NavLink
-            key={section.path}
-            to={section.path}
-            title={title}
-            aria-current={active ? 'page' : undefined}
-            className={item(active)}
-          >
-            <Icon aria-hidden="true" className="size-5" />
-            {t(`shell.tabs.${section.key}`)}
-          </NavLink>
-        );
-      })}
-      <button type="button" onClick={onMore} className={item(inMore)}>
-        <MoreHorizontal aria-hidden="true" className="size-5" />
-        {t('shell.tabs.more')}
-        {others > 0 && (
-          <span role="img" aria-label={t('shell.unread', { count: others })} className={dot}>{others}</span>
-        )}
-      </button>
-    </nav>
-  );
-}
 
 /**
  * Знак системы с лозунгом: «чья это система» и «что она делает».
@@ -785,242 +521,17 @@ function SystemMark() {
   );
 }
 
-/**
- * Колонка слева на мониторе: мои магазины, разделы и помощь.
- *
- * Липкая и со своей прокруткой: разделы — это способ уйти с экрана,
- * и уезжать вместе с длинной витриной они не должны.
- */
-function Rail({
-  current,
-  others,
-  cartActive,
-  onOpenShops,
-  onSwitch,
-  designed = false,
-  nav = 'pill',
-}: {
-  current: string;
-  others: number;
-  cartActive: boolean;
-  onOpenShops: () => void;
-  /** Переход в другой магазин из блока «Мои магазины» — тот же, что из окна. */
-  onSwitch: (supplierId: string) => void;
-  /**
-   * Колонка шаблона продавца — по макету: белая панель, пункты по 44 точки,
-   * выбранный — по виду пункта шаблона, счётчик — цветом скидки, карточка
-   * «Вы сейчас в» — на подсветке фирменного и второго цвета.
-   */
-  designed?: boolean;
-  /** Вид пункта меню по шаблону: подложка, подчёркивание или полоса у края. */
-  nav?: TemplateStyle['nav'];
-}) {
-  const { t } = useTranslation();
-  const lines = cartOf(useCart(cartActive).data)?.lines.length ?? 0;
-  // Число товаров со скидкой — у «Акций и скидок», как в макете: оно говорит,
-  // что туда стоит заглянуть, раньше, чем человек туда зайдёт.
-  const { sections, deals, arrivals } = useMainSections(cartActive);
-  // Число отложенного — у «Избранного», как у корзины: видно, что там есть
-  // что взять, не заходя. Спрашивается тот же список, что рисует раздел, —
-  // отметка сердечком его перечитывает, и число следует за ней.
-  const favorites = useGetPortalFavorites({ query: { enabled: cartActive } });
-  const favoriteCount = favorites.data?.status === 200 ? favorites.data.data.length : 0;
-  // Телефон магазина решает, куда ведёт «Нужна помощь?»: он есть — помощь
-  // звонит напрямую, а не пересылает в вопросы продавцу, на которые тоже
-  // нужно ждать ответа.
-  const { current: shop, list } = useShops();
-  const shopCount = list.length;
-  const helpTel = telLink(shop?.phone);
-  const helpWa = whatsappLink(shop?.whatsapp);
-  const inMore = MORE_SECTIONS.some((section) => isActive(section, current));
-  // «Ещё» раскрыто само, если открыт один из его разделов: выбранный пункт,
-  // спрятанный под свёрнутым списком, оставил бы человека без ответа «где я».
-  const [moreOpen, setMoreOpen] = useState(inMore);
-  const showMore = moreOpen || inMore;
 
-  return (
-    <div
-      data-testid="rail"
-      className={cn(
-        'hidden flex-col gap-1.5 border-r border-hairline lg:flex',
-        designed ? 'bg-surface px-3 pb-5 pt-[18px]' : 'bg-sunk px-4 pb-5 pt-4',
-        'lg:sticky lg:top-[var(--header-h)] lg:h-[calc(100dvh-var(--header-h))] lg:overflow-y-auto',
-      )}
-    >
-      <nav aria-label={t('shell.sectionsRail')} className="flex flex-col gap-1">
-        {sections.map((section) => (
-          section.path === '/checkout' ? (
-            // Корзина в колонке открывает ту же панель, что и кнопка в шапке:
-            // уводить с витрины ради взгляда на состав незачем.
-            <CartNavButton key={section.path} section={section} lines={lines} designed={designed} nav={nav} />
-          ) : (
-            <SectionLink
-              key={section.path}
-              section={section}
-              current={current}
-              badge={railBadge(section.path, deals, favoriteCount, arrivals)}
-              badgeLabel={section.path === '/promotions'
-                ? t('shell.deals', { count: deals })
-                : section.path === '/new-arrivals' ? t('shell.arrivals', { count: arrivals })
-                  : section.path === '/favorites' ? t('shell.favoritesCount', { count: favoriteCount }) : undefined}
-              large
-              designed={designed}
-              nav={nav}
-            />
-          )
-        ))}
-
-        <button
-          type="button"
-          aria-expanded={showMore}
-          onClick={() => setMoreOpen((open) => !open)}
-          className={cn(
-            'flex min-h-11 w-full items-center gap-3.5 px-3.5 text-left text-body text-ink-muted',
-            designed ? 'rounded-[var(--radius-small)]' : 'rounded-[var(--radius-control)]',
-            'transition-colors duration-200 hover:bg-ink/5 hover:text-ink',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-          )}
-        >
-          <MoreHorizontal aria-hidden="true" className="size-5 shrink-0" />
-          {showMore ? t('shell.less') : t('shell.more')}
-          <ChevronDown
-            aria-hidden="true"
-            className={cn('ml-auto size-4 transition-transform duration-300', showMore && 'rotate-180')}
-          />
-        </button>
-
-        {showMore && MORE_SECTIONS.map((section) => (
-          <SectionLink
-            key={section.path}
-            section={section}
-            current={current}
-            badge={section.path === '/profile' ? others : undefined}
-            designed={designed}
-            nav={nav}
-          />
-        ))}
-      </nav>
-
-      {/*
-        Где я и куда ещё можно — внизу колонки, как в макете: переход в другой
-        магазин нужен реже, чем разделы, но всегда должен быть на виду.
-        Новые приглашения — там же: они и ведут к новому магазину.
-      */}
-      {/*
-        «Нужна помощь?» — только когда есть чем помочь напрямую: телефон или
-        WhatsApp магазина. Без них помощь — это вопросы продавцу, а они и так
-        стоят в «Ещё».
-      */}
-      {(helpTel || helpWa) && (
-        <div
-          className={cn(
-            'mt-auto flex flex-col gap-2.5 p-3.5',
-            designed
-              ? 'rounded-[var(--radius-card)] bg-canvas'
-              : 'rounded-[calc(var(--radius-tile)*1.125)] bg-surface shadow-[0_0_0_1px_var(--color-hairline)]',
-          )}
-        >
-          <p className="text-body font-bold text-ink">{t('shell.help.title')}</p>
-          <p className="text-sm leading-[1.45] text-ink-muted">{t('shell.help.noteCall')}</p>
-          {helpTel && (
-            <a
-              href={helpTel}
-              className={cn(
-                'flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] bg-accent text-sm font-bold text-on-accent',
-                'hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-              )}
-            >
-              <Phone aria-hidden="true" className="size-4" />
-              {t('shop.call')}
-            </a>
-          )}
-          {helpWa && (
-            <a
-              href={helpWa}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                'flex h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border-[1.5px] border-line text-sm font-semibold text-ink',
-                'hover:border-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-              )}
-            >
-              <MessageCircle aria-hidden="true" className="size-4" />
-              {t('shop.whatsapp')}
-            </a>
-          )}
-        </div>
-      )}
-
-      <div
-        className={cn(
-          'flex flex-col gap-1.5 p-4',
-          designed
-            ? 'rounded-[var(--radius-template)] border border-hairline bg-canvas'
-            : 'rounded-[calc(var(--radius-tile)*1.125)] bg-surface shadow-[0_0_0_1px_var(--color-hairline)]',
-          !(helpTel || helpWa) && 'mt-auto',
-        )}
-      >
-        <span className="text-xs font-bold uppercase tracking-[0.06em] text-ink-subtle">{t('shell.youAreIn')}</span>
-        <span className="text-body font-bold text-ink">{shop?.name ?? t('shell.supplier')}</span>
-        <button
-          type="button"
-          onClick={onOpenShops}
-          className={cn(
-            'flex min-h-11 items-center self-start text-sm font-semibold text-accent-ink hover:underline',
-            'rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-          )}
-        >
-          {t('shops.all', { count: shopCount })} →
-        </button>
-        <InvitesCard onOpen={onOpenShops} />
-      </div>
-
-      {/*
-        Свои магазины — под карточкой «Вы сейчас в», как в макете: карточка
-        говорит, где я, а блок — куда ещё можно одним нажатием. Колонка
-        есть только на мониторе, и блок вместе с ней.
-      */}
-      <MyShopsBlock onSwitch={onSwitch} />
-
-      {/*
-        Тот же знак, что в подвале выдвижного листа: колонка и лист показывают
-        один список разделов и заканчиваться по-разному не должны.
-      */}
-      <div data-testid="rail-logo" className="flex flex-col items-center gap-1 pt-3">
-        <SystemMark />
-      </div>
-    </div>
-  );
-}
-
-/** Число у пункта колонки: скидки у «Акций», новинки у «Новых поступлений», отложенное у «Избранного». */
-function railBadge(path: string, deals: number, favorites: number, arrivals = 0): number | undefined {
-  if (path === '/promotions' && deals > 0) return deals;
-  if (path === '/new-arrivals' && arrivals > 0) return arrivals;
-  if (path === '/favorites' && favorites > 0) return favorites;
-  return undefined;
-}
 
 /**
- * Нижнее меню телефона: витрина, корзина, заявки и «Ещё».
+ * Нижнее меню телефона: «Главная», «Сообщения» (заявки, вопросы, отзывы), витрина, корзина и «Ещё».
  *
  * Под большим пальцем — то, за чем приходят каждый раз. «Ещё» открывает тот
  * же лист, что и «Меню» в шапке: одно место для всех остальных разделов.
  */
 /** Свой знак каталога: четыре плитки витрины, одна — фирменная оранжевая (макеты «Кабинет клиента 2.0»). */
-function CatalogMark() {
-  return (
-    <svg aria-hidden="true" width="28" height="28" viewBox="0 0 28 28">
-      <rect x="3" y="3" width="10" height="10" rx="3.5" fill="currentColor" />
-      <rect x="15" y="3" width="10" height="10" rx="5" className="fill-sale" />
-      <rect x="3" y="15" width="10" height="10" rx="3.5" fill="currentColor" />
-      <rect x="15" y="15" width="10" height="10" rx="3.5" fill="currentColor" fillOpacity={0.55} />
-    </svg>
-  );
-}
-
 /** Разделы, плитки которых стоят на «Главной»: внизу горит она. */
-const HOME_PATHS = ['/home', '/promotions', '/favorites', '/new-arrivals'];
+const HOME_PATHS = ['/home', '/orders', '/promotions', '/favorites', '/new-arrivals'];
 
 function BottomNav({
   current,
@@ -1031,15 +542,26 @@ function BottomNav({
 }) {
   const { t } = useTranslation();
   const lines = cartOf(useCart(cartActive).data)?.lines.length ?? 0;
-  const more = current === '/more' || MORE_SECTIONS.some((section) => isActive(section, current));
+  // Непрочитанное текущего магазина — тот же запрос, что у колокольчика: числа совпадают.
+  const notifications = useGetPortalNotifications({ query: { enabled: cartActive } });
+  // «Сообщения» — разговор с продавцом: заявки, вопросы, отзывы. Колокольчик считает всё.
+  const unread = messageCounts(notifications.data?.status === 200 ? notifications.data.data : []).total;
+  // Пока долг не погашен, корзина подсвечена: заказывать можно, но долг на виду.
+  const debt = useGetPortalDebt({ query: { enabled: cartActive } });
+  const inDebt = debt.data?.status === 200 && debt.data.data.debt > 0;
   const catalog = current === '/catalog' || current.startsWith('/catalog/');
   const tab = (active: boolean) => cn(
     'relative flex min-h-16 flex-1 flex-col items-center justify-center gap-1 text-xs font-semibold',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent',
-    active ? 'font-extrabold text-accent-ink' : 'text-ink-muted',
+    // Цвет платформы, а не продавца — как у значков «Главной»; значки им же и у неактивных вкладок.
+    active ? 'font-extrabold text-home-icon' : 'text-ink-muted',
   );
-  const home = HOME_PATHS.includes(current);
-  const orders = current === '/orders' || current.startsWith('/orders/');
+  const home = HOME_PATHS.some((path) => current === path || current.startsWith(`${path}/`));
+  // «Сообщения» горят и в своих разделах: вопросы, отзывы. «Мои заявки» — с «Главной» (решение владельца 2026-11-05).
+  const messages = ['/messages', '/questions', '/reviews']
+    .some((path) => current === path || current.startsWith(`${path}/`));
+  // «Ещё» внизу больше нет (решение владельца 2026-10-30): все разделы — плитками на «Главной», «Выйти» — значком на «Главной» и в заголовке «Всех разделов».
+  const delivery = current === '/delivery';
   const cart = current === '/checkout';
 
   return (
@@ -1052,41 +574,56 @@ function BottomNav({
       )}
     >
       <Link to="/home" aria-current={home ? 'page' : undefined} className={tab(home)}>
-        <House aria-hidden="true" className="size-6" />
+        <HomeHouse className="size-6 text-home-icon" />
         {t('shell.tabs.home')}
       </Link>
-      <Link to="/orders" aria-current={orders ? 'page' : undefined} className={tab(orders)}>
-        <ClipboardList aria-hidden="true" className="size-6" />
-        {t('shell.tabs.orders')}
+      <Link to="/messages" aria-current={messages ? 'page' : undefined} className={tab(messages)}>
+        <HomeMessages className="size-6 text-home-icon" />
+        {t('shell.tabs.messages')}
+        {unread > 0 && (
+          <span
+            role="img"
+            aria-label={t('shell.unread', { count: unread })}
+            className="absolute left-[calc(50%+4px)] top-1.5 flex h-5 min-w-5 items-center justify-center rounded-[var(--radius-pill)] bg-sale px-1.5 text-xs font-extrabold text-on-sale"
+          >
+            <Bump value={unread}>{unread}</Bump>
+          </span>
+        )}
       </Link>
       <Link to="/catalog" aria-current={catalog ? 'page' : undefined} className={cn(tab(catalog), 'justify-end pb-1.5')}>
         <span
           className={cn(
-            'mb-0.5 -mt-7 flex size-[3.75rem] items-center justify-center rounded-full text-white',
-            'shadow-[0_0_0_5px_var(--color-surface),0_10px_22px_rgb(1_86_64/0.35)]',
-            catalog ? 'bg-accent-ink' : 'bg-accent',
+            'mb-0.5 -mt-7 flex size-[3.75rem] items-center justify-center rounded-full bg-home-icon text-surface',
+            'shadow-[0_0_0_5px_var(--color-surface),0_10px_22px_rgb(46_139_110/0.35)]',
           )}
         >
-          <CatalogMark />
+          <HomeCatalog className="size-7" />
         </span>
         {t('shell.tabs.catalog')}
       </Link>
       <Link to="/checkout" aria-current={cart ? 'page' : undefined} {...{ [CART_TARGET]: '' }} className={tab(cart)}>
-        <ShoppingCart aria-hidden="true" className="size-6" />
+        <HomeCart className="size-6 text-home-icon" />
         {t('shell.tabs.checkout')}
+        {inDebt && <span className="sr-only">{t('shell.inDebt')}</span>}
+        {inDebt && lines === 0 && (
+          <span aria-hidden="true" className="absolute left-[calc(50%+6px)] top-2.5 size-2.5 rounded-full bg-sale ring-2 ring-surface" />
+        )}
         {lines > 0 && (
           <span
             role="img"
             aria-label={t('shell.inCart', { count: lines })}
-            className="absolute left-[calc(50%+4px)] top-1.5 flex h-5 min-w-5 items-center justify-center rounded-[var(--radius-pill)] bg-sale px-1.5 text-xs font-extrabold text-white"
+            className={cn(
+              'absolute left-[calc(50%+4px)] top-1.5 flex h-5 min-w-5 items-center justify-center rounded-[var(--radius-pill)] bg-sale px-1.5 text-xs font-extrabold text-on-sale',
+              inDebt && 'ring-2 ring-sale/30',
+            )}
           >
             <Bump value={lines}>{lines}</Bump>
           </span>
         )}
       </Link>
-      <Link to="/more" aria-current={more ? 'page' : undefined} className={tab(more)}>
-        <Menu aria-hidden="true" className="size-6" />
-        {t('shell.tabs.more')}
+      <Link to="/delivery" aria-current={delivery ? 'page' : undefined} className={tab(delivery)}>
+        <HomeDelivery className="size-6 text-home-icon" />
+        {t('shell.tabs.delivery')}
       </Link>
     </nav>
   );
@@ -1097,65 +634,17 @@ function BottomNav({
  * звонок в магазин и точка самовывоза.
  */
 function PhoneExtras({ ready }: { ready: boolean }) {
-  const { t } = useTranslation();
   const { current: shop } = useShops();
   const tel = telLink(shop?.phone);
   return (
     <div className="flex flex-wrap items-center gap-2 pb-3">
       <HelpGuide className="size-11 rounded-[var(--radius-control)] border border-line text-ink-muted" />
-      {tel && (
-        <a
-          href={tel}
-          className="flex h-11 items-center gap-2 rounded-[var(--radius-control)] border border-line px-3.5 text-body font-semibold text-accent-ink"
-        >
-          <Phone aria-hidden="true" className="size-5" />
-          {t('shop.call')}
-        </a>
-      )}
+      {tel && <PhoneLine phone={shop?.phone} className="px-1" />}
       <PickupPointPicker ready={ready} withMap />
     </div>
   );
 }
 
-/**
- * «Корзина» в колонке разделов — кнопкой: открывает ту же выдвижную
- * корзину, что и кнопка в шапке, а не уводит с экрана.
- */
-function CartNavButton({ section, lines, designed = false, nav = 'pill' }: {
-  section: Section;
-  lines: number;
-  designed?: boolean;
-  nav?: TemplateStyle['nav'];
-}) {
-  const { t } = useTranslation();
-  const Icon = section.icon;
-  return (
-    <button
-      type="button"
-      aria-haspopup="dialog"
-      onClick={openCart}
-      className={cn(
-        'flex items-center gap-3.5 px-3.5 py-2 text-left font-medium',
-        designed
-          ? cn('min-h-11 gap-3 whitespace-nowrap text-sm', navItemClass(nav, false, true))
-          : 'min-h-13 rounded-[var(--radius-control)] text-base text-ink hover:bg-ink/5',
-        'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-      )}
-    >
-      <Icon aria-hidden="true" className={designed ? 'size-[18px] shrink-0' : 'size-5 shrink-0'} />
-      {t(`shell.sections.${section.key}`)}
-      {lines > 0 && (
-        <span
-          role="img"
-          aria-label={t('shell.inCart', { count: lines })}
-          className="ml-auto inline-flex h-6.5 min-w-6.5 items-center justify-center rounded-[var(--radius-pill)] bg-accent px-2 text-caption font-bold text-on-accent"
-        >
-          <Bump value={lines}>{lines}</Bump>
-        </span>
-      )}
-    </button>
-  );
-}
 
 /**
  * Раздел в списке.
@@ -1226,7 +715,7 @@ function SectionLink({
           className={cn(
             'ml-auto inline-flex items-center justify-center rounded-[var(--radius-pill)] font-bold',
             designed
-              ? 'h-[22px] min-w-[22px] bg-sale px-[7px] text-2xs font-extrabold text-white'
+              ? 'h-[22px] min-w-[22px] bg-sale px-[7px] text-2xs font-extrabold text-on-sale'
               : cn('h-6.5 min-w-6.5 px-2 text-caption', active ? 'bg-on-accent text-accent' : 'bg-accent text-on-accent'),
           )}
         >

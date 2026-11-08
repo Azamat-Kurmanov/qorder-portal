@@ -34,7 +34,10 @@ function unique(): string {
 async function signIn(page: Page, login: string, password: string) {
   const user = page.locator('input:not([type="password"]):not([type="hidden"]):not([type="checkbox"])').first();
   await expect(user).toBeVisible({ timeout: 30_000 });
-  await user.fill(login);
+  // Вход по телефону — с выбором страны «KZ +7» перед полем: номер вписывается без кода страны.
+  const phone = page.getByRole('textbox', { name: 'Номер телефона' });
+  if (/^7\d{10}$/.test(login) && await phone.count()) await phone.fill(login.slice(1));
+  else await user.fill(login);
   await page.locator('input[type="password"]').first().fill(password);
   await page.locator('button[type="submit"], input[type="submit"]').first().click();
 }

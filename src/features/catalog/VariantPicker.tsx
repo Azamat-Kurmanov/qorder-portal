@@ -11,6 +11,8 @@ export interface Axis {
   name: string;
   colour: boolean;
   options: string[];
+  /** Цвет кружка, заданный продавцом у варианта поля (#RRGGBB), — по подписи значения. */
+  hexes?: Record<string, string>;
 }
 
 const COLOUR = /цвет|түс|colou?r/i;
@@ -44,9 +46,9 @@ export function colourOf(name: string): string | undefined {
 }
 
 /** Значения полей варианта, как их читает клиент: код поля → текст. */
-export function valuesOf(variant: ShowcaseVariantDto): Map<string, { name: string; text: string }> {
+export function valuesOf(variant: ShowcaseVariantDto): Map<string, { name: string; text: string; hex?: string }> {
   return new Map(variant.fields
-    .map((field) => [field.code, { name: field.name, text: fieldText(field) }] as const)
+    .map((field) => [field.code, { name: field.name, text: fieldText(field), hex: field.hex }] as const)
     .filter(([, value]) => value.text !== ''));
 }
 
@@ -63,15 +65,25 @@ export function axesOf(variants: ShowcaseVariantDto[]): Axis[] {
   codes.forEach((name, code) => {
     const options = [...new Set(values.map((map) => map.get(code)?.text).filter((text): text is string => !!text))];
     if (options.length < 2) return;
-    axes.push({ code, name, colour: COLOUR.test(name) || COLOUR.test(code), options });
+    const hexes: Record<string, string> = {};
+    values.forEach((map) => { const value = map.get(code); if (value?.hex) hexes[value.text] = value.hex; });
+    axes.push({ code, name, colour: COLOUR.test(name) || COLOUR.test(code), options, hexes });
   });
   const rank = (axis: Axis) => (axis.colour ? 0 : SIZE.test(axis.name) || SIZE.test(axis.code) ? 1 : 2);
   return axes.sort((a, b) => rank(a) - rank(b));
 }
 
-/** Кружками ли рисовать ось: цвет, и каждое значение узнаётся как цвет. */
+/**
+ * Цвет кружка значения: заданный продавцом у варианта поля, а без него — узнанный по названию.
+ * Раньше брался только по названию, и «Изумрудный» превращал всю ось в текстовые кнопки.
+ */
+export function swatchOf(axis: Axis, option: string): string | undefined {
+  return axis.hexes?.[option] ?? colourOf(option);
+}
+
+/** Кружками ли рисовать ось: цвет, и у каждого значения есть цвет кружка. */
 export function swatchesOf(axis: Axis): boolean {
-  return axis.colour && axis.options.every((option) => colourOf(option));
+  return axis.colour && axis.options.every((option) => swatchOf(axis, option));
 }
 
 /**
@@ -154,7 +166,7 @@ export function VariantPicker({
                     aria-label={t('item.variantOption', { name: axis.name, value: option })}
                     aria-pressed={on}
                     onClick={() => pick(current, axis, option)}
-                    style={{ background: colourOf(option) }}
+                    style={{ background: swatchOf(axis, option) }}
                     className={cn(
                       'size-10 rounded-full border-[3px] border-surface transition-shadow duration-150',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
@@ -170,7 +182,7 @@ export function VariantPicker({
                     className={cn(
                       'h-[46px] min-w-[54px] rounded-[var(--radius-control)] border px-3.5 text-body font-bold transition-colors duration-150',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                      on ? 'border-ink bg-ink text-surface' : 'border-line bg-surface text-ink hover:border-ink/50',
+                      on ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface text-ink hover:border-ink/50',
                     )}
                   >
                     {option}

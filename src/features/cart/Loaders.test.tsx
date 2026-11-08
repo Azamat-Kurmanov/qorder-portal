@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubWideScreen } from '../../test/wideScreen';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CheckoutPage } from './CheckoutPage';
@@ -28,6 +29,8 @@ const options = (loaders: Record<string, unknown>) => ({
 /** Грузчики на оформлении: сумма, кому платить и что уходит в заявку. */
 describe('грузчики при оформлении', () => {
   afterEach(() => vi.unstubAllGlobals());
+  // Монитор: оформление одним экраном. Шаги телефона — в CheckoutSteps.test.tsx.
+  beforeEach(() => stubWideScreen());
 
   it('по запросу продавцу — входят в итог и уходят в заявке', async () => {
     const { calls } = stubFetch([
@@ -41,6 +44,7 @@ describe('грузчики при оформлении', () => {
 
     expect(screen.getByTestId('loaders-total')).toHaveTextContent(/3\s000/);
     await waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent(/17\s000/));
+
 
     await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
     await waitFor(() => {

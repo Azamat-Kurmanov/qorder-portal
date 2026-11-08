@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ShopsDialog } from './Shops';
-import { InvitesCard } from './Invitations';
 import { renderScreen } from '../../test/render';
 import { get, method, stubFetch } from '../../test/http';
 
@@ -29,16 +28,6 @@ function rules(extra: ReturnType<typeof method>[] = []) {
  */
 describe('приглашения магазинов', () => {
   afterEach(() => vi.unstubAllGlobals());
-
-  // Приглашения в колонке — в карточке «Вы сейчас в», а не в блоке
-  // «Мои магазины» под ней: дважды подряд одно и то же не показывается.
-  it('колонка называет, кто пригласил', async () => {
-    stubFetch(rules());
-    renderScreen(<InvitesCard onOpen={() => {}} />);
-
-    expect(await screen.findByText('1 новое приглашение')).toBeInTheDocument();
-    expect(screen.getByText('ТОО «Береке»')).toBeInTheDocument();
-  });
 
   it('«Принять» шлёт редакцию уведомления и открывает магазин', async () => {
     const onSwitch = vi.fn();

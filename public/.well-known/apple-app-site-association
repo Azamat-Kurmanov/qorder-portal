@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAMID_TBD.kz.qorder.mobile"],
+        "components": [{ "/": "/join-shop/*" }, { "/": "/join/*" }, { "/": "/activate" }]
+      }
+    ]
+  }
+}

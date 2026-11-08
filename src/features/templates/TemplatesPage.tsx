@@ -1,16 +1,15 @@
-import { SectionHead } from '../shell/SectionHead';
+import { useOrderMode } from '../cart/orderMode';
+import { BackTitle } from '../../ui/BackTitle';
 import { useTranslation } from 'react-i18next';
 import { rules } from '../../api/rules.generated';
 import { FieldFaultText } from '../../ui/Field';
 import { useFormRules } from '../../ui/forms/useFormRules';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Reveal } from '../../ui/Reveal';
 import { cn } from '../../ui/cn';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  getGetPortalCartQueryKey,
   getGetPortalTemplatesQueryKey,
   useDeletePortalTemplate,
   useFillPortalCartFromTemplate,
@@ -20,8 +19,11 @@ import {
 } from '../../api/generated';
 import { RepeatOrderButton } from '../orders/RepeatOrderButton';
 import { TemplateSchedule } from './TemplateSchedule';
+import { PastOrders } from './PastOrders';
+import { TemplateEditor } from './TemplateEditor';
+import { NothingAdded, useStayIfEmpty } from '../orders/stayIfEmpty';
 import { useState } from 'react';
-import { Plus, ShoppingCart, X } from '../../ui/icons';
+import { PenLine, Plus, ShoppingCart, X } from '../../ui/icons';
 
 /**
  * Шаблоны закупки: сохранённая корзина под своим названием.
@@ -36,7 +38,6 @@ import { Plus, ShoppingCart, X } from '../../ui/icons';
  */
 export function TemplatesPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   /*
    * Название — на правилах контракта: обязательно и не длиннее 255. Прежде
@@ -62,15 +63,29 @@ export function TemplatesPage() {
     },
   });
   const remove = useDeletePortalTemplate({ mutation: { onSuccess: () => void reload() } });
-  const fill = useFillPortalCartFromTemplate({
-    mutation: {
-      onSuccess: (result) => {
-        if (result.status !== 200) return;
-        queryClient.setQueryData(getGetPortalCartQueryKey(), result);
-        navigate('/checkout');
-      },
-    },
-  });
+  // Товар «оптом и в розницу» ложится в заявку, в которой клиент сейчас (решение владельца 2026-11-06).
+  const [orderMode] = useOrderMode();
+  // Шаблон заменяет корзину; ничего не легло — остаёмся здесь и называем причину у этого шаблона.
+  const { done, nothing, start } = useStayIfEmpty();
+  const [filled, setFilled] = useState<string | null>(null);
+  // Какой шаблон сейчас правят и какой спрашивают «удалить?» — по одному за раз.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  /** «Удалить шаблон «…»?» — и в карточке, и под правкой: удаление без вопроса легко сделать случайно. */
+  const confirmDelete = (template: OrderTemplateDto) => (
+    <div role="alertdialog" aria-label={t('templates.deleteAria', { name: template.name })}
+      className="flex flex-col gap-2 rounded-[var(--radius-control)] bg-sunk p-3">
+      <p className="m-0 text-body text-ink">{t('templates.deleteQuestion', { name: template.name })}</p>
+      <div className="flex gap-2">
+        <Button className="flex-1 bg-gone text-white hover:bg-gone/90" disabled={remove.isPending}
+          onClick={() => remove.mutate({ id: template.id }, { onSuccess: () => { setDeleting(null); setEditing(null); } })}>
+          {t('templates.deleteYes')}
+        </Button>
+        <Button variant="outline" onClick={() => setDeleting(null)}>{t('templates.auto.cancel')}</Button>
+      </div>
+    </div>
+  );
+  const fill = useFillPortalCartFromTemplate({ mutation: { onSuccess: done } });
 
   // Макет К2.13: повтор прошлой заявки строкой, шаблоны карточками с «В корзину»,
   // сохранение текущей корзины — кнопкой внизу, поле названия раскрывается по нажатию.
@@ -116,54 +131,74 @@ export function TemplatesPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <SectionHead title={t('templates.title')} subtitle={t('templates.subtitle')} />
+      <BackTitle title={t('templates.title')} subtitle={t('templates.subtitle')} />
 
       <RepeatOrderButton row />
+
+      {saving ? saveForm : (
+        <Button variant="outline" size="lg" className="h-14 w-full gap-2 text-lead font-extrabold lg:w-auto lg:self-start lg:px-8" onClick={() => setSaving(true)}>
+          <Plus aria-hidden="true" className="size-5" />
+          {t('templates.saveCurrent')}
+        </Button>
+      )}
 
       {templates.length === 0 ? (
         <p className="px-1 text-sm text-ink-subtle">{t('templates.empty')}</p>
       ) : (
         templates.map((template, index) => (
           <Reveal key={template.id} delay={Math.min(index, 3) * 0.04}>
-            <Card data-testid="template-row" className="flex flex-col gap-3 p-4">
+            <Card data-testid="template-row" className="flex flex-col gap-2.5 p-4">
+              {editing === template.id ? (
+                <>
+                  <TemplateEditor template={template} onDone={() => setEditing(null)} />
+                  {/* Вошёл в шаблон — удалить его можно и отсюда, не закрывая правку. */}
+                  {deleting === template.id ? confirmDelete(template) : (
+                    <Button variant="outline" className="h-12 gap-2 text-gone"
+                      aria-label={t('templates.deleteAria', { name: template.name })}
+                      onClick={() => setDeleting(template.id)}>
+                      <X aria-hidden="true" className="size-[18px]" />
+                      {t('templates.deleteTemplate')}
+                    </Button>
+                  )}
+                </>
+              ) : (<>
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-base font-bold text-ink">{template.name}</span>
-                <span className="text-[0.8125rem] text-ink-subtle">{t('templates.lineCount', { count: template.lineCount })}</span>
+                <span className="text-lead font-extrabold text-ink">{template.name}</span>
+                <span className="text-body text-ink-muted">{t('templates.lineCount', { count: template.lineCount })}</span>
               </div>
               <TemplateSchedule template={template} />
               <div className="flex gap-2">
                 <Button
-                  className="h-11 flex-1 gap-2"
+                  className="h-14 flex-[2] gap-2 text-lead font-extrabold"
                   disabled={fill.isPending}
-                  onClick={() => fill.mutate({ templateId: template.id })}
+                  onClick={() => { start(); setFilled(template.id); fill.mutate({ templateId: template.id, params: { mode: orderMode } }); }}
                 >
                   <ShoppingCart aria-hidden="true" className="size-[18px]" />
                   {fill.isPending ? t('templates.adding') : t('templates.toCart')}
                 </Button>
-                <button
-                  type="button"
-                  aria-label={t('templates.deleteAria', { name: template.name })}
-                  onClick={() => remove.mutate({ id: template.id })}
-                  className={cn(
-                    'flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-ink-muted',
-                    'shadow-[inset_0_0_0_1.5px_var(--color-line)] transition-colors hover:text-gone',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                  )}
-                >
-                  <X aria-hidden="true" className="size-[18px]" />
-                </button>
               </div>
+              {filled === template.id ? <NothingAdded skipped={nothing} /> : null}
+              {deleting === template.id ? confirmDelete(template) : (
+                <div className="flex gap-2">
+                  <Button variant="outline" className="h-12 flex-1 gap-2" onClick={() => { setDeleting(null); setEditing(template.id); }}>
+                    <PenLine aria-hidden="true" className="size-[18px]" />
+                    {t('templates.edit.button')}
+                  </Button>
+                  <Button variant="outline" className="h-12 flex-1 gap-2 text-gone"
+                    aria-label={t('templates.deleteAria', { name: template.name })}
+                    onClick={() => { setEditing(null); setDeleting(template.id); }}>
+                    <X aria-hidden="true" className="size-[18px]" />
+                    {t('templates.delete')}
+                  </Button>
+                </div>
+              )}
+              </>)}
             </Card>
           </Reveal>
         ))
       )}
 
-      {saving ? saveForm : (
-        <Button variant="soft" size="lg" className="w-full gap-2" onClick={() => setSaving(true)}>
-          <Plus aria-hidden="true" className="size-5" />
-          {t('templates.saveCurrent')}
-        </Button>
-      )}
+      <PastOrders />
     </div>
   );
 }

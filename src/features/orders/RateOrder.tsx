@@ -11,6 +11,7 @@ import {
 import { rules } from '../../api/rules.generated';
 import { Button } from '../../ui/Button';
 import { ThumbsUp } from '../../ui/icons';
+import { useCurrentShop } from '../shell/Shops';
 
 const REASONS = Object.values(RateOrderRequestReason);
 
@@ -18,7 +19,12 @@ const REASONS = Object.values(RateOrderRequestReason);
  * «Как прошёл заказ?» у полученного заказа: одно касание, если всё хорошо.
  * «Были проблемы» сервер кладёт ещё и в переписку заказа — продавец увидит и ответит.
  */
+/** Оценка заказа — только у магазина, который принимает отзывы и оценки (R-17). */
 export function RateOrder({ order }: { order: PortalOrderDto }) {
+  return useCurrentShop()?.reviews ? <RateOrderForm order={order} /> : null;
+}
+
+function RateOrderForm({ order }: { order: PortalOrderDto }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const formId = useId();
@@ -86,7 +92,7 @@ export function RateOrder({ order }: { order: PortalOrderDto }) {
             <legend className="mb-1 text-sm font-semibold text-ink">{t('orders.rating.what')}</legend>
             {REASONS.map((value) => (
               <label key={value}
-                className="inline-flex h-9 cursor-pointer items-center rounded-[var(--radius-pill)] border-[1.5px] border-solid border-line px-4 text-[0.8125rem] font-semibold text-ink has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
+                className="qo-hit inline-flex h-9 cursor-pointer items-center rounded-[var(--radius-pill)] border-[1.5px] border-solid border-line px-4 text-caption font-semibold text-ink has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
                 <input type="radio" name={`${formId}-reason`} value={value} checked={reason === value}
                   onChange={() => setReason(value)} className="sr-only" />
                 {t(`orders.rating.reason.${value}`)}
@@ -97,7 +103,7 @@ export function RateOrder({ order }: { order: PortalOrderDto }) {
             {t('orders.rating.comment')}
             <textarea rows={2} value={comment} maxLength={rules.RateOrderRequest.comment.maxLength}
               onChange={(event) => setComment(event.target.value)}
-              className="resize-y rounded-[var(--radius-control)] border-[1.5px] border-solid border-line bg-surface px-3 py-2 text-sm font-normal text-ink focus:border-accent focus:outline-none" />
+              className="resize-y rounded-[var(--radius-control)] border-[1.5px] border-solid border-field-line bg-surface px-3 py-2 text-sm font-normal text-ink focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none" />
           </label>
           <div className="flex gap-2">
             <Button type="submit" variant="accent" disabled={rate.isPending}>

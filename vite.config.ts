@@ -31,9 +31,15 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const target = env.VITE_DEV_API_TARGET || 'http://localhost:5000';
 
-  const proxy = Object.fromEntries(
-    PROXIED.map((path) => [path, { target, changeOrigin: true }]),
-  );
+  const proxy = {
+    ...Object.fromEntries(PROXIED.map((path) => [path, { target, changeOrigin: true }])),
+    // Ссылки «Поделиться» (R-07): в бою их так же переписывает nginx на страницу превью бэкенда.
+    '^/s/': {
+      target,
+      changeOrigin: true,
+      rewrite: (path: string) => path.replace(/^\/s\/([^/]+)\/(.*)$/, '/api/portal/join-shop/$1/share/$2'),
+    },
+  };
 
   return {
     plugins: [react(), tailwindcss()],

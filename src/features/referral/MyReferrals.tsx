@@ -10,6 +10,7 @@ import {
   useListMyReferrals,
   type ReferralDto,
 } from '../../api/generated';
+import { whatsappHref } from './referralText';
 
 /** Погасить можно, пока поставщик не оставил заявку: после неё ссылка уже его. */
 const REMOVABLE = new Set(['SENT', 'OPENED']);
@@ -46,32 +47,44 @@ export function MyReferrals() {
       {rows.map((referral) => {
         const removable = REMOVABLE.has(referral.status);
         return (
-          <Card key={referral.id} data-testid="referral-row" className="flex items-center gap-3 p-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="truncate text-sm font-semibold text-ink">{referral.label || t('referral.noLabel')}</span>
-              <span className="text-xs text-ink-muted">
-                {new Date(referral.createdAt).toLocaleDateString(intlLocale())} · {t(stateKey(referral))}
-              </span>
+          <Card key={referral.id} data-testid="referral-row" className="flex flex-col gap-1.5 p-3">
+            <div className="flex items-center gap-3">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate text-sm font-semibold text-ink">{referral.label || t('referral.noLabel')}</span>
+                <span className="text-xs text-ink-muted">
+                  {new Date(referral.createdAt).toLocaleDateString(intlLocale())} · {t(stateKey(referral))}
+                </span>
+              </div>
+              {removable && (
+                <button
+                  type="button"
+                  aria-label={t('referral.remove')}
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate({ id: referral.id })}
+                  className="flex size-10 items-center justify-center rounded-full text-ink-muted hover:bg-ink/5"
+                >
+                  <X aria-hidden="true" className="size-4" />
+                </button>
+              )}
             </div>
+            {/* Поставщик ещё не ответил: напомнить той же ссылкой — новое приглашение не заводится. */}
             {removable && (
-              <button
-                type="button"
-                onClick={() => void copy(referral)}
-                className="text-sm font-semibold text-[var(--color-brand)]"
-              >
-                {copied === referral.id ? t('referral.copied') : t('referral.copy')}
-              </button>
-            )}
-            {removable && (
-              <button
-                type="button"
-                aria-label={t('referral.remove')}
-                disabled={remove.isPending}
-                onClick={() => remove.mutate({ id: referral.id })}
-                className="flex size-10 items-center justify-center rounded-full text-ink-muted hover:bg-ink/5"
-              >
-                <X aria-hidden="true" className="size-4" />
-              </button>
+              <div className="flex flex-wrap gap-x-5 gap-y-1">
+                <button
+                  type="button"
+                  onClick={() => window.open(whatsappHref(t('referral.reminder', { link: referral.link, interpolation: { escapeValue: false } })), '_blank', 'noopener')}
+                  className="min-h-10 text-sm font-semibold text-[var(--color-brand)]"
+                >
+                  {t('referral.remind')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copy(referral)}
+                  className="min-h-10 text-sm font-semibold text-[var(--color-brand)]"
+                >
+                  {copied === referral.id ? t('referral.copied') : t('referral.copy')}
+                </button>
+              </div>
             )}
           </Card>
         );

@@ -22,7 +22,7 @@ describe('уведомления на телефон', () => {
     await userEvent.click(await screen.findByText('Уведомления на телефон'));
     expect(screen.getByText('Приходят все')).toBeInTheDocument();
     // Только поводы клиента: продавцовых («Новая заявка в очереди») здесь нет.
-    expect(screen.getAllByRole('switch')).toHaveLength(15);
+    expect(screen.getAllByRole('switch')).toHaveLength(20);
     const sale = screen.getByRole('switch', { name: 'Началась распродажа' });
     expect(sale).toHaveAttribute('aria-checked', 'true');
 

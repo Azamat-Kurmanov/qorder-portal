@@ -68,7 +68,7 @@ function ConfirmPhone({ onVerified }: { onVerified: () => void }) {
               <li>{t('joinShop.confirmStep3')}</li>
             </ol>
             <a href={fresh.waLink} target="_blank" rel="noreferrer"
-              className="flex h-12 items-center justify-center rounded-[var(--radius-control)] bg-[#25D366] px-4 text-base font-semibold text-white">
+              className="flex h-12 items-center justify-center rounded-[var(--radius-control)] bg-whatsapp px-4 text-base font-semibold text-white">
               {t('joinShop.openWhatsApp')}
             </a>
             <p role="status" className="text-center text-xs text-ink-faint">{t('joinShop.waiting')}</p>

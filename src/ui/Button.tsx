@@ -43,10 +43,10 @@ const button = cva(
   {
     variants: {
       variant: {
-        /* Чернила: главное действие экрана, у которого нет денежного веса, —
-           «Оформить», «Сохранить», «Отправить». */
+        /* Главное действие экрана без денежного веса — «Оформить», «Сохранить», «Отправить».
+           Общим цветом платформы, как и остальные кнопки (решение владельца 2026-10-30). */
         primary:
-          'qo-shine bg-ink text-on-ink shadow-soft hover:bg-ink/90 hover:shadow-lift hover:-translate-y-0.5',
+          'qo-shine bg-accent text-on-accent shadow-soft hover:bg-accent-hover hover:shadow-lift hover:-translate-y-0.5',
         /*
          * Цвет магазина: действие, ради которого человек пришёл, —
          * «В корзину», «Оформить заявку», «Отправить продавцу».
@@ -58,22 +58,22 @@ const button = cva(
          */
         accent:
           'qo-shine bg-accent font-bold text-on-accent hover:bg-accent-hover hover:shadow-accent',
-        outline: 'border-[1.5px] border-line bg-surface font-semibold text-ink hover:border-ink',
+        outline: 'border-2 border-line bg-surface font-bold text-ink hover:border-ink',
         soft: 'bg-accent-soft font-semibold text-accent-ink hover:brightness-[0.97] hover:shadow-soft',
         ghost: 'text-ink-muted hover:bg-ink/5',
       },
       size: {
-        md: 'h-11 rounded-[var(--radius-control)] px-5 text-sm',
-        lg: 'h-13 rounded-[var(--radius-tile)] px-6 text-base',
+        md: 'h-12 rounded-[var(--radius-control)] px-5 text-body font-bold',
+        lg: 'h-14 rounded-[var(--radius-tile)] px-6 text-lead font-extrabold',
         /*
          * Размер для действия, которое ищут глазами, а не читают: «В корзину»
          * на карточке товара, «Оформить заявку» в панели итога. Пятьдесят
          * шесть точек — это не «крупнее ради красоты», а цель, в которую
          * попадают не глядя, на ходу и одной рукой.
          */
-        xl: 'h-14 rounded-[var(--radius-tile)] px-7 text-[1.0625rem]',
+        xl: 'h-14 rounded-[var(--radius-tile)] px-7 text-lead',
         icon: 'size-11 rounded-[var(--radius-control)]',
-        chip: 'h-9 rounded-[var(--radius-pill)] px-4 text-[0.8125rem]',
+        chip: 'qo-hit h-9 rounded-[var(--radius-pill)] px-4 text-caption',
       },
     },
     defaultVariants: { variant: 'primary', size: 'md' },

@@ -20,13 +20,13 @@ describe('полоса корзины на телефоне', () => {
     await i18n.changeLanguage('ru');
   });
 
-  it('одна строка — сколько позиций и на какую сумму, ведёт в корзину', async () => {
+  it('сколько позиций и на какую сумму (сумма не обрезается), ведёт в корзину', async () => {
     stubFetch([get('/api/portal/cart', cart)]);
 
     renderScreen(<CartBar />);
     const bar = await screen.findByTestId('cart-bar');
     expect(bar).toHaveAttribute('href', '/checkout');
-    expect(bar).toHaveTextContent(/1 позиция ·\s5\s000/);
+    expect(bar).toHaveTextContent(/1 позиция\s*5\s000/);
     expect(bar).toHaveTextContent('Корзина');
   });
 

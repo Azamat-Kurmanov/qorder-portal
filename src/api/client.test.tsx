@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CatalogPage } from '../features/catalog/CatalogPage';
-import { ProfilePage } from '../features/profile/ProfilePage';
+import { SupplierPicker } from '../features/profile/SupplierPicker';
 import { renderScreen, renderWithRealSupplier } from '../test/render';
 import { get, method, stubFetch } from '../test/http';
 import { setCurrentSupplierId } from '../supplier/supplier';
@@ -55,11 +55,20 @@ describe('поставщик в запросах кабинета', () => {
     expect(new Headers(last.init?.headers).has('X-Pickup-Point')).toBe(false);
   });
 
+  it('свой заголовок поставщика у вызова не перезаписывается выбранным', async () => {
+    setCurrentSupplierId('supplier-1');
+    const { calls } = stubFetch([method('POST', '/api/portal/notifications/n-1/read', {})]);
+
+    await apiRequest('/api/portal/notifications/n-1/read', { method: 'POST', headers: { 'X-Supplier-Id': 'supplier-9' } });
+
+    expect(new Headers(calls[0].init?.headers).get('X-Supplier-Id')).toBe('supplier-9');
+  });
+
   it('без выбранного поставщика заголовка нет вовсе', async () => {
     setCurrentSupplierId(null);
     const { calls } = stubFetch([get('/api/portal/suppliers', [])]);
 
-    renderScreen(<ProfilePage />, { supplierId: null });
+    renderScreen(<SupplierPicker />, { supplierId: null });
 
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
     const headers = new Headers(calls[0].init?.headers);
@@ -80,7 +89,7 @@ describe('поставщик в запросах кабинета', () => {
 
     // Настоящий провайдер, а не подставленный: проверяется именно то, что
     // выбор доезжает до обёртки запросов и переживает перезагрузку.
-    renderWithRealSupplier(<ProfilePage />);
+    renderWithRealSupplier(<SupplierPicker />);
 
     await screen.findAllByTestId('supplier-row');
     // Кнопка перехода есть только у невыбранного: предлагать перейти туда,

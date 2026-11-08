@@ -3,6 +3,7 @@ import { CallbackPage } from './auth/CallbackPage';
 import { RequireAuth } from './auth/RequireAuth';
 import { Shell } from './features/shell/Shell';
 import { SupplierProvider } from './supplier/SupplierProvider';
+import { RouteError } from './ui/RouteError';
 import { withViewTransitions } from './ui/motion/viewTransitions';
 
 /**
@@ -24,9 +25,11 @@ import { withViewTransitions } from './ui/motion/viewTransitions';
  * `ui/motion/viewTransitions.ts`); разделы по-прежнему вложенными `<Routes>` оболочки.
  */
 const router = withViewTransitions(createBrowserRouter(createRoutesFromElements(
-  <>
+  // Сбой любого экрана — «Нет связи» с повтором, а не служебная страница роутера.
+  <Route errorElement={<RouteError />}>
     <Route path="/activate" lazy={() => import('./features/activation/ActivationPage').then((module) => ({ Component: module.ActivationPage }))} />
     {/* Страница для поставщика, которого позвал клиент: у поставщика входа нет вовсе. */}
+    <Route path="/join/owner/:token" lazy={() => import('./features/join/JoinOwnerPage').then((module) => ({ Component: module.JoinOwnerPage }))} />
     <Route path="/join/:code?" lazy={() => import('./features/join/JoinPage').then((module) => ({ Component: module.JoinPage }))} />
     {/* Заявка клиента в магазин по его ссылке или QR — гость без входа (backend.md §18.28, п. 6). */}
     <Route path="/join-shop/:code" lazy={() => import('./features/joinShop/JoinShopPage').then((module) => ({ Component: module.JoinShopPage }))} />
@@ -41,7 +44,7 @@ const router = withViewTransitions(createBrowserRouter(createRoutesFromElements(
         </RequireAuth>
       )}
     />
-  </>,
+  </Route>,
 )));
 
 export function App() {

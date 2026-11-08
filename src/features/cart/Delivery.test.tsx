@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubWideScreen } from '../../test/wideScreen';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CheckoutPage } from './CheckoutPage';
@@ -55,6 +56,8 @@ const pickupMethod = {
  */
 describe('доставка при оформлении', () => {
   afterEach(() => vi.unstubAllGlobals());
+  // Монитор: оформление одним экраном. Шаги телефона — в CheckoutSteps.test.tsx.
+  beforeEach(() => stubWideScreen());
 
   it('у поставщика без доставки выбирать нечего, кроме точки', async () => {
     stubFetch([
@@ -126,6 +129,7 @@ describe('доставка при оформлении', () => {
     await waitFor(() => expect(screen.getByTestId('delivery-total')).toHaveTextContent('1 500'));
     expect(screen.getByTestId('total')).toHaveTextContent('14 000');
 
+
     await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
 
     await waitFor(() => {
@@ -155,6 +159,7 @@ describe('доставка при оформлении', () => {
     expect(screen.getByTestId('total')).toHaveTextContent('17 400');
     first.unmount();
     vi.unstubAllGlobals();
+    stubWideScreen();
 
     stubFetch([
       get('/api/portal/cart', payerCart),
@@ -220,10 +225,12 @@ describe('доставка при оформлении', () => {
     await waitFor(() =>
       expect(screen.getByTestId('delivery-total')).toHaveTextContent(/по договорённости/i));
 
-    await userEvent.selectOptions(await screen.findByLabelText(/зона доставки/i), 'zone-2');
+    // Зона — кнопкой «название · цена», как в макете.
+    await userEvent.click(await screen.findByRole('radio', { name: /За городом · 7\s000/ }));
 
     await waitFor(() => expect(screen.getByTestId('delivery-total')).toHaveTextContent('7 000'));
     expect(screen.getByTestId('total')).toHaveTextContent('19 500');
+
 
     await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
     await waitFor(() => {
@@ -341,10 +348,10 @@ describe('доставка при оформлении', () => {
     expect(screen.getByLabelText(/этаж/i)).toBeInTheDocument();
     // Дата и окно стоят парой: одно без другого поставщику ничего не говорит,
     // и разнесённые по разным строкам они читаются как два вопроса подряд.
-    expect(screen.getByLabelText(/дата доставки/i)).toBeInTheDocument();
-    const slots = screen.getByLabelText(/окно доставки/i);
-    expect(within(slots).getByRole('option', { name: '14:00–18:00' })).toBeInTheDocument();
-    expect(screen.getByTestId('delivery-when').className).toContain('grid-cols-2');
+    const when = screen.getByTestId('delivery-when');
+    expect(within(when).getByRole('group', { name: 'Когда' })).toBeInTheDocument();
+    expect(within(when).getByRole('radio', { name: 'Сегодня' })).toBeInTheDocument();
+    expect(within(within(when).getByRole('group', { name: 'Во сколько' })).getByRole('radio', { name: '14:00–18:00' })).toBeInTheDocument();
   });
 
   /** Стоимость доставки названа строкой «подпись — сумма», а не в тексте. */

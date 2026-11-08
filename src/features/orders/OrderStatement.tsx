@@ -52,12 +52,12 @@ export function OrderStatement() {
         <label className="flex flex-col gap-1 text-sm font-semibold text-ink">
           {t('orders.statement.from')}
           <input type="date" value={from} max={to} onChange={(event) => setFrom(event.target.value)}
-            className="h-10 rounded-[var(--radius-control)] border-[1.5px] border-solid border-line bg-surface px-3 text-sm font-normal text-ink focus:border-accent focus:outline-none" />
+            className="h-10 rounded-[var(--radius-control)] border-[1.5px] border-solid border-field-line bg-surface px-3 text-sm font-normal text-ink focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none" />
         </label>
         <label className="flex flex-col gap-1 text-sm font-semibold text-ink">
           {t('orders.statement.to')}
           <input type="date" value={to} min={from} onChange={(event) => setTo(event.target.value)}
-            className="h-10 rounded-[var(--radius-control)] border-[1.5px] border-solid border-line bg-surface px-3 text-sm font-normal text-ink focus:border-accent focus:outline-none" />
+            className="h-10 rounded-[var(--radius-control)] border-[1.5px] border-solid border-field-line bg-surface px-3 text-sm font-normal text-ink focus:border-accent focus:ring-1 focus:ring-accent focus:outline-none" />
         </label>
         <Button variant="accent" disabled={busy || !from || !to || from > to} onClick={() => void download()}>
           {busy ? t('orders.statement.preparing') : t('orders.statement.download')}

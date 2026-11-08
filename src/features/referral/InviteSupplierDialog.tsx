@@ -25,7 +25,7 @@ const EMPTY = { referrerName: '', label: '' };
 const INPUT = 'h-11 w-full rounded-[var(--radius-control)] border border-hairline bg-surface px-3 text-base text-ink';
 /** Телефон — по макету: поле на мягкой подложке внутри белой карточки. */
 const PHONE_INPUT = 'h-13 w-full rounded-[0.875rem] border-0 bg-canvas px-3.5 text-base font-semibold text-ink';
-const PHONE_CARD = 'flex flex-col gap-2.5 rounded-[1.375rem] bg-surface p-3.5 shadow-[2px_3px_6px_rgba(58,48,30,.07)]';
+const PHONE_CARD = 'flex flex-col gap-2.5 rounded-[1.375rem] bg-surface p-3.5 border-2 border-solid border-hairline';
 
 /** Отказ сервера словами: два предела человеку есть чем объяснить, остальное — одним текстом. */
 function failureKey(error: unknown): string {
@@ -59,6 +59,7 @@ export function InviteSupplierDialog({ open, onOpenChange }: {
   const [made, setMade] = useState<ReferralDto | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [qr, setQr] = useState('');
   const create = useCreateReferral();
   const { reset } = form;
   // Телефон — экраном по макету «Пригласить поставщика»; монитор — прежним листом.
@@ -75,6 +76,7 @@ export function InviteSupplierDialog({ open, onOpenChange }: {
       setMade(null);
       setFailure(null);
       setCopied(false);
+      setQr('');
     }
     onOpenChange(next);
   }
@@ -115,6 +117,18 @@ export function InviteSupplierDialog({ open, onOpenChange }: {
       setCopied(true);
     } catch {
       // Буфер закрыт браузером — ссылка и так видна в окне, её можно выделить.
+    }
+  }
+
+  /** QR несёт ту же ссылку, что и WhatsApp: поставщик наводит любую камеру. bwip-js тяжёлый — грузится по нажатию. */
+  async function showQr() {
+    const referral = await ensure();
+    if (!referral) return;
+    try {
+      const bwip = await import('bwip-js/browser');
+      setQr(bwip.toSVG({ bcid: 'qrcode', text: referral.link, scale: 4 }));
+    } catch {
+      // Не нарисовался — ссылка на виду, её можно отправить или скопировать.
     }
   }
 
@@ -169,6 +183,13 @@ export function InviteSupplierDialog({ open, onOpenChange }: {
           {t(failure)}
         </p>
       )}
+      {qr && (
+        <div className="flex flex-col items-center gap-2 rounded-[1.375rem] border-2 border-hairline bg-surface p-4 text-center">
+          <div role="img" aria-label={t('referral.qrAlt')} data-testid="referral-qr"
+            className="size-56 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: qr }} />
+          <span className="text-sm font-semibold text-ink">{t('referral.qrHint')}</span>
+        </div>
+      )}
       {made && (
         // Вкладку мог не открыть браузер — ссылка остаётся на виду.
         <div className="flex flex-col gap-1 rounded-[var(--radius-control)] bg-sunk px-3 py-2.5 text-sm">
@@ -180,14 +201,18 @@ export function InviteSupplierDialog({ open, onOpenChange }: {
   );
   const actions = (
     <>
+      {/* Главная — во всю ширину: в узкой панели монитора три кнопки в ряд сжимали её. */}
+      <Button size="lg" className={cn('w-full', !wide && 'bg-ok-ink text-on-ink hover:bg-ok-ink/90')} disabled={create.isPending} onClick={() => void sendWhatsapp()}>
+        {create.isPending ? t('referral.sending') : t('referral.send')}
+      </Button>
       <div className="flex flex-col gap-2 sm:flex-row">
-        {/* Зелёная, как в макете: кнопка ведёт в WhatsApp, и цвет говорит это раньше подписи. */}
-        <Button size="lg" className={cn('sm:flex-1', !wide && 'bg-ok-ink text-white hover:bg-ok-ink/90')} disabled={create.isPending} onClick={() => void sendWhatsapp()}>
-          {create.isPending ? t('referral.sending') : t('referral.send')}
-        </Button>
         {/* На телефоне, как в макете, копирование — тихой ссылкой под главной кнопкой. */}
         <Button size="lg" variant={wide ? 'outline' : 'ghost'} className="sm:flex-1" disabled={create.isPending} onClick={() => void copy()}>
           {t('referral.copy')}
+        </Button>
+        {/* Поставщик рядом — показать код с экрана быстрее, чем пересылать ссылку. */}
+        <Button size="lg" variant={wide ? 'outline' : 'ghost'} className="sm:flex-1" disabled={create.isPending || Boolean(qr)} onClick={() => void showQr()}>
+          {t('referral.showQr')}
         </Button>
       </div>
       {copied && <p role="status" className="text-sm text-ink-muted">{t('referral.copied')}</p>}
@@ -210,7 +235,7 @@ export function InviteSupplierDialog({ open, onOpenChange }: {
   return (
     <Dialog.Root open={open} onOpenChange={close}>
       <Dialog.Portal>
-        <Dialog.Content aria-describedby={`${id}-sub`} className="fixed inset-0 z-50 flex flex-col bg-canvas">
+        <Dialog.Content aria-describedby={`${id}-sub`} className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-canvas">
           <header className="flex items-center gap-3 bg-surface px-4 pb-3.5 pt-[calc(0.875rem+env(safe-area-inset-top))] shadow-[0_4px_16px_rgba(58,48,30,.06)]">
             <Dialog.Close
               aria-label={t('catalog.back')}
@@ -219,19 +244,18 @@ export function InviteSupplierDialog({ open, onOpenChange }: {
               <ChevronLeft aria-hidden="true" className="size-[1.375rem]" />
             </Dialog.Close>
             <span className="flex min-w-0 flex-col gap-0.5">
-              <Dialog.Title className="text-[1.375rem] font-black tracking-[-0.02em] text-ink">{t('referral.title')}</Dialog.Title>
-              <p id={`${id}-sub`} className="text-[0.8125rem] text-ink-muted">{t('referral.subtitle')}</p>
+              <Dialog.Title className="text-title font-black tracking-[-0.02em] text-ink">{t('referral.title')}</Dialog.Title>
+              <p id={`${id}-sub`} className="text-caption text-ink-muted">{t('referral.subtitle')}</p>
             </span>
           </header>
-          <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3 py-3.5">
+          {/* Листается весь экран: кнопки идут за полями, а не закреплены внизу. */}
+          <div className="flex flex-col gap-2.5 px-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3.5">
             {nameCard}
             {labelCard}
             {notes}
+            <div className="flex flex-col gap-2">{actions}</div>
             <MyReferrals />
           </div>
-          <footer className="flex flex-col gap-2 bg-surface px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_20px_rgba(58,48,30,.1)]">
-            {actions}
-          </footer>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

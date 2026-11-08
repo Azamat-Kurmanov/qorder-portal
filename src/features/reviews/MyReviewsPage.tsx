@@ -1,5 +1,5 @@
 import { Star } from '../../ui/icons';
-import { SectionHead } from '../shell/SectionHead';
+import { BackTitle } from '../../ui/BackTitle';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -23,6 +23,9 @@ import { Reveal } from '../../ui/Reveal';
 import { shortDate } from '../../shared/format';
 import { ReviewForm } from './ReviewForm';
 import { Stars } from './Stars';
+import { LineThumb } from '../cart/LineThumb';
+import { useCurrentShop } from '../shell/Shops';
+import { cn } from '../../ui/cn';
 
 /**
  * Мои отзывы.
@@ -38,10 +41,11 @@ export function MyReviewsPage() {
   const { t } = useTranslation();
   const reviews = useGetPortalMyReviews();
   const list = reviews.data?.status === 200 ? reviews.data.data : [];
+  const shop = useCurrentShop();
 
   return (
-    <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-5">
-      <SectionHead title={t('reviews.title')} subtitle={t('reviews.subtitle')} />
+    <div className="flex min-h-[calc(100dvh-5.5rem)] flex-col gap-3">
+      <BackTitle title={t('reviews.title')} subtitle={shop ? t('reviews.shopSubtitle', { shop: shop.name }) : t('reviews.subtitle')} />
 
       <AwaitingBlock />
 
@@ -55,7 +59,9 @@ export function MyReviewsPage() {
           {t('reviews.empty')}
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <section aria-labelledby="yours-heading" className="flex flex-col gap-2.5">
+        <h2 id="yours-heading" className="m-0 mt-1 text-lead font-extrabold text-ink">{t('reviews.yours')}</h2>
+        <ul className="m-0 grid list-none grid-cols-[minmax(0,1fr)] gap-3 p-0 lg:grid-cols-2">
           {list.map((review, index) => (
             <li key={review.id}>
               <Reveal delay={Math.min(index, 3) * 0.04}>
@@ -64,6 +70,7 @@ export function MyReviewsPage() {
             </li>
           ))}
         </ul>
+        </section>
       )}
     </div>
   );
@@ -92,13 +99,13 @@ function AwaitingBlock() {
 
   return (
     <section className="flex flex-col gap-2" aria-labelledby="awaiting-heading">
-      <h2 id="awaiting-heading" className="px-1.5 text-[0.8125rem] font-extrabold uppercase tracking-[0.04em] text-ink-muted">
+      <h2 id="awaiting-heading" className="m-0 mt-1 text-lead font-extrabold text-ink">
         {t('reviews.awaiting')} · {items.length}
       </h2>
       {/* Как в макете: короткий список купленного, форма оценки — по «Оценить» у строки. */}
-      <ul className="flex flex-col rounded-[1.375rem] bg-surface px-3.5 shadow-[2px_3px_6px_rgba(58,48,30,.07)]">
+      <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
         {items.map((item) => (
-          <li key={item.itemId} className="border-b border-hairline py-2.5 last:border-b-0">
+          <li key={item.itemId} className="rounded-[var(--radius-card)] border-[3px] border-solid border-hit-ink/25 bg-surface p-3.5">
             <AwaitingRow
               item={item}
               onSaved={() => {
@@ -130,17 +137,20 @@ function AwaitingRow({
   const [rating, setRating] = useState(0);
   return (
     <div className="flex flex-col gap-2.5">
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <Link
-          to={`/catalog/${item.itemId}`}
-          className="truncate text-[0.9375rem] font-bold text-ink underline-offset-4 hover:underline"
-        >
-          {item.itemName}
-        </Link>
-        <span className="text-[0.8125rem] text-ink-muted">
-          {t('reviews.purchasedAt', { date: shortDate(item.purchasedAt) })}
+      <div className="flex items-center gap-3">
+        <LineThumb seed={item.itemId} className="size-14 shrink-0" />
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <Link
+            to={`/catalog/${item.itemId}`}
+            className="text-lead font-extrabold text-ink underline-offset-4 hover:underline"
+          >
+            {item.itemName}
+          </Link>
+          <span className="text-caption text-ink-muted">
+            {t('reviews.purchasedAt', { date: shortDate(item.purchasedAt) })}
+          </span>
         </span>
-      </span>
+      </div>
       {rating > 0 ? (
         <ReviewForm itemId={item.itemId} initialRating={rating} submitLabel={t('reviews.rate')} onSaved={onSaved} />
       ) : (
@@ -151,9 +161,9 @@ function AwaitingRow({
               type="button"
               aria-label={t('reviews.rateWith', { rating: value })}
               onClick={() => setRating(value)}
-              className="flex size-11 items-center justify-center rounded-full text-ink-faint transition-colors hover:text-[#C98A00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="flex size-14 cursor-pointer items-center justify-center rounded-2xl border-0 bg-hit-soft text-line transition-colors hover:text-star focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
-              <Star aria-hidden="true" className="size-7" />
+              <Star aria-hidden="true" className="size-8" />
             </button>
           ))}
         </div>
@@ -168,6 +178,12 @@ function AwaitingRow({
  * Здесь ключ словаря, а не само слово: карта считается один раз на модуле,
  * и подпись, посчитанная тут, осталась бы на прежнем языке после его смены.
  */
+const STATUS_LOOK: Record<ItemReviewDtoStatus, string> = {
+  PENDING: 'bg-hit-soft text-hit-ink',
+  PUBLISHED: 'bg-ok-soft text-ok-ink',
+  REJECTED: 'bg-sale-soft text-sale-ink',
+};
+
 const STATUS_KEY: Record<ItemReviewDtoStatus, string> = {
   PENDING: 'reviews.pending',
   PUBLISHED: 'reviews.published',
@@ -213,24 +229,26 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
   });
 
   return (
-    <Card className="flex flex-col gap-2 p-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Stars value={review.rating} />
-        {review.itemName ? (
-          <Link
-            to={`/catalog/${review.itemId}`}
-            className="text-sm font-medium text-ink underline-offset-4 hover:underline"
-          >
-            {review.itemName}
-          </Link>
-        ) : (
-          // Позиция снята с продажи: отзыв о ней остаётся, а вести на карточку
-          // некуда — она не откроется.
-          <span className="text-sm text-ink-faint">{t('reviews.gone')}</span>
-        )}
-        <span className="text-sm text-ink-faint">{shortDate(review.createdAt)}</span>
-        <span className="rounded-[var(--radius-pill)] bg-sunk px-2 py-0.5 text-caption text-unclear-ink">
-          {STATUS_KEY[review.status] ? t(STATUS_KEY[review.status]) : review.status}
+    <Card className="flex flex-col gap-2 p-3.5">
+      <div className="flex gap-3">
+        <LineThumb seed={review.itemId} className="size-14 shrink-0" />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {review.itemName ? (
+            <Link
+              to={`/catalog/${review.itemId}`}
+              className="text-lead font-extrabold text-ink underline-offset-4 hover:underline"
+            >
+              {review.itemName}
+            </Link>
+          ) : (
+            // Позиция снята с продажи: отзыв о ней остаётся, а вести на карточку
+            // некуда — она не откроется.
+            <span className="text-lead text-ink-faint">{t('reviews.gone')}</span>
+          )}
+          <span className="flex flex-wrap items-center gap-2">
+            <Stars value={review.rating} />
+            <span className="text-caption text-ink-muted">{shortDate(review.createdAt)}</span>
+          </span>
         </span>
       </div>
 
@@ -253,12 +271,15 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
         />
       ) : (
         <>
-          {review.text && <p className="text-body leading-relaxed text-ink">{review.text}</p>}
+          {review.text && <p className="m-0 text-lead leading-relaxed text-ink before:content-['«'] after:content-['»']">{review.text}</p>}
+
+          <span className={cn('inline-flex h-8 items-center self-start rounded-full px-3.5 text-caption font-extrabold', STATUS_LOOK[review.status])}>
+            {STATUS_KEY[review.status] ? t(STATUS_KEY[review.status]) : review.status}
+          </span>
 
           {review.reply && (
-            <div className="mt-1 rounded-[var(--radius-control)] border-l-2 border-accent bg-sunk p-3">
-              <p className="text-caption font-medium text-ink-muted">{t('reviews.sellerAnswer')}</p>
-              <p className="mt-1 text-body leading-relaxed text-ink">{review.reply}</p>
+            <div className="rounded-[0.875rem] bg-canvas px-3 py-2.5 text-body leading-relaxed text-ink">
+              <b>{t('reviews.sellerAnswer')}:</b> {review.reply}
             </div>
           )}
 
@@ -274,7 +295,7 @@ function MyReviewRow({ review }: { review: ItemReviewDto }) {
             {/* Вторичные действия — мягкими кнопками, а не чёрными плашками (макеты «Кабинет клиента 2.0»). */}
             <Button
               type="button"
-              variant="soft"
+              variant="outline"
               onClick={() => {
                 setEditing(true);
                 // Взведённое подтверждение, пережившее уход в правку и

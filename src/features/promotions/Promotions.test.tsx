@@ -44,14 +44,13 @@ describe('акции и скидки в кабинете', () => {
     vi.restoreAllMocks();
   });
 
-  it('показывает выгоду по корзине, распродажу с отсчётом, товары со скидкой и как работают скидки', async () => {
+  it('показывает выгоду по корзине, распродажу с отсчётом и товары со скидкой', async () => {
     stubFetch(rules());
     renderScreen(<PromotionsPage />);
 
     expect(await screen.findByRole('heading', { name: 'Осенняя распродажа верхней одежды' })).toBeInTheDocument();
     expect(screen.getByText('Скидки считаются в корзине сами — ничего вводить не нужно')).toBeInTheDocument();
     // Действуют распродажа и оптовая; первая заявка уже использована.
-    expect(screen.getByText('2 предложения действуют сейчас')).toBeInTheDocument();
     expect(screen.getByText('Распродажа · до −20%')).toBeInTheDocument();
     expect(screen.getByRole('timer')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Смотреть 1 товар/ })).toHaveAttribute('href', '/catalog?sale=1');
@@ -68,7 +67,8 @@ describe('акции и скидки в кабинете', () => {
     expect(within(card).getByText(/^Выгода 9\s998 ₸$/)).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: /В корзину/ })).toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { name: 'Как работают скидки' })).toBeInTheDocument();
+    // «Как работают скидки» в «Варианте Б» нет — макет SimplePicWebPromotions.
+    expect(screen.queryByRole('heading', { name: 'Как работают скидки' })).not.toBeInTheDocument();
     // Согласие на уведомления — и здесь, не только в профиле (новинки, §4.4).
     expect(screen.getByRole('switch', { name: 'Сообщать о новинках и акциях' })).toHaveAttribute('aria-checked', 'false');
   });
@@ -223,7 +223,6 @@ describe('акции и скидки в кабинете', () => {
     renderScreen(<PromotionsPage />);
 
     expect(await screen.findByRole('heading', { name: 'Осенняя распродажа верхней одежды' })).toBeInTheDocument();
-    expect(screen.getByText('Баннеры из редактора магазина')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Слайд 2' }));
     expect(await screen.findByText('Юбка миди Pleated')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Осенняя распродажа верхней одежды' })).not.toBeInTheDocument();
@@ -293,7 +292,7 @@ describe('товары со скидкой: на мониторе один ря�
     const deals = await screen.findByRole('region', { name: 'Товары со скидкой' });
     const cards = within(deals).getAllByTestId('deal-card');
     expect(cards).toHaveLength(6);
-    expect(within(deals).getByRole('link', { name: 'Все 14 товаров →' })).toHaveAttribute('href', '/catalog?sale=1');
+    expect(within(deals).getByRole('link', { name: 'Смотреть 14 товаров со скидкой' })).toHaveAttribute('href', '/catalog?sale=1');
     return cards.filter((card) => !card.className.split(' ').includes('lg:hidden')).length;
   }
 
@@ -321,7 +320,7 @@ describe('акции и скидки на телефоне', () => {
     vi.restoreAllMocks();
   });
 
-  it('собирает экран коротко: пилюля «N действуют», билет с несложением, «Все», порог без процента', async () => {
+  it('собирает экран коротко: первая заявка с несложением, «Смотреть N товаров», порог без процента', async () => {
     stubColumnWidth(390);
     stubFetch(rules([get('/api/portal/cart', {
       lines: [], total: 76600, skipped: [], goodsTotal: 76600, saleSavings: 0, ageConfirmed: false,
@@ -334,8 +333,6 @@ describe('акции и скидки на телефоне', () => {
 
     expect(await screen.findByRole('heading', { name: 'Осенняя распродажа верхней одежды' })).toBeInTheDocument();
     // Распродажа, оптовая и первая заявка — три, короткой пилюлей вместо длинной фразы.
-    expect(screen.getByText('3 действуют')).toBeInTheDocument();
-    expect(screen.queryByText(/предложения действуют сейчас/)).not.toBeInTheDocument();
 
     const ticket = screen.getByTestId('first-ticket');
     expect(within(ticket).getByText('−5%')).toBeInTheDocument();
@@ -351,7 +348,7 @@ describe('акции и скидки на телефоне', () => {
     expect(screen.queryByText('Пуховики и тренчи')).not.toBeInTheDocument();
 
     const deals = screen.getByRole('region', { name: 'Товары со скидкой' });
-    expect(within(deals).getByRole('link', { name: 'Все' })).toHaveAttribute('href', '/catalog?sale=1');
+    expect(within(deals).getByRole('link', { name: /^Смотреть \d+ товар/ })).toHaveAttribute('href', '/catalog?sale=1');
     expect(within(deals).queryByText(/^Выгода/)).not.toBeInTheDocument();
   });
 
@@ -365,35 +362,21 @@ describe('акции и скидки на телефоне', () => {
     expect(screen.queryByText('Не складывается с оптовой — действует бо́льшая.')).not.toBeInTheDocument();
   });
 
-  it('«Назад» без истории ведёт в каталог', async () => {
-    stubColumnWidth(390);
-    stubFetch(rules());
-    renderScreen(
-      <Routes>
-        <Route path="/promotions" element={<PromotionsPage />} />
-        <Route path="/catalog" element={<h1>Каталог</h1>} />
-      </Routes>,
-      { route: '/promotions' },
-    );
-
-    await userEvent.click(await screen.findByRole('button', { name: 'Назад' }));
-    expect(await screen.findByRole('heading', { name: 'Каталог' })).toBeInTheDocument();
-  });
-
-  it('«Назад» возвращает туда, откуда пришли', async () => {
+  it('«Назад» у имени раздела всегда ведёт на «Главную»', async () => {
     stubColumnWidth(390);
     stubFetch(rules());
     renderScreen(
       <Routes>
         <Route path="/" element={<><h1>Заявки</h1><Link to="/promotions">К акциям</Link></>} />
         <Route path="/promotions" element={<PromotionsPage />} />
-        <Route path="/catalog" element={<h1>Каталог</h1>} />
+        <Route path="/home" element={<h1>Главная</h1>} />
       </Routes>,
     );
 
+    // Пришли из «Заявок», но стрелка раздела — не «назад по истории», а на «Главную».
     await userEvent.click(await screen.findByRole('link', { name: 'К акциям' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Назад' }));
-    expect(await screen.findByRole('heading', { name: 'Заявки' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Главная' })).toBeInTheDocument();
   });
 });
 

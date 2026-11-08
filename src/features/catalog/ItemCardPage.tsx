@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { lineOf, takenIn } from '../cart/cartPart';
+import { useEffect, useRef, useState } from 'react';
 import { PackContents, packMembers } from './PackContents';
 import { packsOnly, splitOf, tierFor, toPieces } from '../cart/wholesale';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, ArrowRight, CheckCircle2, MessageCircle, Ruler, ShieldCheck, Star, Store, Tag, Truck, X } from '../../ui/icons';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, MessageCircle, Package, Ruler, ShieldCheck, Star, Store, Tag, Truck, X } from '../../ui/icons';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   getPortalCatalogItem,
@@ -22,22 +23,24 @@ import { CartBar } from '../cart/CartBar';
 import { QuantityField } from '../cart/QuantityField';
 import { cartOf, useCart, useSetCartLine, useWholesaleMinimum } from '../cart/useCart';
 import { ModeSwitch, type SaleMode } from '../cart/ModeSwitch';
+import { useOrderMode } from '../cart/orderMode';
+import { useShopChannel } from './OrderModeSwitch';
 import { announceAdded } from '../cart/cartDrawer';
 import { useAddToCart } from '../cart/ageGate';
 import { firstQuantity, fitQuantity, lessQuantity, stepOf } from '../cart/saleTerms';
 import { FavoriteButton } from '../favorites/FavoriteButton';
 import { RestockButton } from './RestockButton';
 import { ReviewsBlock } from '../reviews/ReviewsBlock';
-import { AskQuestionForm } from '../questions/AskQuestionForm';
 import { useCurrentShop } from '../shell/Shops';
 import { hoursText } from '../shell/shopHours';
+import { PageHelp } from '../shell/HelpGuide';
 import { MediaGallery } from './MediaGallery';
 import { SizeGrid, sizeRowsOf } from './SizeGrid';
 import { VariantPicker } from './VariantPicker';
 import { StockNote } from './StockNote';
 import { soldByOf } from './soldBy';
 import { ItemBadges, ItemFacts } from './CatalogPage';
-import { MarkBadge, RatingBadge, isWholesaleDeal } from './itemParts';
+import { DealPrice, MarkBadge, RatingBadge, SaleChannelBadge, TINY_BADGE, WholesaleDealBadge, dealOf, inMode, isWholesaleDeal } from './itemParts';
 import type { ShowcaseCardDtoSizeGuide, ShowcaseItemDto, ShowcaseWholesaleDto } from '../../api/generated';
 import { ItemThumb } from './ItemThumb';
 import { dayMonth, decimal, money, shortDate } from '../../shared/format';
@@ -47,6 +50,7 @@ import { intlLocale } from '../../i18n';
 import { Button } from '../../ui/Button';
 import { Skeleton } from '../../ui/Skeleton';
 import { flyToCart } from '../../ui/flyToCart';
+import { useBackToSection } from '../../ui/sectionBack';
 import { cn } from '../../ui/cn';
 
 /**
@@ -165,8 +169,9 @@ function ItemCard({ item }: { item: ShowcaseCardDto }) {
     из единицы и кратности; если продавец сам завёл такое свойство, его
     слово важнее выведенного, и второй строки нет.
   */
-  if (!properties.some((property) => /^(продаётся|продается|sold|сатылады)/i.test(property.name))) {
-    properties.push({ key: 'soldBy', name: t('item.soldBy.label'), value: soldByOf(item.unit, item.terms, t).value });
+  const soldBy = soldByOf(item.unit, item.terms, t).value;
+  if (soldBy && !properties.some((property) => /^(продаётся|продается|sold|сатылады)/i.test(property.name))) {
+    properties.push({ key: 'soldBy', name: t('item.soldBy.label'), value: soldBy });
   }
   const hasSpec = properties.length > 0 || !!item.description;
   // Метки отзыва о размере — только у товара, у которого размер есть.
@@ -208,9 +213,11 @@ function ItemCard({ item }: { item: ShowcaseCardDto }) {
             topLeft={(
               <div className="flex items-start gap-2">
                 <BackCircle />
-                <PhotoBadges item={item} />
+                <PageHelp className="size-11 rounded-full border-0 bg-surface/85 backdrop-blur md:hidden [&_svg]:size-5" />
+                <PhotoStickers item={item} />
               </div>
             )}
+            bottomLeft={<PhotoBadges item={item} />}
             topRight={(
               <FavoriteButton
                 itemId={item.id}
@@ -263,18 +270,27 @@ function ItemCard({ item }: { item: ShowcaseCardDto }) {
 function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?: string }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
-  const [asking, setAsking] = useState(false);
+  const navigate = useNavigate();
+  // Вопрос о товаре — в переписку: там и прежние разговоры о нём, и новый вопрос.
+  const ask = () => navigate(`/questions?item=${encodeURIComponent(item.id)}`);
   const mode = useSaleMode(item);
+  const { orderMode, setOrderMode, twoWays } = useShopChannel();
+  // Товар одного способа в магазине обоих: переключатель тот же, на чужом способе — предупреждение (2026-11-06).
+  const only: SaleMode | undefined = item.yourPrice || item.wholesale?.retail ? undefined : item.wholesale ? 'WHOLESALE' : 'RETAIL';
+  // Цена, условия и распродажа — выбранной заявки: в «Оптом» опт, в «В розницу» розница (2026-11-06).
+  const view = inMode(item, mode.value);
+  // «В розницу» / «Оптом» — и сразу к блоку о выбранном: цене штуки или условиям опта (2026-10-30).
+  const scrollTo = useRef<SaleMode | null>(null);
+  useEffect(() => {
+    if (!mode.value || scrollTo.current !== mode.value) return;
+    scrollTo.current = null;
+    showBlockOf(mode.value);
+  }, [mode.value]);
 
-  // Условия, при которых цена верна, — отдельной мелкой строкой под ценой.
-  // Требование о полноте торговой информации от размера шрифта не зависит:
-  // строка не исчезает, а только уступает первый взгляд самой цене.
-  const terms = [
-    item.vatRate != null ? t(item.vatIncluded ? 'catalog.vatIncluded' : 'catalog.vat', { rate: decimal(item.vatRate) }) : undefined,
-    item.priceAsOf ? t('catalog.asOf', { date: shortDate(item.priceAsOf) }) : undefined,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  // Налог — отдельной мелкой строкой под ценой. «Цена на <дата>» убрана (просьба владельца 2026-11-06).
+  const terms = item.vatRate != null
+    ? t(item.vatIncluded ? 'catalog.vatIncluded' : 'catalog.vat', { rate: decimal(item.vatRate) })
+    : '';
 
   // Подложка пилюли — единственное, что решается здесь; чем «наличие
   // уточняется» отличается от «нет в наличии», знает StockNote.
@@ -293,8 +309,11 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
       className={cn(
         // Лист наезжает на снимок на те же 20 точек, на которые скруглён:
         // скругление без наезда выглядело бы обрезанным углом.
-        'relative z-10 -mx-4 -mt-5 flex flex-col gap-4 rounded-t-[calc(var(--radius-tile)*1.25)] bg-surface px-4 pt-5',
-        'md:mx-0 md:mt-5 md:gap-[22px] md:rounded-none md:bg-transparent md:px-0 md:pt-0 lg:mt-0',
+        'relative z-10 -mx-4 -mt-5 flex flex-col gap-4 rounded-[calc(var(--radius-tile)*1.25)] bg-surface px-4 pb-5 pt-5',
+        // Лист и заканчивается как лист (замечание владельца 2026-11-06): белое обрывалось
+        // прямо под «Спросить продавца» — теперь отступ, скруглённый низ и мягкая тень по краю.
+        'shadow-[0_10px_24px_-12px_rgba(58,48,30,.18)]',
+        'md:mx-0 md:mt-5 md:gap-[22px] md:rounded-none md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:shadow-none lg:mt-0',
       )}
     >
       <div className="flex flex-col gap-3">
@@ -317,14 +336,14 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
             data-testid="item-rating"
             className="flex h-[30px] items-center gap-1.5 rounded-[var(--radius-pill)] bg-surface px-3 font-bold text-ink shadow-[0_0_0_1px_var(--color-hairline)] hover:shadow-[0_0_0_1px_var(--color-line)]"
           >
-            <Star aria-hidden="true" className={cn('size-[15px]', item.rating != null ? 'fill-[#D97706] text-[#D97706]' : 'text-ink-faint')} />
+            <Star aria-hidden="true" className={cn('size-[15px]', item.rating != null ? 'fill-star text-star' : 'text-ink-faint')} />
             {item.rating != null
               ? `${item.rating.toLocaleString(intlLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}${
                 item.reviewCount != null ? ` · ${t('item.reviews', { count: item.reviewCount })}` : ''}`
               : t('item.noReviews')}
           </a>
         </div>
-        <h1 className="text-[1.375rem] font-extrabold leading-tight tracking-[-0.02em] text-ink md:text-[2rem] lg:text-[2.25rem] lg:font-black lg:leading-[1.05] lg:tracking-[-0.03em]">
+        <h1 className="text-title font-extrabold leading-tight tracking-[-0.02em] text-ink md:text-display lg:text-hero lg:font-black lg:leading-[1.05] lg:tracking-[-0.03em]">
           {item.name}
         </h1>
         {/* Артикул цвета — как «Арт.» у магазинов одежды: другой цвет — другая карточка и другой артикул. */}
@@ -338,22 +357,24 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
           где рядом лежит цена за тонну. Цифры табличные, чтобы цена не дёргалась.
         */}
         <div data-testid="item-price" className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span
-            className={cn(
-              'text-[1.75rem] font-extrabold tabular-nums leading-none tracking-[-0.02em] md:text-[2.25rem] lg:text-[2.875rem] lg:font-black lg:tracking-[-0.03em]',
-              item.oldPrice != null ? 'text-sale' : 'text-ink',
-            )}
-          >
-            {money(item.price, currency)}
-          </span>
-          <span className="text-sm font-semibold text-ink-muted md:text-base">
-            {t('catalog.priceNote.perUnit', { unit: unitPer(item.unit) })}
-          </span>
-          {item.oldPrice != null && (
+          {/* Скидка: старая цена зачёркнута красной линией, новая — зелёным под ней (2026-10-30). */}
+          {dealOf(view) ? (
+            <DealPrice item={view} oldSize="text-base md:text-xl"
+              size="text-display leading-none md:text-hero lg:text-jumbo lg:font-black lg:tracking-[-0.03em]" />
+          ) : (
+            <span className="text-display font-extrabold tabular-nums leading-none tracking-[-0.02em] text-ink md:text-hero lg:text-jumbo lg:font-black lg:tracking-[-0.03em]">
+              {money(view.price, currency)}
+            </span>
+          )}
+          {dealOf(view)?.wholesale ? null : (
+            <span className="text-sm font-semibold text-ink-muted md:text-base">
+              {t('catalog.priceNote.perUnit', { unit: unitPer(view.unit) })}
+            </span>
+          )}
+          {view.oldPrice != null && (
             <>
-              <s className="text-base tabular-nums text-ink-faint md:text-xl">{money(item.oldPrice, currency)}</s>
               <span className="flex h-7 items-center self-center rounded-[var(--radius-pill)] bg-sale-soft px-2.5 text-sm font-extrabold text-sale-ink first-letter:uppercase">
-                {t('catalog.saving', { amount: money(item.oldPrice - item.price, currency) })}
+                {t('catalog.saving', { amount: money(view.oldPrice - view.price, currency) })}
               </span>
             </>
           )}
@@ -364,7 +385,7 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
         {terms && <p className="text-sm text-ink-subtle">{terms}</p>}
       </div>
 
-      {item.discountPercent ? <SaleParticipation /> : null}
+      {view.discountPercent ? <SaleParticipation /> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         {stockKnown && (
@@ -376,7 +397,7 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
           </span>
         )}
         {item.stock === 'OUT_OF_STOCK' ? <RestockButton itemId={item.id} /> : null}
-        <ItemFacts item={item} pills />
+        <ItemFacts item={view} pills />
       </div>
 
       {/*
@@ -385,19 +406,27 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
       */}
       <div className="flex flex-col gap-[18px] md:rounded-[var(--radius-gallery)] md:bg-surface md:p-5 md:shadow-[0_0_0_1px_var(--color-hairline)]">
         {mode.value && item.wholesale ? (
-          <ModeSwitch value={mode.value} onChange={mode.change} disabled={mode.busy} notes={{
-            RETAIL: t('cart.pricePerUnit', { price: money(item.price, currency), unit: unitPer(item.unit) }),
-            WHOLESALE: t('item.mode.from', {
-              price: money(Math.round(Math.min(...item.wholesale.tiers.map((tier) => tier.price)) / item.wholesale.packQty), currency),
-              unit: unitPer(item.wholesale.pieceUnit),
-            }),
-          }} />
+          <ModeSwitch value={mode.value} onChange={mode.change}
+            // Тот же режим — блок уже на экране, к нему листаем сразу; другой — когда он отрисуется.
+            // Без цен под кнопками (просьба владельца 2026-11-06): в «В розницу» не видно ничего об опте,
+            // цена выбранного способа — крупно над переключателем, условия опта — блоком после «Оптом».
+            onPick={(next) => (next === mode.value ? showBlockOf(next) : (scrollTo.current = next))} />
+        ) : null}
+        {only && twoWays ? (
+          <div className="flex flex-col gap-2">
+            <ModeSwitch value={orderMode} onChange={setOrderMode} />
+            {orderMode !== only ? (
+              <p role="status" className="rounded-[var(--radius-control)] bg-sunk px-3 py-2 text-sm font-semibold text-ink">
+                {t(`cart.mode.only.${only}`)}
+              </p>
+            ) : null}
+          </div>
         ) : null}
         {(item.variants ?? []).length > 1 && (
           <VariantPicker
             itemId={item.id}
             variants={item.variants}
-            sizeAction={item.sizeGuide && <SizeGuide kind={item.sizeGuide} onAsk={() => setAsking(true)} />}
+            sizeAction={item.sizeGuide && <SizeGuide kind={item.sizeGuide} onAsk={ask} />}
           />
         )}
         {item.pack ? <PackContents label={t('pack.inPress')} members={packMembers(item.pack)} /> : null}
@@ -414,8 +443,7 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
       <div className="grid grid-cols-2 gap-2.5 lg:flex lg:gap-7">
         <button
           type="button"
-          aria-expanded={asking}
-          onClick={() => setAsking((open) => !open)}
+          onClick={ask}
           className={cn(GHOST, LINK)}
         >
           <MessageCircle aria-hidden="true" className="size-5" />
@@ -423,13 +451,6 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
         </button>
         <FavoriteButton itemId={item.id} favorite={item.favorite} labelled className={cn(GHOST, 'size-auto', LINK)} />
       </div>
-      {/*
-        Вопрос о товаре уезжает в отдельную вкладку переписки: менеджер
-        увидит его вместе с названием позиции.
-      */}
-      {asking && (
-        <AskQuestionForm itemId={item.id} itemName={item.name} startOpened onClose={() => setAsking(false)} />
-      )}
 
       <DiscountsPanel item={item} />
     </div>
@@ -644,31 +665,36 @@ const GHOST = cn(
 );
 
 /**
- * Метки на снимке столбиком, как в макете: скидка крупнее всех — она
- * меняет цену, «Хит продаж» и «Новинка» ниже.
+ * Метки на снимке мелко — как на плитке (решение владельца 2026-10-30): сам товар должен быть виден.
+ * Сверху, рядом с «назад», — 21+ и наклейка «−N%»; снизу слева — признаки и под ними как продаётся.
  */
-function PhotoBadges({ item }: { item: ShowcaseCardDto }) {
+function PhotoStickers({ item: card }: { item: ShowcaseCardDto }) {
   const { t } = useTranslation();
-  const terms = item.terms;
-  const deal = isWholesaleDeal(item);
-  if (!terms?.ageRestricted && !item.discountPercent && !terms?.hit && !terms?.novelty && !deal) return null;
-  // Цвет и значок признака — те же, что у фильтров каталога и меток на плитке.
-  const pill = 'flex h-8 items-center rounded-[var(--radius-pill)] px-3 text-caption font-extrabold';
+  // Наклейки выбранной заявки: распродажа розницы не висит на оптовой цене, и наоборот.
+  const item = inMode(card, useOrderMode()[0]);
+  if (!item.terms?.ageRestricted && !item.discountPercent) return null;
   return (
-    <div className="flex flex-col items-start gap-2">
-      {item.discountPercent ? (
-        <MarkBadge mark="promo" className="flex h-[34px] items-center rounded-[var(--radius-pill)] px-3.5 text-body font-black lg:h-[38px] lg:text-lead">
-          −{item.discountPercent}%
-        </MarkBadge>
-      ) : null}
-      {terms?.hit && <MarkBadge mark="hit" className={pill}>{t('catalog.badge.hit')}</MarkBadge>}
-      {terms?.novelty && <MarkBadge mark="novelty" className={pill}>{t('catalog.badge.new')}</MarkBadge>}
-      {deal && <MarkBadge mark="wholesaleDeal" className={pill}>{t('catalog.marks.wholesaleDeal')}</MarkBadge>}
-      {terms?.ageRestricted && (
-        <span className="flex h-8 items-center rounded-[var(--radius-pill)] bg-adult px-3 text-caption font-extrabold text-white">
-          {t('catalog.badge.adult')}
-        </span>
-      )}
+    <div className="flex gap-1 pt-1">
+      {item.terms?.ageRestricted && <span className={cn(TINY_BADGE, 'bg-adult text-white')}>{t('catalog.badge.adult')}</span>}
+      {item.discountPercent ? <span data-testid="discount-sticker" className={cn(TINY_BADGE, 'bg-sale text-on-sale')}>−{item.discountPercent}%</span> : null}
+    </div>
+  );
+}
+
+function PhotoBadges({ item: card }: { item: ShowcaseCardDto }) {
+  const { t } = useTranslation();
+  // Метки выбранной заявки: в «Оптом» — «Оптом», без «Скидки» на опт против розницы.
+  const item = inMode(card, useOrderMode()[0]);
+  const terms = item.terms;
+  // Цвет и значок признака — те же, что у фильтров каталога и меток на плитке.
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      {terms?.hit && <MarkBadge mark="hit" className={TINY_BADGE}>{t('catalog.badge.hit')}</MarkBadge>}
+      {isWholesaleDeal(item) && <WholesaleDealBadge item={item} />}
+      {terms?.novelty && <MarkBadge mark="novelty" className={TINY_BADGE}>{t('catalog.badge.new')}</MarkBadge>}
+      {item.discountPercent ? <MarkBadge mark="promo" className={TINY_BADGE}>{t('catalog.badge.sale')}</MarkBadge> : null}
+      {/* Как продаётся — и в карточке, как на плитке. */}
+      <SaleChannelBadge item={item} className={TINY_BADGE} />
     </div>
   );
 }
@@ -695,42 +721,27 @@ const LINK = 'lg:min-h-0 lg:border-transparent lg:px-0 lg:py-1 lg:text-sm lg:fon
  */
 // На телефоне — одной строкой (макет К2.3): количество и кнопка с суммой.
 const PHONE_BAR = cn(
-  'flex items-center gap-3 lg:gap-5',
-  'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] max-lg:z-20',
-  'max-lg:bg-surface max-lg:px-4 max-lg:pb-3 max-lg:pt-3 max-lg:shadow-[0_-6px_20px_rgba(58,48,30,.1)]',
+  // Телефон: кнопка — отдельной строкой во всю ширину; в строку со счётчиком «В корзину · сумма» обрезалось до «В кор…».
+  'flex flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:gap-5',
+  // Не прибита к низу: на телефоне прокручивается вся страница (решение владельца 2026-11-04).
 );
 
 /**
  * «В розницу / Оптом» в карточке — только у позиции «и розница, и опт» без своей цены клиента
- * (иначе выбора нет, backend.md §18.32). Лежит в корзине — режим её строки; нет — выбор клиента,
- * по умолчанию «В розницу». Смена переводит все лежащие размеры и цвета модели: опт считается по модели.
+ * (иначе выбора нет, backend.md §18.32). Режим общий с каталогом и корзиной. Смена лишь открывает
+ * другую заявку: лежащее в оптовой остаётся в оптовой, в розничной — в розничной (решение владельца 2026-11-06).
  */
+/** Долистать к блоку режима: опт — условия опта, розница — цена. */
+function showBlockOf(mode: SaleMode) {
+  document.querySelector(mode === 'WHOLESALE' ? '[data-testid="wholesale-terms"]' : '[data-testid="item-price"]')
+    ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+}
+
 function useSaleMode(item: ShowcaseCardDto) {
-  const cart = cartOf(useCart().data);
-  const setLine = useSetCartLine();
-  const [chosen, setChosen] = useState<SaleMode>('RETAIL');
-  const [busy, setBusy] = useState(false);
-  const model = new Set([item.id, ...(item.variants ?? []).map((variant) => variant.itemId)]);
-  const lines = (cart?.lines ?? []).filter((line) => model.has(line.itemId) && line.mode);
+  // Режим — общий с каталогом и корзиной («Вариант Б»: оптовая и розничная заявки раздельно).
+  const [chosen, setChosen] = useOrderMode();
   const choice = !!item.wholesale?.retail && !item.yourPrice;
-  const value = choice ? (lines.find((line) => line.itemId === item.id) ?? lines[0])?.mode ?? chosen : undefined;
-
-  async function change(next: SaleMode) {
-    setChosen(next);
-    setBusy(true);
-    try {
-      // По очереди: каждый ответ — корзина целиком, параллельные затёрли бы друг друга.
-      for (const line of lines) {
-        if (line.mode !== next) await setLine.mutateAsync({ itemId: line.itemId, data: { quantity: line.quantity, mode: next } });
-      }
-    } catch {
-      // Отказ уже назван уведомлением корзины.
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return { value, change, busy };
+  return { value: choice ? chosen : undefined, change: setChosen };
 }
 
 function Purchase({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMode }) {
@@ -744,17 +755,26 @@ function Purchase({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMode }) {
   // Поле считает в единицах витрины: у «только опт» — упаковки, иначе штуки.
   // Корзина хранит штуки: уложенное переводится обратно делением на вложение.
   const perPack = only ? wholesale!.packQty : 1;
-  const inCart = cart?.lines.find((line) => line.itemId === item.id)?.quantity;
+  // Только строка этой заявки: взятое в розницу не показывается лежащим в опте.
+  const inCart = lineOf(cart, item.id, mode)?.quantity;
   const ordered = inCart === undefined ? undefined : inCart / perPack;
   const [wanted, setWanted] = useState(() => firstQuantity(item.terms));
   const amount = ordered ?? wanted;
+  const setLine = useSetCartLine();
+  // Нажатая ступень: до корзины — в счётчик, уже в корзине — сразу строкой корзины.
+  const pick = (tierPieces: number) => {
+    const next = fitQuantity(tierPieces / perPack, item.terms);
+    if (ordered === undefined) setWanted(next);
+    else setLine.mutate({ itemId: item.id, data: { quantity: next * perPack, mode } });
+  };
   const pieces = toPieces(item, amount);
   const split = wholesale ? splitOf(wholesale, pieces, only ? undefined : item.price) : undefined;
   // Сумма — тем же разбиением, что посчитает корзина: упаковки по ступени, остаток в розницу.
   const sum = split?.tier
     ? split.packs * split.tier.price + (only ? 0 : split.rest * item.price)
     : item.price * amount;
-  const breakdown = split && split.packs > 0 && wholesale ? (
+  // В упаковке одна единица (линейка, пресс продаются сами собой) — «1 линейка = 1 линейка × цена» ничего не объясняет.
+  const breakdown = split && split.packs > 0 && wholesale && wholesale.packQty !== 1 ? (
     <p data-testid="wholesale-split" className="text-caption font-semibold text-ink-muted">
       {t('item.wholesale.split', {
         pieces: quantityWithUnit(pieces, wholesale.pieceUnit),
@@ -770,15 +790,15 @@ function Purchase({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMode }) {
   if (ordered !== undefined) {
     return (
       <div className="flex flex-col gap-3">
-        {wholesale && <WholesaleTerms item={item} wholesale={wholesale} packs={split?.packs ?? 0} mode={mode} />}
+        {wholesale && <WholesaleTerms item={item} wholesale={wholesale} pieces={pieces} packs={split?.packs ?? 0} mode={mode} onPick={pick} />}
         {breakdown}
         <p role="status" className="flex items-center gap-2.5 rounded-[var(--radius-control)] bg-ok-soft px-3.5 py-3 text-body font-bold text-ok-ink">
           <CheckCircle2 aria-hidden="true" className="size-5 shrink-0" />
           {t('item.added', { amount: quantityWithUnit(ordered, item.unit) })}
         </p>
         <div data-purchase-bar="" className={PHONE_BAR}>
-          <div className="flex items-center gap-3 lg:flex-1 lg:flex-wrap">
-            <QuantityField itemId={item.id} unit={item.unit} terms={item.terms} perPack={perPack}
+          <div className="flex items-center justify-center gap-3 lg:flex-1 lg:flex-wrap lg:justify-start">
+            <QuantityField itemId={item.id} unit={item.unit} terms={item.terms} perPack={perPack} mode={mode}
               className="h-13 w-[9.5rem] flex-none lg:w-[12.5rem]" />
             <Sum amount={sum} />
           </div>
@@ -786,8 +806,10 @@ function Purchase({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMode }) {
             to="/checkout"
             aria-label={t('item.toCart')}
             className={cn(
-              'flex h-13 min-w-0 flex-1 items-center justify-center gap-2.5 rounded-[1rem] bg-accent px-3 lg:h-14 lg:flex-none lg:bg-night lg:px-7',
-              'text-[0.9375rem] font-bold text-white transition-opacity duration-200 hover:opacity-90 lg:text-[1.0625rem]',
+              'flex h-13 w-full min-w-0 items-center justify-center gap-2.5 rounded-[1rem] bg-accent px-3 lg:h-14 lg:w-auto lg:flex-none lg:bg-ink lg:px-7',
+              // Надпись — парная заливке: на телефоне `on-accent`, на мониторе `on-ink`. Белая
+              // ночью не читалась на светлом акценте, а `night` сливался с тёмной карточкой.
+              'text-body font-bold text-on-accent lg:text-on-ink transition-opacity duration-200 hover:opacity-90 lg:text-lead',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
             )}
           >
@@ -802,10 +824,10 @@ function Purchase({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMode }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {wholesale && <WholesaleTerms item={item} wholesale={wholesale} packs={split?.packs ?? 0} mode={mode} />}
+      {wholesale && <WholesaleTerms item={item} wholesale={wholesale} pieces={pieces} packs={split?.packs ?? 0} mode={mode} onPick={pick} />}
       {breakdown}
       <div data-purchase-bar="" className={PHONE_BAR}>
-        <div className="flex items-center gap-3 lg:flex-1 lg:flex-wrap">
+        <div className="flex items-center justify-center gap-3 lg:flex-1 lg:flex-wrap lg:justify-start">
           <LocalStepper value={wanted} unit={item.unit} terms={item.terms} onChange={setWanted} />
           <Sum amount={sum} />
         </div>
@@ -817,7 +839,7 @@ function Purchase({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMode }) {
           variant="accent"
           size="xl"
           // На мониторе — в строку с количеством и суммой, цветом скидки, как корзина в шапке (ПК-К3).
-          className="h-13 min-w-0 flex-1 gap-2 rounded-[1rem] px-3 text-[0.9375rem] lg:h-14 lg:w-auto lg:flex-none lg:rounded-[calc(var(--radius-tile)*1.125)] lg:bg-sale lg:px-7 lg:text-white lg:hover:bg-sale-ink"
+          className="h-13 w-full min-w-0 gap-2 rounded-[1rem] px-3 text-body lg:h-14 lg:w-auto lg:flex-none lg:rounded-[calc(var(--radius-tile)*1.125)] lg:bg-sale lg:px-7 lg:text-on-sale lg:hover:bg-sale-ink"
           disabled={isPending || wanted <= 0}
           // Имя кнопки — одно на любой ширине; сумма в подписи телефона — для глаз.
           aria-label={t('item.add')}
@@ -840,65 +862,102 @@ function Purchase({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMode }) {
 }
 
 /**
- * «Как купить по оптовой цене» — условия видны всегда, до набора количества:
- * клиент должен понимать, что сделать ради опта. Упаковка и её вложение, ступени
- * с ценой за упаковку и за штуку (текущая подсвечена), что будет при недоборе.
+ * Оптовые цены — видны всегда, до набора количества: клиент должен понимать, что сделать ради опта.
+ * Ступень — кнопка: нажал — количество ступени встало в счётчик (или в корзину, если товар уже там).
+ * Крупно цена за штуку/кг — её сравнивают с розницей, рядом выгода в процентах; цена упаковки мельче.
+ * Ниже — сколько добрать до следующей ступени (просьба владельца 2026-11-06).
  */
-function WholesaleTerms({ item, wholesale, packs, mode }: { item: ShowcaseCardDto; wholesale: ShowcaseWholesaleDto; packs: number; mode?: SaleMode }) {
+function WholesaleTerms({ item, wholesale, pieces, packs, mode, onPick }: {
+  item: ShowcaseCardDto; wholesale: ShowcaseWholesaleDto; pieces: number; packs: number; mode?: SaleMode;
+  onPick: (pieces: number) => void;
+}) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   const current = tierFor(wholesale.tiers, packs);
-  // Опт штуками (вложение 1): «шт = 1 шт.», состав упаковки и цена за штуку рядом с той же ценой — шум.
+  // Опт штуками (вложение 1): «шт = 1 шт.» и цена упаковки рядом с той же ценой за штуку — шум.
   const packed = wholesale.packQty > 1;
+  const only = packsOnly(item);
+  const whole = Math.floor(pieces / wholesale.packQty);
+  const next = wholesale.tiers.find((tier) => tier.from > whole);
+  const unitPrice = (price: number) => Math.round(price / wholesale.packQty);
+  const saving = (price: number) => wholesale.retail && item.price > 0
+    ? Math.round((1 - unitPrice(price) / item.price) * 100) : 0;
   return (
     <section data-testid="wholesale-terms" aria-labelledby="wholesale-terms-title"
-      className="flex flex-col gap-2 rounded-[var(--radius-tile)] bg-sunk p-3.5">
-      <h3 id="wholesale-terms-title" className="text-body font-bold text-ink">{t('item.wholesale.title')}</h3>
-      {packed ? (
-        <>
-          <p className="text-caption font-semibold text-ink-muted">
-            {t('item.wholesale.packOf', { unit: wholesale.unit, amount: quantityWithUnit(wholesale.packQty, wholesale.pieceUnit) })}
-          </p>
-          <PackContents label={t('pack.inPack')}
-            members={[{ key: item.id, name: item.name, quantity: wholesale.packQty, unit: wholesale.pieceUnit }]} />
-        </>
-      ) : null}
-      <ul data-testid="wholesale-tiers" aria-label={t('item.wholesale.tiers')} className="m-0 flex list-none flex-col gap-1 p-0">
-        {wholesale.tiers.map((tier) => (
-          <li
-            key={tier.from}
-            data-testid="wholesale-tier"
-            aria-current={tier === current ? 'true' : undefined}
-            className={cn(
-              'flex flex-wrap items-baseline justify-between gap-x-3 rounded-[var(--radius-control)] px-3 py-2 text-body',
-              tier === current ? 'bg-accent-soft font-bold text-accent-ink' : 'bg-surface text-ink',
-            )}
-          >
-            <span>
-              {t('item.wholesale.tierFrom', { amount: quantityWithUnit(tier.from, wholesale.unit) })}
-              {packed ? (
-                <span className="text-caption font-normal text-ink-muted">
-                  {' '}({quantityWithUnit(tier.from * wholesale.packQty, wholesale.pieceUnit)})
+      className="flex flex-col gap-2.5 rounded-[var(--radius-tile)] bg-sunk p-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 id="wholesale-terms-title" className="text-body font-bold text-ink">{t('item.wholesale.title')}</h3>
+        {packed ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 text-caption font-semibold text-ink-muted shadow-[0_0_0_1px_var(--color-hairline)]">
+            <Package aria-hidden="true" className="size-3.5 shrink-0" />
+            {t('item.wholesale.packOf', { unit: `1 ${wholesale.unit}`, amount: quantityWithUnit(wholesale.packQty, wholesale.pieceUnit) })}
+          </span>
+        ) : null}
+      </div>
+      <p className="-mt-1 text-caption text-ink-muted">{t('item.wholesale.pickHint')}</p>
+      <ul data-testid="wholesale-tiers" aria-label={t('item.wholesale.tiers')} className="m-0 flex list-none flex-col gap-1.5 p-0">
+        {wholesale.tiers.map((tier) => {
+          const on = tier === current;
+          const percent = saving(tier.price);
+          return (
+            <li key={tier.from} data-testid="wholesale-tier" aria-current={on ? 'true' : undefined}>
+              <button
+                type="button"
+                onClick={() => onPick(tier.from * wholesale.packQty)}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5 text-left transition-colors duration-200',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                  on ? 'bg-accent-soft shadow-[0_0_0_2px_var(--color-accent)]' : 'bg-surface shadow-[0_0_0_1px_var(--color-hairline)] hover:bg-accent-soft/50',
+                )}
+              >
+                <span className={cn('flex size-5 shrink-0 items-center justify-center rounded-full',
+                  on ? 'bg-accent text-on-accent' : 'shadow-[inset_0_0_0_1.5px_var(--color-hairline)]')}>
+                  {on ? <Check aria-hidden="true" className="size-3.5" /> : null}
                 </span>
-              ) : null}
-            </span>
-            <span className="flex items-baseline gap-2 tabular-nums">
-              {tier.oldPrice !== undefined && <s className="text-caption text-ink-faint">{money(tier.oldPrice, currency)}</s>}
-              {money(tier.price, currency)}
-              {packed ? (
-                <span className="text-caption font-normal text-ink-muted">
-                  {t('item.wholesale.perPiece', {
-                    price: money(Math.round(tier.price / wholesale.packQty), currency),
-                    unit: unitPer(wholesale.pieceUnit),
-                  })}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className={cn('text-body font-bold', on ? 'text-accent-ink' : 'text-ink')}>
+                    {t('item.wholesale.tierFrom', { amount: quantityWithUnit(tier.from, wholesale.unit) })}
+                  </span>
+                  {packed ? (
+                    <span className="text-caption text-ink-muted">{quantityWithUnit(tier.from * wholesale.packQty, wholesale.pieceUnit)}</span>
+                  ) : null}
                 </span>
-              ) : (
-                <span className="text-caption font-normal text-ink-muted">{t('catalog.priceNote.perUnit', { unit: unitPer(wholesale.pieceUnit) })}</span>
-              )}
-            </span>
-          </li>
-        ))}
+                <span className="flex flex-col items-end tabular-nums">
+                  <span className="flex items-baseline gap-1.5">
+                    {percent > 0 ? (
+                      <span className="rounded-full bg-sale-soft px-1.5 text-caption font-bold text-sale-ink">−{percent}%</span>
+                    ) : null}
+                    <span className={cn('text-lead font-extrabold', on ? 'text-accent-ink' : 'text-ink')}>
+                      {money(unitPrice(tier.price), currency)}
+                    </span>
+                    <span className="text-caption text-ink-muted">{t('catalog.priceNote.perUnit', { unit: unitPer(wholesale.pieceUnit) })}</span>
+                  </span>
+                  {packed ? (
+                    <span className="text-caption text-ink-muted">
+                      {tier.oldPrice !== undefined && <s className="mr-1.5 text-ink-faint">{money(tier.oldPrice, currency)}</s>}
+                      {t('item.wholesale.packPrice', { price: money(tier.price, currency), unit: unitPer(wholesale.unit) })}
+                    </span>
+                  ) : tier.oldPrice !== undefined ? (
+                    <s className="text-caption text-ink-faint">{money(tier.oldPrice, currency)}</s>
+                  ) : null}
+                </span>
+              </button>
+            </li>
+          );
+        })}
       </ul>
+      {next ? (
+        <p data-testid="wholesale-next" className="flex items-center gap-2 text-caption font-semibold text-accent-ink">
+          <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
+          {t('item.wholesale.next', {
+            amount: only
+              ? quantityWithUnit(next.from - whole, wholesale.unit)
+              : quantityWithUnit(next.from * wholesale.packQty - pieces, wholesale.pieceUnit),
+            price: money(unitPrice(next.price), currency),
+            unit: unitPer(wholesale.pieceUnit),
+          })}
+        </p>
+      ) : null}
       <p className="text-caption text-ink-muted">
         {wholesale.retail
           ? t('item.wholesale.belowMin', {
@@ -921,6 +980,8 @@ function WholesaleMinimum({ item, wholesale }: { item: ShowcaseCardDto; wholesal
   const minimum = useWholesaleMinimum();
   const current = (item.variants ?? []).find((variant) => variant.itemId === item.id);
   const sizes = current ? sizeRowsOf(item.variants ?? [], current).length : 0;
+  // Один размер — минимум подставляется нажатием на ступень, вторая кнопка «в корзину» только путала.
+  if (sizes < 2) return null;
   return (
     <div className="flex flex-col gap-1.5">
       <Button variant="outline" disabled={minimum.isPending}
@@ -929,7 +990,7 @@ function WholesaleMinimum({ item, wholesale }: { item: ShowcaseCardDto; wholesal
         })}>
         {t('item.wholesale.minimum', { amount: quantityWithUnit(wholesale.tiers[0].from * wholesale.packQty, wholesale.pieceUnit) })}
       </Button>
-      {sizes > 1 ? <p className="text-caption text-ink-muted">{t('item.wholesale.minimumSizes')}</p> : null}
+      <p className="text-caption text-ink-muted">{t('item.wholesale.minimumSizes')}</p>
     </div>
   );
 }
@@ -969,7 +1030,7 @@ function LocalStepper({
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
   );
   return (
-    <div className="flex h-14 min-w-[12rem] flex-1 items-center justify-between gap-1 rounded-[var(--radius-tile)] bg-sunk p-1 shadow-[0_0_0_1px_var(--color-hairline)] lg:w-[12.5rem] lg:flex-none">
+    <div className="flex h-14 w-[12.5rem] flex-none items-center justify-between gap-1 rounded-[var(--radius-tile)] bg-sunk p-1 shadow-[0_0_0_1px_var(--color-hairline)]">
       <button
         type="button"
         aria-label={t('cart.less')}
@@ -1034,7 +1095,7 @@ function DealFacts() {
               <Truck aria-hidden="true" className={icon} />
               <span className="flex min-w-0 flex-col">
                 <b className="text-sm font-extrabold text-ink">{t('item.deal.delivery')}</b>
-                <span className="text-[0.8125rem] text-ink-muted">{deliveryNote}</span>
+                <span className="text-caption text-ink-muted">{deliveryNote}</span>
               </span>
             </li>
           )}
@@ -1043,7 +1104,7 @@ function DealFacts() {
               <Store aria-hidden="true" className={icon} />
               <span className="flex min-w-0 flex-col">
                 <b className="text-sm font-extrabold text-ink">{t('item.deal.pickup')}</b>
-                <span className="text-[0.8125rem] text-ink-muted">{pickupNote}</span>
+                <span className="text-caption text-ink-muted">{pickupNote}</span>
               </span>
             </li>
           )}
@@ -1117,7 +1178,7 @@ function SpecPanel({
                   <span aria-hidden="true" className={cn('size-2.5 rounded-full', SHARE_COLORS[index % SHARE_COLORS.length])} />
                   {part.name}
                 </span>
-                <b className="text-[1.625rem] font-extrabold tabular-nums text-ink">{part.percent}%</b>
+                <b className="text-display font-extrabold tabular-nums text-ink">{part.percent}%</b>
               </li>
             ))}
           </ul>
@@ -1128,7 +1189,7 @@ function SpecPanel({
 }
 
 /** Цвета долей состава: различимы и по светлоте, не только по оттенку. */
-const SHARE_COLORS = ['bg-accent', 'bg-[#E0A04A]', 'bg-[#E7A0AE]', 'bg-[#5B7FA6]', 'bg-ink-faint'];
+const SHARE_COLORS = ['bg-accent', 'bg-star-soft', 'bg-[#E7A0AE]', 'bg-[#5B7FA6]', 'bg-ink-faint'];
 
 /**
  * Доли состава из свойства «Состав»: «Вискоза 65%, полиэстер 30%, эластан 5%».
@@ -1160,7 +1221,7 @@ function SaleParticipation() {
     <Link
       to="/promotions"
       data-testid="sale-participation"
-      className="flex flex-wrap items-center gap-3.5 rounded-[calc(var(--radius-tile)*1.125)] bg-sale px-4 py-3.5 text-white transition-opacity hover:opacity-95"
+      className="flex flex-wrap items-center gap-3.5 rounded-[calc(var(--radius-tile)*1.125)] bg-sale px-4 py-3.5 text-on-sale transition-opacity hover:opacity-95"
     >
       <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-[calc(var(--radius-control)*6/7)] bg-black/25">
         <Tag className="size-5" />
@@ -1173,9 +1234,9 @@ function SaleParticipation() {
       </span>
       {left && sale.countdown && (
         <span className="flex gap-1 tabular-nums" aria-label={t('promotions.sale.leftLabel', left)}>
-          <span className={box}><b className="text-lead">{left.days}</b><span className="mt-1 text-[0.625rem] text-white/80">{t('item.dd')}</span></span>
-          <span className={box}><b className="text-lead">{String(left.hours).padStart(2, '0')}</b><span className="mt-1 text-[0.625rem] text-white/80">{t('item.hh')}</span></span>
-          <span className={box}><b className="text-lead">{String(left.minutes).padStart(2, '0')}</b><span className="mt-1 text-[0.625rem] text-white/80">{t('item.mm')}</span></span>
+          <span className={box}><b className="text-lead">{left.days}</b><span className="mt-1 text-2xs text-white/80">{t('item.dd')}</span></span>
+          <span className={box}><b className="text-lead">{String(left.hours).padStart(2, '0')}</b><span className="mt-1 text-2xs text-white/80">{t('item.hh')}</span></span>
+          <span className={box}><b className="text-lead">{String(left.minutes).padStart(2, '0')}</b><span className="mt-1 text-2xs text-white/80">{t('item.mm')}</span></span>
         </span>
       )}
     </Link>
@@ -1297,7 +1358,7 @@ function Substitutes({ itemId }: { itemId: string }) {
 
   return (
     <section aria-labelledby="substitutes-heading" data-testid="substitutes" className="flex flex-col gap-4 lg:gap-[18px]">
-      <h2 id="substitutes-heading" className="text-xl font-extrabold tracking-[-0.02em] text-ink lg:text-[1.75rem] lg:font-black">
+      <h2 id="substitutes-heading" className="text-xl font-extrabold tracking-[-0.02em] text-ink lg:text-display lg:font-black">
         {t('item.substitutes')}
       </h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
@@ -1324,7 +1385,7 @@ function Similar({ itemId, categoryId, categoryName }: { itemId: string; categor
   return (
     <section aria-labelledby="similar-heading" className="flex flex-col gap-4 lg:gap-[18px]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="similar-heading" className="text-xl font-extrabold tracking-[-0.02em] text-ink lg:text-[1.75rem] lg:font-black">{t('item.similar')}</h2>
+        <h2 id="similar-heading" className="text-xl font-extrabold tracking-[-0.02em] text-ink lg:text-display lg:font-black">{t('item.similar')}</h2>
         <Link
           to={categoryName ? `/catalog?category=${encodeURIComponent(categoryId)}` : '/catalog'}
           className="text-sm font-bold text-accent-ink underline-offset-[3px] hover:underline lg:text-body"
@@ -1343,12 +1404,15 @@ function Similar({ itemId, categoryId, categoryName }: { itemId: string; categor
  * Карточка похожего товара: снимок с метками, название, оценка, цена
  * и «+ В корзину» — положить, не открывая его карточку.
  */
-function SimilarCard({ entry }: { entry: ShowcaseItemDto }) {
+function SimilarCard({ entry: item }: { entry: ShowcaseItemDto }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   const cart = cartOf(useCart().data);
   const { add, isPending } = useAddToCart();
-  const inCart = cart?.lines.some((line) => line.itemId === entry.id) ?? false;
+  const [orderMode] = useOrderMode();
+  // Цена и метки выбранной заявки; в корзину кладётся сама позиция.
+  const entry = inMode(item, orderMode);
+  const inCart = takenIn(cart, orderMode).has(entry.id);
 
   return (
     <div
@@ -1394,7 +1458,7 @@ function SimilarCard({ entry }: { entry: ShowcaseItemDto }) {
             type="button"
             disabled={isPending}
             aria-label={t('item.similarAddAria', { name: entry.name })}
-            onClick={() => void add(entry, firstQuantity(entry.terms))}
+            onClick={() => void add(item)}
             className={cn(
               'flex h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-accent-soft text-body font-bold text-accent-ink',
               'transition-colors duration-200 hover:bg-accent hover:text-on-accent disabled:opacity-60',
@@ -1410,20 +1474,22 @@ function SimilarCard({ entry }: { entry: ShowcaseItemDto }) {
 }
 
 /**
- * Возврат в каталог кружком поверх снимка.
- *
- * Ссылкой, а не «назад» браузера: карточку открывают по присланному адресу,
- * и истории, куда возвращаться, у такого посетителя нет.
+ * Возврат кружком поверх снимка — в раздел, из которого карточку открыли (каталог, избранное,
+ * корзина, «Главная»), с тем же отбором и прокруткой; похожие товары по пути пропускаются.
+ * Открытая по присланному адресу карточка истории не имеет — тогда в каталог.
  */
 function BackCircle() {
   const { t } = useTranslation();
 
+  const back = useBackToSection();
+
   return (
-    <Link
-      to="/catalog"
-      aria-label={t('catalog.toCatalog')}
+    <button
+      type="button"
+      onClick={back}
+      aria-label={t('common.back')}
       className={cn(
-        'inline-flex size-11 items-center justify-center rounded-full',
+        'inline-flex size-11 cursor-pointer items-center justify-center rounded-full border-0',
         'bg-surface/85 text-ink backdrop-blur',
         'transition-all duration-300 active:scale-95',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
@@ -1432,6 +1498,6 @@ function BackCircle() {
       )}
     >
       <ArrowLeft className="size-[18px]" aria-hidden="true" />
-    </Link>
+    </button>
   );
 }

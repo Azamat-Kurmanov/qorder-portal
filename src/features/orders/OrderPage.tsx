@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useOrderMode } from '../cart/orderMode';
+import { NothingAdded, useStayIfEmpty } from './stayIfEmpty';
+import { SaveAsTemplate } from './SaveAsTemplate';
+import { useEffect, useState } from 'react';
 import { PackContents, packMembers } from '../catalog/PackContents';
 import { useTranslation } from 'react-i18next';
+import { cn } from '../../ui/cn';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
@@ -10,22 +14,27 @@ import {
   downloadMyVatInvoice,
   getGetMyPortalOrderQueryKey,
   getGetMyPortalOrdersQueryKey,
+  getGetPortalNotificationsQueryKey,
+  useFillPortalCartFromOrder,
+  useGetPortalNotifications,
+  useReadPortalNotification,
   useCancelMyPortalOrder,
-  useConfirmMyPortalOrder,
   useDeclineMyPortalOrder,
   useGetMyPortalOrder,
   type PortalOrderDto,
+  type SnapshotDiffDto,
   type SnapshotLineDto,
 } from '../../api/generated';
-import { OrderMessages } from './OrderMessages';
+import { AskForm, OrderMessages, quoteOf } from './OrderMessages';
 import { RateOrder } from './RateOrder';
 import { ReportProblem } from './ReportProblem';
 import { OrderStateBadge } from './OrderStateBadge';
 import { PickupCode } from './PickupCode';
-import { RevisionDiff } from './RevisionDiff';
+import { BACK } from '../shell/SectionHead';
+import { LineAnswers } from './LineAnswers';
+import { DeclineDialog } from './DeclineDialog';
 import { OrderDelivery } from './OrderDelivery';
 import { OrderReturns } from './OrderReturns';
-import { TransportPayment } from './TransportPayment';
 import { OrderTotals, type OrderBreakdown } from './OrderTotals';
 import type { Currency } from '../../shared/currency';
 import { LinkedLineThumb } from '../cart/LineThumb';
@@ -34,14 +43,14 @@ import { dayMonth, decimal, money } from '../../shared/format';
 import { quantityWithUnit } from '../../shared/units';
 import { answerExpectedText, orderDay, packNote } from './orderText';
 import { ReferralCard } from '../referral/ReferralCard';
-import { ChevronLeft, MapPin } from '../../ui/icons';
+import { ChevronLeft, MapPin, MessageCircle, MessageCircleQuestion, RotateCcw } from '../../ui/icons';
+import { PhoneLine } from '../shell/PhoneLine';
 import { MapViewButton } from '../maps/MapViewButton';
 import { pointOf } from '../maps/mapProvider';
-import { cn } from '../../ui/cn';
-import { useWideScreen } from '../../ui/useWideScreen';
 import { useCurrentShop } from '../shell/Shops';
 import { OrderStages } from './OrderStages';
 import { kindOf } from './myOrdersModel';
+import { isAboutOrder } from '../shell/messageCounts';
 
 /** Поставщик принял заявку: дальше она только движется к выдаче. */
 const CONFIRMED = new Set<string>(['ACCEPTED', 'READY', 'ISSUED']);
@@ -59,26 +68,43 @@ export function OrderPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [answered, setAnswered] = useState(false);
+  // Вопрос продавцу прямо на странице заявки; с цитатой — ответ на конкретный его ответ.
+  const [asking, setAsking] = useState<false | { quote?: string }>(false);
+  // Отказ от всей заявки — только через окно подтверждения с причиной (W2-05).
+  const [declining, setDeclining] = useState(false);
   const [invoiceBusy, setInvoiceBusy] = useState(false);
   const [invoiceFailed, setInvoiceFailed] = useState(false);
   const [vatBusy, setVatBusy] = useState(false);
   const [vatFailed, setVatFailed] = useState<'requisites' | 'failed' | null>(null);
   // Телефон — по макету «Заявка»: «Назад» к заявкам, номер, магазин и способ, шкала этапов.
-  const wide = useWideScreen();
   const shop = useCurrentShop();
 
   const response = useGetMyPortalOrder(id);
+  // Открыл заявку — прочитал её новости: счётчики «Сообщений» и «Моих заявок» уменьшаются.
+  // На телефоне список ведёт сюда ссылкой, и гасить их больше негде.
+  const notifications = useGetPortalNotifications();
+  const read = useReadPortalNotification({
+    mutation: { onSuccess: () => void queryClient.invalidateQueries({ queryKey: getGetPortalNotificationsQueryKey() }) },
+  });
+  const unreadHere = (notifications.data?.status === 200 ? notifications.data.data : [])
+    .filter((notification) => isAboutOrder(notification, id)).map((notification) => notification.id);
+  const opened = response.data?.status === 200;
+  useEffect(() => {
+    if (opened) unreadHere.forEach((notificationId) => read.mutate({ id: notificationId }));
+    // Гасится по составу непрочитанного, а не на каждый рендер.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened, unreadHere.join(',')]);
   const order: PortalOrderDto | undefined =
     response.data?.status === 200 ? response.data.data : undefined;
 
   const refresh = {
     onSuccess: () => {
       setAnswered(true);
+      setDeclining(false);
       void queryClient.invalidateQueries({ queryKey: getGetMyPortalOrderQueryKey(id) });
       void queryClient.invalidateQueries({ queryKey: getGetMyPortalOrdersQueryKey() });
     },
   };
-  const confirm = useConfirmMyPortalOrder({ mutation: refresh });
   const decline = useDeclineMyPortalOrder({ mutation: refresh });
   const cancel = useCancelMyPortalOrder({ mutation: refresh });
 
@@ -147,40 +173,40 @@ export function OrderPage() {
     );
   }
 
-  const busy = confirm.isPending || decline.isPending || cancel.isPending;
+  const busy = decline.isPending || cancel.isPending;
+  const declineFailed = decline.isError || cancel.isError
+    || (decline.data !== undefined && decline.data.status !== 200)
+    || (cancel.data !== undefined && cancel.data.status !== 200);
 
   return (
-    <div className="flex flex-col gap-4 pb-28">
-      <div className="flex items-center justify-between gap-3">
-        {wide ? (
-          <h1 className="qo-page-title">
-            {t('orders.orderFrom', { day: orderDay(order.createdAt) })}
+    // На мониторе справа — колонка «Есть вопрос?», как в макете SimplePicWebOrder (решение владельца 2026-11-05).
+    <div className="lg:flex lg:items-start lg:gap-8">
+    <div className="flex min-w-0 flex-1 flex-col gap-4 pb-28">
+      {/* Шапка «Варианта Б»: крупная «Назад» к списку, номер, день и магазин, состояние. */}
+      <div className="flex min-w-0 items-center gap-3.5 pt-1">
+        <Link
+          to="/orders"
+          aria-label={t('orders.toAll')}
+          className={BACK}
+        >
+          <ChevronLeft aria-hidden="true" className="size-7" />
+          <span aria-hidden="true" className="hidden lg:inline">{t('common.back')}</span>
+        </Link>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h1 className="m-0 truncate text-title font-extrabold leading-tight text-ink lg:text-display">
+            {t('orders.v2.title', { number: order.orderNumber })}
           </h1>
-        ) : (
-          <div className="flex min-w-0 items-center gap-3">
-            <Link
-              to="/orders"
-              aria-label={t('orders.toAll')}
-              className="flex size-11 shrink-0 items-center justify-center rounded-[0.875rem] bg-surface text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            >
-              <ChevronLeft aria-hidden="true" className="size-[1.375rem]" />
-            </Link>
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <h1 className="truncate text-[1.25rem] font-black tracking-[-0.02em] text-ink">
-                {t('orders.v2.title', { number: order.orderNumber })}
-              </h1>
-              <span className="truncate text-[0.8125rem] text-ink-muted">
-                {[shop?.name, t(order.pickup === false ? 'orders.way.delivery' : 'orders.way.pickup')].filter(Boolean).join(' · ')}
-              </span>
-              {/* Состояние — строкой под именем: справа плашка отнимала место у номера. */}
-              <span className="self-start"><OrderStateBadge state={order.state} /></span>
-            </span>
-          </div>
-        )}
-        {wide ? <OrderStateBadge state={order.state} /> : null}
+          <span className="truncate text-body text-ink-muted">
+            {/* Способ — только известный: пусто значит «ещё не определён», а не «самовывоз». */}
+            {[t('orders.orderFrom', { day: orderDay(order.createdAt) }), shop?.name,
+              order.pickup == null ? null : t(order.pickup ? 'orders.way.pickup' : 'orders.way.delivery')]
+              .filter(Boolean).join(' · ')}
+          </span>
+          <span className="mt-0.5 self-start"><OrderStateBadge state={order.state} /></span>
+        </span>
       </div>
 
-      {wide ? null : <OrderStages kind={kindOf(order)} delivery={order.pickup === false} />}
+      <OrderStages kind={kindOf(order)} delivery={order.pickup === false} />
 
       {order.answerExpectedBy ? (
         <p data-testid="order-answer-by" className="m-0 text-sm text-ink-muted">{answerExpectedText(order.answerExpectedBy, t)}</p>
@@ -189,8 +215,21 @@ export function OrderPage() {
       {order.managerName ? (
         <p data-testid="order-manager" className="m-0 text-sm text-ink-muted">{t('orders.manager', { name: order.managerName })}</p>
       ) : null}
+      {/* Оптовая или розничная — заявки уходят раздельно (решение владельца 2026-11-06). */}
+      {order.saleMode ? (
+        <p data-testid="order-sale-mode" className={cn('m-0 text-sm font-bold', order.saleMode === 'WHOLESALE' ? 'text-wholesale' : 'text-ink')}>
+          {t(`orders.saleMode.${order.saleMode}`)}
+        </p>
+      ) : null}
+      {/* Просил в долг — ждёт решения продавца или уже знает его. */}
+      {order.creditRequest ? (
+        <p data-testid="order-credit" className={order.creditRequest === 'DECLINED'
+          ? 'm-0 text-sm font-semibold text-sale-ink' : 'm-0 text-sm font-semibold text-ink'}>
+          {t(`orders.credit.${order.creditRequest}`)}
+        </p>
+      ) : null}
 
-      {order.pickupCode ? <PickupCode code={order.pickupCode} className="self-start" /> : null}
+      {order.pickupCode ? <PickupCode code={order.pickupCode} big /> : null}
 
       {/* Куда идти за самовывозом — с картой (макет К2.11): код без места мало что даёт. */}
       {order.pickup !== false && order.pickupPoint ? (
@@ -198,8 +237,8 @@ export function OrderPage() {
           <span className="flex items-start gap-2.5">
             <MapPin aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent-ink" />
             <span className="flex min-w-0 flex-col gap-0.5">
-              <b className="text-[0.9375rem] font-bold text-ink">{order.pickupPoint.name}</b>
-              <span className="text-[0.8125rem] text-ink-muted">
+              <b className="text-body font-bold text-ink">{order.pickupPoint.name}</b>
+              <span className="text-caption text-ink-muted">
                 {[order.pickupPoint.address, order.pickupPoint.workingHours].filter(Boolean).join(' · ')}
               </span>
             </span>
@@ -210,17 +249,18 @@ export function OrderPage() {
       ) : null}
 
       {order.needsAnswer && (
-        <div
-          role="alert"
-          className="rounded-[var(--radius-card)] border border-accent/30 bg-accent-soft p-4"
-        >
-          <p className="font-medium text-ink">{t('orders.changesTitle')}</p>
-          <p className="mt-1 text-sm text-ink-muted">
-            {t('orders.changesNote')}
-          </p>
-          <RevisionDiff diff={order.diff} currency={order.currency} />
-        </div>
+        <LineAnswers order={order} busy={busy} onAnswered={() => setAnswered(true)}
+          onAsk={(quote) => setAsking({ quote })} onDecline={() => setDeclining(true)} />
       )}
+
+      {declining ? (
+        <DeclineDialog pending={busy} failed={declineFailed} onStay={() => setDeclining(false)}
+          onDecline={(reason, comment) => {
+            const data = { reason, comment: comment || undefined };
+            if (order.needsAnswer) decline.mutate({ id, data });
+            else cancel.mutate({ id, data });
+          }} />
+      ) : null}
 
       {/*
         Переписка — здесь, а не в мессенджере: в кабинет приходят те, кто
@@ -229,7 +269,7 @@ export function OrderPage() {
         показывается прежняя карточка одним ответом.
       */}
       {(order.messages ?? []).length > 0 ? (
-        <OrderMessages messages={order.messages} />
+        <OrderMessages messages={order.messages} onReply={(quote) => setAsking({ quote })} />
       ) : order.sellerAnswer ? (
         <Card className="border-l-2 border-l-accent p-4">
           <p className="text-sm font-medium text-ink-muted">
@@ -239,8 +279,24 @@ export function OrderPage() {
           <p className="mt-1 whitespace-pre-line text-body leading-relaxed text-ink">
             {order.sellerAnswer}
           </p>
+          <button type="button" onClick={() => setAsking({ quote: quoteOf(order.sellerAnswer ?? '') })}
+            className="mt-2 inline-flex cursor-pointer items-center gap-1 text-caption font-semibold text-accent-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <MessageCircle aria-hidden="true" className="size-4" />
+            {t('orders.v2.reply')}
+          </button>
         </Card>
       ) : null}
+
+      {asking ? (
+        <Card className="p-4">
+          <AskForm key={asking.quote ?? ''} order={order} quote={asking.quote} onDone={() => setAsking(false)} />
+        </Card>
+      ) : kindOf(order) === 'done' || kindOf(order) === 'cancelled' ? null : (
+        <Button variant="outline" className="self-start" onClick={() => setAsking({})}>
+          <MessageCircleQuestion aria-hidden="true" className="size-[18px]" />
+          {t('orders.ask')}
+        </Button>
+      )}
 
       {order.delivery ? (
         <Card className="p-4">
@@ -253,12 +309,6 @@ export function OrderPage() {
       {/* Недовоз, брак, пересорт — в переписку заявки, где продавец и так отвечает. */}
       {order.state === 'ISSUED' ? <RateOrder order={order} /> : null}
       {order.state === 'ISSUED' ? <ReportProblem order={order} /> : null}
-
-      {order.transportPayment ? (
-        <Card className="p-4">
-          <TransportPayment orderId={order.id} payment={order.transportPayment} currency={order.currency} />
-        </Card>
-      ) : null}
 
       <Revision
         title={order.proposed ? t('orders.youSent') : t('orders.contents')}
@@ -276,6 +326,7 @@ export function OrderPage() {
           total={order.proposedTotal ?? 0}
           testId="proposed"
           currency={order.currency}
+          diff={order.diff}
         />
       )}
 
@@ -283,39 +334,6 @@ export function OrderPage() {
 
       {/* Заявка подтверждена — лучший момент позвать сюда остальных поставщиков. */}
       <ReferralCard confirmed={CONFIRMED.has(order.state)} />
-
-      {order.needsAnswer && (
-        // Две кнопки одной ширины: согласие и отказ равноправны, и более
-        // крупная кнопка читалась бы как подсказка, что выбрать. Слова те же,
-        // что в списке заявок: одно действие, названное на двух экранах
-        // по-разному, читается как два разных.
-        <div
-          className={cn(
-            'grid grid-cols-2 gap-2',
-            // На телефоне ответ — панелью над нижним меню, как в макете: его не надо искать под составом.
-            'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] max-lg:z-20',
-            'max-lg:bg-surface max-lg:px-4 max-lg:py-3 max-lg:shadow-[0_-6px_20px_rgba(58,48,30,.1)]',
-          )}
-        >
-          <Button
-            size="lg"
-            aria-label={t('orders.agreeAria', { day: orderDay(order.createdAt) })}
-            disabled={busy}
-            onClick={() => confirm.mutate({ id })}
-          >
-            {confirm.isPending ? t('orders.sending') : t('orders.agree')}
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            aria-label={t('orders.cancelAria', { day: orderDay(order.createdAt) })}
-            disabled={busy}
-            onClick={() => decline.mutate({ id })}
-          >
-            {decline.isPending ? t('orders.sending') : t('orders.decline')}
-          </Button>
-        </div>
-      )}
 
       {/*
         Счёт — только когда он выписан. Кнопка, ведущая в пустоту, хуже её
@@ -368,26 +386,83 @@ export function OrderPage() {
 
       {order.realization1c?.status === 'EXPORTED' && (
         <p data-testid="order-realization" className="text-sm text-ink">
-          {order.realization1c.documentNumber
-            ? t('orders.realization1c', { number: order.realization1c.documentNumber, day: orderDay(order.realization1c.at) })
-            : t('orders.realization1cNoNumber', { day: orderDay(order.realization1c.at) })}
+          {/* «Обмен с сайтом» (путь А) заводит в 1С заказ клиента, наша обработка — реализацию: подпись говорит, что именно. */}
+          {order.realization1c.documentKind === 'ORDER'
+            ? order.realization1c.documentNumber
+              ? t('orders.order1c', { number: order.realization1c.documentNumber, day: orderDay(order.realization1c.at) })
+              : t('orders.order1cNoNumber', { day: orderDay(order.realization1c.at) })
+            : order.realization1c.documentNumber
+              ? t('orders.realization1c', { number: order.realization1c.documentNumber, day: orderDay(order.realization1c.at) })
+              : t('orders.realization1cNoNumber', { day: orderDay(order.realization1c.at) })}
         </p>
       )}
 
-      {order.cancellable && !order.needsAnswer && (
-        <Button variant="ghost" disabled={busy} onClick={() => cancel.mutate({ id })}>
-          {cancel.isPending ? t('orders.cancelling') : t('orders.cancel')}
+      {order.cancellable && !order.needsAnswer && !declining && (
+        <Button variant="ghost" disabled={busy} onClick={() => setDeclining(true)}>
+          {t('orders.cancel')}
         </Button>
       )}
 
+      {/* На телефоне правой колонки нет — «Сохранить шаблоном» здесь, под заявкой. */}
+      <SaveAsTemplate order={order} className="lg:hidden" />
       <Button variant="ghost" onClick={() => navigate('/orders')}>{t('orders.toAll')}</Button>
+    </div>
+    <OrderHelp order={order} phone={shop?.phone} onAsk={() => setAsking({})} />
     </div>
   );
 }
 
+/**
+ * Правая колонка заявки на мониторе (макет SimplePicWebOrder): телефон продавца, «Написать продавцу»
+ * (форма вопроса по заявке) и «Заказать то же ещё раз». На телефоне её нет — там это есть в самой странице.
+ */
+function OrderHelp({ order, phone, onAsk }: { order: PortalOrderDto; phone?: string; onAsk: () => void }) {
+  const { t } = useTranslation();
+  // Товар «оптом и в розницу» ложится в заявку, в которой клиент сейчас (решение владельца 2026-11-06).
+  const [orderMode] = useOrderMode();
+  const { done, nothing, start } = useStayIfEmpty();
+  const repeat = useFillPortalCartFromOrder({ mutation: { onSuccess: done } });
+  const ROW = cn('flex w-full cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface p-4 text-left',
+    'transition-colors hover:border-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:opacity-60');
+  const ICON = 'flex size-12 shrink-0 items-center justify-center rounded-[0.875rem]';
+  const closed = kindOf(order) === 'done' || kindOf(order) === 'cancelled';
+  return (
+    <aside aria-label={t('orders.help.title')} className="hidden lg:sticky lg:top-[calc(var(--header-h)+1.5rem)] lg:flex lg:w-[22rem] lg:shrink-0 lg:flex-col lg:gap-3">
+      <h2 className="m-0 text-title font-extrabold lg:text-display text-ink">{t('orders.help.title')}</h2>
+      {phone ? (
+        <Card className="p-3.5"><PhoneLine phone={phone} label={t('orders.help.seller')} /></Card>
+      ) : null}
+      {closed ? null : (
+        <button type="button" onClick={onAsk} className={ROW}>
+          <span aria-hidden="true" className={cn(ICON, 'bg-ok-soft text-shop-ink')}><MessageCircle className="size-6" /></span>
+          <span className="flex min-w-0 flex-col">
+            <b className="text-lead font-extrabold text-ink">{t('orders.help.write')}</b>
+            <span className="text-caption text-ink-muted">{t('orders.help.writeHint')}</span>
+          </span>
+        </button>
+      )}
+      {order.submitted.length > 0 ? (
+        <button type="button" disabled={repeat.isPending} onClick={() => { start(); repeat.mutate({ orderId: order.id, params: { mode: orderMode } }); }} className={ROW}>
+          <span aria-hidden="true" className={cn(ICON, 'bg-hit-soft text-hit-ink')}><RotateCcw className="size-6" /></span>
+          <span className="flex min-w-0 flex-col">
+            <b className="text-lead font-extrabold text-ink">{repeat.isPending ? t('orders.collecting') : t('orders.again')}</b>
+            <span className="text-caption text-ink-muted">
+              {t('orders.help.lines', { count: order.submitted.length, sum: money(order.total, order.currency) })}
+            </span>
+          </span>
+        </button>
+      ) : null}
+      <NothingAdded skipped={nothing} />
+      <SaveAsTemplate order={order} />
+    </aside>
+  );
+}
+
 /** Одна редакция состава: то, что предъявлено, и её итог. */
-function Revision({ title, lines, total, testId, breakdown, currency }: {
+function Revision({ title, lines, total, testId, breakdown, currency, diff = [] }: {
   title: string;
+  /** Отличия предложения: замены и добавленное продавцом выделены оттенком (просьба владельца 2026-11-05). */
+  diff?: SnapshotDiffDto[];
   lines: SnapshotLineDto[];
   total: number;
   testId: string;
@@ -397,6 +472,10 @@ function Revision({ title, lines, total, testId, breakdown, currency }: {
   currency: Currency | undefined;
 }) {
   const { t } = useTranslation();
+  // Замена и добавление узнаются по позиции каталога, а без неё — по названию.
+  const changeOf = (line: SnapshotLineDto) => diff.find((change) =>
+    (change.kind === 'LINE_REPLACED' || change.kind === 'LINE_ADDED')
+    && (change.itemId && line.itemId ? change.itemId === line.itemId : change.name === line.name));
   return (
     <Card className="p-4" data-testid={testId}>
       <p className="mb-2 font-semibold text-ink">{title}</p>
@@ -406,8 +485,11 @@ function Revision({ title, lines, total, testId, breakdown, currency }: {
       <ul className="flex flex-col divide-y divide-hairline">
         {lines.map((line, index) => {
           const amount = line.amount ?? (line.price === undefined ? undefined : line.price * line.quantity);
+          const change = changeOf(line);
           return (
-            <li key={`${line.name}-${index}`} data-testid="order-line" className="flex items-center gap-3 py-2.5 text-sm">
+            <li key={`${line.name}-${index}`} data-testid="order-line" data-offered={change ? change.kind : undefined}
+              className={cn('flex items-center gap-3 py-2.5 text-sm',
+                change && '-mx-2 my-0.5 rounded-[var(--radius-control)] border-0 bg-accent-soft px-2')}>
               <LinkedLineThumb
                 itemId={line.itemId}
                 seed={line.itemId ?? line.name}
@@ -417,6 +499,13 @@ function Revision({ title, lines, total, testId, breakdown, currency }: {
               />
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="font-semibold text-ink">{line.name}</span>
+                {change ? (
+                  <span className="self-start rounded-full bg-accent-ink/10 px-2 py-0.5 text-xs font-extrabold text-accent-ink">
+                    {change.kind === 'LINE_REPLACED' && change.replacedName
+                      ? t('orders.offeredInstead', { name: change.replacedName })
+                      : t('orders.offeredAdded')}
+                  </span>
+                ) : null}
                 {line.pack ? <PackContents label={t('pack.inPress')} members={packMembers(line.pack)} /> : null}
                 <span className="tabular-nums text-ink-muted">
                   {line.unit ? quantityWithUnit(line.quantity, line.unit) : decimal(line.quantity)}{packNote(line, t)}

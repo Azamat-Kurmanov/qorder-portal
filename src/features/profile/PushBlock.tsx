@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Switch } from '../../ui/Switch';
-import { Bell } from '../../ui/icons';
+import { Bell, ChevronDown } from '../../ui/icons';
 import { useSupplier } from '../../supplier/useSupplier';
 import {
   getGetPortalPushPreferencesQueryKey,
@@ -18,8 +18,9 @@ type Kind = PushPreferencesDtoMutedItem;
 
 /** Поводы клиента (у продавца свои) — тремя группами, словами колокольчика (`notifications.reasons.*`). */
 const GROUPS: { key: string; kinds: Kind[] }[] = [
-  { key: 'orders', kinds: ['ACCEPTED', 'RENEGOTIATION', 'DEADLINE_SOON', 'ORDER_ANSWERED', 'QUESTION_ANSWERED', 'TEMPLATE_READY', 'REORDER_DUE'] },
-  { key: 'delivery', kinds: ['INVOICE_SENT', 'TRANSPORT_RECEIPT_SENT', 'TRANSPORT_PAYMENT_REJECTED', 'ORDER_ON_ROUTE', 'ORDER_DELIVERED'] },
+  { key: 'orders', kinds: ['ACCEPTED', 'RENEGOTIATION', 'PRICE_NAMED', 'DEADLINE_SOON', 'ORDER_ANSWERED', 'QUESTION_ANSWERED', 'TEMPLATE_READY', 'REORDER_DUE'] },
+  { key: 'delivery', kinds: ['INVOICE_SENT', 'TRANSPORT_RECEIPT_SENT', 'TRANSPORT_PAYMENT_REJECTED', 'ORDER_ON_ROUTE', 'ORDER_DELIVERED',
+    'DEBT_PAYMENT_CONFIRMED', 'DEBT_PAYMENT_REJECTED', 'DEBT_PAYMENT_RECEIVED', 'DEBT_PAYMENT_DUE'] },
   { key: 'promo', kinds: ['NEW_ARRIVALS', 'PROMO_STARTED', 'BACK_IN_STOCK'] },
 ];
 
@@ -47,7 +48,7 @@ export function PushBlock() {
             <b className="text-body font-bold text-ink">{t('profile.push.title')}</b>
             <span className="text-xs text-ink-subtle">{summaryOf(prefs, t)}</span>
           </span>
-          <span aria-hidden="true" className="text-ink-faint transition-transform group-open:rotate-180">▾</span>
+          <ChevronDown className="size-5 shrink-0 text-home-icon transition-transform group-open:rotate-180" />
         </summary>
         <PushForm prefs={prefs} />
       </details>

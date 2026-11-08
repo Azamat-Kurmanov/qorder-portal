@@ -30,9 +30,48 @@ describe('оформление поставщика в кабинете клие
     expect(supplierTokens(null, 'BRAND')['--color-canvas']).toBeUndefined();
     expect(supplierTokens('#1F5C57', 'BRAND')['--color-canvas']).toBe('#DBE0DA');
   });
+
+  /**
+   * Бумага «в тон фирменному» не темнеет настолько, что бледные подписи
+   * (`ink-faint`: даты цен, «На странице») опускаются ниже 4,5:1 — ни днём, ни ночью.
+   */
+  it('бумага в тон фирменному оставляет бледный текст читаемым', () => {
+    const brands = ['#0038FF', '#0A0A0A', '#0AE448', '#1F5C57', '#5433EB', '#6E1423', '#B3261E', '#C6FF3A',
+      '#D7266A', '#F2D45C', '#FF5900', '#FFC629', '#FFFF00', '#808080', '#FFFFFF'];
+    for (const brand of brands) {
+      expect(contrastRatio('#67625A', supplierTokens(brand, 'BRAND')['--color-canvas'])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio('#9196A0', darkTokens(brand, 'BRAND')['--color-canvas'])).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });
 
 describe('дизайн кабинета из шаблона', () => {
+  /** Текст цветом магазина (`shop-ink`) читается на бумаге шаблона днём и ночью — и у неона, и у жёлтого. */
+  it('текст цветом магазина читается у каждого шаблона', () => {
+    const codes = ['GLOW', 'PRISM', 'DEPTH', 'FLOAT', 'NEON', 'PULSE', 'BLOBS', 'JELLY', 'STUDIO', 'FLASH', 'LOOKBOOK', 'SEASON'];
+    for (const code of codes) {
+      const css = designCss(resolveDesign({ design: { template: code as never, theme: 'TEMPLATE', published: true } }))!;
+      for (const block of css.split('\n').filter((line) => line.includes('--color-shop-ink'))) {
+        const ink = block.match(/--color-shop-ink: (#[0-9A-F]{6})/)![1];
+        const canvas = block.match(/--color-canvas: (#[0-9A-F]{6})/)?.[1] ?? (block.startsWith('html') ? '#0F1012' : '#F5F2EC');
+        expect(contrastRatio(ink, canvas), `${code}: ${block.slice(0, 20)}`).toBeGreaterThanOrEqual(4.5);
+        const surface = block.match(/--color-surface: (#[0-9A-F]{6})/)?.[1];
+        if (surface) expect(contrastRatio(ink, surface), `${code} surface`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  /** Подпись на фирменном цвете шаблона (`on-shop`: шапка, плашки шагов) — не ниже 4.5. */
+  it('текст на фирменном цвете читается у каждого шаблона', () => {
+    const codes = ['GLOW', 'PRISM', 'DEPTH', 'FLOAT', 'NEON', 'PULSE', 'BLOBS', 'JELLY', 'STUDIO', 'FLASH', 'LOOKBOOK', 'SEASON'];
+    for (const code of codes) {
+      const { brand } = motionTemplateOf(code);
+      const css = designCss(resolveDesign({ design: { template: code as never, theme: 'TEMPLATE', published: true } }))!;
+      const onShop = css.match(/--color-on-shop: (#[0-9A-F]{6})/)![1];
+      expect(contrastRatio(onShop, brand), `${code} ${brand}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   const night = resolveDesign({ design: { template: 'NIGHT', theme: 'TEMPLATE', published: true } });
   const classic = resolveDesign({ design: { template: 'CLASSIC', theme: 'TEMPLATE', published: true } });
 
@@ -187,8 +226,9 @@ describe('дизайн кабинета из шаблона', () => {
     expect(css).not.toContain('--ui-scale');
     // Светлые токены — те же, что и раньше.
     expect(css).toContain('--color-bar-wide: #EFF4F3');
-    // А тёмная тема у покупателя всё равно в его цвете.
-    expect(css).toContain("html[data-theme='dark'] { --color-accent: #8FAEAB;");
+    // А тёмная тема у покупателя всё равно в его цвете; кнопки — в общем цвете платформы.
+    expect(css).toContain("html[data-theme='dark'] { --color-strip: #1E4643;");
+    expect(css).not.toContain('--color-accent:');
     expect(designCss(resolveDesign({}))).toBeNull();
   });
 });
@@ -224,15 +264,15 @@ describe('живой фон и движение в дизайне', () => {
   const shop = (design: Record<string, unknown>) =>
     resolveDesign({ design: { theme: 'TEMPLATE', published: true, ...design } as never });
 
-  it('без дизайна — без фона, движение «живо», как сейчас', () => {
-    expect(resolveDesign({})).toMatchObject({ backdrop: 'NONE', motion: 'LIVELY' });
-    expect(resolveDesign(null)).toMatchObject({ backdrop: 'NONE', motion: 'LIVELY' });
+  it('без дизайна — движение «живо», как сейчас', () => {
+    expect(resolveDesign({})).toMatchObject({ motion: 'LIVELY' });
+    expect(resolveDesign(null)).toMatchObject({ motion: 'LIVELY' });
   });
 
-  it('старый код — тема, куда он ведёт: её фон, движение и вид', () => {
+  it('старый код — тема, куда он ведёт: её движение и вид', () => {
     const classic = shop({ template: 'CLASSIC' });
     expect(classic.template?.id).toBe('GLOW');
-    expect(classic).toMatchObject({ backdrop: 'GLOW', motion: 'LIVELY', layout: 'top', view: 'grid' });
+    expect(classic).toMatchObject({ motion: 'LIVELY', layout: 'top', view: 'grid' });
     expect(shop({ template: 'BOUTIQUE' }).template?.id).toBe('LOOKBOOK');
     expect(shop({ template: 'FRESH' }).template?.id).toBe('GLOW');
   });
@@ -242,8 +282,8 @@ describe('живой фон и движение в дизайне', () => {
   });
 
   it('выбор продавца важнее темы', () => {
-    expect(shop({ template: 'CLASSIC', backdrop: 'HORIZON', motion: 'VIVID' }))
-      .toMatchObject({ backdrop: 'HORIZON', motion: 'VIVID' });
+    expect(shop({ template: 'CLASSIC', motion: 'VIVID' }))
+      .toMatchObject({ motion: 'VIVID' });
   });
 
   it('узор и своё фото — из опубликованного дизайна; без дизайна их нет', () => {
@@ -254,19 +294,19 @@ describe('живой фон и движение в дизайне', () => {
       .toMatchObject({ pattern: null, photo: null });
   });
 
-  it('«по сезону» и праздник на свои даты — узор и живой фон на сегодня', () => {
-    const seasonal = { design: { template: 'GLOW', theme: 'TEMPLATE', published: true, pattern: 'SEASON', backdrop: 'SEASON' } as never };
-    expect(resolveDesign(seasonal, '2027-01-10')).toMatchObject({ pattern: 'WINTER', backdrop: 'SNOW' });
-    expect(resolveDesign(seasonal, '2027-10-10')).toMatchObject({ pattern: 'AUTUMN', backdrop: 'LEAVES' });
+  it('«по сезону» и праздник на свои даты — узор на сегодня', () => {
+    const seasonal = { design: { template: 'GLOW', theme: 'TEMPLATE', published: true, pattern: 'SEASON' } as never };
+    expect(resolveDesign(seasonal, '2027-01-10')).toMatchObject({ pattern: 'WINTER' });
+    expect(resolveDesign(seasonal, '2027-10-10')).toMatchObject({ pattern: 'AUTUMN' });
     const birthday = { design: { template: 'GLOW', theme: 'TEMPLATE', published: true, occasion: 'BIRTHDAY',
       occasionFrom: '2027-05-01', occasionUntil: '2027-05-03' } as never };
-    expect(resolveDesign(birthday, '2027-05-02')).toMatchObject({ pattern: 'BIRTHDAY', backdrop: 'BALLOONS', occasion: 'BIRTHDAY' });
-    expect(resolveDesign(birthday, '2027-05-04')).toMatchObject({ pattern: null, backdrop: 'GLOW', occasion: null });
+    expect(resolveDesign(birthday, '2027-05-02')).toMatchObject({ pattern: 'BIRTHDAY', occasion: 'BIRTHDAY' });
+    expect(resolveDesign(birthday, '2027-05-04')).toMatchObject({ pattern: null, occasion: null });
   });
 
-  it('новая тема без выбора — её фон и движение; кабинет не падает', () => {
-    expect(shop({ template: 'NEON' })).toMatchObject({ backdrop: 'HORIZON', motion: 'LIVELY' });
-    expect(shop({ template: 'JELLY' })).toMatchObject({ backdrop: 'BLOBS', motion: 'VIVID' });
+  it('новая тема без выбора — её движение; кабинет не падает', () => {
+    expect(shop({ template: 'NEON' })).toMatchObject({ motion: 'LIVELY' });
+    expect(shop({ template: 'JELLY' })).toMatchObject({ motion: 'VIVID' });
   });
 });
 
@@ -302,30 +342,25 @@ describe('ночная кнопка тоже читается', () => {
   });
 });
 
-describe('тема на телефоне', () => {
+describe('тема продавца у клиента', () => {
   const shop = {
     brandColor: '#112233', background: 'SAND',
-    design: { template: 'NIGHT', brandColor: '#aa0000', backdrop: 'AURORA', theme: 'TEMPLATE', published: true, pattern: 'FOOD' },
+    design: { template: 'NIGHT', brandColor: '#aa0000', theme: 'TEMPLATE', published: true, pattern: 'FOOD' },
   } as never;
 
-  it('на телефоне — обычный вид, но цвет продавца из дизайна остаётся', () => {
-    const phone = designFor(shop, false);
+  it('кабинет один для всех: шаблон не действует, цвет продавца из дизайна остаётся', () => {
+    const phone = designFor(shop);
     expect(phone.template).toBeNull();
     expect(phone.style).toBeNull();
     expect(phone.dark).toBe(false);
-    expect(phone.backdrop).toBe('NONE');
     expect(phone.pattern).toBeNull();
     expect(phone.photo).toBeNull();
     expect(phone.layout).toBe('side');
     expect(phone.brand).toBe('#AA0000');
   });
 
-  it('на компьютере — тема целиком', () => {
-    expect(designFor(shop, true)).toEqual(resolveDesign(shop));
-  });
-
-  it('без опубликованного дизайна телефон и компьютер не различаются', () => {
+  it('без опубликованного дизайна — реквизиты продавца как есть', () => {
     const plain = { brandColor: '#112233', background: 'SAND' } as never;
-    expect(designFor(plain, false)).toEqual(resolveDesign(plain));
+    expect(designFor(plain)).toEqual(resolveDesign(plain));
   });
 });

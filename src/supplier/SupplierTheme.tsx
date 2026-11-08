@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useGetPortalSuppliers } from '../api/generated';
 import { useSupplier } from './useSupplier';
 import { designFor } from './cabinetDesign';
-import { useWideScreen } from '../ui/useWideScreen';
 import { designCss } from './supplierTheme';
 import { setSupplierTheme } from '../ui/theme';
 import { dropBootDesign, rememberDesignCss } from './designBoot';
@@ -21,10 +20,9 @@ import { dropBootDesign, rememberDesignCss } from './designBoot';
 export function SupplierTheme() {
   const { supplierId } = useSupplier();
   const suppliers = useGetPortalSuppliers();
-  const wide = useWideScreen();
   const list = suppliers.data?.status === 200 ? suppliers.data.data : [];
   const current = list.find((supplier) => supplier.supplierId === supplierId);
-  const design = current ? designFor(current, wide) : null;
+  const design = current ? designFor(current) : null;
   const css = design ? designCss(design) : null;
   const dark = design?.dark;
 

@@ -136,7 +136,7 @@ export function hoursNow(hours: ShopHours | undefined, t: TFunction, now = new D
   const local = localNow(now, hours.timezone);
   if (!local) {
     return hours.days.length === 0 && !hours.exceptions?.length
-      ? { open: true, text: t('shop.hours.now.always'), short: t('shop.hours.now.always') }
+      ? { open: true, text: t('shop.hours.now.always'), short: t('shop.hours.now.alwaysShort') }
       : null;
   }
   const today = hoursOn(hours, local.date, local.day);
@@ -149,7 +149,7 @@ export function hoursNow(hours: ShopHours | undefined, t: TFunction, now = new D
   if (yesterday && minutes(yesterday.to) <= minutes(yesterday.from) && local.at < minutes(yesterday.to)) {
     return { open: true, text: t('shop.hours.now.open', { to: clock(yesterday.to) }), short: t('shop.hours.now.openShort', { to: clock(yesterday.to) }) };
   }
-  if (today.always) return { open: true, text: t('shop.hours.now.always'), short: t('shop.hours.now.always') };
+  if (today.always) return { open: true, text: t('shop.hours.now.always'), short: t('shop.hours.now.alwaysShort') };
   if (!today.hours) return result(false, 'closedToday');
   const from = minutes(today.hours.from);
   const to = minutes(today.hours.to);

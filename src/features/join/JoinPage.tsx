@@ -6,21 +6,26 @@ import { Card } from '../../ui/Card';
 import { Logo } from '../../ui/Logo';
 import { cn } from '../../ui/cn';
 import { FieldFaultText } from '../../ui/Field';
-import { useFormRules } from '../../ui/forms/useFormRules';
+import { faultOf, useFormRules } from '../../ui/forms/useFormRules';
 import { rules } from '../../api/rules.generated';
+import { isGone } from '../../api/client';
 import {
   useGetSupplierConsentNotice,
   useGetSupplierJoin,
   useSubmitSupplierLead,
-  type ConsentNoticeDto,
 } from '../../api/generated';
-import { ConsentNotice } from '../activation/ConsentNotice';
+import { ConsentBlock, useConsent } from '../activation/Consent';
+import { KZ_PHONE } from './kzPhone';
 import { LanguageAsk } from '../language/LanguageAsk';
 import { LanguagePicker } from '../shell/LanguagePicker';
+import { ForwardToOwner } from './ForwardToOwner';
+import { signupHref } from './JoinOwnerPage';
+import { OpenInApp } from '../openInApp/OpenInApp';
+import { PhoneQr } from '../openInApp/PhoneQr';
 
 const INPUT = cn(
-  'h-11 rounded-[var(--radius-control)] border border-hairline bg-surface px-3',
-  'text-sm text-ink outline-none focus:border-[var(--color-brand)]',
+  'h-14 rounded-[var(--radius-control)] border-2 border-field-line bg-surface px-4',
+  'text-base text-ink outline-none focus:border-shop focus:ring-1 focus:ring-shop',
 );
 
 type Key = 'name' | 'binIin' | 'phone' | 'city';
@@ -30,6 +35,11 @@ const FIELDS: { key: Key; label: string; inputMode?: 'numeric' | 'tel'; autoComp
   { key: 'phone', label: 'join.phone', inputMode: 'tel', autoComplete: 'tel' },
   { key: 'city', label: 'join.city', autoComplete: 'address-level2' },
 ];
+
+const SCHEMA = {
+  ...rules.SupplierLeadRequest,
+  phone: { ...rules.SupplierLeadRequest.phone, pattern: KZ_PHONE },
+};
 
 function failureKey(error: unknown): string {
   const code = (error as { info?: { code?: unknown } } | null)?.info?.code;
@@ -49,21 +59,28 @@ export function JoinPage() {
   const { code } = useParams();
   const invite = useGetSupplierJoin(code ?? '', { query: { enabled: !!code, retry: false } });
   const live = code && invite.data?.status === 200 ? invite.data.data : undefined;
-  const expired = !!code && invite.isError;
-  const noticeQuery = useGetSupplierConsentNotice();
-  const notice: ConsentNoticeDto | undefined = noticeQuery.data?.status === 200 ? noticeQuery.data.data : undefined;
+  // «Не действует» — только когда сервер так сказал; обрыв сети приглашение не гасит.
+  const expired = !!code && invite.isError && isGone(invite.error);
+  const consent = useConsent(useGetSupplierConsentNotice({ query: { retry: 1 } }));
+  const { notice } = consent;
   const form = useFormRules({
-    schema: rules.SupplierLeadRequest,
+    schema: SCHEMA,
     initial: { name: '', binIin: '', phone: '', city: '' },
   });
-  const [accepted, setAccepted] = useState(false);
   const [sent, setSent] = useState(false);
+  // По живому приглашению сначала «Кто вы»: владелец подключается сам, продавец передаёт владельцу.
+  // Заявка платформе — запасной путь, а без приглашения — единственный.
+  const [step, setStep] = useState<'who' | 'seller' | 'lead'>('who');
+  const shown = live ? step : 'lead';
   const [failure, setFailure] = useState<string | null>(null);
   const submit = useSubmitSupplierLead();
 
-  const title = live
-    ? live.referrerName ? t('join.titleBy', { name: live.referrerName }) : t('join.titleHidden')
-    : t('join.titleGeneric');
+  // Почему кнопка погашена — словами под ней: серая без причины выглядит сломанной.
+  // Поля называются по имени: «отмеченных выше» нет, пока человек их не трогал.
+  const unfilled = FIELDS.filter((field) => faultOf(SCHEMA[field.key], form.values[field.key])).map((field) => t(field.label));
+  const why = unfilled.length ? t('join.why.fields', { list: unfilled.join(', ') })
+    : consent.why ? t(consent.why) : null;
+
 
   async function send() {
     if (!notice || !form.validate()) return;
@@ -73,7 +90,7 @@ export function JoinPage() {
       await submit.mutateAsync({
         data: {
           // Погашенный код не отправляется: сервер ответил бы «не найдено», а заявка нужна и так.
-          code: live ? code : undefined,
+          code: code && !expired ? code : undefined,
           name: form.values.name.trim(),
           binIin: blank(form.values.binIin),
           phone: form.values.phone.trim(),
@@ -89,19 +106,35 @@ export function JoinPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center p-4">
+    <div className="flex min-h-dvh items-center justify-center gap-6 p-4">
       <LanguageAsk />
       <Card className="flex w-full max-w-[460px] flex-col gap-4 p-6">
-        <div className="flex items-center gap-2">
-          <Logo variant="mark" height={22} decorative />
+        <div className="flex items-center gap-3">
+          <Logo variant="mark" height={36} decorative />
           <div>
-            <div className="text-sm font-semibold leading-tight text-ink">Q-Order</div>
+            <div className="text-lg font-extrabold leading-tight text-ink">Q-Order</div>
             <div className="text-2xs leading-4 text-ink-faint">{t('brand.tagline')}</div>
           </div>
           <div className="ml-auto"><LanguagePicker /></div>
         </div>
+        {/* Без кода приглашения нет — приложению нечего открыть. */}
+        {code ? <OpenInApp /> : null}
 
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+        {/* По макету SimplePicInvLanding: общий заголовок, а кто позвал — карточкой под ним. */}
+        <h1 className="text-display font-extrabold leading-tight text-ink">{t('join.headline')}</h1>
+
+        {live && (
+          <div data-testid="join-inviter" className="flex items-center gap-3 rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface p-3">
+            <span aria-hidden="true" className="flex size-[3.25rem] shrink-0 items-center justify-center rounded-2xl bg-sale-ink text-title font-extrabold text-on-sale">
+              {(live.referrerName ?? '?').replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase() || '?'}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm text-ink-muted">{t('join.invitedBy')}</span>
+              <span className="block text-lead font-extrabold leading-tight text-ink">{live.referrerName ?? t('join.oneOfClients')}</span>
+              <span className="block text-sm text-ink-muted">{t('join.yourClient')}</span>
+            </span>
+          </div>
+        )}
 
         {expired && (
           <p className="rounded-[var(--radius-control)] border border-hairline bg-sunk px-3 py-2 text-sm text-ink">
@@ -109,13 +142,30 @@ export function JoinPage() {
           </p>
         )}
 
-        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-ink-muted">
-          <li>{t('join.benefit1')}</li>
-          <li>{t('join.benefit2')}</li>
-          <li>{t('join.benefit3')}</li>
-        </ul>
+        <p className="m-0 text-base leading-snug text-ink">{t('join.lead')}</p>
 
-        {sent ? (
+        {shown === 'who' ? (
+          <div className="flex flex-col gap-3">
+            <h2 className="text-xl font-bold text-ink">{t('join.who.title')}</h2>
+            {/* Без адреса рабочего места подключаться некуда — владельцу остаётся заявка ниже. */}
+            {signupHref('ref', code ?? '') ? (
+              <Button size="lg" asChild className="h-auto flex-col items-start gap-0.5 whitespace-normal py-3 text-left">
+                <a href={signupHref('ref', code ?? '') ?? undefined}>
+                  <span>{t('join.who.owner')}</span>
+                  <span className="text-sm font-normal opacity-90">{t('join.who.ownerHint')}</span>
+                </a>
+              </Button>
+            ) : null}
+            <Button size="lg" variant="outline" className="h-auto flex-col items-start gap-0.5 whitespace-normal py-3 text-left"
+              onClick={() => setStep('seller')}>
+              <span>{t('join.who.seller')}</span>
+              <span className="text-sm font-normal text-ink-muted">{t('join.who.sellerHint')}</span>
+            </Button>
+            <Button variant="soft" className="h-auto whitespace-normal py-3" onClick={() => setStep('lead')}>{t('join.who.lead')}</Button>
+          </div>
+        ) : shown === 'seller' ? (
+          <ForwardToOwner code={code ?? ''} onBack={() => setStep('who')} />
+        ) : sent ? (
           <p role="status" className="rounded-[var(--radius-control)] bg-accent-soft px-3 py-3 text-base font-medium text-accent-ink">
             {t('join.thanks')}
           </p>
@@ -123,7 +173,10 @@ export function JoinPage() {
           <>
             {FIELDS.map((field) => (
               <div key={field.key} className="flex flex-col gap-1.5">
-                <label htmlFor={`${id}-${field.key}`} className="text-sm font-medium text-ink">{t(field.label)}</label>
+                <label htmlFor={`${id}-${field.key}`} className="text-sm font-medium text-ink">
+                  {t(field.label)}
+                  {SCHEMA[field.key].required ? null : <span className="font-normal text-ink-faint"> {t('join.optional')}</span>}
+                </label>
                 <input
                   id={`${id}-${field.key}`}
                   value={form.values[field.key]}
@@ -138,25 +191,7 @@ export function JoinPage() {
               </div>
             ))}
 
-            {notice && (
-              <div className="flex flex-col gap-2">
-                <details className="rounded-[var(--radius-control)] border border-hairline bg-surface p-3">
-                  <summary className="cursor-pointer text-sm font-medium text-ink">{t('join.consentTitle')}</summary>
-                  <div className="mt-3 max-h-[26rem] overflow-y-auto pr-1">
-                    <ConsentNotice text={notice.text} />
-                  </div>
-                </details>
-                <label className="flex items-start gap-2 text-sm text-ink">
-                  <input
-                    type="checkbox"
-                    checked={accepted}
-                    onChange={(event) => setAccepted(event.currentTarget.checked)}
-                    className="mt-0.5 size-5 accent-[var(--color-brand)]"
-                  />
-                  <span>{t('join.consentAccept')}</span>
-                </label>
-              </div>
-            )}
+            <ConsentBlock consent={consent} />
 
             {failure && (
               <p role="alert" className="rounded-[var(--radius-control)] border border-gone/30 bg-gone/8 px-3 py-2 text-sm text-ink">
@@ -166,14 +201,18 @@ export function JoinPage() {
 
             <Button
               size="lg"
-              disabled={!accepted || !notice || !form.isValid || submit.isPending}
+              disabled={!!why || submit.isPending}
+              aria-describedby={why ? `${id}-why` : undefined}
               onClick={() => void send()}
             >
               {submit.isPending ? t('join.sending') : t('join.send')}
             </Button>
+            {why && <p id={`${id}-why`} className="text-base text-ink-muted">{why}</p>}
           </>
         )}
       </Card>
+      {/* Монитор: открыли на компьютере — QR переносит ссылку на телефон. */}
+      {code ? <PhoneQr /> : null}
     </div>
   );
 }

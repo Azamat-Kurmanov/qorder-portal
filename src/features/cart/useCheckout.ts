@@ -1,3 +1,4 @@
+import { useCartPart } from './cartPart';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -9,9 +10,8 @@ import {
   type PortalDraftCreated,
   type SubmitOrderDelivery,
 } from '../../api/generated';
-import { cartOf, useCart } from './useCart';
 import { deliveryPrice, useDeliveryOptions } from './DeliveryBlock';
-import { paysCarrierDirectly } from './carrier';
+import { ownCarrierChosen, paysCarrierDirectly } from './carrier';
 import { chosenLoaders, type LoadersLine } from './loaders';
 import { serviceVat } from './serviceVat';
 import { useMotion } from '../../ui/motion/motionLevel';
@@ -43,8 +43,14 @@ export function useCheckout(initialDelivery?: SubmitOrderDelivery) {
   useEffect(() => {
     void queryClient.invalidateQueries({ queryKey: getGetPortalSuppliersQueryKey() });
   }, [queryClient]);
-  const cart = cartOf(useCart().data);
+  // Оптовая и розничная заявки раздельные: оформляется одна — та, что открыта.
+  const { cart, part, split, itemIds, pick } = useCartPart();
   const [note, setNote] = useState('');
+  // За оплату (false) или в долг под реализацию (true); пусто — ещё не выбрал, отправить нельзя.
+  const [chosenCredit, setCredit] = useState<boolean | null>(null);
+  // В долг — только оптом (решение владельца 2026-11-07): в рознице не спрашиваем, всегда за оплату.
+  const askCredit = part === 'WHOLESALE';
+  const credit = askCredit ? chosenCredit : false;
   const [delivery, setDelivery] = useState<SubmitOrderDelivery>(initialDelivery ?? {});
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [stale, setStale] = useState<CartStaleResponse | null>(null);
@@ -71,6 +77,8 @@ export function useCheckout(initialDelivery?: SubmitOrderDelivery) {
         setStale(null);
         setClosed(false);
         setSubmitted((response.data as PortalDraftCreated).draftId);
+        // Оставшееся в корзине — снова отмечено: следующая заявка начинается со всего, что лежит.
+        pick.set([]);
         void queryClient.invalidateQueries({ queryKey: getGetPortalCartQueryKey() });
       },
       onError: (error) => {
@@ -97,9 +105,9 @@ export function useCheckout(initialDelivery?: SubmitOrderDelivery) {
   // Пусто означает «стоимость пока неизвестна», а не «бесплатно»: у зонального
   // и договорного тарифа её называет поставщик, и показать вместо неё ноль
   // значило бы пообещать за него.
-  const shipping = deliveryPrice(method, goodsTotal, delivery.zoneId);
+  const shipping = ownCarrierChosen(method, delivery) ? undefined : deliveryPrice(method, goodsTotal, delivery.zoneId);
   // Доставку, оплачиваемую перевозчику напрямую, клиент видит, но в итог она не входит.
-  const direct = paysCarrierDirectly(method);
+  const direct = paysCarrierDirectly(method, delivery);
   const shippingInTotal = direct ? 0 : shipping ?? 0;
   // Корзина считается в штуках: по ним и вес, и «за количество».
   const loadersLines: LoadersLine[] = lines.map((line) => ({ quantity: line.quantity ?? 0, unitWeightKg: line.unitWeightKg }));
@@ -134,11 +142,20 @@ export function useCheckout(initialDelivery?: SubmitOrderDelivery) {
       loadersVat,
       total: payForGoods + shippingInTotal + loadersInTotal + deliveryVat.onTop + loadersVat.onTop,
     },
+    credit,
+    setCredit,
+    /** Спрашивать ли «Как будете платить?»: только у оптовой заявки. */
+    askCredit,
     send: () => {
+      if (credit === null) return;
       setFailed(null);
-      submit.mutate({ data: { note: note.trim() || undefined, delivery: chosen(delivery) } });
+      submit.mutate({ data: { note: note.trim() || undefined, delivery: chosen(delivery), mode: split ? part : undefined, credit, itemIds } });
     },
     sending: submit.isPending,
+    /** Какая заявка оформляется; пусто — корзина пуста. */
+    part,
+    /** После отправки одной заявки — к оформлению второй, что осталась в корзине. */
+    again: () => { setSubmitted(null); setNote(''); setCredit(null); },
     submitted,
     stale,
     closed,

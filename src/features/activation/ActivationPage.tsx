@@ -1,24 +1,27 @@
-import { useState } from 'react';
-import { ConsentNotice } from './ConsentNotice';
+import { useId, useState } from 'react';
+import { ConsentBlock, useConsent } from './Consent';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Logo } from '../../ui/Logo';
 import { Card } from '../../ui/Card';
 import { cn } from '../../ui/cn';
+import { Eye } from '../../ui/icons';
 import { FieldFaultText } from '../../ui/Field';
 import { useFormRules } from '../../ui/forms/useFormRules';
 import { rules } from '../../api/rules.generated';
 import {
   useActivatePortalInvitation,
   useGetPortalConsentNotice,
+  usePreviewPortalInvitation,
   type AccountDto,
-  type ConsentNoticeDto,
 } from '../../api/generated';
 import { useAuth } from '../../auth/useAuth';
 import { LanguageAsk } from '../language/LanguageAsk';
 import { LanguagePicker } from '../shell/LanguagePicker';
 import { setCurrentSupplierId } from '../../supplier/supplier';
+import { OpenInApp } from '../openInApp/OpenInApp';
+import { ShopTile } from '../shell/ShopTile';
 
 /**
  * Единственная страница кабинета, открытая без входа.
@@ -91,7 +94,6 @@ export function ActivationPage() {
    * свой текст, и человеку по ним есть что исправить.
    */
   const [refusal, setRefusal] = useState<string | null>(null);
-  const [accepted, setAccepted] = useState(false);
   /*
    * Пароль — на правиле контракта: потолок в 128 знаков объявлен там, и своё
    * число здесь стало бы второй записью того же правила. Обязательным поле
@@ -106,9 +108,20 @@ export function ActivationPage() {
 
   // Уведомление читается до входа и без токена: учётной записи ещё нет,
   // а обработка не должна начаться раньше, чем человека о ней уведомили.
-  const noticeQuery = useGetPortalConsentNotice();
-  const notice: ConsentNoticeDto | undefined =
-    noticeQuery.data?.status === 200 ? noticeQuery.data.data : undefined;
+  // Согласие — на языке экрана; при смене языка даётся заново (см. useConsent).
+  const consent = useConsent(useGetPortalConsentNotice({ query: { retry: 1 } }));
+  // «Вас пригласил «Лето»» — по коду ссылки; негодный код просто не покажет магазин, отказ скажет активация.
+  const preview = usePreviewPortalInvitation({ code }, { query: { enabled: !!code, retry: false, staleTime: Infinity } });
+  const inviter = preview.data?.status === 200 ? preview.data.data : undefined;
+  // Ссылку заперло частотой попыток: превью не скажет, нужен ли вход, и форма с паролем
+  // без объяснения выглядела бы рабочей. Говорим то же, что сказала бы активация.
+  const locked = preview.isError && refusalCodeOf(preview.error) === 'PORTAL_TOO_MANY_ATTEMPTS';
+  const shownRefusal = refusal ?? (locked ? 'PORTAL_TOO_MANY_ATTEMPTS' : null);
+  const { notice } = consent;
+  const id = useId();
+  const [shown, setShown] = useState(false);
+  // Почему кнопка погашена — словами под ней; про длинный пароль скажет само поле.
+  const why = consent.why;
 
   const activate = useActivatePortalInvitation({
     mutation: {
@@ -131,10 +144,12 @@ export function ActivationPage() {
   if (!code) {
     return (
       <Screen>
-        <h1 className="text-xl font-semibold tracking-tight text-ink">
+        <h1 className="text-display font-extrabold leading-tight text-ink">
           {t('activation.incomplete.title')}
         </h1>
         <p className="text-ink-muted">{t('activation.incomplete.note')}</p>
+        {/* Не тупик: у кого кабинет уже есть, тот входит отсюда. */}
+        <Button size="lg" onClick={login}>{t('activation.signIn')}</Button>
       </Screen>
     );
   }
@@ -164,8 +179,18 @@ export function ActivationPage() {
         </div>
       </div>
 
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">{t('activation.title')}</h1>
-      <p className="text-sm text-ink-muted">{t('activation.note')}</p>
+      {inviter && (
+        <div data-testid="activation-inviter" className="flex items-center gap-3.5">
+          <ShopTile supplier={{ name: inviter.name, logoUrl: inviter.logoUrl }} initials className="size-16 shrink-0 rounded-2xl text-title" />
+          <span className="min-w-0">
+            <b className="block text-body font-extrabold text-ink-muted">{t('activation.invitedBy')}</b>
+            <b className="block text-lead font-extrabold leading-tight text-ink">{inviter.name}</b>
+          </span>
+        </div>
+      )}
+
+      <h1 className="text-display font-extrabold leading-tight text-ink">{t('activation.title')}</h1>
+      <p className="text-base text-ink-muted">{t('activation.note')}</p>
 
       {authenticated && (
         /*
@@ -174,20 +199,28 @@ export function ActivationPage() {
           конкретный номер: увидев чужой, человек поймёт, что вошёл не тем,
           — а не будет гадать над одинаковым отказом.
         */
-        <p className={cn(
-          'rounded-[var(--radius-control)] border border-hairline bg-surface px-3 py-2.5',
-          'text-sm text-ink-muted',
-        )}>
-          {t('activation.signedInPrefix')}{' '}
-          <span className="font-medium tabular-nums text-ink">
-            {phoneLabel(phone, t('activation.unknownPhone'))}
-          </span>.{' '}
-          {t('activation.signedInAs')}
-        </p>
+        <div className="rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface px-3.5 py-3">
+          <span className="text-caption text-ink-muted">{t('activation.yourNumber')}</span>
+          <b className="block text-title font-extrabold tabular-nums text-ink">{phoneLabel(phone, t('activation.unknownPhone'))}</b>
+          <span className="text-caption text-ink-muted">{t('activation.signedInAs')}</span>
+        </div>
       )}
 
+      {/*
+        Учётная запись у приглашённого уже есть: пароль ему придумывать нечего,
+        ссылка его не сменит. Вход вернёт на эту же ссылку, и магазин добавится
+        из-под входа — согласием и одной кнопкой.
+      */}
+      {!authenticated && inviter?.signInRequired ? (
+        <div className="flex flex-col gap-3" data-testid="activation-sign-in-first">
+          <p className="text-base text-ink">{t('activation.signInToAccept')}</p>
+          <Button size="lg" className="h-16 w-full rounded-[1.375rem] text-lead" onClick={login}>
+            {t('activation.signIn')}
+          </Button>
+        </div>
+      ) : (
       <>
-          {refusal !== null && (
+          {shownRefusal !== null && (
             /*
              * Свой текст только у тех отказов, которые сервер назвал сам
              * и которые человеку есть чем исправить. Остальное — один текст
@@ -199,7 +232,7 @@ export function ActivationPage() {
               role="alert"
               className="rounded-[var(--radius-control)] border border-gone/30 bg-gone/8 px-3 py-2 text-sm text-ink"
             >
-              {t(refusalTextKey(refusal))}
+              {t(refusalTextKey(shownRefusal))}
             </p>
           )}
 
@@ -212,10 +245,10 @@ export function ActivationPage() {
             этого страница не вправе: сервер о причине умалчивает намеренно,
             и текст говорит «если уже был», а не «вы уже зарегистрированы».
           */}
-          {!authenticated && refusal !== null && (
+          {!authenticated && shownRefusal !== null && (
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-ink-muted">{t('activation.alreadyHaveAccount')}</p>
-              <Button size="lg" variant="ghost" onClick={login}>{t('activation.signIn')}</Button>
+              <p className="text-base text-ink-muted">{t('activation.alreadyHaveAccount')}</p>
+              <Button size="lg" variant="outline" onClick={login}>{t('activation.signIn')}</Button>
             </div>
           )}
 
@@ -225,56 +258,7 @@ export function ActivationPage() {
             текст, с которым соглашается. Вместе с согласием на сервер уходит
             редакция документа — через год отвечать придётся именно за неё.
           */}
-          {notice && (
-            <div className="flex flex-col gap-2">
-              <details className="rounded-[var(--radius-control)] border border-hairline bg-surface p-3">
-                <summary className="cursor-pointer text-sm font-medium text-ink">
-                  {t('activation.consentTitle')}
-                </summary>
-                {/*
-                  Текст разбирается, а не выводится как есть: сервер отдаёт его
-                  в разметке, и решётки со звёздочками посреди юридического
-                  документа читаются как недоделанность.
-
-                  Высота больше прежней: документ из десяти разделов в полоске
-                  на четырнадцать строк листается вслепую, и человек соглашается
-                  с тем, чего не прочёл.
-                */}
-                <div className="mt-3 max-h-[26rem] overflow-y-auto pr-1">
-                  <ConsentNotice text={notice.text} />
-                </div>
-              </details>
-
-              <label className="flex items-start gap-2 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={accepted}
-                  onChange={(event) => setAccepted(event.currentTarget.checked)}
-                  className="mt-0.5 size-5 accent-[var(--color-brand)]"
-                />
-                <span>{t('activation.consentAccept')}</span>
-              </label>
-            </div>
-          )}
-
-          {/*
-            Подсказка до попытки, а не только после отказа: клиент, у которого
-            кабинет Q-Order уже есть у другого поставщика, иначе придумывал бы
-            пароль и упирался в «недействительно». Показывается всем невошедшим
-            одинаково — от ссылки не зависит и о ней ничего не сообщает.
-          */}
-          {!authenticated && refusal === null && (
-            <p className="flex flex-wrap items-center gap-x-2 text-sm text-ink-muted">
-              <span>{t('activation.existingCustomerHint')}</span>
-              <button
-                type="button"
-                onClick={login}
-                className="cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-[var(--color-brand)] underline-offset-2 hover:underline"
-              >
-                {t('activation.signIn')}
-              </button>
-            </p>
-          )}
+          <ConsentBlock consent={consent} titleKey="activation.consentTitle" acceptKey="activation.consentAccept" />
 
           {/*
             Пароль спрашивается только у невошедшего: вошедший его уже задал —
@@ -283,30 +267,39 @@ export function ActivationPage() {
           */}
           {!authenticated && (
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="activation-password" className="text-sm font-medium text-ink">
+              <label htmlFor="activation-password" className="text-body font-extrabold text-ink">
                 {t('activation.passwordLabel')}
               </label>
+              <span className="relative flex">
               <input
                 id="activation-password"
-                type="password"
+                type={shown ? 'text' : 'password'}
                 autoComplete="new-password"
                 value={password}
                 aria-invalid={form.faults.password ? 'true' : 'false'}
                 onChange={(event) => form.field('password').onChange(event.currentTarget.value)}
                 onBlur={form.field('password').onBlur}
                 className={cn(
-                  'h-11 rounded-[var(--radius-control)] border border-hairline bg-surface px-3',
-                  'text-sm text-ink outline-none focus:border-[var(--color-brand)]',
+                  'h-14 w-full rounded-[var(--radius-control)] border-2 border-field-line bg-surface pl-4 pr-14',
+                  'text-base text-ink outline-none focus:border-shop focus:ring-1 focus:ring-shop',
                 )}
               />
+              <button type="button" aria-pressed={shown} aria-label={t(shown ? 'activation.hidePassword' : 'activation.showPassword')}
+                onClick={() => setShown((was) => !was)}
+                className="absolute inset-y-0 right-1 flex w-12 cursor-pointer items-center justify-center border-0 bg-transparent text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                <Eye aria-hidden="true" className="size-6" />
+              </button>
+              </span>
               <FieldFaultText fault={form.faults.password} name="password" />
-              <p className="text-xs text-ink-muted">{t('activation.passwordNote')}</p>
+              <p className="text-caption text-ink-muted">{t('activation.passwordNote')}</p>
             </div>
           )}
 
           <Button
             size="lg"
-            disabled={!accepted || !notice || !form.isValid || activate.isPending}
+            className="h-16 w-full rounded-[1.375rem] text-lead"
+            disabled={!!why || !form.isValid || activate.isPending}
+            aria-describedby={why ? `${id}-why` : undefined}
             onClick={() =>
               notice
               && activate.mutate({
@@ -322,7 +315,28 @@ export function ActivationPage() {
           >
             {activate.isPending ? t('activation.opening') : t('activation.open')}
           </Button>
+          {why && <p id={`${id}-why`} className="text-base text-ink-muted">{t(why)}</p>}
+          {/*
+            Подсказка до попытки, а не только после отказа: клиент, у которого
+            кабинет Q-Order уже есть у другого поставщика, иначе придумывал бы
+            пароль и упирался в «недействительно». Показывается всем невошедшим
+            одинаково — от ссылки не зависит и о ней ничего не сообщает.
+          */}
+          {!authenticated && shownRefusal === null && (
+            <p className="flex flex-col items-center gap-1 text-center text-body text-ink-muted">
+              <span>{t('activation.existingCustomerHint')}</span>
+              <button
+                type="button"
+                onClick={login}
+                className="min-h-11 cursor-pointer border-0 bg-transparent p-0 text-base font-bold text-shop-ink underline-offset-2 hover:underline"
+              >
+                {t('activation.signIn')}
+              </button>
+            </p>
+          )}
+
       </>
+      )}
     </Screen>
   );
 }
@@ -334,7 +348,7 @@ export function ActivationPage() {
  */
 function Screen({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center p-4">
+    <div className="flex min-h-dvh items-start justify-center bg-canvas px-4 py-6 sm:items-center">
       {/*
         Вопрос о языке стоит здесь, в общей обёртке, а не в одной из веток:
         приглашённый попадает и на форму, и на экран «ссылка неполная», и
@@ -346,7 +360,7 @@ function Screen({ children }: { children: React.ReactNode }) {
         тот же вопрос второй раз не зададут.
       */}
       <LanguageAsk />
-      <Card className="flex w-full max-w-[420px] flex-col gap-4 p-6">{children}</Card>
+      <Card className="flex w-full max-w-[30rem] flex-col gap-4 border-0 bg-transparent p-0 sm:border-2 sm:bg-surface sm:p-7"><OpenInApp />{children}</Card>
     </div>
   );
 }

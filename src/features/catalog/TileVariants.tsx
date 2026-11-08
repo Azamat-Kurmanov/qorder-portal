@@ -2,7 +2,7 @@ import { useRef, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { ShowcaseItemDto } from '../../api/generated';
-import { axesOf, colourOf, pickVariant, swatchesOf, valuesOf, type Axis } from './VariantPicker';
+import { axesOf, swatchOf, pickVariant, swatchesOf, valuesOf, type Axis } from './VariantPicker';
 import { cn } from '../../ui/cn';
 
 /** Больше значений плитка не показывает: остальные — «+N» в карточке товара. */
@@ -122,7 +122,7 @@ function TileVariantChoice({
             >
               <span
                 aria-hidden="true"
-                style={{ background: colourOf(option) }}
+                style={{ background: swatchOf(axis, option) }}
                 className={cn(
                   'size-6 rounded-full border-2 border-surface transition-shadow duration-150',
                   on ? 'shadow-[0_0_0_2px_var(--color-accent)]' : 'shadow-[0_0_0_1px_var(--color-line)] group-hover/swatch:shadow-[0_0_0_1.5px_var(--color-ink-muted)]',
@@ -142,7 +142,7 @@ function TileVariantChoice({
               className={cn(
                 'h-9 min-w-9 cursor-pointer rounded-[var(--radius-control)] border px-2 text-caption font-semibold transition-colors duration-150 sm:h-8',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                on ? 'border-ink bg-ink text-surface' : 'border-line bg-surface text-ink hover:border-ink/50',
+                on ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface text-ink hover:border-ink/50',
               )}
             >
               {option}
@@ -154,7 +154,7 @@ function TileVariantChoice({
         <Link
           to={`/catalog/${cardId}`}
           aria-label={t('catalog.variantsMore', { count: hidden })}
-          className="flex h-9 items-center px-1.5 text-caption font-semibold text-ink-muted hover:text-accent sm:h-8"
+          className="qo-hit flex h-9 items-center px-1.5 text-caption font-semibold text-ink-muted hover:text-accent sm:h-8"
         >
           +{hidden}
         </Link>

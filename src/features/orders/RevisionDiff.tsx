@@ -56,10 +56,18 @@ function describe(change: SnapshotDiffDto, currency: Currency | undefined): stri
       return `Добавлено: ${change.name}${change.now === undefined ? '' : `, ${decimal(change.now)}`}`;
     case 'LINE_REMOVED':
       return `Убрано: ${change.name}`;
+    case 'LINE_REPLACED':
+      return `Замена: ${change.replacedName ?? ''} → ${change.name}${
+        change.now === undefined ? '' : `, ${money(change.now, currency)}`
+      }`;
     case 'QUANTITY_CHANGED':
       return `${change.name} — количество ${decimal(change.was ?? 0)} → ${decimal(change.now ?? 0)}`;
     case 'PRICE_CHANGED':
       return `${change.name} — цена ${money(change.was ?? 0, currency)} → ${money(change.now ?? 0, currency)}`;
+    case 'PRICE_NAMED':
+      return `${change.name === 'Грузчики' ? 'Грузчики' : `Доставка: ${change.name}`} — продавец назвал стоимость${
+        change.now === undefined ? '' : `: ${money(change.now, currency)}`
+      }`;
     case 'DELIVERY_CHANGED':
       // Без сумм — срок «будет …» или перевозчик: название уже говорит само.
       if (change.was == null && change.now == null) return change.name;

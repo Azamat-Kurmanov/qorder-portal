@@ -14,17 +14,7 @@
  *
  * Получить токен паролем из командной строки нельзя: у клиентов realm выключен прямой доступ по паролю. Рабочий путь один — войти в веб-интерфейс и взять оттуда `access_token` (в браузере: инструменты разработчика, вкладка сети, любой запрос к `/api`, заголовок `Authorization`). Полученное значение вставляется в Swagger UI кнопкой **Authorize** и живёт до истечения срока токена. Кому нужен `curl`, тот включает прямой доступ по паролю клиенту `q-order-web` в консоли Keycloak — на стенде это допустимо, на сервере нет.
  *
- * **Учётные записи стенда.** Заводятся, когда `KC_DEV_USERS=true`; пароли лежат в `.env` и в контракт не выносятся.
- *
- * Имя пользователя — номер телефона: сотрудник входит им же,                         что и клиент кабинета, и придуманных логинов в системе нет вовсе.
- *
- * | Номер | Кто это | Роли | Пароль в `.env` |
- * |---|---|---|---|
- * | `77010000101` | администратор арендатора | TENANT_ADMIN, MANAGER, STOCK_KEEPER, ACCOUNTANT, VIEWER | `KC_DEV_ADMIN_PASSWORD` |
- * | `77010000102` | менеджер | MANAGER, VIEWER | `KC_DEV_MANAGER_PASSWORD` |
- * | `77010000103` | кладовщик | STOCK_KEEPER, VIEWER | `KC_DEV_STOCK_PASSWORD` |
- *
- * Проверка отказа по роли делается сменой учётной записи, а не правкой прав: `77010000101` совмещает все роли и на запрет не наткнётся никогда.
+ * **Учётные записи стенда.** Сотрудников арендатора realm не привозит: их заводит платформа или администратор арендатора. Права сотрудника — роли арендатора в базе, а не роли Keycloak.
  *
  * **Арендатор из токена обязан существовать в базе.** Учётные записи заводит Keycloak, а строку арендатора — нет: через API арендатор не создаётся вовсе. Пока её нет, любой запрос отвечает 404 с кодом `TENANT_NOT_FOUND`, хотя токен верный и роли на месте. Отказ приходит от прикладного слоя, а не от проверки доступа, и на настройку прав время тратить незачем: завести нужно арендатора с тем самым идентификатором, что стоит в `tenant_id` токена, и строку его настроек — все её поля имеют умолчания.
  *
@@ -373,6 +363,7 @@ export const PermissionDtoSection = {
   SALES: 'SALES',
   DELIVERY_RUNS: 'DELIVERY_RUNS',
   PURCHASE_PRICES: 'PURCHASE_PRICES',
+  ALL_CONVERSATIONS: 'ALL_CONVERSATIONS',
 } as const;
 
 /**
@@ -470,6 +461,10 @@ export interface PlatformTenantDto {
   currency: PlatformTenantDtoCurrency;
   /** Тариф на кабинет (`GET /api/tenant/platform/tariffs`); назначает платформа. Новый и действовавший до ввода тарифов арендатор — на `PRO` */
   tariff: string;
+  /** Зарегистрировался сам, а не заведён платформой */
+  selfSignup: boolean;
+  /** Конец пробного периода; пусто — пробного периода нет */
+  trialEndsAt?: string;
 }
 
 /**
@@ -644,6 +639,55 @@ export interface PlatformReferralDto {
 }
 
 /**
+ * Банк справочника платформы
+ */
+export interface SavePaymentBankRequest {
+  /**
+     * Страна, ISO-код из двух букв; при правке не меняется
+     * @minLength 1
+     * @pattern ^[A-Z]{2}$
+     */
+  country: string;
+  /**
+     * Код банка латиницей: A–Z, цифры, _; при правке не меняется
+     * @minLength 1
+     * @pattern ^[A-Z0-9_]{2,20}$
+     */
+  code: string;
+  /**
+     * Название для экрана
+     * @minLength 0
+     * @maxLength 60
+     */
+  name: string;
+  /**
+     * Порядок в выборе
+     * @minimum 0
+     * @maximum 9999
+     */
+  sortOrder: number;
+  /** Показывать клиентам и продавцам */
+  visible: boolean;
+}
+
+/**
+ * Банк из справочника платформы
+ */
+export interface PaymentBankDto {
+  id: string;
+  /** Страна, ISO-код из двух букв */
+  country: string;
+  /** Код банка — пишется в оплату, не меняется */
+  code: string;
+  /** Название для экрана */
+  name: string;
+  /** Порядок в выборе, по возрастанию */
+  sortOrder: number;
+  /** Показывать в выборе; скрытый остаётся в прошлых оплатах */
+  visible: boolean;
+}
+
+/**
  * Доставка: заранее или при получении
  */
 export type PaymentRulesDtoDelivery = typeof PaymentRulesDtoDelivery[keyof typeof PaymentRulesDtoDelivery];
@@ -758,6 +802,7 @@ export const MessageTemplateItemDtoKey = {
   PAYMENT_TERMS: 'PAYMENT_TERMS',
   RETURN_TERMS: 'RETURN_TERMS',
   PORTAL_RENEGOTIATION: 'PORTAL_RENEGOTIATION',
+  PORTAL_PRICE_NAMED: 'PORTAL_PRICE_NAMED',
   PORTAL_DEADLINE_SOON: 'PORTAL_DEADLINE_SOON',
   PORTAL_ACCEPTED: 'PORTAL_ACCEPTED',
   PORTAL_QUESTION_ANSWERED: 'PORTAL_QUESTION_ANSWERED',
@@ -1109,42 +1154,6 @@ export const SaveCabinetDesignRequestOccasion = {
 } as const;
 
 /**
- * Живой фон поверх подложки; пусто — как у темы
- */
-export type SaveCabinetDesignRequestBackdrop = typeof SaveCabinetDesignRequestBackdrop[keyof typeof SaveCabinetDesignRequestBackdrop];
-
-
-export const SaveCabinetDesignRequestBackdrop = {
-  GLOW: 'GLOW',
-  SHIMMER: 'SHIMMER',
-  HORIZON: 'HORIZON',
-  PARTICLES: 'PARTICLES',
-  BLOBS: 'BLOBS',
-  SPOTLIGHT: 'SPOTLIGHT',
-  SCROLLTINT: 'SCROLLTINT',
-  AURORA: 'AURORA',
-  WAVES: 'WAVES',
-  RAYS: 'RAYS',
-  BUBBLES: 'BUBBLES',
-  STARS: 'STARS',
-  MESH: 'MESH',
-  STRIPES: 'STRIPES',
-  RIPPLE: 'RIPPLE',
-  SNOW: 'SNOW',
-  PETALS: 'PETALS',
-  SUNSHINE: 'SUNSHINE',
-  LEAVES: 'LEAVES',
-  GARLAND: 'GARLAND',
-  FIREWORKS: 'FIREWORKS',
-  CONFETTI: 'CONFETTI',
-  BALLOONS: 'BALLOONS',
-  HEARTS: 'HEARTS',
-  SALE_TAGS: 'SALE_TAGS',
-  SEASON: 'SEASON',
-  NONE: 'NONE',
-} as const;
-
-/**
  * Уровень движения: CALM, LIVELY, VIVID; пусто — как у темы
  */
 export type SaveCabinetDesignRequestMotion = typeof SaveCabinetDesignRequestMotion[keyof typeof SaveCabinetDesignRequestMotion];
@@ -1235,8 +1244,6 @@ export interface SaveCabinetDesignRequest {
   occasionFrom?: string;
   /** Последний день праздничного оформления включительно; обязателен при поводе */
   occasionUntil?: string;
-  /** Живой фон поверх подложки; пусто — как у темы */
-  backdrop?: SaveCabinetDesignRequestBackdrop;
   /** Уровень движения: CALM, LIVELY, VIVID; пусто — как у темы */
   motion?: SaveCabinetDesignRequestMotion;
   /** Переход слайдов баннеров; пусто — как у темы */
@@ -1371,42 +1378,6 @@ export const CabinetDesignDtoOccasion = {
 } as const;
 
 /**
- * Живой фон поверх подложки. Пусто — как у темы
- */
-export type CabinetDesignDtoBackdrop = typeof CabinetDesignDtoBackdrop[keyof typeof CabinetDesignDtoBackdrop];
-
-
-export const CabinetDesignDtoBackdrop = {
-  GLOW: 'GLOW',
-  SHIMMER: 'SHIMMER',
-  HORIZON: 'HORIZON',
-  PARTICLES: 'PARTICLES',
-  BLOBS: 'BLOBS',
-  SPOTLIGHT: 'SPOTLIGHT',
-  SCROLLTINT: 'SCROLLTINT',
-  AURORA: 'AURORA',
-  WAVES: 'WAVES',
-  RAYS: 'RAYS',
-  BUBBLES: 'BUBBLES',
-  STARS: 'STARS',
-  MESH: 'MESH',
-  STRIPES: 'STRIPES',
-  RIPPLE: 'RIPPLE',
-  SNOW: 'SNOW',
-  PETALS: 'PETALS',
-  SUNSHINE: 'SUNSHINE',
-  LEAVES: 'LEAVES',
-  GARLAND: 'GARLAND',
-  FIREWORKS: 'FIREWORKS',
-  CONFETTI: 'CONFETTI',
-  BALLOONS: 'BALLOONS',
-  HEARTS: 'HEARTS',
-  SALE_TAGS: 'SALE_TAGS',
-  SEASON: 'SEASON',
-  NONE: 'NONE',
-} as const;
-
-/**
  * Уровень движения: CALM, LIVELY, VIVID. Пусто — как у темы
  */
 export type CabinetDesignDtoMotion = typeof CabinetDesignDtoMotion[keyof typeof CabinetDesignDtoMotion];
@@ -1496,8 +1467,6 @@ export interface CabinetDesignDto {
   occasionFrom?: string;
   /** Последний день праздничного оформления включительно */
   occasionUntil?: string;
-  /** Живой фон поверх подложки. Пусто — как у темы */
-  backdrop?: CabinetDesignDtoBackdrop;
   /** Уровень движения: CALM, LIVELY, VIVID. Пусто — как у темы */
   motion?: CabinetDesignDtoMotion;
   /** Переход слайдов баннеров. Пусто — как у темы */
@@ -1548,6 +1517,12 @@ export interface UpdateBusinessHoursRequest {
      * @maxLength 64
      */
   timezone?: string;
+  /**
+     * Сколько рабочих часов у менеджера на ответ клиенту, от 1 до 720. Пусто — срок не меняется. Действует на новые заявки и вопросы: у уже идущих срок записан при их появлении
+     * @minimum 1
+     * @maximum 720
+     */
+  managerReplyHours?: number;
 }
 
 /**
@@ -1576,6 +1551,8 @@ export interface BusinessHoursDto {
   days: BusinessDayHoursDto[];
   /** Часовой пояс, в котором заданы часы, — идентификатор IANA. По нему считается «сегодня» и «сейчас открыто» для этого арендатора */
   timezone: string;
+  /** Сколько рабочих часов у менеджера на ответ клиенту. По этому сроку считаются просрочка ответа и предупреждение владельцу о ничьей заявке (на половине срока) */
+  managerReplyHours: number;
 }
 
 export interface SaveWarehouseRequest {
@@ -1845,6 +1822,8 @@ export interface StockSettingsDto {
   dropPercent?: number;
   /** Часовой пояс магазина — по нему вводят и показывают время партий. Только в ответе: при сохранении не учитывается */
   readonly timezone?: string;
+  /** Вид «3D» на схеме склада (R-16); по умолчанию выключен. Не передан при сохранении — остаётся как был */
+  layout3d?: boolean;
 }
 
 /**
@@ -2427,6 +2406,14 @@ export interface ReorderQuickRepliesRequest {
 }
 
 /**
+ * Отзывы и оценки заказа: включены ли у магазина
+ */
+export interface ReviewSettingsDto {
+  /** Клиенты пишут отзывы о товарах и оценивают полученные заказы. Выключение отзывы не удаляет: при включении опубликованные на месте */
+  enabled: boolean;
+}
+
+/**
  * Повод уведомления
  */
 export type PushPreferencesDtoMutedItem = typeof PushPreferencesDtoMutedItem[keyof typeof PushPreferencesDtoMutedItem];
@@ -2434,6 +2421,7 @@ export type PushPreferencesDtoMutedItem = typeof PushPreferencesDtoMutedItem[key
 
 export const PushPreferencesDtoMutedItem = {
   RENEGOTIATION: 'RENEGOTIATION',
+  PRICE_NAMED: 'PRICE_NAMED',
   DEADLINE_SOON: 'DEADLINE_SOON',
   ACCEPTED: 'ACCEPTED',
   DRAFT_TAKEN_OVER: 'DRAFT_TAKEN_OVER',
@@ -2442,12 +2430,14 @@ export const PushPreferencesDtoMutedItem = {
   CREDIT_OVERRIDE_REQUESTED: 'CREDIT_OVERRIDE_REQUESTED',
   CUSTOMER_ANSWERED: 'CUSTOMER_ANSWERED',
   DRAFT_QUEUED: 'DRAFT_QUEUED',
+  ITEM_QUESTION: 'ITEM_QUESTION',
   STOCK_REQUESTED: 'STOCK_REQUESTED',
   DRAFT_EXPIRED: 'DRAFT_EXPIRED',
   MANAGER_SILENT: 'MANAGER_SILENT',
   EXCHANGE_SILENT: 'EXCHANGE_SILENT',
   QUESTION_ANSWERED: 'QUESTION_ANSWERED',
   ORDER_ANSWERED: 'ORDER_ANSWERED',
+  REVIEW_ANSWERED: 'REVIEW_ANSWERED',
   CUSTOMER_MESSAGE: 'CUSTOMER_MESSAGE',
   TRANSPORT_RECEIPT_SENT: 'TRANSPORT_RECEIPT_SENT',
   TRANSPORT_PAYMENT_REJECTED: 'TRANSPORT_PAYMENT_REJECTED',
@@ -2456,6 +2446,7 @@ export const PushPreferencesDtoMutedItem = {
   ORDER_DELIVERED: 'ORDER_DELIVERED',
   TEMPLATE_READY: 'TEMPLATE_READY',
   ACCESS_REQUESTED: 'ACCESS_REQUESTED',
+  TRIAL_ENDING: 'TRIAL_ENDING',
   TRANSPORT_PAYMENT_REPORTED: 'TRANSPORT_PAYMENT_REPORTED',
   STOCK_SYNC_CONFLICT: 'STOCK_SYNC_CONFLICT',
   STOCK_CELLS_REDUCED: 'STOCK_CELLS_REDUCED',
@@ -2467,6 +2458,17 @@ export const PushPreferencesDtoMutedItem = {
   BACK_IN_STOCK: 'BACK_IN_STOCK',
   CUSTOMER_SILENT: 'CUSTOMER_SILENT',
   REORDER_DUE: 'REORDER_DUE',
+  DEBT_PAYMENT_CLAIMED: 'DEBT_PAYMENT_CLAIMED',
+  DEBT_PAYMENT_CONFIRMED: 'DEBT_PAYMENT_CONFIRMED',
+  DEBT_PAYMENT_REJECTED: 'DEBT_PAYMENT_REJECTED',
+  DEBT_PAYMENT_RECEIVED: 'DEBT_PAYMENT_RECEIVED',
+  DEBT_PAYMENT_DUE: 'DEBT_PAYMENT_DUE',
+  DRAFT_UNCLAIMED: 'DRAFT_UNCLAIMED',
+  SUBSTITUTION_STARTED: 'SUBSTITUTION_STARTED',
+  CUSTOMERS_HANDED_OVER: 'CUSTOMERS_HANDED_OVER',
+  MANAGER_CHANGED: 'MANAGER_CHANGED',
+  PORTAL_INVITATION: 'PORTAL_INVITATION',
+  CUSTOMER_JOINED: 'CUSTOMER_JOINED',
 } as const;
 
 /**
@@ -2503,6 +2505,585 @@ export interface RegisterDeviceRequest {
   token: string;
   /** Платформа устройства */
   platform: RegisterDeviceRequestPlatform;
+}
+
+export type SaveSupplierRequestDirection = typeof SaveSupplierRequestDirection[keyof typeof SaveSupplierRequestDirection];
+
+
+export const SaveSupplierRequestDirection = {
+  GRID: 'GRID',
+  PACKAGED: 'PACKAGED',
+  WEIGHT: 'WEIGHT',
+  BULK: 'BULK',
+  PIECE: 'PIECE',
+} as const;
+
+export type SaveSupplierRequestCurrency = typeof SaveSupplierRequestCurrency[keyof typeof SaveSupplierRequestCurrency];
+
+
+export const SaveSupplierRequestCurrency = {
+  CNY: 'CNY',
+  USD: 'USD',
+  EUR: 'EUR',
+  RUB: 'RUB',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  TRY: 'TRY',
+  KZT: 'KZT',
+} as const;
+
+export interface SaveSupplierRequest {
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  name: string;
+  direction: SaveSupplierRequestDirection;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  contact?: string;
+  /**
+     * @minLength 0
+     * @maxLength 1000
+     */
+  note?: string;
+  currency: SaveSupplierRequestCurrency;
+  archived?: boolean;
+}
+
+export type DebtDtoCurrency = typeof DebtDtoCurrency[keyof typeof DebtDtoCurrency];
+
+
+export const DebtDtoCurrency = {
+  CNY: 'CNY',
+  USD: 'USD',
+  EUR: 'EUR',
+  RUB: 'RUB',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  TRY: 'TRY',
+  KZT: 'KZT',
+} as const;
+
+export interface DebtDto {
+  currency?: DebtDtoCurrency;
+  amount?: number;
+}
+
+export type SupplierDtoDirection = typeof SupplierDtoDirection[keyof typeof SupplierDtoDirection];
+
+
+export const SupplierDtoDirection = {
+  GRID: 'GRID',
+  PACKAGED: 'PACKAGED',
+  WEIGHT: 'WEIGHT',
+  BULK: 'BULK',
+  PIECE: 'PIECE',
+} as const;
+
+export type SupplierDtoCurrency = typeof SupplierDtoCurrency[keyof typeof SupplierDtoCurrency];
+
+
+export const SupplierDtoCurrency = {
+  CNY: 'CNY',
+  USD: 'USD',
+  EUR: 'EUR',
+  RUB: 'RUB',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  TRY: 'TRY',
+  KZT: 'KZT',
+} as const;
+
+export interface SupplierDto {
+  id?: string;
+  name?: string;
+  direction?: SupplierDtoDirection;
+  contact?: string;
+  note?: string;
+  currency?: SupplierDtoCurrency;
+  archived?: boolean;
+  debts?: DebtDto[];
+}
+
+/**
+ * Пусто — направление поставщика
+ */
+export type SavePurchaseRequestDirection = typeof SavePurchaseRequestDirection[keyof typeof SavePurchaseRequestDirection];
+
+
+export const SavePurchaseRequestDirection = {
+  GRID: 'GRID',
+  PACKAGED: 'PACKAGED',
+  WEIGHT: 'WEIGHT',
+  BULK: 'BULK',
+  PIECE: 'PIECE',
+} as const;
+
+export type SavePurchaseRequestCurrency = typeof SavePurchaseRequestCurrency[keyof typeof SavePurchaseRequestCurrency];
+
+
+export const SavePurchaseRequestCurrency = {
+  CNY: 'CNY',
+  USD: 'USD',
+  EUR: 'EUR',
+  RUB: 'RUB',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  TRY: 'TRY',
+  KZT: 'KZT',
+} as const;
+
+export type SavePurchaseRequestStatus = typeof SavePurchaseRequestStatus[keyof typeof SavePurchaseRequestStatus];
+
+
+export const SavePurchaseRequestStatus = {
+  OPEN: 'OPEN',
+  CLOSED: 'CLOSED',
+} as const;
+
+export interface SavePurchaseRequest {
+  supplierId: string;
+  /** Пусто — направление поставщика */
+  direction?: SavePurchaseRequestDirection;
+  /**
+     * @minLength 0
+     * @maxLength 64
+     */
+  supplierNumber?: string;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  title: string;
+  documentDate: string;
+  currency: SavePurchaseRequestCurrency;
+  status: SavePurchaseRequestStatus;
+  /**
+     * Курс: тенге за единицу валюты закупки; в тенге — 1, пусто — не известен
+     * @minimum 0
+     */
+  rate?: number;
+}
+
+export interface ShipmentLineInput {
+  lineId: string;
+  /** @minimum 0 */
+  quantity: number;
+}
+
+export interface CargoPlaceDto {
+  id?: string;
+  kind?: string;
+  number?: string;
+  grossWeight?: number;
+  volume?: number;
+  description?: string;
+  batchId?: string;
+  cost?: number;
+  content?: ShipmentLineInput[];
+}
+
+export type ExpenseDtoKind = typeof ExpenseDtoKind[keyof typeof ExpenseDtoKind];
+
+
+export const ExpenseDtoKind = {
+  CUSTOMS: 'CUSTOMS',
+  EXCISE: 'EXCISE',
+  CERTIFICATION: 'CERTIFICATION',
+  BROKER: 'BROKER',
+  LOADING: 'LOADING',
+  OTHER: 'OTHER',
+} as const;
+
+export type ExpenseDtoCurrency = typeof ExpenseDtoCurrency[keyof typeof ExpenseDtoCurrency];
+
+
+export const ExpenseDtoCurrency = {
+  CNY: 'CNY',
+  USD: 'USD',
+  EUR: 'EUR',
+  RUB: 'RUB',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  TRY: 'TRY',
+  KZT: 'KZT',
+} as const;
+
+export interface ExpenseDto {
+  id?: string;
+  kind?: ExpenseDtoKind;
+  amount?: number;
+  currency?: ExpenseDtoCurrency;
+  rate?: number;
+  note?: string;
+}
+
+export interface PaymentDto {
+  id?: string;
+  paidOn?: string;
+  amount?: number;
+  amountTenant?: number;
+  note?: string;
+}
+
+export type PurchaseDtoQuantityByUnit = {[key: string]: number};
+
+export type PurchaseSummaryDtoDirection = typeof PurchaseSummaryDtoDirection[keyof typeof PurchaseSummaryDtoDirection];
+
+
+export const PurchaseSummaryDtoDirection = {
+  GRID: 'GRID',
+  PACKAGED: 'PACKAGED',
+  WEIGHT: 'WEIGHT',
+  BULK: 'BULK',
+  PIECE: 'PIECE',
+} as const;
+
+export type PurchaseSummaryDtoCurrency = typeof PurchaseSummaryDtoCurrency[keyof typeof PurchaseSummaryDtoCurrency];
+
+
+export const PurchaseSummaryDtoCurrency = {
+  CNY: 'CNY',
+  USD: 'USD',
+  EUR: 'EUR',
+  RUB: 'RUB',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  TRY: 'TRY',
+  KZT: 'KZT',
+} as const;
+
+export type PurchaseSummaryDtoStatus = typeof PurchaseSummaryDtoStatus[keyof typeof PurchaseSummaryDtoStatus];
+
+
+export const PurchaseSummaryDtoStatus = {
+  OPEN: 'OPEN',
+  CLOSED: 'CLOSED',
+} as const;
+
+export interface PurchaseSummaryDto {
+  id?: string;
+  supplierId?: string;
+  supplierName?: string;
+  direction?: PurchaseSummaryDtoDirection;
+  supplierNumber?: string;
+  title?: string;
+  documentDate?: string;
+  currency?: PurchaseSummaryDtoCurrency;
+  status?: PurchaseSummaryDtoStatus;
+  total?: number;
+  paid?: number;
+  debt?: number;
+  rate?: number;
+}
+
+export type PurchaseLineDtoAttributes = {[key: string]: unknown};
+
+export interface PurchaseLineDto {
+  id?: string;
+  groupNo?: number;
+  supplierArticle?: string;
+  name?: string;
+  attributes?: PurchaseLineDtoAttributes;
+  unit?: string;
+  quantity?: number;
+  price?: number;
+  amount?: number;
+  itemId?: string;
+  unitWeight?: number;
+  unitVolume?: number;
+  shipped?: number;
+  received?: number;
+  itemName?: string;
+}
+
+export interface ShipmentDto {
+  id?: string;
+  shippedOn?: string;
+  placesText?: string;
+  fee?: number;
+  note?: string;
+  lines?: ShipmentLineInput[];
+  places?: CargoPlaceDto[];
+}
+
+export type ReceiptDtoStatus = typeof ReceiptDtoStatus[keyof typeof ReceiptDtoStatus];
+
+
+export const ReceiptDtoStatus = {
+  DRAFT: 'DRAFT',
+  POSTED: 'POSTED',
+} as const;
+
+export interface ReceiptLineDto {
+  lineId?: string;
+  itemId?: string;
+  itemName?: string;
+  size?: string;
+  quantity?: number;
+  unitCost?: number;
+  costNote?: string;
+}
+
+export interface ReceiptDto {
+  id?: string;
+  number?: number;
+  shipmentId?: string;
+  warehouseId?: string;
+  receivedOn?: string;
+  status?: ReceiptDtoStatus;
+  stockDocumentId?: string;
+  version?: number;
+  lines?: ReceiptLineDto[];
+}
+
+export interface PurchaseDto {
+  head?: PurchaseSummaryDto;
+  lines?: PurchaseLineDto[];
+  payments?: PaymentDto[];
+  quantityByUnit?: PurchaseDtoQuantityByUnit;
+  shipments?: ShipmentDto[];
+  expenses?: ExpenseDto[];
+  receipts?: ReceiptDto[];
+}
+
+export interface SaveShipmentRequest {
+  shippedOn: string;
+  /**
+     * @minLength 0
+     * @maxLength 64
+     */
+  placesText?: string;
+  /** @minimum 0 */
+  fee?: number;
+  /**
+     * @minLength 0
+     * @maxLength 500
+     */
+  note?: string;
+  /**
+     * @minItems 0
+     * @maxItems 2000
+     */
+  lines: ShipmentLineInput[];
+}
+
+export interface SavePlaceRequest {
+  /**
+     * @minLength 0
+     * @maxLength 16
+     */
+  kind: string;
+  /**
+     * @minLength 0
+     * @maxLength 32
+     */
+  number?: string;
+  /** @minimum 0 */
+  grossWeight?: number;
+  /** @minimum 0 */
+  volume?: number;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  description?: string;
+  /**
+     * @minItems 0
+     * @maxItems 2000
+     */
+  content?: ShipmentLineInput[];
+}
+
+export type SaveLineRequestAttributes = {[key: string]: unknown};
+
+export interface SaveLineRequest {
+  /** @minimum 1 */
+  groupNo: number;
+  /**
+     * @minLength 0
+     * @maxLength 64
+     */
+  supplierArticle?: string;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  name?: string;
+  attributes?: SaveLineRequestAttributes;
+  /** @minLength 1 */
+  unit: string;
+  /** @minimum 0 */
+  quantity: number;
+  /** @minimum 0 */
+  price: number;
+  /**
+     * Вес единицы, кг — для раскладки доставки по весу
+     * @minimum 0
+     */
+  unitWeight?: number;
+  /**
+     * Объём единицы, м³ — для раскладки доставки по объёму
+     * @minimum 0
+     */
+  unitVolume?: number;
+}
+
+export interface SizePartInput {
+  itemId: string;
+  /** @minimum 0 */
+  quantity: number;
+}
+
+export interface SaveSizesRequest {
+  parts: SizePartInput[];
+}
+
+export interface LinkLineRequest {
+  /** Позиция каталога; пусто — снять связь */
+  itemId?: string;
+}
+
+export type SaveExpenseRequestKind = typeof SaveExpenseRequestKind[keyof typeof SaveExpenseRequestKind];
+
+
+export const SaveExpenseRequestKind = {
+  CUSTOMS: 'CUSTOMS',
+  EXCISE: 'EXCISE',
+  CERTIFICATION: 'CERTIFICATION',
+  BROKER: 'BROKER',
+  LOADING: 'LOADING',
+  OTHER: 'OTHER',
+} as const;
+
+export type SaveExpenseRequestCurrency = typeof SaveExpenseRequestCurrency[keyof typeof SaveExpenseRequestCurrency];
+
+
+export const SaveExpenseRequestCurrency = {
+  CNY: 'CNY',
+  USD: 'USD',
+  EUR: 'EUR',
+  RUB: 'RUB',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  TRY: 'TRY',
+  KZT: 'KZT',
+} as const;
+
+export interface SaveExpenseRequest {
+  kind: SaveExpenseRequestKind;
+  /** @minimum 0 */
+  amount: number;
+  currency: SaveExpenseRequestCurrency;
+  /**
+     * Тенге за единицу валюты; пусто — не известен
+     * @minimum 0
+     */
+  rate?: number;
+  /**
+     * @minLength 0
+     * @maxLength 500
+     */
+  note?: string;
+}
+
+export interface BatchPlaceInput {
+  placeId: string;
+  /** @minimum 0 */
+  cost: number;
+}
+
+export type SaveBatchRequestCurrency = typeof SaveBatchRequestCurrency[keyof typeof SaveBatchRequestCurrency];
+
+
+export const SaveBatchRequestCurrency = {
+  CNY: 'CNY',
+  USD: 'USD',
+  EUR: 'EUR',
+  RUB: 'RUB',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  TRY: 'TRY',
+  KZT: 'KZT',
+} as const;
+
+export interface SaveBatchRequest {
+  /**
+     * @minLength 0
+     * @maxLength 16
+     */
+  kind?: string;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  carrier?: string;
+  /**
+     * @minLength 0
+     * @maxLength 64
+     */
+  clientCode?: string;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  route?: string;
+  periodFrom?: string;
+  periodTo?: string;
+  currency: SaveBatchRequestCurrency;
+  /** @minimum 0 */
+  rate?: number;
+  /**
+     * @minLength 0
+     * @maxLength 500
+     */
+  note?: string;
+  places: BatchPlaceInput[];
+}
+
+export interface BatchPlaceDto {
+  placeId?: string;
+  purchaseId?: string;
+  purchaseTitle?: string;
+  number?: string;
+  grossWeight?: number;
+  volume?: number;
+  description?: string;
+  cost?: number;
+}
+
+export type DeliveryBatchDtoCurrency = typeof DeliveryBatchDtoCurrency[keyof typeof DeliveryBatchDtoCurrency];
+
+
+export const DeliveryBatchDtoCurrency = {
+  CNY: 'CNY',
+  USD: 'USD',
+  EUR: 'EUR',
+  RUB: 'RUB',
+  UZS: 'UZS',
+  KGS: 'KGS',
+  TRY: 'TRY',
+  KZT: 'KZT',
+} as const;
+
+export interface DeliveryBatchDto {
+  id?: string;
+  kind?: string;
+  carrier?: string;
+  clientCode?: string;
+  route?: string;
+  periodFrom?: string;
+  periodTo?: string;
+  currency?: DeliveryBatchDtoCurrency;
+  rate?: number;
+  note?: string;
+  places?: BatchPlaceDto[];
+  totalWeight?: number;
+  totalVolume?: number;
+  totalCost?: number;
 }
 
 /**
@@ -2774,22 +3355,34 @@ export interface NoveltyBatchDto {
 }
 
 /**
- * Расписание автозаказа: когда класть шаблон в корзину
+ * Позиция шаблона после правки
  */
-export interface TemplateScheduleRequest {
+export interface Line {
+  /** Позиция каталога: из шаблона или новая из каталога магазина */
+  itemId: string;
   /**
-     * WEEKLY — раз в неделю, MONTHLY — раз в месяц
-     * @pattern WEEKLY|MONTHLY
+     * Количество
+     * @minimum 0
      */
-  kind: string;
+  quantity: number;
+}
+
+/**
+ * Правка шаблона закупки
+ */
+export interface UpdateTemplateRequest {
   /**
-     * День недели 1–7 (понедельник — 1) или число месяца 1–31; в коротком месяце — последний день
-     * @minimum 1
-     * @maximum 31
+     * Название шаблона
+     * @minLength 0
+     * @maxLength 255
      */
-  day: number;
-  /** Время по часовому поясу магазина */
-  time: string;
+  name: string;
+  /**
+     * Позиции, которые остаются, с новым количеством; отсутствующие убираются
+     * @minItems 0
+     * @maxItems 500
+     */
+  lines: Line[];
 }
 
 /**
@@ -2810,6 +3403,25 @@ export interface OrderTemplateDto {
   repeatTime?: string;
   /** Когда шаблон ляжет в корзину в следующий раз */
   nextRunAt?: string;
+}
+
+/**
+ * Расписание автозаказа: когда класть шаблон в корзину
+ */
+export interface TemplateScheduleRequest {
+  /**
+     * WEEKLY — раз в неделю, MONTHLY — раз в месяц
+     * @pattern WEEKLY|MONTHLY
+     */
+  kind: string;
+  /**
+     * День недели 1–7 (понедельник — 1) или число месяца 1–31; в коротком месяце — последний день
+     * @minimum 1
+     * @maximum 31
+     */
+  day: number;
+  /** Время по часовому поясу магазина */
+  time: string;
 }
 
 /**
@@ -2854,6 +3466,8 @@ export interface CustomerFieldDto {
   values?: string[];
   /** Единица числа или диапазона из перечня каталога; у прочих типов пусто */
   unit?: string;
+  /** Цвет выбранного варианта у OPTION, #RRGGBB, если продавец его задал: кабинет рисует им кружок цвета. У прочих типов и без цвета пусто */
+  hex?: string;
 }
 
 /**
@@ -3118,6 +3732,8 @@ export interface ShowcaseItemDto {
   article?: string;
   /** Цена уже с НДС (продавец-плательщик с режимом «в цене»): кабинет пишет «с НДС», а не «без НДС, +ставка» */
   vatIncluded: boolean;
+  /** Все снимки позиции по порядку — плитка листает их, не открывая карточку, и рисует точку на каждый; пусто — снимков нет */
+  photos?: string[];
 }
 
 /**
@@ -3185,6 +3801,17 @@ export const Export1cDtoStatus = {
 } as const;
 
 /**
+ * Что завела 1С: REALIZATION — реализацию (наша обработка), ORDER — заказ клиента («Обмен с сайтом», CommerceML); есть у EXPORTED
+ */
+export type Export1cDtoDocumentKind = typeof Export1cDtoDocumentKind[keyof typeof Export1cDtoDocumentKind];
+
+
+export const Export1cDtoDocumentKind = {
+  REALIZATION: 'REALIZATION',
+  ORDER: 'ORDER',
+} as const;
+
+/**
  * Выгрузка заказа в 1С
  */
 export interface Export1cDto {
@@ -3198,6 +3825,8 @@ export interface Export1cDto {
   reason?: string;
   /** Дата документа 1С; есть у EXPORTED, если 1С её прислала */
   documentDate?: string;
+  /** Что завела 1С: REALIZATION — реализацию (наша обработка), ORDER — заказ клиента («Обмен с сайтом», CommerceML); есть у EXPORTED */
+  documentKind?: Export1cDtoDocumentKind;
 }
 
 /**
@@ -3386,6 +4015,29 @@ export const PortalOrderDtoGoodsVatMode = {
 } as const;
 
 /**
+ * В долг: REQUESTED — клиент просил под реализацию, продавец ещё не решил; APPROVED — продавец согласился; DECLINED — только за оплату. Пусто — за оплату
+ */
+export type PortalOrderDtoCreditRequest = typeof PortalOrderDtoCreditRequest[keyof typeof PortalOrderDtoCreditRequest];
+
+
+export const PortalOrderDtoCreditRequest = {
+  REQUESTED: 'REQUESTED',
+  APPROVED: 'APPROVED',
+  DECLINED: 'DECLINED',
+} as const;
+
+/**
+ * Оптовая (WHOLESALE) или розничная (RETAIL) заявка; пусто — из переписки или до разделения
+ */
+export type PortalOrderDtoSaleMode = typeof PortalOrderDtoSaleMode[keyof typeof PortalOrderDtoSaleMode];
+
+
+export const PortalOrderDtoSaleMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
+} as const;
+
+/**
  * Строка состава, предъявленного клиенту
  */
 export interface SnapshotLineDto {
@@ -3419,9 +4071,23 @@ export type SnapshotDiffDtoKind = typeof SnapshotDiffDtoKind[keyof typeof Snapsh
 export const SnapshotDiffDtoKind = {
   LINE_ADDED: 'LINE_ADDED',
   LINE_REMOVED: 'LINE_REMOVED',
+  LINE_REPLACED: 'LINE_REPLACED',
   QUANTITY_CHANGED: 'QUANTITY_CHANGED',
   PRICE_CHANGED: 'PRICE_CHANGED',
   DELIVERY_CHANGED: 'DELIVERY_CHANGED',
+  PRICE_NAMED: 'PRICE_NAMED',
+} as const;
+
+/**
+ * Что сказал склад о недостающем: больше не будет, завтра, к дате. Пусто — склад не спрашивали или всё есть
+ */
+export type SnapshotDiffDtoRestock = typeof SnapshotDiffDtoRestock[keyof typeof SnapshotDiffDtoRestock];
+
+
+export const SnapshotDiffDtoRestock = {
+  NEVER: 'NEVER',
+  TOMORROW: 'TOMORROW',
+  DATE: 'DATE',
 } as const;
 
 /**
@@ -3436,6 +4102,20 @@ export interface SnapshotDiffDto {
   was?: number;
   /** Как стало. Пусто у убранной позиции */
   now?: number;
+  /** Строка заявки, о которой речь: по ней клиент отвечает на строку. Пусто у отличий доставки */
+  lineId?: string;
+  /** Что было вместо этой позиции — у LINE_REPLACED */
+  replacedName?: string;
+  /** Пояснение менеджера к строке. Пусто — не писал: тогда причину показывает ответ склада (restock, expectedOn) */
+  note?: string;
+  /** Что сказал склад о недостающем: больше не будет, завтра, к дате. Пусто — склад не спрашивали или всё есть */
+  restock?: SnapshotDiffDtoRestock;
+  /** Когда позиция будет по словам склада. Только у таких строк клиент может ответить «подожду» (WAIT) */
+  expectedOn?: string;
+  /** Позиция каталога, которую предлагают вместо прежней, — у LINE_REPLACED: по ней клиент открывает полную карточку товара (фото, описание) */
+  itemId?: string;
+  /** Главное фото предложенной позиции — у LINE_REPLACED; пусто — фото нет */
+  imageUrl?: string;
 }
 
 /**
@@ -3637,6 +4317,10 @@ export interface PortalOrderDto {
   rating?: PortalOrderRatingDto;
   /** Кто ведёт заявку у продавца — имя одним словом, без фамилии; пусто — ещё никто. Звонят на общий номер магазина, личного номера сотрудника здесь нет */
   managerName?: string;
+  /** В долг: REQUESTED — клиент просил под реализацию, продавец ещё не решил; APPROVED — продавец согласился; DECLINED — только за оплату. Пусто — за оплату */
+  creditRequest?: PortalOrderDtoCreditRequest;
+  /** Оптовая (WHOLESALE) или розничная (RETAIL) заявка; пусто — из переписки или до разделения */
+  saleMode?: PortalOrderDtoSaleMode;
 }
 
 /**
@@ -3888,8 +4572,8 @@ export interface CartLineDto {
  * Позиция, не попавшая в корзину
  */
 export interface SkippedLineDto {
-  /** Позиция каталога */
-  itemId: string;
+  /** Позиция каталога; пусто — позиция была вписана словами и в каталоге её нет */
+  itemId?: string;
   /** Наименование, каким оно было известно */
   name: string;
   /** Почему не добавлено: позиции больше нет в продаже либо у неё пропала цена */
@@ -4174,6 +4858,8 @@ export interface ExchangeSettingsRequest {
      * @pattern INTERNAL|EXTERNAL_1C
      */
   invoiceSource: string;
+  /** В 1С только оплаченные заказы и выданные под реализацию; иначе — сразу после подтверждения клиентом. Пусто — не менять */
+  paidOrdersOnly?: boolean;
 }
 
 /**
@@ -4244,6 +4930,22 @@ export interface ExchangeStatusDto {
   rejectedOrders: number;
   /** Кто выписывает счёт-фактуру: INTERNAL — платформа, EXTERNAL_1C — 1С арендатора */
   invoiceSource: string;
+  /** В 1С уходят только оплаченные заказы и выданные под реализацию */
+  paidOrdersOnly: boolean;
+  /** Сколько оплат ждёт выдачи в 1С (в том числе ждущих, пока 1С подтвердит заказ) */
+  pendingPayments: number;
+}
+
+/**
+ * Код номенклатуры 1С для товара
+ */
+export interface LinkItemCodeRequest {
+  /**
+     * Код из карточки номенклатуры в 1С
+     * @minLength 0
+     * @maxLength 64
+     */
+  code: string;
 }
 
 export type DeliveryDeliverTo = typeof DeliveryDeliverTo[keyof typeof DeliveryDeliverTo];
@@ -4319,6 +5021,11 @@ export interface Delivery {
   longitude?: number;
   deliveryVatMode?: DeliveryDeliveryVatMode;
   loadersVatMode?: DeliveryLoadersVatMode;
+  /**
+     * @minLength 0
+     * @maxLength 255
+     */
+  ownCarrier?: string;
 }
 
 export type LinePatchAvailabilityStatus = typeof LinePatchAvailabilityStatus[keyof typeof LinePatchAvailabilityStatus];
@@ -4595,6 +5302,29 @@ export const DraftDetailDtoGoodsVatMode = {
   NONE: 'NONE',
   ON_TOP: 'ON_TOP',
   INCLUDED: 'INCLUDED',
+} as const;
+
+/**
+ * В долг: REQUESTED — клиент при подаче просит товар под реализацию и ждёт решения продавца, APPROVED — продавец согласился, DECLINED — только за оплату. Пусто — за оплату
+ */
+export type DraftDetailDtoCreditRequest = typeof DraftDetailDtoCreditRequest[keyof typeof DraftDetailDtoCreditRequest];
+
+
+export const DraftDetailDtoCreditRequest = {
+  REQUESTED: 'REQUESTED',
+  APPROVED: 'APPROVED',
+  DECLINED: 'DECLINED',
+} as const;
+
+/**
+ * Оптовая (WHOLESALE) или розничная (RETAIL) заявка из кабинета. Пусто — из переписки или подана до разделения заявок
+ */
+export type DraftDetailDtoSaleMode = typeof DraftDetailDtoSaleMode[keyof typeof DraftDetailDtoSaleMode];
+
+
+export const DraftDetailDtoSaleMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
 } as const;
 
 export type DraftStockConfirmationDtoStatus = typeof DraftStockConfirmationDtoStatus[keyof typeof DraftStockConfirmationDtoStatus];
@@ -4883,6 +5613,10 @@ export interface DraftDetailDto {
   overdueDays?: number;
   /** НДС товаров: INCLUDED — цены строк уже с НДС («в т.ч.»), ON_TOP — сверху. У заказа — режим, с которым клиент подтверждал; у заявки — текущий продавца. Пусто — продавец не плательщик НДС */
   goodsVatMode?: DraftDetailDtoGoodsVatMode;
+  /** В долг: REQUESTED — клиент при подаче просит товар под реализацию и ждёт решения продавца, APPROVED — продавец согласился, DECLINED — только за оплату. Пусто — за оплату */
+  creditRequest?: DraftDetailDtoCreditRequest;
+  /** Оптовая (WHOLESALE) или розничная (RETAIL) заявка из кабинета. Пусто — из переписки или подана до разделения заявок */
+  saleMode?: DraftDetailDtoSaleMode;
 }
 
 /**
@@ -5057,7 +5791,7 @@ export interface DeliveryModeResponse {
 }
 
 /**
- * NONE — не предлагаем, INCLUDED — входят в доставку, ON_REQUEST — по запросу клиента
+ * NONE — не предлагаем, INCLUDED — входят в доставку, ON_REQUEST — по запросу клиента, REQUIRED — обязательны и оплачиваются отдельно
  */
 export type DeliveryLoadersMode = typeof DeliveryLoadersMode[keyof typeof DeliveryLoadersMode];
 
@@ -5066,10 +5800,11 @@ export const DeliveryLoadersMode = {
   NONE: 'NONE',
   INCLUDED: 'INCLUDED',
   ON_REQUEST: 'ON_REQUEST',
+  REQUIRED: 'REQUIRED',
 } as const;
 
 /**
- * Как считается сумма при ON_REQUEST
+ * Как считается сумма при ON_REQUEST и REQUIRED
  */
 export type DeliveryLoadersTariff = typeof DeliveryLoadersTariff[keyof typeof DeliveryLoadersTariff];
 
@@ -5110,9 +5845,9 @@ export const DeliveryLoadersPayee = {
  * Грузчики у способа доставки
  */
 export interface DeliveryLoaders {
-  /** NONE — не предлагаем, INCLUDED — входят в доставку, ON_REQUEST — по запросу клиента */
+  /** NONE — не предлагаем, INCLUDED — входят в доставку, ON_REQUEST — по запросу клиента, REQUIRED — обязательны и оплачиваются отдельно */
   mode: DeliveryLoadersMode;
-  /** Как считается сумма при ON_REQUEST */
+  /** Как считается сумма при ON_REQUEST и REQUIRED */
   tariff?: DeliveryLoadersTariff;
   /**
      * FIXED — за заказ; PER_FLOOR — за этаж без лифта; PER_UNITS и PER_WEIGHT — за шаг
@@ -5221,6 +5956,8 @@ export interface DeliveryTransport {
   carrierIds?: string[];
   /** Кому платит клиент за перевозку: SELLER — в итоге заявки, DIRECT — перевозчику, в итог не входит; при OWN пусто */
   payee?: DeliveryTransportPayee;
+  /** Клиент может вписать своего перевозчика (такси и т. п.) — перевозку он оплачивает ему сам, в итог она не входит; при OWN false */
+  allowOwnCarrier?: boolean;
 }
 
 /**
@@ -5419,6 +6156,72 @@ export interface CarrierDto {
 }
 
 /**
+ * Новый порядок объезда: недоставленные остановки рейса — все, в нужном порядке
+ */
+export interface ReorderRunStopsRequest {
+  /**
+     * Остановки, ещё не доставленные, в новом порядке объезда
+     * @minItems 0
+     * @maxItems 100
+     */
+  stopIds: string[];
+}
+
+/**
+ * Остановка рейса
+ */
+export interface DeliveryRunStopDto {
+  id: string;
+  position: number;
+  orderId: string;
+  orderNumber?: string;
+  customerName?: string;
+  customerPhone?: string;
+  address?: string;
+  /** Город доставки — с ним адрес находится на карте однозначно */
+  city?: string;
+  deliveredAt?: string;
+}
+
+/**
+ * Рейс доставки
+ */
+export interface DeliveryRunDto {
+  id: string;
+  date: string;
+  driverId: string;
+  /** PLANNED — назначен, ON_ROUTE — в пути, DONE — все заказы доставлены */
+  status: string;
+  startedAt?: string;
+  finishedAt?: string;
+  stops: DeliveryRunStopDto[];
+}
+
+/**
+ * Напоминания клиентам о сроке платежа по долгу
+ */
+export interface DebtReminderPolicyDto {
+  /** Напоминать */
+  enabled: boolean;
+  /**
+     * За сколько дней до срока; 0 — в сам день срока
+     * @minItems 0
+     * @maxItems 10
+     * @items.minimum 0
+     * @items.maximum 60
+     */
+  daysBefore: number[];
+}
+
+/**
+ * Продавец клиента: кому сразу уходят его новые заявки
+ */
+export interface SetCustomerManagerRequest {
+  /** Сотрудник с правом на очередь заявок. Пусто — открепить */
+  managerId?: string;
+}
+
+/**
  * На что действует
  */
 export type SaveCustomerPriceTermRequestScope = typeof SaveCustomerPriceTermRequestScope[keyof typeof SaveCustomerPriceTermRequestScope];
@@ -5486,6 +6289,54 @@ export interface CustomerPriceTermDto {
   validUntil?: string;
   /** Срок вышел — условие не действует, но остаётся, чтобы его продлить */
   expired: boolean;
+}
+
+/**
+ * Платёж по графику
+ */
+export interface DebtInstallmentRequest {
+  /** Срок */
+  dueDate: string;
+  /**
+     * Сумма
+     * @minimum 0
+     */
+  amount: number;
+}
+
+/**
+ * График платежей клиента по долгу
+ */
+export interface DebtPlanRequest {
+  /**
+     * Платежи; пусто — убрать график
+     * @minItems 0
+     * @maxItems 60
+     */
+  installments: DebtInstallmentRequest[];
+}
+
+/**
+ * Платёж по графику
+ */
+export interface DebtInstallment {
+  id: string;
+  /** Срок */
+  dueDate: string;
+  /** Сумма платежа */
+  amount: number;
+  /** Сколько из платежа ещё не оплачено; 0 — закрыт */
+  left: number;
+}
+
+/**
+ * График платежей клиента по долгу
+ */
+export interface DebtPlanDto {
+  /** Остаток долга клиента */
+  debt: number;
+  /** Платежи по дате; пусто — графика нет */
+  installments: DebtInstallment[];
 }
 
 /**
@@ -5895,6 +6746,36 @@ export interface ModelVariantDto {
 }
 
 /**
+ * Строка состава пресса
+ */
+export interface ItemPackLineDto {
+  /** Позиция, лежащая в упаковке */
+  itemId: string;
+  /** Артикул этой позиции; отсутствует, если артикулов не ведут */
+  sku?: string;
+  /** Наименование этой позиции */
+  name: string;
+  /** Сколько её штук в одной упаковке */
+  quantity: number;
+}
+
+/**
+ * Комплект модели: упаковка из её вариантов
+ */
+export interface ModelKitDto {
+  /** Идентификатор позиции-комплекта */
+  itemId: string;
+  /** Наименование комплекта */
+  name: string;
+  /** Единица продажи комплекта */
+  unit: string;
+  /** Цена комплекта; пуста, если не назначена */
+  price?: number;
+  /** Состав в порядке показа */
+  pack: ItemPackLineDto[];
+}
+
+/**
  * Модель каталога: варианты с одним названием в одном разделе
  */
 export interface CatalogModelDto {
@@ -5914,6 +6795,8 @@ export interface CatalogModelDto {
   variants: ModelVariantDto[];
   /** Вариантов больше двухсот, и пришли не все: такую модель нельзя сохранять размерной таблицей целиком */
   truncated: boolean;
+  /** Живые комплекты, весь состав которых — варианты из списка; комплект с чужой позицией в составе сюда не попадает */
+  kits: ModelKitDto[];
 }
 
 /**
@@ -6061,6 +6944,18 @@ export type SaveCatalogItemRequestFieldValues = {[key: string]: FieldValueDto};
 export type SaveCatalogItemRequestFieldVisibility = {[key: string]: boolean};
 
 /**
+ * «Только с 21 года» у товара: INHERIT — как в разделе, ADULT — только с 21 года, ANY — можно и младше 21 года. Отсутствие ключа означает «не трогать»; старые клиенты шлют `terms.ageRestricted` — `true` читается как ADULT
+ */
+export type SaveCatalogItemRequestAgeRule = typeof SaveCatalogItemRequestAgeRule[keyof typeof SaveCatalogItemRequestAgeRule];
+
+
+export const SaveCatalogItemRequestAgeRule = {
+  INHERIT: 'INHERIT',
+  ADULT: 'ADULT',
+  ANY: 'ANY',
+} as const;
+
+/**
  * Заведение или правка позиции каталога
  */
 export interface SaveCatalogItemRequest {
@@ -6151,6 +7046,8 @@ export interface SaveCatalogItemRequest {
      * @maxLength 64
      */
   article?: string;
+  /** «Только с 21 года» у товара: INHERIT — как в разделе, ADULT — только с 21 года, ANY — можно и младше 21 года. Отсутствие ключа означает «не трогать»; старые клиенты шлют `terms.ageRestricted` — `true` читается как ADULT */
+  ageRule?: SaveCatalogItemRequestAgeRule;
 }
 
 /**
@@ -6305,6 +7202,18 @@ export type CatalogItemCardDtoFieldValues = {[key: string]: FieldValueDto};
 export type CatalogItemCardDtoFieldVisibility = {[key: string]: boolean};
 
 /**
+ * Своё правило «только с 21 года»: как в разделе, только с 21 года или можно младше. Итог — `item.terms.ageRestricted`
+ */
+export type CatalogItemCardDtoAgeRule = typeof CatalogItemCardDtoAgeRule[keyof typeof CatalogItemCardDtoAgeRule];
+
+
+export const CatalogItemCardDtoAgeRule = {
+  INHERIT: 'INHERIT',
+  ADULT: 'ADULT',
+  ANY: 'ANY',
+} as const;
+
+/**
  * Тип поля: определяет вид значения и элемент ввода
  */
 export type FieldDefinitionDtoType = typeof FieldDefinitionDtoType[keyof typeof FieldDefinitionDtoType];
@@ -6352,20 +7261,6 @@ export interface FieldDefinitionDto {
   options: FieldOptionDto[];
   /** Поле цвета: название или код говорят о цвете. По нему экран рисует выбор кружками; своё правило фронт не повторяет */
   colour: boolean;
-}
-
-/**
- * Строка состава пресса
- */
-export interface ItemPackLineDto {
-  /** Позиция, лежащая в упаковке */
-  itemId: string;
-  /** Артикул этой позиции; отсутствует, если артикулов не ведут */
-  sku?: string;
-  /** Наименование этой позиции */
-  name: string;
-  /** Сколько её штук в одной упаковке */
-  quantity: number;
 }
 
 /**
@@ -6428,6 +7323,10 @@ export interface CatalogItemCardDto {
   pack: ItemPackLineDto[];
   /** Срок годности: включён ли учёт, обычный срок и за сколько предупреждать. Сервер присылает всегда; необязательно для клиентов, собранных до учёта сроков */
   expiry?: ItemExpiryDto;
+  /** Своё правило «только с 21 года»: как в разделе, только с 21 года или можно младше. Итог — `item.terms.ageRestricted` */
+  ageRule: CatalogItemCardDtoAgeRule;
+  /** Стоит ли «только с 21 года» у раздела товара или выше — что значит «как в разделе» */
+  categoryAgeRestricted: boolean;
 }
 
 /**
@@ -6578,6 +7477,8 @@ export interface SaveItemCategoryRequest {
      * @minimum 0
      */
   sortOrder?: number;
+  /** Продаётся только с 21 года — все товары раздела и подразделов, кроме тех, у кого задано иначе. Не прислали — как было (переименование и перенос его не трогают) */
+  ageRestricted?: boolean;
 }
 
 /**
@@ -6594,6 +7495,24 @@ export interface ItemCategoryDto {
   path: string;
   /** Порядок в витрине: меньшее значение выше. При равных значениях порядок задаёт название */
   sortOrder: number;
+  /** Картинка раздела, как её поставил менеджер: загруженный файл `/api/files/<id>` или публичная ссылка (в том числе Google Диск). Пусто — картинки нет */
+  imageUrl?: string;
+  /** Адрес для тега картинки: у ссылки Google Диска — его копия-картинка. Пусто — картинки нет */
+  imageSrc?: string;
+  /** Товары раздела и подразделов — только с 21 года, если у товара не задано иначе */
+  ageRestricted: boolean;
+}
+
+/**
+ * Картинка раздела каталога
+ */
+export interface SetCategoryImageRequest {
+  /**
+     * Загруженный файл `/api/files/<id>` (ответ загрузки картинки раздела) или публичная ссылка https на картинку, в том числе на файл Google Диска. Пусто — убрать картинку
+     * @minLength 0
+     * @maxLength 2048
+     */
+  imageUrl?: string;
 }
 
 /**
@@ -6625,6 +7544,41 @@ export interface BulkCategoryRequest {
 }
 
 /**
+ * Новая норма экономии
+ */
+export interface SavingsNormRequest {
+  /**
+     * Стоимость часа менеджера в валюте арендатора
+     * @minimum 0
+     */
+  hourRate: number;
+  /**
+     * Минут менеджера на одну заявку из WhatsApp или по телефону, 1–240
+     * @minimum 1
+     * @maximum 240
+     */
+  minutesPerOrder: number;
+  /**
+     * Минут менеджера на одну заявку из кабинета, 0–239, меньше минут не из кабинета
+     * @minimum 0
+     * @maximum 239
+     */
+  portalMinutesPerOrder: number;
+}
+
+/**
+ * Норма экономии: стоимость часа менеджера и минуты на заявку из кабинета и не из кабинета
+ */
+export interface SavingsNormDto {
+  /** Стоимость часа менеджера в валюте арендатора; пусто — норма не задана */
+  hourRate?: number;
+  /** Минут менеджера на одну заявку из WhatsApp или по телефону; пусто — норма не задана */
+  minutesPerOrder?: number;
+  /** Минут менеджера на одну заявку из кабинета; пусто — норма не задана */
+  portalMinutesPerOrder?: number;
+}
+
+/**
  * Плитка дашборда аналитики
  */
 export type DashboardTileDtoKey = typeof DashboardTileDtoKey[keyof typeof DashboardTileDtoKey];
@@ -6648,6 +7602,7 @@ export const DashboardTileDtoKey = {
   DEMAND: 'DEMAND',
   COHORTS: 'COHORTS',
   SEGMENTS: 'SEGMENTS',
+  CHANNELS: 'CHANNELS',
 } as const;
 
 /**
@@ -6718,6 +7673,8 @@ export interface StaffCreatedDto {
   member: StaffMemberDto;
   /** Временный пароль: показывается один раз и обязателен к смене при первом входе */
   temporaryPassword: string;
+  /** Токен одноразовой ссылки на 7 дней: по ней сотрудник сам задаёт пароль. Ссылку собирает рабочее место: `/staff/join?token=…` */
+  joinToken: string;
 }
 
 /**
@@ -6834,6 +7791,66 @@ export interface BusinessDayExceptionDto {
   title?: string;
   /** Откуда взялось исключение */
   source: BusinessDayExceptionDtoSource;
+}
+
+/**
+ * Причина замены
+ */
+export type CreateSubstitutionRequestReason = typeof CreateSubstitutionRequestReason[keyof typeof CreateSubstitutionRequestReason];
+
+
+export const CreateSubstitutionRequestReason = {
+  SICK: 'SICK',
+  VACATION: 'VACATION',
+  UNREACHABLE: 'UNREACHABLE',
+  OTHER: 'OTHER',
+} as const;
+
+/**
+ * Временная замена продавца
+ */
+export interface CreateSubstitutionRequest {
+  /** Кто отсутствует */
+  absentId: string;
+  /** Кто ведёт его работу */
+  substituteId: string;
+  /** Причина замены */
+  reason: CreateSubstitutionRequestReason;
+  /** С какого дня */
+  from: string;
+  /** По какой день включительно; пусто — до «Вернулся» */
+  until?: string;
+}
+
+/**
+ * Причина замены
+ */
+export type SubstitutionDtoReason = typeof SubstitutionDtoReason[keyof typeof SubstitutionDtoReason];
+
+
+export const SubstitutionDtoReason = {
+  SICK: 'SICK',
+  VACATION: 'VACATION',
+  UNREACHABLE: 'UNREACHABLE',
+  OTHER: 'OTHER',
+} as const;
+
+/**
+ * Временная замена продавца
+ */
+export interface SubstitutionDto {
+  id: string;
+  absentId: string;
+  substituteId: string;
+  /** Имя заменяющего */
+  substituteName?: string;
+  /** Причина замены */
+  reason: SubstitutionDtoReason;
+  from: string;
+  /** По какой день включительно; пусто — до «Вернулся» */
+  until?: string;
+  /** Идёт сейчас: заявки уже у заменяющего */
+  active: boolean;
 }
 
 export interface WriteOffLotRequest {
@@ -7421,6 +8438,136 @@ export interface RejectReviewRequest {
   reason?: RejectReviewRequestReason;
 }
 
+export interface ReceiptLineInput {
+  lineId: string;
+  /** @minimum 0 */
+  quantity: number;
+}
+
+export interface SaveReceiptRequest {
+  shipmentId: string;
+  warehouseId: string;
+  receivedOn: string;
+  /** @minItems 1 */
+  lines: ReceiptLineInput[];
+}
+
+export interface RecostReceiptRequest {
+  overwriteManual?: boolean;
+}
+
+export interface ReceiptPostedDto {
+  purchase?: PurchaseDto;
+  keptManualItems?: string[];
+  warnings?: string[];
+}
+
+export interface PostReceiptRequest {
+  version: number;
+  overwriteManual?: boolean;
+}
+
+export interface SavePaymentRequest {
+  paidOn: string;
+  /** @minimum 0 */
+  amount: number;
+  /** @minimum 0 */
+  amountTenant?: number;
+  /**
+     * @minLength 0
+     * @maxLength 500
+     */
+  note?: string;
+}
+
+/**
+ * Поле строки → номер колонки файла с нуля
+ */
+export type InvoiceMappingColumns = {[key: string]: number};
+
+/**
+ * Код колонки направления → номер колонки файла с нуля
+ */
+export type InvoiceMappingAttributes = {[key: string]: number};
+
+export interface InvoiceMapping {
+  /** @minimum 0 */
+  headerRow?: number;
+  /** Поле строки → номер колонки файла с нуля */
+  columns: InvoiceMappingColumns;
+  /** Код колонки направления → номер колонки файла с нуля */
+  attributes: InvoiceMappingAttributes;
+}
+
+export interface InvoiceImportRequest {
+  /** Пусто — сопоставление угадывается по заголовкам */
+  mapping?: InvoiceMapping;
+  importPayments?: boolean;
+}
+
+export interface InvoiceColumnDto {
+  index?: number;
+  header?: string;
+  sample?: string;
+}
+
+export type InvoiceLineDtoAttributes = {[key: string]: unknown};
+
+export type InvoiceLineDtoChange = typeof InvoiceLineDtoChange[keyof typeof InvoiceLineDtoChange];
+
+
+export const InvoiceLineDtoChange = {
+  ADDED: 'ADDED',
+  CHANGED: 'CHANGED',
+  UNCHANGED: 'UNCHANGED',
+} as const;
+
+export interface InvoiceLineDto {
+  row?: number;
+  groupNo?: number;
+  supplierArticle?: string;
+  name?: string;
+  attributes?: InvoiceLineDtoAttributes;
+  unit?: string;
+  quantity?: number;
+  price?: number;
+  amount?: number;
+  change?: InvoiceLineDtoChange;
+}
+
+export interface InvoicePaymentDto {
+  row?: number;
+  paidOn?: string;
+  amount?: number;
+  recorded?: boolean;
+}
+
+export interface LineProblem {
+  row?: number;
+  reason?: string;
+}
+
+export interface InvoicePreviewDto {
+  columns?: InvoiceColumnDto[];
+  mapping?: InvoiceMapping;
+  lines?: InvoiceLineDto[];
+  problems?: LineProblem[];
+  added?: number;
+  changed?: number;
+  unchanged?: number;
+  removed?: number;
+  linesQuantity?: number;
+  linesAmount?: number;
+  fileQuantity?: number;
+  fileAmount?: number;
+  totalsMatch?: boolean;
+  fileDebt?: number;
+  debtMatches?: boolean;
+  payments?: InvoicePaymentDto[];
+  fileNumber?: string;
+  fileDate?: string;
+}
+
 /**
  * Объявление поступления
  */
@@ -7574,6 +8721,8 @@ export interface PhoneCodeDto {
   /** Ссылка wa.me на номер поставщика с готовым текстом «Код NNNNNN» */
   waLink: string;
   expiresAt: string;
+  /** Номер, с которого нужно отправить код, цифрами: код принимается только с него. Пусто — с любого: номер отправителя и станет номером заявки */
+  fromPhone?: string;
 }
 
 /**
@@ -7714,7 +8863,24 @@ export interface SubmitOrderDelivery {
      * @maximum 180
      */
   longitude?: number;
+  /**
+     * Свой перевозчик клиента («Яндекс Такси», «inDriver»), если способ это разрешает и в списке нет подходящего. Перевозку клиент оплачивает ему сам
+     * @minLength 0
+     * @maxLength 255
+     */
+  ownCarrier?: string;
 }
+
+/**
+ * Какую заявку отправить: WHOLESALE — оптовую, RETAIL — розничную (оптовая и розничная заявки раздельные, решение владельца 2026-11-04); строки другой остаются в корзине. Пусто — вся корзина одной заявкой, как раньше
+ */
+export type SubmitOrderRequestMode = typeof SubmitOrderRequestMode[keyof typeof SubmitOrderRequestMode];
+
+
+export const SubmitOrderRequestMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
+} as const;
 
 /**
  * Оформление заявки из корзины
@@ -7728,6 +8894,16 @@ export interface SubmitOrderRequest {
      * @maxLength 1000
      */
   note?: string;
+  /** Какую заявку отправить: WHOLESALE — оптовую, RETAIL — розничную (оптовая и розничная заявки раздельные, решение владельца 2026-11-04); строки другой остаются в корзине. Пусто — вся корзина одной заявкой, как раньше */
+  mode?: SubmitOrderRequestMode;
+  /** Клиент просит товар в долг (под реализацию): продавец увидит просьбу в очереди и согласится или примет только за оплату. Пусто или false — за оплату */
+  credit?: boolean;
+  /**
+     * Какие позиции корзины отправить — отмеченные клиентом галочками; остальные ждут в корзине. Вместе с mode: у товара «оптом и в розницу» уходит строка выбранной заявки. Пусто — все строки
+     * @minItems 0
+     * @maxItems 500
+     */
+  itemIds?: string[];
 }
 
 /**
@@ -7791,6 +8967,74 @@ export interface AskAboutOrderRequest {
 }
 
 /**
+ * Причина
+ */
+export type DeclineOrderRequestReason = typeof DeclineOrderRequestReason[keyof typeof DeclineOrderRequestReason];
+
+
+export const DeclineOrderRequestReason = {
+  REPLACEMENT: 'REPLACEMENT',
+  PRICE: 'PRICE',
+  WAIT: 'WAIT',
+  BOUGHT_ELSEWHERE: 'BOUGHT_ELSEWHERE',
+  OTHER: 'OTHER',
+} as const;
+
+/**
+ * Причина отказа от заявки
+ */
+export interface DeclineOrderRequest {
+  /** Причина */
+  reason?: DeclineOrderRequestReason;
+  /**
+     * Своими словами — обязателен по смыслу у OTHER
+     * @minLength 0
+     * @maxLength 500
+     */
+  comment?: string;
+}
+
+/**
+ * ACCEPT — согласен, REMOVE — убрать позицию, WAIT — подожду исходный товар (только у строки со сроком склада)
+ */
+export type LineDecisionDtoDecision = typeof LineDecisionDtoDecision[keyof typeof LineDecisionDtoDecision];
+
+
+export const LineDecisionDtoDecision = {
+  ACCEPT: 'ACCEPT',
+  REMOVE: 'REMOVE',
+  WAIT: 'WAIT',
+} as const;
+
+/**
+ * Ответ клиента по строке
+ */
+export interface LineDecisionDto {
+  /** Строка заявки — lineId из отличия */
+  lineId: string;
+  /** ACCEPT — согласен, REMOVE — убрать позицию, WAIT — подожду исходный товар (только у строки со сроком склада) */
+  decision: LineDecisionDtoDecision;
+}
+
+/**
+ * Ответ по строкам пересогласования
+ */
+export interface AnswerOrderRequest {
+  /**
+     * Решения по изменённым строкам
+     * @minItems 0
+     * @maxItems 500
+     */
+  lines?: LineDecisionDto[];
+  /**
+     * Вопрос или комментарий — уходит в переписку заявки
+     * @minLength 0
+     * @maxLength 2000
+     */
+  message?: string;
+}
+
+/**
  * Заявка поставщика на подключение
  */
 export interface SupplierLeadRequest {
@@ -7832,15 +9076,144 @@ export interface SupplierLeadRequest {
 }
 
 /**
+ * Продавец, передающий приглашение владельцу
+ */
+export interface ForwardReferralRequest {
+  /**
+     * Имя продавца — так его увидит владелец
+     * @minLength 0
+     * @maxLength 120
+     */
+  sellerName: string;
+  /**
+     * Телефон продавца в любом виде: по нему копятся приглашения и потом заводится сотрудник
+     * @minLength 1
+     * @pattern \s*\+?[\s()\-]*(\d[\s()\-]*){8,15}
+     */
+  sellerPhone: string;
+}
+
+/**
+ * Ссылка владельцу компании
+ */
+export interface OwnerLinkDto {
+  /** Ссылка; одна на номер продавца */
+  link: string;
+}
+
+/**
+ * Пароль, который сотрудник задаёт сам по ссылке
+ */
+export interface StaffJoinPasswordRequest {
+  /**
+     * Пароль, от 8 знаков
+     * @minLength 8
+     * @maxLength 128
+     */
+  password: string;
+}
+
+/**
+ * Ссылка сотруднику
+ */
+export interface StaffJoinDto {
+  /** Имя сотрудника */
+  name: string;
+  /** Логин — номер с «+» */
+  login: string;
+}
+
+/**
+ * Заявка поставщика на самоподключение с пробным периодом
+ */
+export interface SupplierSignupRequest {
+  /**
+     * Название магазина или компании
+     * @minLength 0
+     * @maxLength 255
+     */
+  name: string;
+  /**
+     * БИН или ИИН
+     * @minLength 1
+     * @pattern \d{12}
+     */
+  binIin: string;
+  /**
+     * Имя владельца — так его увидят сотрудники
+     * @minLength 0
+     * @maxLength 255
+     */
+  ownerName: string;
+  /**
+     * Телефон в любом виде — он же логин
+     * @minLength 1
+     * @pattern \s*\+?[\s()\-]*(\d[\s()\-]*){8,15}
+     */
+  phone: string;
+  /**
+     * Почта: на неё придёт ссылка подтверждения
+     * @minLength 0
+     * @maxLength 255
+     */
+  email: string;
+  /**
+     * Редакция согласия поставщика, с которой он согласился
+     * @minLength 0
+     * @maxLength 32
+     */
+  consentVersion: string;
+  /**
+     * Токен ссылки владельцу от продавца, если пришёл по ней
+     * @minLength 0
+     * @maxLength 64
+     */
+  ownerToken?: string;
+  /**
+     * Код приглашения клиента, если владелец пришёл прямо со страницы приглашения
+     * @minLength 0
+     * @maxLength 32
+     */
+  referralCode?: string;
+}
+
+/**
+ * Подтверждение самоподключения: токен из письма и пароль владельца
+ */
+export interface SignupConfirmRequest {
+  /**
+     * Токен из ссылки письма
+     * @minLength 0
+     * @maxLength 128
+     */
+  token: string;
+  /**
+     * Пароль владельца, от 8 знаков
+     * @minLength 8
+     * @maxLength 128
+     */
+  password: string;
+}
+
+/**
+ * Магазин подключён: чем входить и до какого срока пробный период
+ */
+export interface SignupConfirmedDto {
+  /** Логин — номер с «+» */
+  login: string;
+  /** Конец пробного периода */
+  trialEndsAt: string;
+}
+
+/**
  * Заявка на доступ к кабинету магазина
  */
 export interface AccessRequestRequest {
   /**
-     * Номер гостя — его он подтвердит кодом в WhatsApp
-     * @minLength 1
+     * Номер гостя. Пусто — номером станет тот, с которого в WhatsApp придёт код
      * @pattern ^\+?\d{10,15}$
      */
-  phone: string;
+  phone?: string;
   /**
      * @minLength 0
      * @maxLength 255
@@ -7947,6 +9320,273 @@ export interface FavoriteToggleDto {
   itemId: string;
   /** Позиция теперь в избранном */
   favorite: boolean;
+}
+
+/**
+ * Оплата за одну строку заказа
+ */
+export interface DebtClaimLineRequest {
+  /** Строка заказа под реализацию */
+  orderLineId: string;
+  /**
+     * Сумма; не больше остатка долга по строке
+     * @minimum 0
+     */
+  amount: number;
+}
+
+/**
+ * Чем оплатил; пусто — не указал
+ */
+export type DebtClaimRequestMethod = typeof DebtClaimRequestMethod[keyof typeof DebtClaimRequestMethod];
+
+
+export const DebtClaimRequestMethod = {
+  KASPI: 'KASPI',
+  CASH: 'CASH',
+  TRANSFER: 'TRANSFER',
+} as const;
+
+/**
+ * Куда в банке перевёл: на карту или на депозитный счёт; только у перевода и вместе с банком
+ */
+export type DebtClaimRequestBankTarget = typeof DebtClaimRequestBankTarget[keyof typeof DebtClaimRequestBankTarget];
+
+
+export const DebtClaimRequestBankTarget = {
+  CARD: 'CARD',
+  DEPOSIT: 'DEPOSIT',
+} as const;
+
+/**
+ * Сообщение клиента об оплате долга за товары
+ */
+export interface DebtClaimRequest {
+  /**
+     * За какие строки заказов под реализацию и сколько
+     * @minItems 0
+     * @maxItems 200
+     */
+  lines: DebtClaimLineRequest[];
+  /** Чем оплатил; пусто — не указал */
+  method?: DebtClaimRequestMethod;
+  /**
+     * Комментарий продавцу: номер операции, кому передал
+     * @minLength 0
+     * @maxLength 500
+     */
+  comment?: string;
+  /**
+     * Код банка из справочника страны продавца (`banks` в долге); только у TRANSFER и KASPI, у наличных — не принимается
+     * @pattern ^[A-Z0-9_]{2,20}$
+     */
+  bank?: string;
+  /** Куда в банке перевёл: на карту или на депозитный счёт; только у перевода и вместе с банком */
+  bankTarget?: DebtClaimRequestBankTarget;
+}
+
+/**
+ * Товар заказа под реализацию
+ */
+export interface CustomerDebtLine {
+  orderLineId: string;
+  name: string;
+  /** Единица измерения */
+  unit?: string;
+  /** Цена за единицу */
+  price?: number;
+  /** Сколько взял */
+  quantity: number;
+  /** Сколько вернул */
+  returnedQuantity: number;
+  /** Стоимость взятого */
+  amount: number;
+  paid: number;
+  debt: number;
+  /** Сообщено об оплате, ждёт продавца */
+  pending: number;
+  /** Описание товара из каталога; пусто — нет описания или товар не из каталога */
+  description?: string;
+  /** Главное фото товара из каталога; пусто — нет фото */
+  photo?: string;
+  /** Позиция каталога; пусто — товар записан вне каталога */
+  itemId?: string;
+}
+
+/**
+ * Способ выплаты; пусто — не указан
+ */
+export type OrderPaymentDtoMethod = typeof OrderPaymentDtoMethod[keyof typeof OrderPaymentDtoMethod];
+
+
+export const OrderPaymentDtoMethod = {
+  KASPI: 'KASPI',
+  CASH: 'CASH',
+  TRANSFER: 'TRANSFER',
+} as const;
+
+/**
+ * Товар выплаты
+ */
+export interface OrderPaidLine {
+  orderLineId: string;
+  name: string;
+  /** Сколько взял */
+  quantity?: number;
+  unit?: string;
+  /** Сколько заплачено за товар */
+  amount: number;
+  /** Стоимость товара в заказе: меньше неё — оплачен частично */
+  total?: number;
+  /** Позиция каталога; пусто — товар записан вне каталога */
+  itemId?: string;
+  /** Главное фото товара из каталога; пусто — нет фото */
+  photo?: string;
+}
+
+export interface OrderPaymentDto {
+  id: string;
+  amount: number;
+  comment?: string;
+  createdAt: string;
+  createdByName?: string;
+  cancelledAt?: string;
+  cancelledByName?: string;
+  cancelReason?: string;
+  /** Способ выплаты; пусто — не указан */
+  method?: OrderPaymentDtoMethod;
+  /** Код банка из справочника; у TRANSFER и KASPI */
+  bank?: string;
+  /** Оплату сообщил клиент в кабинете, продавец подтвердил */
+  fromClient: boolean;
+  /** За какие товары. У выплаты суммой, без выбранных товаров, — разложено по порядку, как видит клиент (см. linesByOrder) */
+  lines: OrderPaidLine[];
+  /** Товары не выбирали при приёме: lines посчитаны по порядку строк заказа */
+  linesByOrder: boolean;
+}
+
+/**
+ * Заказ под реализацию
+ */
+export interface CustomerDebtOrder {
+  orderId: string;
+  orderNumber: string;
+  /** Когда выдан в долг */
+  issuedAt?: string;
+  total: number;
+  returned: number;
+  paid: number;
+  debt: number;
+  pending: number;
+  /** На сколько дней долг вышел за отсрочку; пусто — не просрочен */
+  overdueDays?: number;
+  lines: CustomerDebtLine[];
+  /** Выплаты по заказу, старые сверху; отменённые продавцом не показываются */
+  payments: OrderPaymentDto[];
+}
+
+/**
+ * Чем оплатил; пусто — не указал
+ */
+export type DebtClaimDtoMethod = typeof DebtClaimDtoMethod[keyof typeof DebtClaimDtoMethod];
+
+
+export const DebtClaimDtoMethod = {
+  KASPI: 'KASPI',
+  CASH: 'CASH',
+  TRANSFER: 'TRANSFER',
+} as const;
+
+/**
+ * Куда в банке перевёл: карта или депозитный счёт; пусто — не указал
+ */
+export type DebtClaimDtoBankTarget = typeof DebtClaimDtoBankTarget[keyof typeof DebtClaimDtoBankTarget];
+
+
+export const DebtClaimDtoBankTarget = {
+  CARD: 'CARD',
+  DEPOSIT: 'DEPOSIT',
+} as const;
+
+/**
+ * PENDING — ждёт продавца, CONFIRMED — деньги получены и долг уменьшен, REJECTED — продавец денег не получил
+ */
+export type DebtClaimDtoStatus = typeof DebtClaimDtoStatus[keyof typeof DebtClaimDtoStatus];
+
+
+export const DebtClaimDtoStatus = {
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  REJECTED: 'REJECTED',
+} as const;
+
+/**
+ * Оплата за одну строку заказа
+ */
+export interface DebtClaimLine {
+  orderId: string;
+  orderNumber: string;
+  orderLineId: string;
+  /** Товар так, как он записан в заказе */
+  name: string;
+  amount: number;
+}
+
+/**
+ * Сообщение клиента об оплате долга за товары
+ */
+export interface DebtClaimDto {
+  id: string;
+  customerId: string;
+  /** Имя клиента */
+  customerName?: string;
+  /** Телефон клиента */
+  customerPhone?: string;
+  /** Сколько клиент оплатил */
+  amount: number;
+  /** Чем оплатил; пусто — не указал */
+  method?: DebtClaimDtoMethod;
+  /** Код банка из справочника; у TRANSFER и KASPI, пусто — не указал */
+  bank?: string;
+  /** Куда в банке перевёл: карта или депозитный счёт; пусто — не указал */
+  bankTarget?: DebtClaimDtoBankTarget;
+  /** Комментарий клиента */
+  comment?: string;
+  /** PENDING — ждёт продавца, CONFIRMED — деньги получены и долг уменьшен, REJECTED — продавец денег не получил */
+  status: DebtClaimDtoStatus;
+  /** Почему отклонено; только у REJECTED */
+  rejectReason?: string;
+  createdAt: string;
+  /** Когда продавец решил; пусто — ещё не решил */
+  decidedAt?: string;
+  /** Кто из продавца решил */
+  decidedBy?: string;
+  /** За что оплачено */
+  lines: DebtClaimLine[];
+}
+
+/**
+ * Долг клиента под реализацию по заказам и товарам
+ */
+export interface CustomerDebtDto {
+  /** Взято товара на сумму */
+  total: number;
+  /** Возвращено товаром на сумму */
+  returned: number;
+  /** Оплачено — подтверждено продавцом */
+  paid: number;
+  /** Остаток долга */
+  debt: number;
+  /** Сообщено об оплате, ждёт продавца; в paid ещё не вошло */
+  pending: number;
+  /** Заказы под реализацию: сначала с долгом, затем закрытые, свежие сверху */
+  orders: CustomerDebtOrder[];
+  /** Сообщения об оплате, свежие сверху */
+  claims: DebtClaimDto[];
+  /** График платежей по дате; пусто — графика нет */
+  plan: DebtInstallment[];
+  /** Банки страны продавца из справочника платформы, со скрытыми (visible=false): выбирать — из видимых, называть прошлые оплаты — по всем */
+  banks: PaymentBankDto[];
 }
 
 /**
@@ -8079,31 +9719,11 @@ export interface ReceiveOrderPaymentRequest {
   comment?: string;
   /** Способ выплаты; пусто — не указан */
   method?: ReceiveOrderPaymentRequestMethod;
-}
-
-/**
- * Способ выплаты; пусто — не указан
- */
-export type OrderPaymentDtoMethod = typeof OrderPaymentDtoMethod[keyof typeof OrderPaymentDtoMethod];
-
-
-export const OrderPaymentDtoMethod = {
-  KASPI: 'KASPI',
-  CASH: 'CASH',
-  TRANSFER: 'TRANSFER',
-} as const;
-
-export interface OrderPaymentDto {
-  id: string;
-  amount: number;
-  comment?: string;
-  createdAt: string;
-  createdByName?: string;
-  cancelledAt?: string;
-  cancelledByName?: string;
-  cancelReason?: string;
-  /** Способ выплаты; пусто — не указан */
-  method?: OrderPaymentDtoMethod;
+  /**
+     * Банк перевода; только у способа TRANSFER, у других — не принимается
+     * @pattern ^[A-Z0-9_]{2,20}$
+     */
+  bank?: string;
 }
 
 /**
@@ -8254,6 +9874,172 @@ export interface UnmatchedLinkResultDto {
   orderNumber?: string;
   /** Связанная строка */
   lineId?: string;
+}
+
+/**
+ * Отклонение сообщения клиента об оплате
+ */
+export interface RejectDebtClaimRequest {
+  /**
+     * Почему отклонено
+     * @minLength 0
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+/**
+ * Личная ссылка сотрудника: клиент по ней подключается без одобрения магазина и закрепляется за ним
+ */
+export interface StaffInviteDto {
+  /** Код ссылки */
+  code: string;
+  /** Адрес целиком — его же кодирует QR */
+  url: string;
+}
+
+/**
+ * Приглашение клиента в кабинет
+ */
+export interface IssueInvitationRequest {
+  /**
+     * Телефон клиента цифрами без разделителей — в том же виде, в каком его знает переписка
+     * @minLength 1
+     * @pattern 7\d{10}|[1-689]\d{7,14}
+     */
+  phone: string;
+  /**
+     * Почта клиента: если указана, приглашение уходит и письмом. Необязательна — клиенту, который писал в WhatsApp, приглашение уходит туда
+     * @minLength 0
+     * @maxLength 255
+     */
+  email?: string;
+  /**
+     * Имя клиента. Пусто — система возьмёт то, которым он представился в переписке
+     * @minLength 0
+     * @maxLength 255
+     */
+  name?: string;
+}
+
+/**
+ * Результат выписки приглашения
+ */
+export interface InvitationDto {
+  /** Адрес, на который ушло письмо; пусто — почту не указали */
+  email?: string;
+  /** До какого момента приглашение действует */
+  expiresAt: string;
+  /** Ушло ли письмо. Ложь — приглашение выписано, но доставить его не удалось: выписать повторно */
+  delivered: boolean;
+  /** Ссылка активации целиком: её менеджер передаёт клиенту, если письмо не дошло */
+  activationLink: string;
+  /** Ушло ли приглашение в WhatsApp. Ложь — клиент не писал магазину или писал давно: первыми мы не пишем, ссылку менеджер передаёт сам */
+  whatsappSent: boolean;
+  /** Номер уже клиент Q-Order у другого поставщика и входит своим паролем. Ссылка пароль не задаёт: клиент входит своим паролем, и после входа ссылка открывает кабинет */
+  existingCustomer: boolean;
+}
+
+/**
+ * Передача клиентов и заявок насовсем
+ */
+export interface HandoverRequest {
+  /** Кто уходит */
+  fromId: string;
+  /**
+     * Кому: клиенты делятся между ними поровну
+     * @minItems 1
+     */
+  toIds: string[];
+}
+
+/**
+ * Сколько клиентов и открытых заявок у сотрудника — до передачи или передано
+ */
+export interface HandoverDto {
+  customers: number;
+  /** Открытые заявки: ещё не выданы и не закрыты */
+  drafts: number;
+}
+
+export interface ExchangeMissingLineDto {
+  lineNo: number;
+  itemId?: string;
+  name: string;
+}
+
+export interface ExchangeOrderRevisionDto {
+  revision: number;
+  status: string;
+  reason?: string;
+  documentNumber?: string;
+  queuedAt: string;
+  deliveredAt?: string;
+  ackedAt?: string;
+}
+
+/**
+ * Заказ в очереди 1С — по последней ревизии
+ */
+export interface ExchangeQueueOrderDto {
+  orderId: string;
+  /** Номер заказа Q-Order */
+  number?: string;
+  /** Покупатель; пусто — разовый */
+  customer?: string;
+  total?: number;
+  currency?: string;
+  revision: number;
+  /** PENDING — ждёт 1С, DELIVERED — 1С забрала, ACKED — завела документ, REJECTED — не примет */
+  status: string;
+  /** Почему 1С не примет */
+  reason?: string;
+  /** Номер документа 1С */
+  documentNumber?: string;
+  /** Заказ отменён: 1С снимет документ */
+  cancelled: boolean;
+  queuedAt: string;
+  deliveredAt?: string;
+  ackedAt?: string;
+  /** Оплат заказа в очереди 1С */
+  payments: number;
+  /** Из них 1С завела документом */
+  paymentsAcked: number;
+}
+
+export interface ExchangeTracePaymentDto {
+  paymentId: string;
+  revision: number;
+  amount: number;
+  currency: string;
+  paidAt: string;
+  cancelled: boolean;
+  status: string;
+  documentNumber?: string;
+  deliveredAt?: string;
+  ackedAt?: string;
+}
+
+/**
+ * Путь заказа в 1С: все ревизии заказа, его оплаты и строки без кода 1С
+ */
+export interface ExchangeOrderTraceDto {
+  order: ExchangeQueueOrderDto;
+  /** Ревизии заказа, старые первыми */
+  revisions: ExchangeOrderRevisionDto[];
+  /** Оплаты по последней ревизии каждой, старые первыми */
+  payments: ExchangeTracePaymentDto[];
+  /** Строки, которые 1С не опознает: товар без кода 1С или вписан вручную */
+  missingLines: ExchangeMissingLineDto[];
+}
+
+/**
+ * Только что выданный ключ: показать один раз — восстановить его будет неоткуда
+ */
+export interface IssuedExchangeKeyDto {
+  credentialId: string;
+  /** Ключ открытым текстом */
+  key: string;
 }
 
 /**
@@ -8507,6 +10293,38 @@ export interface ReplyToCustomerRequest {
 }
 
 /**
+ * Пояснение к строке
+ */
+export interface LineNote {
+  /** Строка заявки */
+  lineId: string;
+  /**
+     * Пояснение клиенту
+     * @minLength 0
+     * @maxLength 300
+     */
+  note?: string;
+}
+
+/**
+ * Комментарий клиенту к пересогласованию
+ */
+export interface RenegotiateRequest {
+  /**
+     * Комментарий клиенту: уходит и в снимок, и в переписку заявки
+     * @minLength 0
+     * @maxLength 500
+     */
+  note?: string;
+  /**
+     * Пояснения к строкам
+     * @minItems 0
+     * @maxItems 500
+     */
+  lines?: LineNote[];
+}
+
+/**
  * Ответ менеджера на вопрос клиента
  */
 export interface AnswerQuestionRequest {
@@ -8548,6 +10366,14 @@ export interface CreditOverrideRequest {
      * @maxLength 500
      */
   reason: string;
+}
+
+/**
+ * Решение продавца по просьбе клиента взять товар в долг
+ */
+export interface CreditDecisionRequest {
+  /** true — согласен отпустить в долг (под реализацию), false — только за оплату */
+  approve: boolean;
 }
 
 export interface AssignDraftRequest {
@@ -8638,34 +10464,6 @@ export interface CreateDeliveryRunRequest {
 }
 
 /**
- * Остановка рейса
- */
-export interface DeliveryRunStopDto {
-  id: string;
-  position: number;
-  orderId: string;
-  orderNumber?: string;
-  customerName?: string;
-  customerPhone?: string;
-  address?: string;
-  deliveredAt?: string;
-}
-
-/**
- * Рейс доставки
- */
-export interface DeliveryRunDto {
-  id: string;
-  date: string;
-  driverId: string;
-  /** PLANNED — назначен, ON_ROUTE — в пути, DONE — все заказы доставлены */
-  status: string;
-  startedAt?: string;
-  finishedAt?: string;
-  stops: DeliveryRunStopDto[];
-}
-
-/**
  * «Доставлено»: код выдачи, который называет клиент
  */
 export interface DeliverStopRequest {
@@ -8752,6 +10550,11 @@ export interface ReceiveCustomerPaymentRequest {
      * @maxLength 500
      */
   comment?: string;
+  /**
+     * Банк перевода; только у способа TRANSFER, у других — не принимается
+     * @pattern ^[A-Z0-9_]{2,20}$
+     */
+  bank?: string;
 }
 
 /**
@@ -8767,53 +10570,37 @@ export interface CustomerDebtPaymentDto {
 }
 
 /**
+ * Приглашение, которое принимает вошедший поставщик: нужен код или ссылка владельцу
+ */
+export interface AcceptReferralRequest {
+  /**
+     * Код из ссылки клиента (`/join/{code}`)
+     * @minLength 0
+     * @maxLength 64
+     */
+  referralCode?: string;
+  /**
+     * Код ссылки владельцу от продавца (`/join/owner/{token}`)
+     * @minLength 0
+     * @maxLength 64
+     */
+  ownerToken?: string;
+}
+
+/**
+ * Итог принятия приглашения клиента
+ */
+export interface AcceptedReferralDto {
+  /** Скольким клиентам выписано приглашение в кабинет */
+  invited: number;
+}
+
+/**
  * Ответ клиента на предложение кабинета, отмеченный менеджером
  */
 export interface CabinetOfferAnswerRequest {
   /** Истина — согласен, ложь — отказался, не беспокоить */
   agreed: boolean;
-}
-
-/**
- * Приглашение клиента в кабинет
- */
-export interface IssueInvitationRequest {
-  /**
-     * Телефон клиента цифрами без разделителей — в том же виде, в каком его знает переписка
-     * @minLength 1
-     * @pattern 7\d{10}|[1-689]\d{7,14}
-     */
-  phone: string;
-  /**
-     * Почта клиента: если указана, приглашение уходит и письмом. Необязательна — клиенту, который писал в WhatsApp, приглашение уходит туда
-     * @minLength 0
-     * @maxLength 255
-     */
-  email?: string;
-  /**
-     * Имя клиента. Пусто — система возьмёт то, которым он представился в переписке
-     * @minLength 0
-     * @maxLength 255
-     */
-  name?: string;
-}
-
-/**
- * Результат выписки приглашения
- */
-export interface InvitationDto {
-  /** Адрес, на который ушло письмо; пусто — почту не указали */
-  email?: string;
-  /** До какого момента приглашение действует */
-  expiresAt: string;
-  /** Ушло ли письмо. Ложь — приглашение выписано, но доставить его не удалось: выписать повторно */
-  delivered: boolean;
-  /** Ссылка активации целиком: её менеджер передаёт клиенту, если письмо не дошло */
-  activationLink: string;
-  /** Ушло ли приглашение в WhatsApp. Ложь — клиент не писал магазину или писал давно: первыми мы не пишем, ссылку менеджер передаёт сам */
-  whatsappSent: boolean;
-  /** Номер уже клиент Q-Order у другого поставщика и входит своим паролем. Ссылка пароль не задаёт: клиент входит своим паролем, и после входа ссылка открывает кабинет */
-  existingCustomer: boolean;
 }
 
 /**
@@ -8979,6 +10766,12 @@ export interface CategoryNodeDto {
   fieldCount: number;
   /** Строка отраслевого пресета, из которой выросла ветка; отсутствует у заведённой руками. По ней мастер отличает ветки только что применённой отрасли от уже бывших в каталоге */
   presetCode?: string;
+  /** Картинка раздела, как её поставил менеджер; пусто — нет */
+  imageUrl?: string;
+  /** Адрес для тега картинки раздела; пусто — нет */
+  imageSrc?: string;
+  /** Своя галочка раздела «только с 21 года»; действует и на подразделы */
+  ageRestricted: boolean;
 }
 
 /**
@@ -9273,6 +11066,16 @@ export interface PromoteAttributeRequest {
 }
 
 /**
+ * Картинка раздела, загруженная файлом в хранилище арендатора
+ */
+export interface CategoryImageDto {
+  /** Файл в хранилище */
+  fileId: string;
+  /** Адрес вида /api/files/{id} — его присылают в imageUrl раздела */
+  url: string;
+}
+
+/**
  * Позиции для массового действия
  */
 export interface BulkItemsRequest {
@@ -9366,6 +11169,27 @@ export interface ExchangeAckDto {
 }
 
 /**
+ * Подтверждение 1С: оплата этой ревизии заведена документом
+ */
+export interface ExchangePaymentAck {
+  paymentId: string;
+  revision: number;
+  /**
+     * Номер документа 1С
+     * @minLength 0
+     * @maxLength 64
+     */
+  documentNumber?: string;
+}
+
+/**
+ * Сколько подтверждений принято; чужие и устаревшие ревизии не считаются
+ */
+export interface ExchangeOrderAckDto {
+  acked: number;
+}
+
+/**
  * Подтверждение 1С: заказ этой ревизии заведён документом
  */
 export interface ExchangeOrderAck {
@@ -9382,10 +11206,26 @@ export interface ExchangeOrderAck {
 }
 
 /**
- * Сколько подтверждений принято; чужие и устаревшие ревизии не считаются
+ * Потолок: CUSTOMERS, STAFF, ITEMS или WAREHOUSES
  */
-export interface ExchangeOrderAckDto {
-  acked: number;
+export type LimitRefusalCountDtoKind = typeof LimitRefusalCountDtoKind[keyof typeof LimitRefusalCountDtoKind];
+
+
+export const LimitRefusalCountDtoKind = {
+  CUSTOMERS: 'CUSTOMERS',
+  STAFF: 'STAFF',
+  ITEMS: 'ITEMS',
+  WAREHOUSES: 'WAREHOUSES',
+} as const;
+
+/**
+ * Отказы по лимиту тарифа одного вида за период
+ */
+export interface LimitRefusalCountDto {
+  /** Потолок: CUSTOMERS, STAFF, ITEMS или WAREHOUSES */
+  kind: LimitRefusalCountDtoKind;
+  /** Отказов за период */
+  count: number;
 }
 
 /**
@@ -9412,6 +11252,8 @@ export interface TenantAccountDto {
   owner?: boolean;
   /** Временный пароль первого входа. Есть, только пока человек не вошёл и не сменил его; после входа платформа его забывает */
   temporaryPassword?: string;
+  /** Токен ссылки, по которой человек сам задаёт пароль: `<рабочее место>/staff/join?token=…`. Есть, пока он не вошёл */
+  joinToken?: string;
 }
 
 /**
@@ -9476,6 +11318,20 @@ export interface PlatformReferralsDto {
 }
 
 /**
+ * Доля заявок из кабинета у арендатора за период
+ */
+export interface PlatformChannelShareDto {
+  /** Арендатор */
+  tenantId: string;
+  /** Заявок за период по всем каналам */
+  drafts: number;
+  /** Из них — из кабинета */
+  portalDrafts: number;
+  /** Доля кабинета, % */
+  portalShare: number;
+}
+
+/**
  * ACTIVE — работает, SUSPENDED — приостановлен платформой, CLOSED — заблокирован
  */
 export type MyStandingDtoStatus = typeof MyStandingDtoStatus[keyof typeof MyStandingDtoStatus];
@@ -9497,6 +11353,8 @@ export interface MyStandingDto {
   acceptsOrders: boolean;
   /** Вы — владелец арендатора: вам видны доход и выдача права на закупочные цены */
   owner?: boolean;
+  /** Конец пробного периода; пусто — пробного периода нет. Прошёл и `SUSPENDED` — заявки не принимаются, пока платформа не отметит оплату */
+  trialEndsAt?: string;
 }
 
 /**
@@ -9863,12 +11721,100 @@ export interface BannerPhotoDto {
   url: string;
 }
 
+export interface SizePart {
+  itemId?: string;
+  size?: string;
+  quantity?: number;
+}
+
+export interface SizeSplitDto {
+  parts?: SizePart[];
+  warning?: string;
+}
+
+export type DirectionDtoCode = typeof DirectionDtoCode[keyof typeof DirectionDtoCode];
+
+
+export const DirectionDtoCode = {
+  GRID: 'GRID',
+  PACKAGED: 'PACKAGED',
+  WEIGHT: 'WEIGHT',
+  BULK: 'BULK',
+  PIECE: 'PIECE',
+} as const;
+
+export type DirectionDtoAllocation = typeof DirectionDtoAllocation[keyof typeof DirectionDtoAllocation];
+
+
+export const DirectionDtoAllocation = {
+  PIECES: 'PIECES',
+  WEIGHT: 'WEIGHT',
+  VOLUME: 'VOLUME',
+  VALUE: 'VALUE',
+} as const;
+
+export type DirectionFieldDtoType = typeof DirectionFieldDtoType[keyof typeof DirectionFieldDtoType];
+
+
+export const DirectionFieldDtoType = {
+  TEXT: 'TEXT',
+  NUMBER: 'NUMBER',
+  SIZE_RANGE: 'SIZE_RANGE',
+} as const;
+
+export interface DirectionFieldDto {
+  code?: string;
+  name?: string;
+  type?: DirectionFieldDtoType;
+  unit?: string;
+  required?: boolean;
+}
+
+export interface DirectionUnitDto {
+  code?: string;
+  name?: string;
+  fractional?: boolean;
+}
+
+export interface PlaceKindDto {
+  code?: string;
+  name?: string;
+}
+
+export interface DirectionDto {
+  code?: DirectionDtoCode;
+  name?: string;
+  industries?: string[];
+  fields?: DirectionFieldDto[];
+  units?: DirectionUnitDto[];
+  allocation?: DirectionDtoAllocation;
+  placeKinds?: PlaceKindDto[];
+}
+
 /**
  * Подписчики на акции
  */
 export interface PromoSubscribersDto {
   /** Сколько покупателей согласились */
   count: number;
+}
+
+/**
+ * Позиция шаблона закупки — для правки шаблона
+ */
+export interface TemplateLineDto {
+  /** Позиция каталога */
+  itemId: string;
+  /** Название из каталога; пусто — позицию сняли с продажи */
+  name?: string;
+  /** Единица измерения */
+  unit?: string;
+  /** Количество в шаблоне */
+  quantity: number;
+  /** Наименьшее количество в заявке; пусто — без минимума */
+  minQuantity?: number;
+  /** Кратность количества; пусто — любое */
+  quantityStep?: number;
 }
 
 /**
@@ -9949,6 +11895,10 @@ export interface PortalSupplierDto {
   design?: CabinetDesignDto;
   /** Сколько позиций вошедший клиент уже набрал в корзину этого магазина. Пусто — корзина пуста или список открыт не клиентом */
   cartLines?: number;
+  /** Клиент скрыл этот магазин: уведомлений и push от него нет, а в списке он в свёрнутой группе «Скрытые». Пусто — не скрыт */
+  hidden?: boolean;
+  /** Магазин принимает отзывы и оценки заказа (R-17). Пусто — выключены: кнопок отзыва, оценки заказа и раздела «Отзывы» у клиента нет */
+  reviews?: boolean;
 }
 
 /**
@@ -10001,6 +11951,10 @@ export interface WhatsappArchiveMessageDto {
   text: string;
   /** Истина — написал магазин, ложь — клиент */
   fromShop: boolean;
+  /** Товар, чьё фото магазин прислал этим сообщением; пусто — обычное сообщение */
+  itemId?: string;
+  /** Нынешнее главное фото этого товара; пусто — фото нет или товар не прислан */
+  photoUrl?: string;
 }
 
 /**
@@ -10049,6 +12003,7 @@ export type PortalNotificationDtoKind = typeof PortalNotificationDtoKind[keyof t
 
 export const PortalNotificationDtoKind = {
   RENEGOTIATION: 'RENEGOTIATION',
+  PRICE_NAMED: 'PRICE_NAMED',
   DEADLINE_SOON: 'DEADLINE_SOON',
   ACCEPTED: 'ACCEPTED',
   DRAFT_TAKEN_OVER: 'DRAFT_TAKEN_OVER',
@@ -10057,12 +12012,14 @@ export const PortalNotificationDtoKind = {
   CREDIT_OVERRIDE_REQUESTED: 'CREDIT_OVERRIDE_REQUESTED',
   CUSTOMER_ANSWERED: 'CUSTOMER_ANSWERED',
   DRAFT_QUEUED: 'DRAFT_QUEUED',
+  ITEM_QUESTION: 'ITEM_QUESTION',
   STOCK_REQUESTED: 'STOCK_REQUESTED',
   DRAFT_EXPIRED: 'DRAFT_EXPIRED',
   MANAGER_SILENT: 'MANAGER_SILENT',
   EXCHANGE_SILENT: 'EXCHANGE_SILENT',
   QUESTION_ANSWERED: 'QUESTION_ANSWERED',
   ORDER_ANSWERED: 'ORDER_ANSWERED',
+  REVIEW_ANSWERED: 'REVIEW_ANSWERED',
   CUSTOMER_MESSAGE: 'CUSTOMER_MESSAGE',
   TRANSPORT_RECEIPT_SENT: 'TRANSPORT_RECEIPT_SENT',
   TRANSPORT_PAYMENT_REJECTED: 'TRANSPORT_PAYMENT_REJECTED',
@@ -10071,6 +12028,7 @@ export const PortalNotificationDtoKind = {
   ORDER_DELIVERED: 'ORDER_DELIVERED',
   TEMPLATE_READY: 'TEMPLATE_READY',
   ACCESS_REQUESTED: 'ACCESS_REQUESTED',
+  TRIAL_ENDING: 'TRIAL_ENDING',
   TRANSPORT_PAYMENT_REPORTED: 'TRANSPORT_PAYMENT_REPORTED',
   STOCK_SYNC_CONFLICT: 'STOCK_SYNC_CONFLICT',
   STOCK_CELLS_REDUCED: 'STOCK_CELLS_REDUCED',
@@ -10082,6 +12040,17 @@ export const PortalNotificationDtoKind = {
   BACK_IN_STOCK: 'BACK_IN_STOCK',
   CUSTOMER_SILENT: 'CUSTOMER_SILENT',
   REORDER_DUE: 'REORDER_DUE',
+  DEBT_PAYMENT_CLAIMED: 'DEBT_PAYMENT_CLAIMED',
+  DEBT_PAYMENT_CONFIRMED: 'DEBT_PAYMENT_CONFIRMED',
+  DEBT_PAYMENT_REJECTED: 'DEBT_PAYMENT_REJECTED',
+  DEBT_PAYMENT_RECEIVED: 'DEBT_PAYMENT_RECEIVED',
+  DEBT_PAYMENT_DUE: 'DEBT_PAYMENT_DUE',
+  DRAFT_UNCLAIMED: 'DRAFT_UNCLAIMED',
+  SUBSTITUTION_STARTED: 'SUBSTITUTION_STARTED',
+  CUSTOMERS_HANDED_OVER: 'CUSTOMERS_HANDED_OVER',
+  MANAGER_CHANGED: 'MANAGER_CHANGED',
+  PORTAL_INVITATION: 'PORTAL_INVITATION',
+  CUSTOMER_JOINED: 'CUSTOMER_JOINED',
 } as const;
 
 /**
@@ -10107,6 +12076,33 @@ export interface PortalUnreadDto {
   supplierId: string;
   /** Сколько непрочитанных плашек. Ноль — обычное состояние, а не признак того, что поставщик выпал */
   unread: number;
+}
+
+/**
+ * Долг у поставщика коротко
+ */
+export interface PortalOverviewDebt {
+  /** Остаток долга */
+  debt: number;
+  /** Не внесено по просроченным платежам графика */
+  overdue: number;
+  /** Ближайший срок платежа графика, не раньше сегодня */
+  nextDue?: string;
+  /** Сколько внести к ближайшему сроку */
+  nextDueLeft?: number;
+  /** Сообщено об оплате, ждёт подтверждения продавца */
+  pending: number;
+}
+
+/**
+ * Что ждёт клиента у одного поставщика
+ */
+export interface PortalOverviewDto {
+  supplierId: string;
+  /** Непрочитанные уведомления, новые сверху */
+  notifications: PortalNotificationDto[];
+  /** Долг; нет — клиент этому поставщику не должен */
+  debt?: PortalOverviewDebt;
 }
 
 /**
@@ -10147,6 +12143,18 @@ export interface JoinInviteDto {
 }
 
 /**
+ * Клиенты, которые ждут компанию в Q-Order
+ */
+export interface OwnerInviteDto {
+  /** Сколько клиентов ждут */
+  waiting: number;
+  /** Кто передал приглашения */
+  sellerName?: string;
+  /** Имена клиентов, разрешивших себя называть */
+  clients: string[];
+}
+
+/**
  * Уведомление об обработке персональных данных
  */
 export interface ConsentNoticeDto {
@@ -10164,6 +12172,10 @@ export interface JoinShopDto {
   logoUrl?: string;
   /** Продавец открыл витрину без цен: товары — `GET …/{code}/items` */
   showcase: boolean;
+  /** Поставщик для кабинета: вошедший клиент по ссылке «Поделиться» переходит в его магазин (`?supplier=`), как по QR этикетки */
+  supplierId: string;
+  /** Личная ссылка сотрудника: кто станет менеджером клиента; пусто — ссылка магазина */
+  managerName?: string;
 }
 
 /**
@@ -10205,6 +12217,34 @@ export interface PageResponsePublicShowcaseItemDto {
   items?: PublicShowcaseItemDto[];
   /** Есть записи сверх totalElements: число посчитано не до конца. Пусто — число точное */
   hasMore?: boolean;
+}
+
+/**
+ * Товар по ссылке «Поделиться» без цен
+ */
+export interface SharedItemDto {
+  id: string;
+  name: string;
+  /** Артикул */
+  sku?: string;
+  /** Единица */
+  unit?: string;
+  /** Главный снимок; пусто — снимка нет */
+  imageUrl?: string;
+  /** Размеры модели по порядку вариантов; пусто — размеров нет */
+  sizes: string[];
+}
+
+/**
+ * Магазин, пригласивший по коду
+ */
+export interface InvitationPreviewDto {
+  /** Название магазина */
+  name: string;
+  /** Адрес знака магазина; пусто — знака нет */
+  logoUrl?: string;
+  /** У приглашённого уже есть пароль: кабинет открывается входом, а не новым паролем */
+  signInRequired: boolean;
 }
 
 /**
@@ -10338,6 +12378,8 @@ export interface Method {
   deliveryVatMode?: MethodDeliveryVatMode;
   /** НДС грузчиков у плательщика: NONE, ON_TOP, INCLUDED */
   loadersVatMode?: MethodLoadersVatMode;
+  /** Клиент может вписать своего перевозчика — оплачивает ему сам, в итог не входит */
+  allowOwnCarrier: boolean;
 }
 
 /**
@@ -10540,14 +12582,16 @@ export interface ShowcaseCounts {
   novelty: number;
   /** Товаров по рубрикам: идентификатор рубрики → число. Рубрики без товаров в словаре нет */
   byCategory: ShowcaseCountsByCategory;
-  /** Товаров, которые продаются штуками (без опта или и штуками, и оптом) — без фильтра «Розница / Опт»: ноль — переключатель не нужен */
+  /** Товаров только в розницу (штуками, без опта) — без фильтра «Как продаётся» */
   retail: number;
-  /** Товаров с оптом — без фильтра «Розница / Опт»; ноль — у магазина нет опта */
+  /** Товаров только оптом (упаковками) — без фильтра «Как продаётся» */
   wholesale: number;
   /** Товаров с меткой «Хит продаж» */
   hit: number;
   /** Товаров, где опт дешевле розницы («Скидка») */
   wholesaleDeal: number;
+  /** Товаров и штуками, и оптом — без фильтра «Как продаётся» */
+  both: number;
 }
 
 /**
@@ -10652,6 +12696,10 @@ export interface OrderDebtRowDto {
   remindedAt?: string;
   /** На сколько дней долг вышел за отсрочку клиента; пусто — отсрочки нет или не просрочен */
   overdueDays?: number;
+  /** Возвращено товаром на сумму */
+  returned: number;
+  /** Клиент сообщил об оплате, ждёт подтверждения продавца */
+  pending: number;
 }
 
 export interface OrderRatingManager {
@@ -10724,6 +12772,18 @@ export interface OrderRatingSummaryDto {
 }
 
 /**
+ * Данные шагов «Начала работы»
+ */
+export interface OnboardingFactsDto {
+  /** Позиций на витрине кабинета: видимых и с ценой */
+  shownItems: number;
+  /** Клиентов, вошедших в кабинет */
+  activeCustomers: number;
+  /** Пришла ли хоть одна заявка из кабинета */
+  portalOrder: boolean;
+}
+
+/**
  * Повод
  */
 export type NotificationDtoKind = typeof NotificationDtoKind[keyof typeof NotificationDtoKind];
@@ -10731,6 +12791,7 @@ export type NotificationDtoKind = typeof NotificationDtoKind[keyof typeof Notifi
 
 export const NotificationDtoKind = {
   RENEGOTIATION: 'RENEGOTIATION',
+  PRICE_NAMED: 'PRICE_NAMED',
   DEADLINE_SOON: 'DEADLINE_SOON',
   ACCEPTED: 'ACCEPTED',
   DRAFT_TAKEN_OVER: 'DRAFT_TAKEN_OVER',
@@ -10739,12 +12800,14 @@ export const NotificationDtoKind = {
   CREDIT_OVERRIDE_REQUESTED: 'CREDIT_OVERRIDE_REQUESTED',
   CUSTOMER_ANSWERED: 'CUSTOMER_ANSWERED',
   DRAFT_QUEUED: 'DRAFT_QUEUED',
+  ITEM_QUESTION: 'ITEM_QUESTION',
   STOCK_REQUESTED: 'STOCK_REQUESTED',
   DRAFT_EXPIRED: 'DRAFT_EXPIRED',
   MANAGER_SILENT: 'MANAGER_SILENT',
   EXCHANGE_SILENT: 'EXCHANGE_SILENT',
   QUESTION_ANSWERED: 'QUESTION_ANSWERED',
   ORDER_ANSWERED: 'ORDER_ANSWERED',
+  REVIEW_ANSWERED: 'REVIEW_ANSWERED',
   CUSTOMER_MESSAGE: 'CUSTOMER_MESSAGE',
   TRANSPORT_RECEIPT_SENT: 'TRANSPORT_RECEIPT_SENT',
   TRANSPORT_PAYMENT_REJECTED: 'TRANSPORT_PAYMENT_REJECTED',
@@ -10753,6 +12816,7 @@ export const NotificationDtoKind = {
   ORDER_DELIVERED: 'ORDER_DELIVERED',
   TEMPLATE_READY: 'TEMPLATE_READY',
   ACCESS_REQUESTED: 'ACCESS_REQUESTED',
+  TRIAL_ENDING: 'TRIAL_ENDING',
   TRANSPORT_PAYMENT_REPORTED: 'TRANSPORT_PAYMENT_REPORTED',
   STOCK_SYNC_CONFLICT: 'STOCK_SYNC_CONFLICT',
   STOCK_CELLS_REDUCED: 'STOCK_CELLS_REDUCED',
@@ -10764,6 +12828,17 @@ export const NotificationDtoKind = {
   BACK_IN_STOCK: 'BACK_IN_STOCK',
   CUSTOMER_SILENT: 'CUSTOMER_SILENT',
   REORDER_DUE: 'REORDER_DUE',
+  DEBT_PAYMENT_CLAIMED: 'DEBT_PAYMENT_CLAIMED',
+  DEBT_PAYMENT_CONFIRMED: 'DEBT_PAYMENT_CONFIRMED',
+  DEBT_PAYMENT_REJECTED: 'DEBT_PAYMENT_REJECTED',
+  DEBT_PAYMENT_RECEIVED: 'DEBT_PAYMENT_RECEIVED',
+  DEBT_PAYMENT_DUE: 'DEBT_PAYMENT_DUE',
+  DRAFT_UNCLAIMED: 'DRAFT_UNCLAIMED',
+  SUBSTITUTION_STARTED: 'SUBSTITUTION_STARTED',
+  CUSTOMERS_HANDED_OVER: 'CUSTOMERS_HANDED_OVER',
+  MANAGER_CHANGED: 'MANAGER_CHANGED',
+  PORTAL_INVITATION: 'PORTAL_INVITATION',
+  CUSTOMER_JOINED: 'CUSTOMER_JOINED',
 } as const;
 
 /**
@@ -10779,6 +12854,16 @@ export interface NotificationDto {
   details?: string;
   /** Когда появилось */
   createdAt: string;
+}
+
+/**
+ * Действующий ключ обмена: когда выдан и когда им пользовалась 1С
+ */
+export interface ExchangeKeyDto {
+  credentialId: string;
+  issuedAt: string;
+  /** Последний обмен с этим ключом; пусто — 1С им ещё не пользовалась */
+  lastUsedAt?: string;
 }
 
 export interface DraftFirstLineDto {
@@ -10866,6 +12951,29 @@ export const DraftSummaryDtoCurrency = {
   EUR: 'EUR',
 } as const;
 
+/**
+ * В долг: REQUESTED — клиент просит под реализацию и ждёт решения, APPROVED — продавец согласился, DECLINED — только за оплату. Пусто — за оплату
+ */
+export type DraftSummaryDtoCreditRequest = typeof DraftSummaryDtoCreditRequest[keyof typeof DraftSummaryDtoCreditRequest];
+
+
+export const DraftSummaryDtoCreditRequest = {
+  REQUESTED: 'REQUESTED',
+  APPROVED: 'APPROVED',
+  DECLINED: 'DECLINED',
+} as const;
+
+/**
+ * Оптовая (WHOLESALE) или розничная (RETAIL) заявка из кабинета. Пусто — из переписки или подана до разделения заявок
+ */
+export type DraftSummaryDtoSaleMode = typeof DraftSummaryDtoSaleMode[keyof typeof DraftSummaryDtoSaleMode];
+
+
+export const DraftSummaryDtoSaleMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
+} as const;
+
 export interface DraftSummaryDto {
   id?: string;
   orderNumber?: string;
@@ -10903,6 +13011,10 @@ export interface DraftSummaryDto {
   payableTotal?: number;
   /** До какого момента продавец обещал первый ответ — часы на ответ из настроек в рабочем времени. Есть, пока клиенту ничего не отправлено; прошёл — заявка опаздывает */
   replyDueAt?: string;
+  /** В долг: REQUESTED — клиент просит под реализацию и ждёт решения, APPROVED — продавец согласился, DECLINED — только за оплату. Пусто — за оплату */
+  creditRequest?: DraftSummaryDtoCreditRequest;
+  /** Оптовая (WHOLESALE) или розничная (RETAIL) заявка из кабинета. Пусто — из переписки или подана до разделения заявок */
+  saleMode?: DraftSummaryDtoSaleMode;
 }
 
 /**
@@ -10980,6 +13092,8 @@ export interface DraftConsentDto {
   submittedDiscount?: ConfirmationDiscountDto;
   /** Чем клиент согласился: WHATSAPP — ответ в переписке, PORTAL — нажатие в кабинете, IN_PERSON — вслух, зафиксировал менеджер; пусто — согласия нет */
   channel?: string;
+  /** Ответ клиента кабинета по строкам последнего пересогласования: ACCEPT / REMOVE / WAIT у lineId. Пусто — по строкам не отвечал или ждём ответа на новую редакцию */
+  customerDecisions: LineDecisionDto[];
 }
 
 export interface CatalogReplyItemDto {
@@ -11040,6 +13154,10 @@ export interface CustomerDirectoryRowDto {
   lastOrderAt?: string;
   /** Долг по выданному под реализацию — по тому же расчёту, что раздел «Долги». Ноль — не должен. Пусто — у вошедшего нет права на счета: сумма долга — их данные */
   debt?: number;
+  /** Продавец клиента: кому сразу уходят его новые заявки. Пусто — общая очередь */
+  managerId?: string;
+  /** Имя продавца клиента */
+  managerName?: string;
 }
 
 /**
@@ -11076,6 +13194,18 @@ export interface TenantReferralDto {
   referrerName?: string;
   /** Номер клиента цифрами */
   referrerPhone: string;
+}
+
+/**
+ * Продавец, передавший приглашения клиентов
+ */
+export interface ReferralSellerDto {
+  /** Имя продавца, как он себя назвал */
+  name: string;
+  /** Номер цифрами */
+  phone: string;
+  /** Клиенты, чьи приглашения он передал; без имени — «Клиент» */
+  clients: string[];
 }
 
 /**
@@ -11522,6 +13652,7 @@ export const AuditEventDtoAction = {
   OWNER_CHANGED: 'OWNER_CHANGED',
   PURCHASE_PRICES_RIGHT_CHANGED: 'PURCHASE_PRICES_RIGHT_CHANGED',
   PURCHASE_PRICE_CHANGED: 'PURCHASE_PRICE_CHANGED',
+  PURCHASE_CHANGED: 'PURCHASE_CHANGED',
   CUSTOMER_PRICE_TERM_CHANGED: 'CUSTOMER_PRICE_TERM_CHANGED',
   CUSTOMER_DATA_DELETED: 'CUSTOMER_DATA_DELETED',
   MESSAGE_SENT: 'MESSAGE_SENT',
@@ -11896,6 +14027,62 @@ export interface QualityDto {
 }
 
 /**
+ * Канал заявок
+ */
+export interface ChannelRowDto {
+  /** PORTAL, WHATSAPP или MANAGER */
+  source: string;
+  /** Заявок в периоде */
+  drafts: number;
+  /** Доля от всех заявок периода, % */
+  share: number;
+  /** Медиана ожидания клиентом ответа менеджера, мс (с точностью до корзины); пусто — ответов не было */
+  replyP50Ms?: number;
+}
+
+/**
+ * Экономия = заявок из кабинета × (минуты не из кабинета − минуты из кабинета) ÷ 60 × стоимость часа
+ */
+export interface SavingsDto {
+  /** Заявок из кабинета в периоде */
+  portalDrafts: number;
+  /** Минут менеджера на заявку не из кабинета — норма владельца */
+  minutesPerOrder: number;
+  /** Минут менеджера на заявку из кабинета — норма владельца */
+  portalMinutesPerOrder: number;
+  /** Стоимость часа менеджера — норма владельца */
+  hourRate: MoneyDto;
+  /** Сэкономлено часов менеджера */
+  hours: number;
+  /** Сэкономлено денег */
+  amount: MoneyDto;
+}
+
+/**
+ * Переход по ссылке «Поделиться» → вход клиента → первое добавление в корзину за визит (R-07)
+ */
+export interface ShareFunnelDto {
+  /** Переходов людей, без ботов превью */
+  visits: number;
+  /** Из них вошли в кабинет */
+  logins: number;
+  /** Положили товар в корзину */
+  carts: number;
+}
+
+/**
+ * Каналы заявок и экономия от кабинета
+ */
+export interface ChannelsDto {
+  /** Каналы с заявками в периоде, по убыванию числа заявок */
+  rows: ChannelRowDto[];
+  /** Экономия по норме владельца; пусто — норма не задана */
+  savings?: SavingsDto;
+  /** Воронка ссылок «Поделиться» за период; пусто — переходов не было */
+  share?: ShareFunnelDto;
+}
+
+/**
  * Клетка треугольника удержания
  */
 export interface CohortCellDto {
@@ -12048,6 +14235,8 @@ export interface OverviewDto {
   insights: InsightDto[];
   /** Плитки сверх обзора; пусто — tiles не задан */
   tiles?: TilesDto;
+  /** Каналы заявок периода и экономия от кабинета — без отбора канала отчёта */
+  channels: ChannelsDto;
 }
 
 /**
@@ -12490,6 +14679,31 @@ export interface CalendarDto {
 }
 
 /**
+ * Оплата для 1С: поступление к реализации, которую 1С уже завела по заказу
+ */
+export interface ExchangePaymentDto {
+  /** Оплата; у обычного заказа, оплаченного целиком, равна orderId */
+  paymentId: string;
+  /** Ревизия: та же оплата с бо́льшей ревизией заменяет прежнюю */
+  revision: number;
+  orderId: string;
+  /** Номер заказа Q-Order */
+  orderNumber: string;
+  /** Номер документа 1С по заказу — из подтверждения заказа */
+  orderDocumentNumber?: string;
+  amount: number;
+  currency: string;
+  /** Когда принята */
+  paidAt: string;
+  /** Способ: CASH, CARD, TRANSFER…; пусто — не указан */
+  method?: string;
+  /** Банк перевода или карты */
+  bank?: string;
+  /** Выплата отменена в Q-Order: поступление этой оплаты в 1С снять; незаведённое — пропустить и подтвердить */
+  cancelled: boolean;
+}
+
+/**
  * Контрагент: БИН и название из реквизитов; без БИН — телефон и имя
  */
 export interface ExchangeOrderCustomerDto {
@@ -12528,6 +14742,18 @@ export interface ExchangeOrderDto {
   /** Заказ отменён в Q-Order: документ этой ревизии в 1С снять (сторнировать или пометить на удаление); незаведённый — пропустить и подтвердить */
   cancelled: boolean;
 }
+
+export type CommerceMlExchangeParams = {
+type?: string;
+mode?: string;
+filename?: string;
+};
+
+export type CommerceMlExchange1Params = {
+type?: string;
+mode?: string;
+filename?: string;
+};
 
 export type UploadStaffPhotoBody = {
   file: Blob | File;
@@ -12611,9 +14837,83 @@ export const ListQuickRepliesStage = {
   CLOSED: 'CLOSED',
 } as const;
 
+export type ListPurchasesParams = {
+supplierId?: string;
+};
+
+export type PreviewPurchaseImportBody = {
+  file: Blob | File;
+  request?: InvoiceImportRequest;
+};
+
+export type CommitPurchaseImportBody = {
+  file: Blob | File;
+  request?: InvoiceImportRequest;
+};
+
 export type AddPortalReviewPhotoBody = {
   file: Blob | File;
 };
+
+export type AddPortalFavoritesToCartParams = {
+/**
+ * Режим строки корзины: RETAIL — всегда розничная цена; WHOLESALE — опт модели со ступенями (недобор до ступени — розница с подсказкой)
+ */
+mode?: AddPortalFavoritesToCartMode;
+};
+
+export type AddPortalFavoritesToCartMode = typeof AddPortalFavoritesToCartMode[keyof typeof AddPortalFavoritesToCartMode];
+
+
+export const AddPortalFavoritesToCartMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
+} as const;
+
+export type FillPortalCartFromTemplateParams = {
+/**
+ * Режим строки корзины: RETAIL — всегда розничная цена; WHOLESALE — опт модели со ступенями (недобор до ступени — розница с подсказкой)
+ */
+mode?: FillPortalCartFromTemplateMode;
+};
+
+export type FillPortalCartFromTemplateMode = typeof FillPortalCartFromTemplateMode[keyof typeof FillPortalCartFromTemplateMode];
+
+
+export const FillPortalCartFromTemplateMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
+} as const;
+
+export type FillPortalCartFromOrderParams = {
+/**
+ * Режим строки корзины: RETAIL — всегда розничная цена; WHOLESALE — опт модели со ступенями (недобор до ступени — розница с подсказкой)
+ */
+mode?: FillPortalCartFromOrderMode;
+};
+
+export type FillPortalCartFromOrderMode = typeof FillPortalCartFromOrderMode[keyof typeof FillPortalCartFromOrderMode];
+
+
+export const FillPortalCartFromOrderMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
+} as const;
+
+export type RepeatLastPortalOrderParams = {
+/**
+ * Режим строки корзины: RETAIL — всегда розничная цена; WHOLESALE — опт модели со ступенями (недобор до ступени — розница с подсказкой)
+ */
+mode?: RepeatLastPortalOrderMode;
+};
+
+export type RepeatLastPortalOrderMode = typeof RepeatLastPortalOrderMode[keyof typeof RepeatLastPortalOrderMode];
+
+
+export const RepeatLastPortalOrderMode = {
+  RETAIL: 'RETAIL',
+  WHOLESALE: 'WHOLESALE',
+} as const;
 
 export type GetDraftQueueParams = {
 status?: GetDraftQueueStatus;
@@ -12644,6 +14944,10 @@ unanswered?: boolean;
  * Номер WhatsApp из `GET /api/drafts/channels`: только заявки, написанные на этот номер. Пусто — все номера и кабинет
  */
 channel?: string;
+/**
+ * Сотрудник: только заявки, которые он ведёт, — «переписка сотрудника» для владельца. Продавцу без права «Переписка: все» чужого не откроет
+ */
+assigneeId?: string;
 page?: number;
 size?: number;
 };
@@ -12753,6 +15057,10 @@ export type CommitCatalogImportBody = {
   request: CommitImportRequest;
 };
 
+export type UploadCatalogCategoryImageBody = {
+  file: Blob | File;
+};
+
 export type GetCatalogAliasesParams = {
 itemId?: string;
 page?: number;
@@ -12785,10 +15093,22 @@ export const ListSections200Item = {
   SALES: 'SALES',
   DELIVERY_RUNS: 'DELIVERY_RUNS',
   PURCHASE_PRICES: 'PURCHASE_PRICES',
+  ALL_CONVERSATIONS: 'ALL_CONVERSATIONS',
 } as const;
 
 export type ListPlatformReferralsParams = {
 from: string;
+to: string;
+};
+
+export type ListPlatformChannelSharesParams = {
+/**
+ * Первый день периода
+ */
+from: string;
+/**
+ * Последний день периода
+ */
 to: string;
 };
 
@@ -12808,6 +15128,8 @@ export const GetMyOnboarding200Item = {
   ACT_STOCK: 'ACT_STOCK',
   ACT_DELIVERY: 'ACT_DELIVERY',
 } as const;
+
+export type ListUnansweredBySeller200 = {[key: string]: number};
 
 export type ListMovementsParams = {
 itemId?: string;
@@ -12942,8 +15264,20 @@ lng: number;
 export type GetJoinShopItemsParams = {
 query?: string;
 categoryId?: string;
+/**
+ * Только новинки — для ссылки «Поделиться» на новинки
+ */
+novelty?: boolean;
 page?: number;
 size?: number;
+};
+
+export type PreviewPortalInvitationParams = {
+/**
+ * @minLength 0
+ * @maxLength 200
+ */
+code: string;
 };
 
 export type GetPortalCatalogParams = {
@@ -12961,7 +15295,7 @@ sort?: GetPortalCatalogSort;
  */
 novelty?: boolean;
 /**
- * RETAIL — товары, которые продаются штуками (без опта или и штуками, и оптом); WHOLESALE — товары с оптом (только оптом или и так, и так)
+ * RETAIL — только в розницу (штуками, опта нет); WHOLESALE — только оптом (упаковками); BOTH — и штуками, и оптом; ANY_WHOLESALE — всё, что можно заказать оптом (WHOLESALE + BOTH); ANY_RETAIL — всё, что можно заказать штуками (RETAIL + BOTH)
  */
 channel?: GetPortalCatalogChannel;
 /**
@@ -12980,6 +15314,10 @@ promo?: boolean;
  * Только товары, где опт дешевле розницы («Скидка»): продаются и штуками, и оптом, и самая выгодная ступень опта за единицу дешевле розничной цены
  */
 wholesaleDeal?: boolean;
+/**
+ * Наличие: IN_STOCK (по умолчанию) — без товаров, которых точно нет (учёт ведётся, остаток ноль; у линейки — не хватает размера состава); ALL — все; OUT_OF_STOCK — только их. Товар без учёта виден всегда, кроме OUT_OF_STOCK
+ */
+presence?: GetPortalCatalogPresence;
 };
 
 export type GetPortalCatalogSort = typeof GetPortalCatalogSort[keyof typeof GetPortalCatalogSort];
@@ -12992,6 +15330,7 @@ export const GetPortalCatalogSort = {
   DEAREST: 'DEAREST',
   DISCOUNT: 'DISCOUNT',
   NEWEST: 'NEWEST',
+  RATING: 'RATING',
 } as const;
 
 export type GetPortalCatalogChannel = typeof GetPortalCatalogChannel[keyof typeof GetPortalCatalogChannel];
@@ -13000,18 +15339,63 @@ export type GetPortalCatalogChannel = typeof GetPortalCatalogChannel[keyof typeo
 export const GetPortalCatalogChannel = {
   RETAIL: 'RETAIL',
   WHOLESALE: 'WHOLESALE',
+  BOTH: 'BOTH',
+  ANY_WHOLESALE: 'ANY_WHOLESALE',
+  ANY_RETAIL: 'ANY_RETAIL',
+} as const;
+
+export type GetPortalCatalogPresence = typeof GetPortalCatalogPresence[keyof typeof GetPortalCatalogPresence];
+
+
+export const GetPortalCatalogPresence = {
+  IN_STOCK: 'IN_STOCK',
+  ALL: 'ALL',
+  OUT_OF_STOCK: 'OUT_OF_STOCK',
+} as const;
+
+export type DownloadPortalPriceListParams = {
+categoryId?: string;
+/**
+ * pdf или xlsx
+ */
+format?: DownloadPortalPriceListFormat;
+};
+
+export type DownloadPortalPriceListFormat = typeof DownloadPortalPriceListFormat[keyof typeof DownloadPortalPriceListFormat];
+
+
+export const DownloadPortalPriceListFormat = {
+  pdf: 'pdf',
+  xlsx: 'xlsx',
 } as const;
 
 export type GetPortalCatalogFiltersParams = {
 categoryId?: string;
+/**
+ * Наличие — как у `getPortalCatalog`: IN_STOCK (по умолчанию), ALL, OUT_OF_STOCK
+ */
+presence?: GetPortalCatalogFiltersPresence;
 };
+
+export type GetPortalCatalogFiltersPresence = typeof GetPortalCatalogFiltersPresence[keyof typeof GetPortalCatalogFiltersPresence];
+
+
+export const GetPortalCatalogFiltersPresence = {
+  IN_STOCK: 'IN_STOCK',
+  ALL: 'ALL',
+  OUT_OF_STOCK: 'OUT_OF_STOCK',
+} as const;
 
 export type GetPortalCatalogCountsParams = {
 query?: string;
 /**
- * RETAIL — товары, которые продаются штуками (без опта или и штуками, и оптом); WHOLESALE — товары с оптом (только оптом или и так, и так)
+ * RETAIL — только в розницу (штуками, опта нет); WHOLESALE — только оптом (упаковками); BOTH — и штуками, и оптом; ANY_WHOLESALE — всё, что можно заказать оптом (WHOLESALE + BOTH); ANY_RETAIL — всё, что можно заказать штуками (RETAIL + BOTH)
  */
 channel?: GetPortalCatalogCountsChannel;
+/**
+ * Наличие: IN_STOCK (по умолчанию) — без товаров, которых точно нет (учёт ведётся, остаток ноль; у линейки — не хватает размера состава); ALL — все; OUT_OF_STOCK — только их. Товар без учёта виден всегда, кроме OUT_OF_STOCK
+ */
+presence?: GetPortalCatalogCountsPresence;
 };
 
 export type GetPortalCatalogCountsChannel = typeof GetPortalCatalogCountsChannel[keyof typeof GetPortalCatalogCountsChannel];
@@ -13020,6 +15404,18 @@ export type GetPortalCatalogCountsChannel = typeof GetPortalCatalogCountsChannel
 export const GetPortalCatalogCountsChannel = {
   RETAIL: 'RETAIL',
   WHOLESALE: 'WHOLESALE',
+  BOTH: 'BOTH',
+  ANY_WHOLESALE: 'ANY_WHOLESALE',
+  ANY_RETAIL: 'ANY_RETAIL',
+} as const;
+
+export type GetPortalCatalogCountsPresence = typeof GetPortalCatalogCountsPresence[keyof typeof GetPortalCatalogCountsPresence];
+
+
+export const GetPortalCatalogCountsPresence = {
+  IN_STOCK: 'IN_STOCK',
+  ALL: 'ALL',
+  OUT_OF_STOCK: 'OUT_OF_STOCK',
 } as const;
 
 export type ListOrdersParams = {
@@ -13056,6 +15452,7 @@ orderIds: string[];
 
 export type ListOrderDebtsParams = {
 customerId?: string;
+closed?: boolean;
 };
 
 export type CountOrders200 = {[key: string]: number};
@@ -13113,6 +15510,7 @@ flag?: GetDraftCountersFlag;
  * Номер WhatsApp из `GET /api/drafts/channels`
  */
 channel?: string;
+assigneeId?: string;
 };
 
 export type GetDraftCountersAssignee = typeof GetDraftCountersAssignee[keyof typeof GetDraftCountersAssignee];
@@ -13173,6 +15571,7 @@ export const ListCustomersFilter = {
   DEBT: 'DEBT',
   DORMANT: 'DORMANT',
   NEW: 'NEW',
+  HIDDEN: 'HIDDEN',
 } as const;
 
 export type GetMessengerContactsParams = {
@@ -13383,6 +15782,7 @@ export const GetAuditEventsActionItem = {
   OWNER_CHANGED: 'OWNER_CHANGED',
   PURCHASE_PRICES_RIGHT_CHANGED: 'PURCHASE_PRICES_RIGHT_CHANGED',
   PURCHASE_PRICE_CHANGED: 'PURCHASE_PRICE_CHANGED',
+  PURCHASE_CHANGED: 'PURCHASE_CHANGED',
   CUSTOMER_PRICE_TERM_CHANGED: 'CUSTOMER_PRICE_TERM_CHANGED',
   CUSTOMER_DATA_DELETED: 'CUSTOMER_DATA_DELETED',
   MESSAGE_SENT: 'MESSAGE_SENT',
@@ -13458,6 +15858,7 @@ export const GetAuditSummaryActionItem = {
   OWNER_CHANGED: 'OWNER_CHANGED',
   PURCHASE_PRICES_RIGHT_CHANGED: 'PURCHASE_PRICES_RIGHT_CHANGED',
   PURCHASE_PRICE_CHANGED: 'PURCHASE_PRICE_CHANGED',
+  PURCHASE_CHANGED: 'PURCHASE_CHANGED',
   CUSTOMER_PRICE_TERM_CHANGED: 'CUSTOMER_PRICE_TERM_CHANGED',
   CUSTOMER_DATA_DELETED: 'CUSTOMER_DATA_DELETED',
   MESSAGE_SENT: 'MESSAGE_SENT',
@@ -13537,6 +15938,7 @@ export const ExportAuditEventsActionItem = {
   OWNER_CHANGED: 'OWNER_CHANGED',
   PURCHASE_PRICES_RIGHT_CHANGED: 'PURCHASE_PRICES_RIGHT_CHANGED',
   PURCHASE_PRICE_CHANGED: 'PURCHASE_PRICE_CHANGED',
+  PURCHASE_CHANGED: 'PURCHASE_CHANGED',
   CUSTOMER_PRICE_TERM_CHANGED: 'CUSTOMER_PRICE_TERM_CHANGED',
   CUSTOMER_DATA_DELETED: 'CUSTOMER_DATA_DELETED',
   MESSAGE_SENT: 'MESSAGE_SENT',
@@ -14781,6 +17183,14 @@ customer?: string;
 year?: number;
 };
 
+export type BreakUpWithPortalSupplierParams = {
+confirm?: boolean;
+};
+
+export type BreakUpWithCustomerParams = {
+confirm?: boolean;
+};
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
@@ -14799,6 +17209,299 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export type commerceMlExchangeResponse200 = {
+  data: string
+  status: 200
+}
+
+export type commerceMlExchangeResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type commerceMlExchangeResponse401 = {
+  data: string
+  status: 401
+}
+
+export type commerceMlExchangeResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type commerceMlExchangeResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type commerceMlExchangeResponseSuccess = (commerceMlExchangeResponse200) & {
+  headers: Headers;
+};
+export type commerceMlExchangeResponseError = (commerceMlExchangeResponse400 | commerceMlExchangeResponse401 | commerceMlExchangeResponse404 | commerceMlExchangeResponse500) & {
+  headers: Headers;
+};
+
+export type commerceMlExchangeResponse = (commerceMlExchangeResponseSuccess | commerceMlExchangeResponseError)
+
+export const getCommerceMlExchangeUrl = (params?: CommerceMlExchangeParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/1c/commerceml?${stringifiedParams}` : `/api/1c/commerceml`
+}
+
+/**
+ * Один адрес — шаг в параметрах, как у интернет-магазинов. В 1С: «Обмен с сайтом» → адрес
+ * `https://<домен>/api/1c/commerceml`, пользователь — любой, пароль — ключ обмена.
+ * Каталог: `type=catalog&mode=checkauth` (ответ `success`, имя и значение печенья), `init`
+ * (`zip=no`, `file_limit`), `file&filename=import.xml` (тело — файл или его часть), `import&filename=…`.
+ * Товары, цены и остатки идут тем же приёмом, что `POST /api/1c/catalog` и `/stock`, — с журналом
+ * сеансов. Заказы: `type=sale&mode=query` — XML документов «Заказ товара» (с «Заказ оплачен» и датой
+ * оплаты), `mode=success` — всё отданное подтверждено, `mode=file` — изменения заказов из 1С («Номер по 1С»,
+ * «Дата по 1С» становятся номером документа в карточке заказа). Ошибка — `failure` и причина второй строкой.
+ *
+ * **Собрано по описанию CommerceML, а не по живой выгрузке**: сверить на базе пилота.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `curl -u 1c:$KEY 'http://localhost:5000/api/1c/commerceml?type=catalog&mode=checkauth'` — `success` и печенье.
+ * 2. `init`, затем `file&filename=import.xml` с файлом и `import&filename=import.xml` — `success`, товары
+ *    в каталоге, сеанс в «Истории обменов».
+ * 3. `type=sale&mode=query` — XML с принятыми заказами; `mode=success`; повтор `query` — пустой.
+ * 4. Негативный 401: неверный пароль.
+ * @summary «Обмен с сайтом» 1С по CommerceML
+ */
+export const commerceMlExchange = async (params?: CommerceMlExchangeParams, options?: Parameters<typeof apiRequest>[1]): Promise<commerceMlExchangeResponse> => {
+
+  return apiRequest<commerceMlExchangeResponse>(getCommerceMlExchangeUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCommerceMlExchangeQueryKey = (params?: CommerceMlExchangeParams,) => {
+    return [
+    `/api/1c/commerceml`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCommerceMlExchangeQueryOptions = <TData = Awaited<ReturnType<typeof commerceMlExchange>>, TError = ErrorResponse | string>(params?: CommerceMlExchangeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof commerceMlExchange>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCommerceMlExchangeQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof commerceMlExchange>>> = ({ signal }) => commerceMlExchange(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof commerceMlExchange>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CommerceMlExchangeQueryResult = NonNullable<Awaited<ReturnType<typeof commerceMlExchange>>>
+export type CommerceMlExchangeQueryError = ErrorResponse | string
+
+
+export function useCommerceMlExchange<TData = Awaited<ReturnType<typeof commerceMlExchange>>, TError = ErrorResponse | string>(
+ params: undefined |  CommerceMlExchangeParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof commerceMlExchange>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof commerceMlExchange>>,
+          TError,
+          Awaited<ReturnType<typeof commerceMlExchange>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCommerceMlExchange<TData = Awaited<ReturnType<typeof commerceMlExchange>>, TError = ErrorResponse | string>(
+ params?: CommerceMlExchangeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof commerceMlExchange>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof commerceMlExchange>>,
+          TError,
+          Awaited<ReturnType<typeof commerceMlExchange>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCommerceMlExchange<TData = Awaited<ReturnType<typeof commerceMlExchange>>, TError = ErrorResponse | string>(
+ params?: CommerceMlExchangeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof commerceMlExchange>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary «Обмен с сайтом» 1С по CommerceML
+ */
+
+export function useCommerceMlExchange<TData = Awaited<ReturnType<typeof commerceMlExchange>>, TError = ErrorResponse | string>(
+ params?: CommerceMlExchangeParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof commerceMlExchange>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCommerceMlExchangeQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type commerceMlExchange1Response200 = {
+  data: string
+  status: 200
+}
+
+export type commerceMlExchange1Response400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type commerceMlExchange1Response401 = {
+  data: string
+  status: 401
+}
+
+export type commerceMlExchange1Response404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type commerceMlExchange1Response500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type commerceMlExchange1ResponseSuccess = (commerceMlExchange1Response200) & {
+  headers: Headers;
+};
+export type commerceMlExchange1ResponseError = (commerceMlExchange1Response400 | commerceMlExchange1Response401 | commerceMlExchange1Response404 | commerceMlExchange1Response500) & {
+  headers: Headers;
+};
+
+export type commerceMlExchange1Response = (commerceMlExchange1ResponseSuccess | commerceMlExchange1ResponseError)
+
+export const getCommerceMlExchange1Url = (params?: CommerceMlExchange1Params,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/1c/commerceml?${stringifiedParams}` : `/api/1c/commerceml`
+}
+
+/**
+ * Один адрес — шаг в параметрах, как у интернет-магазинов. В 1С: «Обмен с сайтом» → адрес
+ * `https://<домен>/api/1c/commerceml`, пользователь — любой, пароль — ключ обмена.
+ * Каталог: `type=catalog&mode=checkauth` (ответ `success`, имя и значение печенья), `init`
+ * (`zip=no`, `file_limit`), `file&filename=import.xml` (тело — файл или его часть), `import&filename=…`.
+ * Товары, цены и остатки идут тем же приёмом, что `POST /api/1c/catalog` и `/stock`, — с журналом
+ * сеансов. Заказы: `type=sale&mode=query` — XML документов «Заказ товара» (с «Заказ оплачен» и датой
+ * оплаты), `mode=success` — всё отданное подтверждено, `mode=file` — изменения заказов из 1С («Номер по 1С»,
+ * «Дата по 1С» становятся номером документа в карточке заказа). Ошибка — `failure` и причина второй строкой.
+ *
+ * **Собрано по описанию CommerceML, а не по живой выгрузке**: сверить на базе пилота.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `curl -u 1c:$KEY 'http://localhost:5000/api/1c/commerceml?type=catalog&mode=checkauth'` — `success` и печенье.
+ * 2. `init`, затем `file&filename=import.xml` с файлом и `import&filename=import.xml` — `success`, товары
+ *    в каталоге, сеанс в «Истории обменов».
+ * 3. `type=sale&mode=query` — XML с принятыми заказами; `mode=success`; повтор `query` — пустой.
+ * 4. Негативный 401: неверный пароль.
+ * @summary «Обмен с сайтом» 1С по CommerceML
+ */
+export const commerceMlExchange1 = async (params?: CommerceMlExchange1Params, options?: Parameters<typeof apiRequest>[1]): Promise<commerceMlExchange1Response> => {
+
+  return apiRequest<commerceMlExchange1Response>(getCommerceMlExchange1Url(params),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCommerceMlExchange1MutationKey = () => ['commerceMlExchange1'] as const;
+
+export const getCommerceMlExchange1MutationOptions = <TError = ErrorResponse | string,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commerceMlExchange1>>, TError,CommerceMlExchange1MutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof commerceMlExchange1>>, TError,CommerceMlExchange1MutationVariables, TContext> => {
+
+const mutationKey = getCommerceMlExchange1MutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof commerceMlExchange1>>, CommerceMlExchange1MutationVariables> = (props) => {
+          const {params} = props ?? {};
+
+          return  commerceMlExchange1(params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CommerceMlExchange1MutationResult = NonNullable<Awaited<ReturnType<typeof commerceMlExchange1>>>
+
+    export type CommerceMlExchange1MutationError = ErrorResponse | string
+    export type CommerceMlExchange1MutationVariables = {params?: CommerceMlExchange1Params}
+
+    /**
+ * @summary «Обмен с сайтом» 1С по CommerceML
+ */
+export const useCommerceMlExchange1 = <TError = ErrorResponse | string,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commerceMlExchange1>>, TError,CommerceMlExchange1MutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof commerceMlExchange1>>,
+        TError,
+        CommerceMlExchange1MutationVariables,
+        TContext
+      > => {
+      return useMutation(getCommerceMlExchange1MutationOptions(options), queryClient);
+    }
 
 export type getStorageResponse200 = {
   data: StorageSettingsDto
@@ -17505,6 +20208,130 @@ export const useUpdatePlatformReferral = <TError = ErrorResponse,
       return useMutation(getUpdatePlatformReferralMutationOptions(options), queryClient);
     }
 
+export type updatePlatformPaymentBankResponse200 = {
+  data: PaymentBankDto
+  status: 200
+}
+
+export type updatePlatformPaymentBankResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updatePlatformPaymentBankResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updatePlatformPaymentBankResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updatePlatformPaymentBankResponseSuccess = (updatePlatformPaymentBankResponse200) & {
+  headers: Headers;
+};
+export type updatePlatformPaymentBankResponseError = (updatePlatformPaymentBankResponse400 | updatePlatformPaymentBankResponse404 | updatePlatformPaymentBankResponse500) & {
+  headers: Headers;
+};
+
+export type updatePlatformPaymentBankResponse = (updatePlatformPaymentBankResponseSuccess | updatePlatformPaymentBankResponseError)
+
+export const getUpdatePlatformPaymentBankUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/platform/payment-banks/${id}`
+}
+
+/**
+ * Меняются название, порядок и «показывать»; страна и код — нет: по коду названы прошлые оплаты. Скрытый банк пропадает из выбора, но остаётся в прошлых оплатах.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Скрыть Jusan — клиент в «Я оплатил» его больше не видит; сообщение с `bank: JUSAN` — 400 `PAYMENT_BANK_UNKNOWN`.
+ * 2. Негативный 404 `PAYMENT_BANK_NOT_FOUND`: чужой id.
+ * @summary Изменить банк
+ */
+export const updatePlatformPaymentBank = async (id: string,
+    savePaymentBankRequest: SavePaymentBankRequest, options?: Parameters<typeof apiRequest>[1]): Promise<updatePlatformPaymentBankResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updatePlatformPaymentBankResponse>(getUpdatePlatformPaymentBankUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(savePaymentBankRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePlatformPaymentBankMutationKey = () => ['updatePlatformPaymentBank'] as const;
+
+export const getUpdatePlatformPaymentBankMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformPaymentBank>>, TError,UpdatePlatformPaymentBankMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePlatformPaymentBank>>, TError,UpdatePlatformPaymentBankMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePlatformPaymentBankMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePlatformPaymentBank>>, UpdatePlatformPaymentBankMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePlatformPaymentBank(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePlatformPaymentBankMutationResult = NonNullable<Awaited<ReturnType<typeof updatePlatformPaymentBank>>>
+    export type UpdatePlatformPaymentBankMutationBody = SavePaymentBankRequest
+    export type UpdatePlatformPaymentBankMutationError = ErrorResponse
+    export type UpdatePlatformPaymentBankMutationVariables = {id: string;data: SavePaymentBankRequest}
+
+    /**
+ * @summary Изменить банк
+ */
+export const useUpdatePlatformPaymentBank = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePlatformPaymentBank>>, TError,UpdatePlatformPaymentBankMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePlatformPaymentBank>>,
+        TError,
+        UpdatePlatformPaymentBankMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePlatformPaymentBankMutationOptions(options), queryClient);
+    }
+
 export type getPaymentRulesResponse200 = {
   data: PaymentRulesDto
   status: 200
@@ -18320,7 +21147,7 @@ export type saveMessageTemplateResponseError = (saveMessageTemplateResponse400 |
 
 export type saveMessageTemplateResponse = (saveMessageTemplateResponseSuccess | saveMessageTemplateResponseError)
 
-export const getSaveMessageTemplateUrl = (key: 'CONFIRMATION_HEADING' | 'PAYMENT_TERMS' | 'RETURN_TERMS' | 'PORTAL_RENEGOTIATION' | 'PORTAL_DEADLINE_SOON' | 'PORTAL_ACCEPTED' | 'PORTAL_QUESTION_ANSWERED' | 'PORTAL_ORDER_ANSWERED' | 'PORTAL_INVITATION' | 'PORTAL_OFFER',) => {
+export const getSaveMessageTemplateUrl = (key: 'CONFIRMATION_HEADING' | 'PAYMENT_TERMS' | 'RETURN_TERMS' | 'PORTAL_RENEGOTIATION' | 'PORTAL_PRICE_NAMED' | 'PORTAL_DEADLINE_SOON' | 'PORTAL_ACCEPTED' | 'PORTAL_QUESTION_ANSWERED' | 'PORTAL_ORDER_ANSWERED' | 'PORTAL_INVITATION' | 'PORTAL_OFFER',) => {
 
 
 
@@ -18338,7 +21165,7 @@ export const getSaveMessageTemplateUrl = (key: 'CONFIRMATION_HEADING' | 'PAYMENT
  * 3. Негативный 403: менеджером без права «Реквизиты».
  * @summary Сохранить шаблон сообщения
  */
-export const saveMessageTemplate = async (key: 'CONFIRMATION_HEADING' | 'PAYMENT_TERMS' | 'RETURN_TERMS' | 'PORTAL_RENEGOTIATION' | 'PORTAL_DEADLINE_SOON' | 'PORTAL_ACCEPTED' | 'PORTAL_QUESTION_ANSWERED' | 'PORTAL_ORDER_ANSWERED' | 'PORTAL_INVITATION' | 'PORTAL_OFFER',
+export const saveMessageTemplate = async (key: 'CONFIRMATION_HEADING' | 'PAYMENT_TERMS' | 'RETURN_TERMS' | 'PORTAL_RENEGOTIATION' | 'PORTAL_PRICE_NAMED' | 'PORTAL_DEADLINE_SOON' | 'PORTAL_ACCEPTED' | 'PORTAL_QUESTION_ANSWERED' | 'PORTAL_ORDER_ANSWERED' | 'PORTAL_INVITATION' | 'PORTAL_OFFER',
     saveMessageTemplateRequest: SaveMessageTemplateRequest, options?: Parameters<typeof apiRequest>[1]): Promise<saveMessageTemplateResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
@@ -18400,7 +21227,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SaveMessageTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof saveMessageTemplate>>>
     export type SaveMessageTemplateMutationBody = SaveMessageTemplateRequest
     export type SaveMessageTemplateMutationError = ErrorResponse
-    export type SaveMessageTemplateMutationVariables = {key: 'CONFIRMATION_HEADING' | 'PAYMENT_TERMS' | 'RETURN_TERMS' | 'PORTAL_RENEGOTIATION' | 'PORTAL_DEADLINE_SOON' | 'PORTAL_ACCEPTED' | 'PORTAL_QUESTION_ANSWERED' | 'PORTAL_ORDER_ANSWERED' | 'PORTAL_INVITATION' | 'PORTAL_OFFER';data: SaveMessageTemplateRequest}
+    export type SaveMessageTemplateMutationVariables = {key: 'CONFIRMATION_HEADING' | 'PAYMENT_TERMS' | 'RETURN_TERMS' | 'PORTAL_RENEGOTIATION' | 'PORTAL_PRICE_NAMED' | 'PORTAL_DEADLINE_SOON' | 'PORTAL_ACCEPTED' | 'PORTAL_QUESTION_ANSWERED' | 'PORTAL_ORDER_ANSWERED' | 'PORTAL_INVITATION' | 'PORTAL_OFFER';data: SaveMessageTemplateRequest}
 
     /**
  * @summary Сохранить шаблон сообщения
@@ -22086,6 +24913,277 @@ export const useReorderQuickReplies = <TError = ErrorResponse,
       return useMutation(getReorderQuickRepliesMutationOptions(options), queryClient);
     }
 
+export type getReviewSettingsResponse200 = {
+  data: ReviewSettingsDto
+  status: 200
+}
+
+export type getReviewSettingsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getReviewSettingsResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getReviewSettingsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getReviewSettingsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getReviewSettingsResponseSuccess = (getReviewSettingsResponse200) & {
+  headers: Headers;
+};
+export type getReviewSettingsResponseError = (getReviewSettingsResponse400 | getReviewSettingsResponse403 | getReviewSettingsResponse404 | getReviewSettingsResponse500) & {
+  headers: Headers;
+};
+
+export type getReviewSettingsResponse = (getReviewSettingsResponseSuccess | getReviewSettingsResponseError)
+
+export const getGetReviewSettingsUrl = () => {
+
+
+
+
+  return `/api/reviews/settings`
+}
+
+/**
+ * Отзывы о товарах и оценка полученного заказа (R-17). Новому арендатору выключены: спрос на них не подтверждён. Действующим на 2026-11-03 оставлены включёнными.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`) — `{"enabled": true}` у действующего арендатора, `false` — у заведённого после 2026-11-03.
+ * 2. Негативный 403: тот же запрос под кладовщиком (`77010000103`).
+ * @summary Включены ли отзывы и оценки
+ */
+export const getReviewSettings = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getReviewSettingsResponse> => {
+
+  return apiRequest<getReviewSettingsResponse>(getGetReviewSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReviewSettingsQueryKey = () => {
+    return [
+    `/api/reviews/settings`
+    ] as const;
+    }
+
+
+export const getGetReviewSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getReviewSettings>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewSettings>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReviewSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReviewSettings>>> = ({ signal }) => getReviewSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReviewSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetReviewSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getReviewSettings>>>
+export type GetReviewSettingsQueryError = ErrorResponse
+
+
+export function useGetReviewSettings<TData = Awaited<ReturnType<typeof getReviewSettings>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getReviewSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getReviewSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetReviewSettings<TData = Awaited<ReturnType<typeof getReviewSettings>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getReviewSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getReviewSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetReviewSettings<TData = Awaited<ReturnType<typeof getReviewSettings>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewSettings>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Включены ли отзывы и оценки
+ */
+
+export function useGetReviewSettings<TData = Awaited<ReturnType<typeof getReviewSettings>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewSettings>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetReviewSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type updateReviewSettingsResponse200 = {
+  data: ReviewSettingsDto
+  status: 200
+}
+
+export type updateReviewSettingsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updateReviewSettingsResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type updateReviewSettingsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updateReviewSettingsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updateReviewSettingsResponseSuccess = (updateReviewSettingsResponse200) & {
+  headers: Headers;
+};
+export type updateReviewSettingsResponseError = (updateReviewSettingsResponse400 | updateReviewSettingsResponse403 | updateReviewSettingsResponse404 | updateReviewSettingsResponse500) & {
+  headers: Headers;
+};
+
+export type updateReviewSettingsResponse = (updateReviewSettingsResponseSuccess | updateReviewSettingsResponseError)
+
+export const getUpdateReviewSettingsUrl = () => {
+
+
+
+
+  return `/api/reviews/settings`
+}
+
+/**
+ * Выключенные: в кабинете нет кнопок отзыва и оценки заказа, раздела «Мои отзывы», оценок на товарах и магазине; отзыв и оценка заказа отклоняются `409 REVIEWS_DISABLED`. Отзывы при выключении не удаляются.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `{"enabled": false}` — ответ `{"enabled": false}`; клиент кабинета отправляет отзыв — 409 `REVIEWS_DISABLED`.
+ * 2. `{"enabled": true}` — отзыв принимается, опубликованные прежде на месте.
+ * 3. Негативный 400: пустое тело.
+ * 4. Негативный 403: тот же запрос под кладовщиком (`77010000103`).
+ * @summary Включить или выключить отзывы и оценки
+ */
+export const updateReviewSettings = async (reviewSettingsDto: ReviewSettingsDto, options?: Parameters<typeof apiRequest>[1]): Promise<updateReviewSettingsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updateReviewSettingsResponse>(getUpdateReviewSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reviewSettingsDto)
+  }
+);}
+
+
+
+
+
+export const getUpdateReviewSettingsMutationKey = () => ['updateReviewSettings'] as const;
+
+export const getUpdateReviewSettingsMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReviewSettings>>, TError,UpdateReviewSettingsMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateReviewSettings>>, TError,UpdateReviewSettingsMutationVariables, TContext> => {
+
+const mutationKey = getUpdateReviewSettingsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateReviewSettings>>, UpdateReviewSettingsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateReviewSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReviewSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateReviewSettings>>>
+    export type UpdateReviewSettingsMutationBody = ReviewSettingsDto
+    export type UpdateReviewSettingsMutationError = ErrorResponse
+    export type UpdateReviewSettingsMutationVariables = {data: ReviewSettingsDto}
+
+    /**
+ * @summary Включить или выключить отзывы и оценки
+ */
+export const useUpdateReviewSettings = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateReviewSettings>>, TError,UpdateReviewSettingsMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateReviewSettings>>,
+        TError,
+        UpdateReviewSettingsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateReviewSettingsMutationOptions(options), queryClient);
+    }
+
 export type getPushPreferencesResponse200 = {
   data: PushPreferencesDto
   status: 200
@@ -22587,6 +25685,2085 @@ export const useForgetPushDevice = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getForgetPushDeviceMutationOptions(options), queryClient);
+    }
+
+export type updateSupplierResponse200 = {
+  data: SupplierDto
+  status: 200
+}
+
+export type updateSupplierResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updateSupplierResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updateSupplierResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updateSupplierResponseSuccess = (updateSupplierResponse200) & {
+  headers: Headers;
+};
+export type updateSupplierResponseError = (updateSupplierResponse400 | updateSupplierResponse404 | updateSupplierResponse500) & {
+  headers: Headers;
+};
+
+export type updateSupplierResponse = (updateSupplierResponseSuccess | updateSupplierResponseError)
+
+export const getUpdateSupplierUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/suppliers/${id}`
+}
+
+/**
+ * `archived: true` — скрыть; закупки поставщика остаются.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT /api/purchase/suppliers/{id}` с новым контактом — 200.
+ * 2. Негативный 404 `PURCHASE_SUPPLIER_NOT_FOUND`: чужой или несуществующий `id`.
+ * @summary Изменить или скрыть поставщика
+ */
+export const updateSupplier = async (id: string,
+    saveSupplierRequest: SaveSupplierRequest, options?: Parameters<typeof apiRequest>[1]): Promise<updateSupplierResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updateSupplierResponse>(getUpdateSupplierUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveSupplierRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateSupplierMutationKey = () => ['updateSupplier'] as const;
+
+export const getUpdateSupplierMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSupplier>>, TError,UpdateSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSupplier>>, TError,UpdateSupplierMutationVariables, TContext> => {
+
+const mutationKey = getUpdateSupplierMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSupplier>>, UpdateSupplierMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateSupplier(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSupplierMutationResult = NonNullable<Awaited<ReturnType<typeof updateSupplier>>>
+    export type UpdateSupplierMutationBody = SaveSupplierRequest
+    export type UpdateSupplierMutationError = ErrorResponse
+    export type UpdateSupplierMutationVariables = {id: string;data: SaveSupplierRequest}
+
+    /**
+ * @summary Изменить или скрыть поставщика
+ */
+export const useUpdateSupplier = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSupplier>>, TError,UpdateSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateSupplier>>,
+        TError,
+        UpdateSupplierMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateSupplierMutationOptions(options), queryClient);
+    }
+
+export type getPurchaseResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type getPurchaseResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPurchaseResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPurchaseResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPurchaseResponseSuccess = (getPurchaseResponse200) & {
+  headers: Headers;
+};
+export type getPurchaseResponseError = (getPurchaseResponse400 | getPurchaseResponse404 | getPurchaseResponse500) & {
+  headers: Headers;
+};
+
+export type getPurchaseResponse = (getPurchaseResponseSuccess | getPurchaseResponseError)
+
+export const getGetPurchaseUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `GET /api/purchase/purchases/{id}` — 200, `quantityByUnit` — итог по единицам.
+ * 2. Негативный 404 `PURCHASE_NOT_FOUND`: закупка другого арендатора.
+ * @summary Закупка: строки, оплаты, итоги, долг
+ */
+export const getPurchase = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<getPurchaseResponse> => {
+
+  return apiRequest<getPurchaseResponse>(getGetPurchaseUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPurchaseQueryKey = (id: string,) => {
+    return [
+    `/api/purchase/purchases/${id}`
+    ] as const;
+    }
+
+
+export const getGetPurchaseQueryOptions = <TData = Awaited<ReturnType<typeof getPurchase>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchase>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPurchaseQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPurchase>>> = ({ signal }) => getPurchase(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPurchase>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPurchaseQueryResult = NonNullable<Awaited<ReturnType<typeof getPurchase>>>
+export type GetPurchaseQueryError = ErrorResponse
+
+
+export function useGetPurchase<TData = Awaited<ReturnType<typeof getPurchase>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchase>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPurchase>>,
+          TError,
+          Awaited<ReturnType<typeof getPurchase>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPurchase<TData = Awaited<ReturnType<typeof getPurchase>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchase>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPurchase>>,
+          TError,
+          Awaited<ReturnType<typeof getPurchase>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPurchase<TData = Awaited<ReturnType<typeof getPurchase>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchase>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Закупка: строки, оплаты, итоги, долг
+ */
+
+export function useGetPurchase<TData = Awaited<ReturnType<typeof getPurchase>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchase>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPurchaseQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type updatePurchaseResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type updatePurchaseResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updatePurchaseResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updatePurchaseResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updatePurchaseResponseSuccess = (updatePurchaseResponse200) & {
+  headers: Headers;
+};
+export type updatePurchaseResponseError = (updatePurchaseResponse400 | updatePurchaseResponse404 | updatePurchaseResponse500) & {
+  headers: Headers;
+};
+
+export type updatePurchaseResponse = (updatePurchaseResponseSuccess | updatePurchaseResponseError)
+
+export const getUpdatePurchaseUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}`
+}
+
+/**
+ * `status: CLOSED` — строк больше не будет, оплаты принимаются.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` с `status: CLOSED` — 200.
+ * 2. Негативный 409 `PURCHASE_DIRECTION_LOCKED`: другое `direction` у закупки со строками.
+ * @summary Изменить шапку закупки или закрыть её
+ */
+export const updatePurchase = async (id: string,
+    savePurchaseRequest: SavePurchaseRequest, options?: Parameters<typeof apiRequest>[1]): Promise<updatePurchaseResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updatePurchaseResponse>(getUpdatePurchaseUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(savePurchaseRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePurchaseMutationKey = () => ['updatePurchase'] as const;
+
+export const getUpdatePurchaseMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchase>>, TError,UpdatePurchaseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePurchase>>, TError,UpdatePurchaseMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePurchaseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePurchase>>, UpdatePurchaseMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePurchase(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePurchaseMutationResult = NonNullable<Awaited<ReturnType<typeof updatePurchase>>>
+    export type UpdatePurchaseMutationBody = SavePurchaseRequest
+    export type UpdatePurchaseMutationError = ErrorResponse
+    export type UpdatePurchaseMutationVariables = {id: string;data: SavePurchaseRequest}
+
+    /**
+ * @summary Изменить шапку закупки или закрыть её
+ */
+export const useUpdatePurchase = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchase>>, TError,UpdatePurchaseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePurchase>>,
+        TError,
+        UpdatePurchaseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePurchaseMutationOptions(options), queryClient);
+    }
+
+export type updatePurchaseShipmentResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type updatePurchaseShipmentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updatePurchaseShipmentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updatePurchaseShipmentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updatePurchaseShipmentResponseSuccess = (updatePurchaseShipmentResponse200) & {
+  headers: Headers;
+};
+export type updatePurchaseShipmentResponseError = (updatePurchaseShipmentResponse400 | updatePurchaseShipmentResponse404 | updatePurchaseShipmentResponse500) & {
+  headers: Headers;
+};
+
+export type updatePurchaseShipmentResponse = (updatePurchaseShipmentResponseSuccess | updatePurchaseShipmentResponseError)
+
+export const getUpdatePurchaseShipmentUrl = (id: string,
+    shipmentId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/shipments/${shipmentId}`
+}
+
+/**
+ * Строки отгрузки заменяются присланными; содержимое мест сверх нового отгруженного снимается.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` с меньшим количеством — 200.
+ * 2. Негативный 409 `PURCHASE_SHIPMENT_RECEIVED`: по отгрузке проведён приход.
+ * @summary Изменить отгрузку
+ */
+export const updatePurchaseShipment = async (id: string,
+    shipmentId: string,
+    saveShipmentRequest: SaveShipmentRequest, options?: Parameters<typeof apiRequest>[1]): Promise<updatePurchaseShipmentResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updatePurchaseShipmentResponse>(getUpdatePurchaseShipmentUrl(id,shipmentId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveShipmentRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePurchaseShipmentMutationKey = () => ['updatePurchaseShipment'] as const;
+
+export const getUpdatePurchaseShipmentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseShipment>>, TError,UpdatePurchaseShipmentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseShipment>>, TError,UpdatePurchaseShipmentMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePurchaseShipmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePurchaseShipment>>, UpdatePurchaseShipmentMutationVariables> = (props) => {
+          const {id,shipmentId,data} = props ?? {};
+
+          return  updatePurchaseShipment(id,shipmentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePurchaseShipmentMutationResult = NonNullable<Awaited<ReturnType<typeof updatePurchaseShipment>>>
+    export type UpdatePurchaseShipmentMutationBody = SaveShipmentRequest
+    export type UpdatePurchaseShipmentMutationError = ErrorResponse
+    export type UpdatePurchaseShipmentMutationVariables = {id: string;shipmentId: string;data: SaveShipmentRequest}
+
+    /**
+ * @summary Изменить отгрузку
+ */
+export const useUpdatePurchaseShipment = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseShipment>>, TError,UpdatePurchaseShipmentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePurchaseShipment>>,
+        TError,
+        UpdatePurchaseShipmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePurchaseShipmentMutationOptions(options), queryClient);
+    }
+
+export type deletePurchaseShipmentResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type deletePurchaseShipmentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePurchaseShipmentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePurchaseShipmentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePurchaseShipmentResponseSuccess = (deletePurchaseShipmentResponse200) & {
+  headers: Headers;
+};
+export type deletePurchaseShipmentResponseError = (deletePurchaseShipmentResponse400 | deletePurchaseShipmentResponse404 | deletePurchaseShipmentResponse500) & {
+  headers: Headers;
+};
+
+export type deletePurchaseShipmentResponse = (deletePurchaseShipmentResponseSuccess | deletePurchaseShipmentResponseError)
+
+export const getDeletePurchaseShipmentUrl = (id: string,
+    shipmentId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/shipments/${shipmentId}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `DELETE` — 200, у строк `shipped` уменьшилось.
+ * 2. Негативный 409 `PURCHASE_SHIPMENT_RECEIVED`.
+ * @summary Удалить отгрузку вместе с её местами
+ */
+export const deletePurchaseShipment = async (id: string,
+    shipmentId: string, options?: Parameters<typeof apiRequest>[1]): Promise<deletePurchaseShipmentResponse> => {
+
+  return apiRequest<deletePurchaseShipmentResponse>(getDeletePurchaseShipmentUrl(id,shipmentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePurchaseShipmentMutationKey = () => ['deletePurchaseShipment'] as const;
+
+export const getDeletePurchaseShipmentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseShipment>>, TError,DeletePurchaseShipmentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseShipment>>, TError,DeletePurchaseShipmentMutationVariables, TContext> => {
+
+const mutationKey = getDeletePurchaseShipmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePurchaseShipment>>, DeletePurchaseShipmentMutationVariables> = (props) => {
+          const {id,shipmentId} = props ?? {};
+
+          return  deletePurchaseShipment(id,shipmentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePurchaseShipmentMutationResult = NonNullable<Awaited<ReturnType<typeof deletePurchaseShipment>>>
+
+    export type DeletePurchaseShipmentMutationError = ErrorResponse
+    export type DeletePurchaseShipmentMutationVariables = {id: string;shipmentId: string}
+
+    /**
+ * @summary Удалить отгрузку вместе с её местами
+ */
+export const useDeletePurchaseShipment = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseShipment>>, TError,DeletePurchaseShipmentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePurchaseShipment>>,
+        TError,
+        DeletePurchaseShipmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePurchaseShipmentMutationOptions(options), queryClient);
+    }
+
+export type updatePurchasePlaceResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type updatePurchasePlaceResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updatePurchasePlaceResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updatePurchasePlaceResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updatePurchasePlaceResponseSuccess = (updatePurchasePlaceResponse200) & {
+  headers: Headers;
+};
+export type updatePurchasePlaceResponseError = (updatePurchasePlaceResponse400 | updatePurchasePlaceResponse404 | updatePurchasePlaceResponse500) & {
+  headers: Headers;
+};
+
+export type updatePurchasePlaceResponse = (updatePurchasePlaceResponseSuccess | updatePurchasePlaceResponseError)
+
+export const getUpdatePurchasePlaceUrl = (id: string,
+    shipmentId: string,
+    placeId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/shipments/${shipmentId}/places/${placeId}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` с другим весом — 200.
+ * @summary Изменить грузовое место
+ */
+export const updatePurchasePlace = async (id: string,
+    shipmentId: string,
+    placeId: string,
+    savePlaceRequest: SavePlaceRequest, options?: Parameters<typeof apiRequest>[1]): Promise<updatePurchasePlaceResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updatePurchasePlaceResponse>(getUpdatePurchasePlaceUrl(id,shipmentId,placeId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(savePlaceRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePurchasePlaceMutationKey = () => ['updatePurchasePlace'] as const;
+
+export const getUpdatePurchasePlaceMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchasePlace>>, TError,UpdatePurchasePlaceMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePurchasePlace>>, TError,UpdatePurchasePlaceMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePurchasePlaceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePurchasePlace>>, UpdatePurchasePlaceMutationVariables> = (props) => {
+          const {id,shipmentId,placeId,data} = props ?? {};
+
+          return  updatePurchasePlace(id,shipmentId,placeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePurchasePlaceMutationResult = NonNullable<Awaited<ReturnType<typeof updatePurchasePlace>>>
+    export type UpdatePurchasePlaceMutationBody = SavePlaceRequest
+    export type UpdatePurchasePlaceMutationError = ErrorResponse
+    export type UpdatePurchasePlaceMutationVariables = {id: string;shipmentId: string;placeId: string;data: SavePlaceRequest}
+
+    /**
+ * @summary Изменить грузовое место
+ */
+export const useUpdatePurchasePlace = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchasePlace>>, TError,UpdatePurchasePlaceMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePurchasePlace>>,
+        TError,
+        UpdatePurchasePlaceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePurchasePlaceMutationOptions(options), queryClient);
+    }
+
+export type deletePurchasePlaceResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type deletePurchasePlaceResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePurchasePlaceResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePurchasePlaceResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePurchasePlaceResponseSuccess = (deletePurchasePlaceResponse200) & {
+  headers: Headers;
+};
+export type deletePurchasePlaceResponseError = (deletePurchasePlaceResponse400 | deletePurchasePlaceResponse404 | deletePurchasePlaceResponse500) & {
+  headers: Headers;
+};
+
+export type deletePurchasePlaceResponse = (deletePurchasePlaceResponseSuccess | deletePurchasePlaceResponseError)
+
+export const getDeletePurchasePlaceUrl = (id: string,
+    shipmentId: string,
+    placeId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/shipments/${shipmentId}/places/${placeId}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `DELETE` — 200, места у отгрузки нет.
+ * @summary Удалить грузовое место
+ */
+export const deletePurchasePlace = async (id: string,
+    shipmentId: string,
+    placeId: string, options?: Parameters<typeof apiRequest>[1]): Promise<deletePurchasePlaceResponse> => {
+
+  return apiRequest<deletePurchasePlaceResponse>(getDeletePurchasePlaceUrl(id,shipmentId,placeId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePurchasePlaceMutationKey = () => ['deletePurchasePlace'] as const;
+
+export const getDeletePurchasePlaceMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchasePlace>>, TError,DeletePurchasePlaceMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePurchasePlace>>, TError,DeletePurchasePlaceMutationVariables, TContext> => {
+
+const mutationKey = getDeletePurchasePlaceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePurchasePlace>>, DeletePurchasePlaceMutationVariables> = (props) => {
+          const {id,shipmentId,placeId} = props ?? {};
+
+          return  deletePurchasePlace(id,shipmentId,placeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePurchasePlaceMutationResult = NonNullable<Awaited<ReturnType<typeof deletePurchasePlace>>>
+
+    export type DeletePurchasePlaceMutationError = ErrorResponse
+    export type DeletePurchasePlaceMutationVariables = {id: string;shipmentId: string;placeId: string}
+
+    /**
+ * @summary Удалить грузовое место
+ */
+export const useDeletePurchasePlace = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchasePlace>>, TError,DeletePurchasePlaceMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePurchasePlace>>,
+        TError,
+        DeletePurchasePlaceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePurchasePlaceMutationOptions(options), queryClient);
+    }
+
+export type updatePurchaseLineResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type updatePurchaseLineResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updatePurchaseLineResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updatePurchaseLineResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updatePurchaseLineResponseSuccess = (updatePurchaseLineResponse200) & {
+  headers: Headers;
+};
+export type updatePurchaseLineResponseError = (updatePurchaseLineResponse400 | updatePurchaseLineResponse404 | updatePurchaseLineResponse500) & {
+  headers: Headers;
+};
+
+export type updatePurchaseLineResponse = (updatePurchaseLineResponseSuccess | updatePurchaseLineResponseError)
+
+export const getUpdatePurchaseLineUrl = (id: string,
+    lineId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/lines/${lineId}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` с другим количеством — 200, итог пересчитан.
+ * 2. Негативный 400 `PURCHASE_QUANTITY_FRACTIONAL`: 2.5 шт.
+ * @summary Изменить строку закупки
+ */
+export const updatePurchaseLine = async (id: string,
+    lineId: string,
+    saveLineRequest: SaveLineRequest, options?: Parameters<typeof apiRequest>[1]): Promise<updatePurchaseLineResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updatePurchaseLineResponse>(getUpdatePurchaseLineUrl(id,lineId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveLineRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePurchaseLineMutationKey = () => ['updatePurchaseLine'] as const;
+
+export const getUpdatePurchaseLineMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseLine>>, TError,UpdatePurchaseLineMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseLine>>, TError,UpdatePurchaseLineMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePurchaseLineMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePurchaseLine>>, UpdatePurchaseLineMutationVariables> = (props) => {
+          const {id,lineId,data} = props ?? {};
+
+          return  updatePurchaseLine(id,lineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePurchaseLineMutationResult = NonNullable<Awaited<ReturnType<typeof updatePurchaseLine>>>
+    export type UpdatePurchaseLineMutationBody = SaveLineRequest
+    export type UpdatePurchaseLineMutationError = ErrorResponse
+    export type UpdatePurchaseLineMutationVariables = {id: string;lineId: string;data: SaveLineRequest}
+
+    /**
+ * @summary Изменить строку закупки
+ */
+export const useUpdatePurchaseLine = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseLine>>, TError,UpdatePurchaseLineMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePurchaseLine>>,
+        TError,
+        UpdatePurchaseLineMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePurchaseLineMutationOptions(options), queryClient);
+    }
+
+export type deletePurchaseLineResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type deletePurchaseLineResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePurchaseLineResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePurchaseLineResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePurchaseLineResponseSuccess = (deletePurchaseLineResponse200) & {
+  headers: Headers;
+};
+export type deletePurchaseLineResponseError = (deletePurchaseLineResponse400 | deletePurchaseLineResponse404 | deletePurchaseLineResponse500) & {
+  headers: Headers;
+};
+
+export type deletePurchaseLineResponse = (deletePurchaseLineResponseSuccess | deletePurchaseLineResponseError)
+
+export const getDeletePurchaseLineUrl = (id: string,
+    lineId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/lines/${lineId}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `DELETE` — 200, закупка без строки, итог и долг пересчитаны.
+ * 2. Негативный 404 `PURCHASE_LINE_NOT_FOUND`: строка другой закупки.
+ * @summary Удалить строку закупки
+ */
+export const deletePurchaseLine = async (id: string,
+    lineId: string, options?: Parameters<typeof apiRequest>[1]): Promise<deletePurchaseLineResponse> => {
+
+  return apiRequest<deletePurchaseLineResponse>(getDeletePurchaseLineUrl(id,lineId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePurchaseLineMutationKey = () => ['deletePurchaseLine'] as const;
+
+export const getDeletePurchaseLineMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseLine>>, TError,DeletePurchaseLineMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseLine>>, TError,DeletePurchaseLineMutationVariables, TContext> => {
+
+const mutationKey = getDeletePurchaseLineMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePurchaseLine>>, DeletePurchaseLineMutationVariables> = (props) => {
+          const {id,lineId} = props ?? {};
+
+          return  deletePurchaseLine(id,lineId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePurchaseLineMutationResult = NonNullable<Awaited<ReturnType<typeof deletePurchaseLine>>>
+
+    export type DeletePurchaseLineMutationError = ErrorResponse
+    export type DeletePurchaseLineMutationVariables = {id: string;lineId: string}
+
+    /**
+ * @summary Удалить строку закупки
+ */
+export const useDeletePurchaseLine = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseLine>>, TError,DeletePurchaseLineMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePurchaseLine>>,
+        TError,
+        DeletePurchaseLineMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePurchaseLineMutationOptions(options), queryClient);
+    }
+
+export type getPurchaseLineSizesResponse200 = {
+  data: SizeSplitDto
+  status: 200
+}
+
+export type getPurchaseLineSizesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPurchaseLineSizesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPurchaseLineSizesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPurchaseLineSizesResponseSuccess = (getPurchaseLineSizesResponse200) & {
+  headers: Headers;
+};
+export type getPurchaseLineSizesResponseError = (getPurchaseLineSizesResponse400 | getPurchaseLineSizesResponse404 | getPurchaseLineSizesResponse500) & {
+  headers: Headers;
+};
+
+export type getPurchaseLineSizesResponse = (getPurchaseLineSizesResponseSuccess | getPurchaseLineSizesResponseError)
+
+export const getGetPurchaseLineSizesUrl = (id: string,
+    lineId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/lines/${lineId}/sizes`
+}
+
+/**
+ * По умолчанию — поровну, остаток первым размерам; пресс вскрывается по составу. `warning` — ряд не найден.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Связать строку 84 шт «48-58» и `GET` — шесть размеров по 14.
+ * @summary Раскладка строки по размерам
+ */
+export const getPurchaseLineSizes = async (id: string,
+    lineId: string, options?: Parameters<typeof apiRequest>[1]): Promise<getPurchaseLineSizesResponse> => {
+
+  return apiRequest<getPurchaseLineSizesResponse>(getGetPurchaseLineSizesUrl(id,lineId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPurchaseLineSizesQueryKey = (id: string,
+    lineId: string,) => {
+    return [
+    `/api/purchase/purchases/${id}/lines/${lineId}/sizes`
+    ] as const;
+    }
+
+
+export const getGetPurchaseLineSizesQueryOptions = <TData = Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError = ErrorResponse>(id: string,
+    lineId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPurchaseLineSizesQueryKey(id,lineId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPurchaseLineSizes>>> = ({ signal }) => getPurchaseLineSizes(id,lineId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && lineId !== null && lineId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPurchaseLineSizesQueryResult = NonNullable<Awaited<ReturnType<typeof getPurchaseLineSizes>>>
+export type GetPurchaseLineSizesQueryError = ErrorResponse
+
+
+export function useGetPurchaseLineSizes<TData = Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError = ErrorResponse>(
+ id: string,
+    lineId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPurchaseLineSizes>>,
+          TError,
+          Awaited<ReturnType<typeof getPurchaseLineSizes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPurchaseLineSizes<TData = Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError = ErrorResponse>(
+ id: string,
+    lineId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPurchaseLineSizes>>,
+          TError,
+          Awaited<ReturnType<typeof getPurchaseLineSizes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPurchaseLineSizes<TData = Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError = ErrorResponse>(
+ id: string,
+    lineId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Раскладка строки по размерам
+ */
+
+export function useGetPurchaseLineSizes<TData = Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError = ErrorResponse>(
+ id: string,
+    lineId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPurchaseLineSizes>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPurchaseLineSizesQueryOptions(id,lineId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type savePurchaseLineSizesResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type savePurchaseLineSizesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type savePurchaseLineSizesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type savePurchaseLineSizesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type savePurchaseLineSizesResponseSuccess = (savePurchaseLineSizesResponse200) & {
+  headers: Headers;
+};
+export type savePurchaseLineSizesResponseError = (savePurchaseLineSizesResponse400 | savePurchaseLineSizesResponse404 | savePurchaseLineSizesResponse500) & {
+  headers: Headers;
+};
+
+export type savePurchaseLineSizesResponse = (savePurchaseLineSizesResponseSuccess | savePurchaseLineSizesResponseError)
+
+export const getSavePurchaseLineSizesUrl = (id: string,
+    lineId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/lines/${lineId}/sizes`
+}
+
+/**
+ * Позиции — из раскладки строки; в сумме — количество строки.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` `{"parts":[{"itemId":"<48>","quantity":20},…]}` с суммой 84 — 200.
+ * 2. Негативный 400 `PURCHASE_SIZES_SUM`: сумма 83.
+ * @summary Своя раскладка строки по размерам
+ */
+export const savePurchaseLineSizes = async (id: string,
+    lineId: string,
+    saveSizesRequest: SaveSizesRequest, options?: Parameters<typeof apiRequest>[1]): Promise<savePurchaseLineSizesResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<savePurchaseLineSizesResponse>(getSavePurchaseLineSizesUrl(id,lineId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveSizesRequest)
+  }
+);}
+
+
+
+
+
+export const getSavePurchaseLineSizesMutationKey = () => ['savePurchaseLineSizes'] as const;
+
+export const getSavePurchaseLineSizesMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePurchaseLineSizes>>, TError,SavePurchaseLineSizesMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof savePurchaseLineSizes>>, TError,SavePurchaseLineSizesMutationVariables, TContext> => {
+
+const mutationKey = getSavePurchaseLineSizesMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof savePurchaseLineSizes>>, SavePurchaseLineSizesMutationVariables> = (props) => {
+          const {id,lineId,data} = props ?? {};
+
+          return  savePurchaseLineSizes(id,lineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SavePurchaseLineSizesMutationResult = NonNullable<Awaited<ReturnType<typeof savePurchaseLineSizes>>>
+    export type SavePurchaseLineSizesMutationBody = SaveSizesRequest
+    export type SavePurchaseLineSizesMutationError = ErrorResponse
+    export type SavePurchaseLineSizesMutationVariables = {id: string;lineId: string;data: SaveSizesRequest}
+
+    /**
+ * @summary Своя раскладка строки по размерам
+ */
+export const useSavePurchaseLineSizes = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePurchaseLineSizes>>, TError,SavePurchaseLineSizesMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof savePurchaseLineSizes>>,
+        TError,
+        SavePurchaseLineSizesMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSavePurchaseLineSizesMutationOptions(options), queryClient);
+    }
+
+export type linkPurchaseLineResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type linkPurchaseLineResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type linkPurchaseLineResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type linkPurchaseLineResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type linkPurchaseLineResponseSuccess = (linkPurchaseLineResponse200) & {
+  headers: Headers;
+};
+export type linkPurchaseLineResponseError = (linkPurchaseLineResponse400 | linkPurchaseLineResponse404 | linkPurchaseLineResponse500) & {
+  headers: Headers;
+};
+
+export type linkPurchaseLineResponse = (linkPurchaseLineResponseSuccess | linkPurchaseLineResponseError)
+
+export const getLinkPurchaseLineUrl = (id: string,
+    lineId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/lines/${lineId}/item`
+}
+
+/**
+ * У одежды — любая позиция модели этого цвета: размеры находятся по ряду строки. Пусто — снять связь; своя раскладка по размерам при этом сбрасывается.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` `{"itemId":"<позиция «11042 черный 52»>"}` — 200, у строки `itemName`.
+ * 2. Негативный 404 `PURCHASE_ITEM_NOT_FOUND`: позиция другого магазина.
+ * 3. Негативный 409 `PURCHASE_LINE_RECEIVED`: по строке проведён приход.
+ * @summary Связать строку закупки с позицией каталога
+ */
+export const linkPurchaseLine = async (id: string,
+    lineId: string,
+    linkLineRequest: LinkLineRequest, options?: Parameters<typeof apiRequest>[1]): Promise<linkPurchaseLineResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<linkPurchaseLineResponse>(getLinkPurchaseLineUrl(id,lineId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(linkLineRequest)
+  }
+);}
+
+
+
+
+
+export const getLinkPurchaseLineMutationKey = () => ['linkPurchaseLine'] as const;
+
+export const getLinkPurchaseLineMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkPurchaseLine>>, TError,LinkPurchaseLineMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkPurchaseLine>>, TError,LinkPurchaseLineMutationVariables, TContext> => {
+
+const mutationKey = getLinkPurchaseLineMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkPurchaseLine>>, LinkPurchaseLineMutationVariables> = (props) => {
+          const {id,lineId,data} = props ?? {};
+
+          return  linkPurchaseLine(id,lineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkPurchaseLineMutationResult = NonNullable<Awaited<ReturnType<typeof linkPurchaseLine>>>
+    export type LinkPurchaseLineMutationBody = LinkLineRequest
+    export type LinkPurchaseLineMutationError = ErrorResponse
+    export type LinkPurchaseLineMutationVariables = {id: string;lineId: string;data: LinkLineRequest}
+
+    /**
+ * @summary Связать строку закупки с позицией каталога
+ */
+export const useLinkPurchaseLine = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkPurchaseLine>>, TError,LinkPurchaseLineMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof linkPurchaseLine>>,
+        TError,
+        LinkPurchaseLineMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLinkPurchaseLineMutationOptions(options), queryClient);
+    }
+
+export type updatePurchaseExpenseResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type updatePurchaseExpenseResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updatePurchaseExpenseResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updatePurchaseExpenseResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updatePurchaseExpenseResponseSuccess = (updatePurchaseExpenseResponse200) & {
+  headers: Headers;
+};
+export type updatePurchaseExpenseResponseError = (updatePurchaseExpenseResponse400 | updatePurchaseExpenseResponse404 | updatePurchaseExpenseResponse500) & {
+  headers: Headers;
+};
+
+export type updatePurchaseExpenseResponse = (updatePurchaseExpenseResponseSuccess | updatePurchaseExpenseResponseError)
+
+export const getUpdatePurchaseExpenseUrl = (id: string,
+    expenseId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/expenses/${expenseId}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` с другой суммой — 200.
+ * 2. Негативный 404 `PURCHASE_EXPENSE_NOT_FOUND`.
+ * @summary Изменить дополнительный расход
+ */
+export const updatePurchaseExpense = async (id: string,
+    expenseId: string,
+    saveExpenseRequest: SaveExpenseRequest, options?: Parameters<typeof apiRequest>[1]): Promise<updatePurchaseExpenseResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updatePurchaseExpenseResponse>(getUpdatePurchaseExpenseUrl(id,expenseId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveExpenseRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePurchaseExpenseMutationKey = () => ['updatePurchaseExpense'] as const;
+
+export const getUpdatePurchaseExpenseMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseExpense>>, TError,UpdatePurchaseExpenseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseExpense>>, TError,UpdatePurchaseExpenseMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePurchaseExpenseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePurchaseExpense>>, UpdatePurchaseExpenseMutationVariables> = (props) => {
+          const {id,expenseId,data} = props ?? {};
+
+          return  updatePurchaseExpense(id,expenseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePurchaseExpenseMutationResult = NonNullable<Awaited<ReturnType<typeof updatePurchaseExpense>>>
+    export type UpdatePurchaseExpenseMutationBody = SaveExpenseRequest
+    export type UpdatePurchaseExpenseMutationError = ErrorResponse
+    export type UpdatePurchaseExpenseMutationVariables = {id: string;expenseId: string;data: SaveExpenseRequest}
+
+    /**
+ * @summary Изменить дополнительный расход
+ */
+export const useUpdatePurchaseExpense = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePurchaseExpense>>, TError,UpdatePurchaseExpenseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePurchaseExpense>>,
+        TError,
+        UpdatePurchaseExpenseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePurchaseExpenseMutationOptions(options), queryClient);
+    }
+
+export type deletePurchaseExpenseResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type deletePurchaseExpenseResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePurchaseExpenseResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePurchaseExpenseResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePurchaseExpenseResponseSuccess = (deletePurchaseExpenseResponse200) & {
+  headers: Headers;
+};
+export type deletePurchaseExpenseResponseError = (deletePurchaseExpenseResponse400 | deletePurchaseExpenseResponse404 | deletePurchaseExpenseResponse500) & {
+  headers: Headers;
+};
+
+export type deletePurchaseExpenseResponse = (deletePurchaseExpenseResponseSuccess | deletePurchaseExpenseResponseError)
+
+export const getDeletePurchaseExpenseUrl = (id: string,
+    expenseId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/expenses/${expenseId}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `DELETE` — 200, расхода нет.
+ * 2. Негативный 404 `PURCHASE_EXPENSE_NOT_FOUND`.
+ * @summary Удалить дополнительный расход
+ */
+export const deletePurchaseExpense = async (id: string,
+    expenseId: string, options?: Parameters<typeof apiRequest>[1]): Promise<deletePurchaseExpenseResponse> => {
+
+  return apiRequest<deletePurchaseExpenseResponse>(getDeletePurchaseExpenseUrl(id,expenseId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePurchaseExpenseMutationKey = () => ['deletePurchaseExpense'] as const;
+
+export const getDeletePurchaseExpenseMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseExpense>>, TError,DeletePurchaseExpenseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseExpense>>, TError,DeletePurchaseExpenseMutationVariables, TContext> => {
+
+const mutationKey = getDeletePurchaseExpenseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePurchaseExpense>>, DeletePurchaseExpenseMutationVariables> = (props) => {
+          const {id,expenseId} = props ?? {};
+
+          return  deletePurchaseExpense(id,expenseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePurchaseExpenseMutationResult = NonNullable<Awaited<ReturnType<typeof deletePurchaseExpense>>>
+
+    export type DeletePurchaseExpenseMutationError = ErrorResponse
+    export type DeletePurchaseExpenseMutationVariables = {id: string;expenseId: string}
+
+    /**
+ * @summary Удалить дополнительный расход
+ */
+export const useDeletePurchaseExpense = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseExpense>>, TError,DeletePurchaseExpenseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePurchaseExpense>>,
+        TError,
+        DeletePurchaseExpenseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePurchaseExpenseMutationOptions(options), queryClient);
+    }
+
+export type getDeliveryBatchResponse200 = {
+  data: DeliveryBatchDto
+  status: 200
+}
+
+export type getDeliveryBatchResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getDeliveryBatchResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getDeliveryBatchResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getDeliveryBatchResponseSuccess = (getDeliveryBatchResponse200) & {
+  headers: Headers;
+};
+export type getDeliveryBatchResponseError = (getDeliveryBatchResponse400 | getDeliveryBatchResponse404 | getDeliveryBatchResponse500) & {
+  headers: Headers;
+};
+
+export type getDeliveryBatchResponse = (getDeliveryBatchResponseSuccess | getDeliveryBatchResponseError)
+
+export const getGetDeliveryBatchUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/batches/${id}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `GET /api/purchase/batches/{id}` — 200.
+ * 2. Негативный 404 `PURCHASE_BATCH_NOT_FOUND`.
+ * @summary Партия доставки
+ */
+export const getDeliveryBatch = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<getDeliveryBatchResponse> => {
+
+  return apiRequest<getDeliveryBatchResponse>(getGetDeliveryBatchUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeliveryBatchQueryKey = (id: string,) => {
+    return [
+    `/api/purchase/batches/${id}`
+    ] as const;
+    }
+
+
+export const getGetDeliveryBatchQueryOptions = <TData = Awaited<ReturnType<typeof getDeliveryBatch>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeliveryBatch>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeliveryBatchQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDeliveryBatch>>> = ({ signal }) => getDeliveryBatch(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDeliveryBatch>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDeliveryBatchQueryResult = NonNullable<Awaited<ReturnType<typeof getDeliveryBatch>>>
+export type GetDeliveryBatchQueryError = ErrorResponse
+
+
+export function useGetDeliveryBatch<TData = Awaited<ReturnType<typeof getDeliveryBatch>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeliveryBatch>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeliveryBatch>>,
+          TError,
+          Awaited<ReturnType<typeof getDeliveryBatch>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeliveryBatch<TData = Awaited<ReturnType<typeof getDeliveryBatch>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeliveryBatch>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDeliveryBatch>>,
+          TError,
+          Awaited<ReturnType<typeof getDeliveryBatch>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDeliveryBatch<TData = Awaited<ReturnType<typeof getDeliveryBatch>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeliveryBatch>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Партия доставки
+ */
+
+export function useGetDeliveryBatch<TData = Awaited<ReturnType<typeof getDeliveryBatch>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDeliveryBatch>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDeliveryBatchQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type updateDeliveryBatchResponse200 = {
+  data: DeliveryBatchDto
+  status: 200
+}
+
+export type updateDeliveryBatchResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updateDeliveryBatchResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updateDeliveryBatchResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updateDeliveryBatchResponseSuccess = (updateDeliveryBatchResponse200) & {
+  headers: Headers;
+};
+export type updateDeliveryBatchResponseError = (updateDeliveryBatchResponse400 | updateDeliveryBatchResponse404 | updateDeliveryBatchResponse500) & {
+  headers: Headers;
+};
+
+export type updateDeliveryBatchResponse = (updateDeliveryBatchResponseSuccess | updateDeliveryBatchResponseError)
+
+export const getUpdateDeliveryBatchUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/batches/${id}`
+}
+
+/**
+ * Места заменяются присланными. Себестоимость проведённых приходов не меняется сама — «Пересчитать себестоимость».
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` с другой суммой места — 200, `totalCost` новый.
+ * @summary Изменить партию доставки
+ */
+export const updateDeliveryBatch = async (id: string,
+    saveBatchRequest: SaveBatchRequest, options?: Parameters<typeof apiRequest>[1]): Promise<updateDeliveryBatchResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updateDeliveryBatchResponse>(getUpdateDeliveryBatchUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveBatchRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateDeliveryBatchMutationKey = () => ['updateDeliveryBatch'] as const;
+
+export const getUpdateDeliveryBatchMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDeliveryBatch>>, TError,UpdateDeliveryBatchMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDeliveryBatch>>, TError,UpdateDeliveryBatchMutationVariables, TContext> => {
+
+const mutationKey = getUpdateDeliveryBatchMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDeliveryBatch>>, UpdateDeliveryBatchMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateDeliveryBatch(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDeliveryBatchMutationResult = NonNullable<Awaited<ReturnType<typeof updateDeliveryBatch>>>
+    export type UpdateDeliveryBatchMutationBody = SaveBatchRequest
+    export type UpdateDeliveryBatchMutationError = ErrorResponse
+    export type UpdateDeliveryBatchMutationVariables = {id: string;data: SaveBatchRequest}
+
+    /**
+ * @summary Изменить партию доставки
+ */
+export const useUpdateDeliveryBatch = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDeliveryBatch>>, TError,UpdateDeliveryBatchMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateDeliveryBatch>>,
+        TError,
+        UpdateDeliveryBatchMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdateDeliveryBatchMutationOptions(options), queryClient);
+    }
+
+export type deleteDeliveryBatchResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteDeliveryBatchResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deleteDeliveryBatchResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deleteDeliveryBatchResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deleteDeliveryBatchResponseSuccess = (deleteDeliveryBatchResponse204) & {
+  headers: Headers;
+};
+export type deleteDeliveryBatchResponseError = (deleteDeliveryBatchResponse400 | deleteDeliveryBatchResponse404 | deleteDeliveryBatchResponse500) & {
+  headers: Headers;
+};
+
+export type deleteDeliveryBatchResponse = (deleteDeliveryBatchResponseSuccess | deleteDeliveryBatchResponseError)
+
+export const getDeleteDeliveryBatchUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/batches/${id}`
+}
+
+/**
+ * Места остаются у своих отгрузок, без партии.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `DELETE` — 204, у мест `batchId` пусто.
+ * @summary Удалить партию доставки
+ */
+export const deleteDeliveryBatch = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<deleteDeliveryBatchResponse> => {
+
+  return apiRequest<deleteDeliveryBatchResponse>(getDeleteDeliveryBatchUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteDeliveryBatchMutationKey = () => ['deleteDeliveryBatch'] as const;
+
+export const getDeleteDeliveryBatchMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDeliveryBatch>>, TError,DeleteDeliveryBatchMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDeliveryBatch>>, TError,DeleteDeliveryBatchMutationVariables, TContext> => {
+
+const mutationKey = getDeleteDeliveryBatchMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDeliveryBatch>>, DeleteDeliveryBatchMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteDeliveryBatch(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDeliveryBatchMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDeliveryBatch>>>
+
+    export type DeleteDeliveryBatchMutationError = ErrorResponse
+    export type DeleteDeliveryBatchMutationVariables = {id: string}
+
+    /**
+ * @summary Удалить партию доставки
+ */
+export const useDeleteDeliveryBatch = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDeliveryBatch>>, TError,DeleteDeliveryBatchMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDeliveryBatch>>,
+        TError,
+        DeleteDeliveryBatchMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteDeliveryBatchMutationOptions(options), queryClient);
     }
 
 export type getPromoSettingsResponse200 = {
@@ -23717,6 +28894,247 @@ export const useDeletePromoArrival = <TError = ErrorResponse,
       return useMutation(getDeletePromoArrivalMutationOptions(options), queryClient);
     }
 
+export type updatePortalTemplateResponse200 = {
+  data: OrderTemplateDto
+  status: 200
+}
+
+export type updatePortalTemplateResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type updatePortalTemplateResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type updatePortalTemplateResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type updatePortalTemplateResponseSuccess = (updatePortalTemplateResponse200) & {
+  headers: Headers;
+};
+export type updatePortalTemplateResponseError = (updatePortalTemplateResponse400 | updatePortalTemplateResponse404 | updatePortalTemplateResponse500) & {
+  headers: Headers;
+};
+
+export type updatePortalTemplateResponse = (updatePortalTemplateResponseSuccess | updatePortalTemplateResponseError)
+
+export const getUpdatePortalTemplateUrl = (id: string,) => {
+
+
+
+
+  return `/api/portal/templates/${id}`
+}
+
+/**
+ * Название и состав: количество позиций меняется, отсутствующие в запросе убираются, новые товары каталога добавляются (невидимые клиенту — пропускаются).
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Прочитать состав, прислать его с другим количеством и названием — 200, в списке новое имя.
+ * 2. Прислать без одной позиции — она убрана, `lineCount` меньше.
+ * 3. Негативный 400: состав, в котором нет ни одной позиции шаблона.
+ * 4. Негативный 404: чужой шаблон.
+ * @summary Изменить шаблон
+ */
+export const updatePortalTemplate = async (id: string,
+    updateTemplateRequest: UpdateTemplateRequest, options?: Parameters<typeof apiRequest>[1]): Promise<updatePortalTemplateResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<updatePortalTemplateResponse>(getUpdatePortalTemplateUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateTemplateRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdatePortalTemplateMutationKey = () => ['updatePortalTemplate'] as const;
+
+export const getUpdatePortalTemplateMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePortalTemplate>>, TError,UpdatePortalTemplateMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof updatePortalTemplate>>, TError,UpdatePortalTemplateMutationVariables, TContext> => {
+
+const mutationKey = getUpdatePortalTemplateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updatePortalTemplate>>, UpdatePortalTemplateMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updatePortalTemplate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdatePortalTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof updatePortalTemplate>>>
+    export type UpdatePortalTemplateMutationBody = UpdateTemplateRequest
+    export type UpdatePortalTemplateMutationError = ErrorResponse
+    export type UpdatePortalTemplateMutationVariables = {id: string;data: UpdateTemplateRequest}
+
+    /**
+ * @summary Изменить шаблон
+ */
+export const useUpdatePortalTemplate = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updatePortalTemplate>>, TError,UpdatePortalTemplateMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updatePortalTemplate>>,
+        TError,
+        UpdatePortalTemplateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUpdatePortalTemplateMutationOptions(options), queryClient);
+    }
+
+export type deletePortalTemplateResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deletePortalTemplateResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePortalTemplateResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type deletePortalTemplateResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePortalTemplateResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePortalTemplateResponseSuccess = (deletePortalTemplateResponse204) & {
+  headers: Headers;
+};
+export type deletePortalTemplateResponseError = (deletePortalTemplateResponse400 | deletePortalTemplateResponse403 | deletePortalTemplateResponse404 | deletePortalTemplateResponse500) & {
+  headers: Headers;
+};
+
+export type deletePortalTemplateResponse = (deletePortalTemplateResponseSuccess | deletePortalTemplateResponseError)
+
+export const getDeletePortalTemplateUrl = (id: string,) => {
+
+
+
+
+  return `/api/portal/templates/${id}`
+}
+
+/**
+ * Повторное удаление ошибкой не считается — экран мог отправить повтор. Чужой шаблон отвечает тем же, чем несуществующий: ничем, потому что удалять нечего.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Удалить свой шаблон — 204, из списка он исчез.
+ * 2. Повторить — снова 204.
+ * 3. Негативный 403: заголовок чужого поставщика.
+ * @summary Убрать шаблон
+ */
+export const deletePortalTemplate = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<deletePortalTemplateResponse> => {
+
+  return apiRequest<deletePortalTemplateResponse>(getDeletePortalTemplateUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePortalTemplateMutationKey = () => ['deletePortalTemplate'] as const;
+
+export const getDeletePortalTemplateMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalTemplate>>, TError,DeletePortalTemplateMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePortalTemplate>>, TError,DeletePortalTemplateMutationVariables, TContext> => {
+
+const mutationKey = getDeletePortalTemplateMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePortalTemplate>>, DeletePortalTemplateMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deletePortalTemplate(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePortalTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof deletePortalTemplate>>>
+
+    export type DeletePortalTemplateMutationError = ErrorResponse
+    export type DeletePortalTemplateMutationVariables = {id: string}
+
+    /**
+ * @summary Убрать шаблон
+ */
+export const useDeletePortalTemplate = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalTemplate>>, TError,DeletePortalTemplateMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePortalTemplate>>,
+        TError,
+        DeletePortalTemplateMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePortalTemplateMutationOptions(options), queryClient);
+    }
+
 export type schedulePortalTemplateResponse200 = {
   data: OrderTemplateDto
   status: 200
@@ -23948,6 +29366,236 @@ export const useUnschedulePortalTemplate = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getUnschedulePortalTemplateMutationOptions(options), queryClient);
+    }
+
+export type hidePortalSupplierResponse204 = {
+  data: void
+  status: 204
+}
+
+export type hidePortalSupplierResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type hidePortalSupplierResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type hidePortalSupplierResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type hidePortalSupplierResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type hidePortalSupplierResponseSuccess = (hidePortalSupplierResponse204) & {
+  headers: Headers;
+};
+export type hidePortalSupplierResponseError = (hidePortalSupplierResponse400 | hidePortalSupplierResponse403 | hidePortalSupplierResponse404 | hidePortalSupplierResponse500) & {
+  headers: Headers;
+};
+
+export type hidePortalSupplierResponse = (hidePortalSupplierResponseSuccess | hidePortalSupplierResponseError)
+
+export const getHidePortalSupplierUrl = (supplierId: string,) => {
+
+
+
+
+  return `/api/portal/suppliers/${supplierId}/hidden`
+}
+
+/**
+ * Магазин уходит в группу «Скрытые»: уведомлений, push и сообщений в мессенджер от него нет, счётчик непрочитанного — ноль. Уведомления копятся и появятся, когда магазин вернут. Доступ, заявки и долг не меняются, продавец ничего не видит.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` — в `/suppliers` у магазина `hidden = true`, в `/notifications/summary` — 0.
+ * 2. Продавец отвечает на заявку — push не приходит.
+ * 3. `DELETE` — уведомление за время скрытия на месте.
+ * 4. Негативный 403: чужой поставщик.
+ * @summary Скрыть магазин
+ */
+export const hidePortalSupplier = async (supplierId: string, options?: Parameters<typeof apiRequest>[1]): Promise<hidePortalSupplierResponse> => {
+
+  return apiRequest<hidePortalSupplierResponse>(getHidePortalSupplierUrl(supplierId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getHidePortalSupplierMutationKey = () => ['hidePortalSupplier'] as const;
+
+export const getHidePortalSupplierMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hidePortalSupplier>>, TError,HidePortalSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof hidePortalSupplier>>, TError,HidePortalSupplierMutationVariables, TContext> => {
+
+const mutationKey = getHidePortalSupplierMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof hidePortalSupplier>>, HidePortalSupplierMutationVariables> = (props) => {
+          const {supplierId} = props ?? {};
+
+          return  hidePortalSupplier(supplierId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type HidePortalSupplierMutationResult = NonNullable<Awaited<ReturnType<typeof hidePortalSupplier>>>
+
+    export type HidePortalSupplierMutationError = ErrorResponse
+    export type HidePortalSupplierMutationVariables = {supplierId: string}
+
+    /**
+ * @summary Скрыть магазин
+ */
+export const useHidePortalSupplier = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hidePortalSupplier>>, TError,HidePortalSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof hidePortalSupplier>>,
+        TError,
+        HidePortalSupplierMutationVariables,
+        TContext
+      > => {
+      return useMutation(getHidePortalSupplierMutationOptions(options), queryClient);
+    }
+
+export type showPortalSupplierResponse204 = {
+  data: void
+  status: 204
+}
+
+export type showPortalSupplierResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type showPortalSupplierResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type showPortalSupplierResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type showPortalSupplierResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type showPortalSupplierResponseSuccess = (showPortalSupplierResponse204) & {
+  headers: Headers;
+};
+export type showPortalSupplierResponseError = (showPortalSupplierResponse400 | showPortalSupplierResponse403 | showPortalSupplierResponse404 | showPortalSupplierResponse500) & {
+  headers: Headers;
+};
+
+export type showPortalSupplierResponse = (showPortalSupplierResponseSuccess | showPortalSupplierResponseError)
+
+export const getShowPortalSupplierUrl = (supplierId: string,) => {
+
+
+
+
+  return `/api/portal/suppliers/${supplierId}/hidden`
+}
+
+/**
+ * Магазин снова в общем списке; уведомления, пришедшие за время скрытия, видны непрочитанными.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Скрыть магазин, дождаться уведомления от продавца.
+ * 2. `DELETE` — в `/suppliers` у магазина нет `hidden`, уведомление видно непрочитанным.
+ * @summary Вернуть скрытый магазин
+ */
+export const showPortalSupplier = async (supplierId: string, options?: Parameters<typeof apiRequest>[1]): Promise<showPortalSupplierResponse> => {
+
+  return apiRequest<showPortalSupplierResponse>(getShowPortalSupplierUrl(supplierId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getShowPortalSupplierMutationKey = () => ['showPortalSupplier'] as const;
+
+export const getShowPortalSupplierMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof showPortalSupplier>>, TError,ShowPortalSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof showPortalSupplier>>, TError,ShowPortalSupplierMutationVariables, TContext> => {
+
+const mutationKey = getShowPortalSupplierMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof showPortalSupplier>>, ShowPortalSupplierMutationVariables> = (props) => {
+          const {supplierId} = props ?? {};
+
+          return  showPortalSupplier(supplierId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShowPortalSupplierMutationResult = NonNullable<Awaited<ReturnType<typeof showPortalSupplier>>>
+
+    export type ShowPortalSupplierMutationError = ErrorResponse
+    export type ShowPortalSupplierMutationVariables = {supplierId: string}
+
+    /**
+ * @summary Вернуть скрытый магазин
+ */
+export const useShowPortalSupplier = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof showPortalSupplier>>, TError,ShowPortalSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof showPortalSupplier>>,
+        TError,
+        ShowPortalSupplierMutationVariables,
+        TContext
+      > => {
+      return useMutation(getShowPortalSupplierMutationOptions(options), queryClient);
     }
 
 export type subscribePortalRestockResponse204 = {
@@ -25909,13 +31557,19 @@ export const getSaveExchangeSettingsUrl = () => {
  * в кабинете клиента (404 `VAT_INVOICE_EXTERNAL`), у заказа `vatInvoiceAvailable = false`.
  * Счёт на оплату — как прежде.
  *
+ * `paidOrdersOnly = true` — в 1С уходят только оплаченные заказы и выданные под реализацию
+ * (иначе долг в 1С не появится); `false` — сразу после подтверждения клиентом. Пусто — не менять.
+ * Оплаты 1С забирает в обоих режимах (`GET /api/1c/payments`).
+ *
  * **Как проверить вручную**
  *
  * 1. Выдать ключ обмена, затем `{"invoiceSource":"EXTERNAL_1C"}` — 200, в ответе
  *    `invoiceSource = EXTERNAL_1C`; скачать счёт-фактуру заказа — 404.
  * 2. Негативный 409 `EXCHANGE_NOT_CONNECTED`: то же без ключа обмена.
  * 3. Негативный 403: тот же запрос под менеджером.
- * @summary Настройки обмена: кто выписывает счёт-фактуру
+ * 4. `{"invoiceSource":"INTERNAL","paidOrdersOnly":true}` — в ответе `paidOrdersOnly = true`;
+ *    принятый неоплаченный заказ в `GET /api/1c/orders` не приходит, после отметки оплаты — приходит.
+ * @summary Настройки обмена: кто выписывает счёт-фактуру, когда заказ уходит в 1С
  */
 export const saveExchangeSettings = async (exchangeSettingsRequest: ExchangeSettingsRequest, options?: Parameters<typeof apiRequest>[1]): Promise<saveExchangeSettingsResponse> => {
 
@@ -25981,7 +31635,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type SaveExchangeSettingsMutationVariables = {data: ExchangeSettingsRequest}
 
     /**
- * @summary Настройки обмена: кто выписывает счёт-фактуру
+ * @summary Настройки обмена: кто выписывает счёт-фактуру, когда заказ уходит в 1С
  */
 export const useSaveExchangeSettings = <TError = ErrorResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveExchangeSettings>>, TError,SaveExchangeSettingsMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
@@ -25992,6 +31646,136 @@ export const useSaveExchangeSettings = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSaveExchangeSettingsMutationOptions(options), queryClient);
+    }
+
+export type linkExchangeItemCodeResponse204 = {
+  data: void
+  status: 204
+}
+
+export type linkExchangeItemCodeResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type linkExchangeItemCodeResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type linkExchangeItemCodeResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type linkExchangeItemCodeResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type linkExchangeItemCodeResponseSuccess = (linkExchangeItemCodeResponse204) & {
+  headers: Headers;
+};
+export type linkExchangeItemCodeResponseError = (linkExchangeItemCodeResponse400 | linkExchangeItemCodeResponse404 | linkExchangeItemCodeResponse409 | linkExchangeItemCodeResponse500) & {
+  headers: Headers;
+};
+
+export type linkExchangeItemCodeResponse = (linkExchangeItemCodeResponseSuccess | linkExchangeItemCodeResponseError)
+
+export const getLinkExchangeItemCodeUrl = (itemId: string,) => {
+
+
+
+
+  return `/api/exchange/items/${itemId}/code`
+}
+
+/**
+ * Товар получает код номенклатуры 1С: дальше цены и остатки по нему приходят из обмена,
+ * а заказы с ним 1С примет.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `{"code":"00-000012391"}` — 204; в карточке товара он помечен как товар 1С.
+ * 2. Негативный 409 `CATALOG_EXTERNAL_ID_TAKEN`: код уже у другого товара — в тексте его название.
+ * @summary Связать товар с кодом 1С
+ */
+export const linkExchangeItemCode = async (itemId: string,
+    linkItemCodeRequest: LinkItemCodeRequest, options?: Parameters<typeof apiRequest>[1]): Promise<linkExchangeItemCodeResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<linkExchangeItemCodeResponse>(getLinkExchangeItemCodeUrl(itemId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(linkItemCodeRequest)
+  }
+);}
+
+
+
+
+
+export const getLinkExchangeItemCodeMutationKey = () => ['linkExchangeItemCode'] as const;
+
+export const getLinkExchangeItemCodeMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkExchangeItemCode>>, TError,LinkExchangeItemCodeMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkExchangeItemCode>>, TError,LinkExchangeItemCodeMutationVariables, TContext> => {
+
+const mutationKey = getLinkExchangeItemCodeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkExchangeItemCode>>, LinkExchangeItemCodeMutationVariables> = (props) => {
+          const {itemId,data} = props ?? {};
+
+          return  linkExchangeItemCode(itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkExchangeItemCodeMutationResult = NonNullable<Awaited<ReturnType<typeof linkExchangeItemCode>>>
+    export type LinkExchangeItemCodeMutationBody = LinkItemCodeRequest
+    export type LinkExchangeItemCodeMutationError = ErrorResponse
+    export type LinkExchangeItemCodeMutationVariables = {itemId: string;data: LinkItemCodeRequest}
+
+    /**
+ * @summary Связать товар с кодом 1С
+ */
+export const useLinkExchangeItemCode = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkExchangeItemCode>>, TError,LinkExchangeItemCodeMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof linkExchangeItemCode>>,
+        TError,
+        LinkExchangeItemCodeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLinkExchangeItemCodeMutationOptions(options), queryClient);
     }
 
 export type getDraftResponse200 = {
@@ -27417,6 +33201,738 @@ export const useDeleteCarrier = <TError = ErrorResponse,
       return useMutation(getDeleteCarrierMutationOptions(options), queryClient);
     }
 
+export type reorderRunStopsResponse200 = {
+  data: DeliveryRunDto
+  status: 200
+}
+
+export type reorderRunStopsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type reorderRunStopsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type reorderRunStopsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type reorderRunStopsResponseSuccess = (reorderRunStopsResponse200) & {
+  headers: Headers;
+};
+export type reorderRunStopsResponseError = (reorderRunStopsResponse400 | reorderRunStopsResponse404 | reorderRunStopsResponse500) & {
+  headers: Headers;
+};
+
+export type reorderRunStopsResponse = (reorderRunStopsResponseSuccess | reorderRunStopsResponseError)
+
+export const getReorderRunStopsUrl = (id: string,) => {
+
+
+
+
+  return `/api/delivery-runs/${id}/stops/order`
+}
+
+/**
+ * Недоставленные остановки — в присланном порядке; доставленные остаются впереди, как были. Переставляет назначающий рейсы и водитель своего рейса.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Рейс из двух заказов: прислать остановки в обратном порядке — 200, `position` поменялись.
+ * 2. Негативный 400 `DELIVERY_STOPS_ORDER_INVALID`: в списке не все недоставленные остановки, лишняя или повтор.
+ * 3. Негативный 404 `DELIVERY_RUN_NOT_FOUND`: рейс другого водителя.
+ * @summary Порядок объезда
+ */
+export const reorderRunStops = async (id: string,
+    reorderRunStopsRequest: ReorderRunStopsRequest, options?: Parameters<typeof apiRequest>[1]): Promise<reorderRunStopsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<reorderRunStopsResponse>(getReorderRunStopsUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reorderRunStopsRequest)
+  }
+);}
+
+
+
+
+
+export const getReorderRunStopsMutationKey = () => ['reorderRunStops'] as const;
+
+export const getReorderRunStopsMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderRunStops>>, TError,ReorderRunStopsMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderRunStops>>, TError,ReorderRunStopsMutationVariables, TContext> => {
+
+const mutationKey = getReorderRunStopsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderRunStops>>, ReorderRunStopsMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reorderRunStops(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderRunStopsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderRunStops>>>
+    export type ReorderRunStopsMutationBody = ReorderRunStopsRequest
+    export type ReorderRunStopsMutationError = ErrorResponse
+    export type ReorderRunStopsMutationVariables = {id: string;data: ReorderRunStopsRequest}
+
+    /**
+ * @summary Порядок объезда
+ */
+export const useReorderRunStops = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderRunStops>>, TError,ReorderRunStopsMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof reorderRunStops>>,
+        TError,
+        ReorderRunStopsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReorderRunStopsMutationOptions(options), queryClient);
+    }
+
+export type getDebtReminderPolicyResponse200 = {
+  data: DebtReminderPolicyDto
+  status: 200
+}
+
+export type getDebtReminderPolicyResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getDebtReminderPolicyResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getDebtReminderPolicyResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getDebtReminderPolicyResponseSuccess = (getDebtReminderPolicyResponse200) & {
+  headers: Headers;
+};
+export type getDebtReminderPolicyResponseError = (getDebtReminderPolicyResponse400 | getDebtReminderPolicyResponse404 | getDebtReminderPolicyResponse500) & {
+  headers: Headers;
+};
+
+export type getDebtReminderPolicyResponse = (getDebtReminderPolicyResponseSuccess | getDebtReminderPolicyResponseError)
+
+export const getGetDebtReminderPolicyUrl = () => {
+
+
+
+
+  return `/api/debts/reminder-policy`
+}
+
+/**
+ * Напоминать ли клиентам о сроке платежа по долгу и за сколько дней. Не задано — за 7, 5, 3 и 1 день.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. У нового продавца — `enabled` true, `daysBefore` [7, 5, 3, 1].
+ * @summary Напоминания о сроке платежа
+ */
+export const getDebtReminderPolicy = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getDebtReminderPolicyResponse> => {
+
+  return apiRequest<getDebtReminderPolicyResponse>(getGetDebtReminderPolicyUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDebtReminderPolicyQueryKey = () => {
+    return [
+    `/api/debts/reminder-policy`
+    ] as const;
+    }
+
+
+export const getGetDebtReminderPolicyQueryOptions = <TData = Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDebtReminderPolicyQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDebtReminderPolicy>>> = ({ signal }) => getDebtReminderPolicy({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDebtReminderPolicyQueryResult = NonNullable<Awaited<ReturnType<typeof getDebtReminderPolicy>>>
+export type GetDebtReminderPolicyQueryError = ErrorResponse
+
+
+export function useGetDebtReminderPolicy<TData = Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDebtReminderPolicy>>,
+          TError,
+          Awaited<ReturnType<typeof getDebtReminderPolicy>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDebtReminderPolicy<TData = Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDebtReminderPolicy>>,
+          TError,
+          Awaited<ReturnType<typeof getDebtReminderPolicy>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDebtReminderPolicy<TData = Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Напоминания о сроке платежа
+ */
+
+export function useGetDebtReminderPolicy<TData = Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtReminderPolicy>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDebtReminderPolicyQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type saveDebtReminderPolicyResponse200 = {
+  data: DebtReminderPolicyDto
+  status: 200
+}
+
+export type saveDebtReminderPolicyResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type saveDebtReminderPolicyResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type saveDebtReminderPolicyResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type saveDebtReminderPolicyResponseSuccess = (saveDebtReminderPolicyResponse200) & {
+  headers: Headers;
+};
+export type saveDebtReminderPolicyResponseError = (saveDebtReminderPolicyResponse400 | saveDebtReminderPolicyResponse404 | saveDebtReminderPolicyResponse500) & {
+  headers: Headers;
+};
+
+export type saveDebtReminderPolicyResponse = (saveDebtReminderPolicyResponseSuccess | saveDebtReminderPolicyResponseError)
+
+export const getSaveDebtReminderPolicyUrl = () => {
+
+
+
+
+  return `/api/debts/reminder-policy`
+}
+
+/**
+ * Срок — из графика платежей клиента, а без графика — день выдачи плюс отсрочка клиента.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Сохранить `{enabled: true, daysBefore: [3, 1]}` — `GET` вернёт [3, 1].
+ * 2. Негативный 400: день больше 60.
+ * @summary Настроить напоминания о сроке платежа
+ */
+export const saveDebtReminderPolicy = async (debtReminderPolicyDto: DebtReminderPolicyDto, options?: Parameters<typeof apiRequest>[1]): Promise<saveDebtReminderPolicyResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<saveDebtReminderPolicyResponse>(getSaveDebtReminderPolicyUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(debtReminderPolicyDto)
+  }
+);}
+
+
+
+
+
+export const getSaveDebtReminderPolicyMutationKey = () => ['saveDebtReminderPolicy'] as const;
+
+export const getSaveDebtReminderPolicyMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDebtReminderPolicy>>, TError,SaveDebtReminderPolicyMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveDebtReminderPolicy>>, TError,SaveDebtReminderPolicyMutationVariables, TContext> => {
+
+const mutationKey = getSaveDebtReminderPolicyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveDebtReminderPolicy>>, SaveDebtReminderPolicyMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveDebtReminderPolicy(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveDebtReminderPolicyMutationResult = NonNullable<Awaited<ReturnType<typeof saveDebtReminderPolicy>>>
+    export type SaveDebtReminderPolicyMutationBody = DebtReminderPolicyDto
+    export type SaveDebtReminderPolicyMutationError = ErrorResponse
+    export type SaveDebtReminderPolicyMutationVariables = {data: DebtReminderPolicyDto}
+
+    /**
+ * @summary Настроить напоминания о сроке платежа
+ */
+export const useSaveDebtReminderPolicy = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDebtReminderPolicy>>, TError,SaveDebtReminderPolicyMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveDebtReminderPolicy>>,
+        TError,
+        SaveDebtReminderPolicyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveDebtReminderPolicyMutationOptions(options), queryClient);
+    }
+
+export type setCustomerManagerResponse204 = {
+  data: void
+  status: 204
+}
+
+export type setCustomerManagerResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type setCustomerManagerResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type setCustomerManagerResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type setCustomerManagerResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type setCustomerManagerResponseSuccess = (setCustomerManagerResponse204) & {
+  headers: Headers;
+};
+export type setCustomerManagerResponseError = (setCustomerManagerResponse400 | setCustomerManagerResponse403 | setCustomerManagerResponse404 | setCustomerManagerResponse500) & {
+  headers: Headers;
+};
+
+export type setCustomerManagerResponse = (setCustomerManagerResponseSuccess | setCustomerManagerResponseError)
+
+export const getSetCustomerManagerUrl = (id: string,) => {
+
+
+
+
+  return `/api/customers/${id}/manager`
+}
+
+/**
+ * Новые заявки и вопросы клиента сразу уходят этому продавцу, а не в общую очередь; уведомление о них — только ему. `managerId` пусто — открепить. Сам клиент закрепляется и без этого — за тем, кто первым взял его заявку. Только администратор.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` с `managerId` менеджера — в списке клиентов у строки `managerId` и `managerName`.
+ * 2. Клиент отправляет заявку из кабинета — она сразу у этого менеджера.
+ * 3. Менеджер без права на очередь — 400; не администратор — 403.
+ * @summary Закрепить клиента за продавцом
+ */
+export const setCustomerManager = async (id: string,
+    setCustomerManagerRequest: SetCustomerManagerRequest, options?: Parameters<typeof apiRequest>[1]): Promise<setCustomerManagerResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<setCustomerManagerResponse>(getSetCustomerManagerUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setCustomerManagerRequest)
+  }
+);}
+
+
+
+
+
+export const getSetCustomerManagerMutationKey = () => ['setCustomerManager'] as const;
+
+export const getSetCustomerManagerMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCustomerManager>>, TError,SetCustomerManagerMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCustomerManager>>, TError,SetCustomerManagerMutationVariables, TContext> => {
+
+const mutationKey = getSetCustomerManagerMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCustomerManager>>, SetCustomerManagerMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setCustomerManager(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCustomerManagerMutationResult = NonNullable<Awaited<ReturnType<typeof setCustomerManager>>>
+    export type SetCustomerManagerMutationBody = SetCustomerManagerRequest
+    export type SetCustomerManagerMutationError = ErrorResponse
+    export type SetCustomerManagerMutationVariables = {id: string;data: SetCustomerManagerRequest}
+
+    /**
+ * @summary Закрепить клиента за продавцом
+ */
+export const useSetCustomerManager = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCustomerManager>>, TError,SetCustomerManagerMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setCustomerManager>>,
+        TError,
+        SetCustomerManagerMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetCustomerManagerMutationOptions(options), queryClient);
+    }
+
+export type hideCustomerResponse204 = {
+  data: void
+  status: 204
+}
+
+export type hideCustomerResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type hideCustomerResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type hideCustomerResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type hideCustomerResponseSuccess = (hideCustomerResponse204) & {
+  headers: Headers;
+};
+export type hideCustomerResponseError = (hideCustomerResponse400 | hideCustomerResponse404 | hideCustomerResponse500) & {
+  headers: Headers;
+};
+
+export type hideCustomerResponse = (hideCustomerResponseSuccess | hideCustomerResponseError)
+
+export const getHideCustomerUrl = (id: string,) => {
+
+
+
+
+  return `/api/customers/${id}/hidden`
+}
+
+/**
+ * Клиент пропадает из списка (виден только в отборе `HIDDEN`), уведомления о его заявках продавцу не приходят. Клиент ничего не замечает и заказывает как прежде.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` — клиента нет в `filter=ALL`, он есть в `filter=HIDDEN`.
+ * 2. Клиент отправляет заявку — плашки «новая заявка» у продавца нет.
+ * 3. `DELETE` — клиент вернулся в список.
+ * @summary Скрыть клиента
+ */
+export const hideCustomer = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<hideCustomerResponse> => {
+
+  return apiRequest<hideCustomerResponse>(getHideCustomerUrl(id),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getHideCustomerMutationKey = () => ['hideCustomer'] as const;
+
+export const getHideCustomerMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hideCustomer>>, TError,HideCustomerMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof hideCustomer>>, TError,HideCustomerMutationVariables, TContext> => {
+
+const mutationKey = getHideCustomerMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof hideCustomer>>, HideCustomerMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  hideCustomer(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type HideCustomerMutationResult = NonNullable<Awaited<ReturnType<typeof hideCustomer>>>
+
+    export type HideCustomerMutationError = ErrorResponse
+    export type HideCustomerMutationVariables = {id: string}
+
+    /**
+ * @summary Скрыть клиента
+ */
+export const useHideCustomer = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof hideCustomer>>, TError,HideCustomerMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof hideCustomer>>,
+        TError,
+        HideCustomerMutationVariables,
+        TContext
+      > => {
+      return useMutation(getHideCustomerMutationOptions(options), queryClient);
+    }
+
+export type showCustomerResponse204 = {
+  data: void
+  status: 204
+}
+
+export type showCustomerResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type showCustomerResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type showCustomerResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type showCustomerResponseSuccess = (showCustomerResponse204) & {
+  headers: Headers;
+};
+export type showCustomerResponseError = (showCustomerResponse400 | showCustomerResponse404 | showCustomerResponse500) & {
+  headers: Headers;
+};
+
+export type showCustomerResponse = (showCustomerResponseSuccess | showCustomerResponseError)
+
+export const getShowCustomerUrl = (id: string,) => {
+
+
+
+
+  return `/api/customers/${id}/hidden`
+}
+
+/**
+ * Клиент снова в списке, уведомления о его заявках снова приходят. Пропущенные за время скрытия не досылаются.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Скрыть клиента — его нет в `filter=ALL`.
+ * 2. `DELETE` — клиент снова в `filter=ALL`, в `filter=HIDDEN` его нет.
+ * @summary Вернуть скрытого клиента
+ */
+export const showCustomer = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<showCustomerResponse> => {
+
+  return apiRequest<showCustomerResponse>(getShowCustomerUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getShowCustomerMutationKey = () => ['showCustomer'] as const;
+
+export const getShowCustomerMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof showCustomer>>, TError,ShowCustomerMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof showCustomer>>, TError,ShowCustomerMutationVariables, TContext> => {
+
+const mutationKey = getShowCustomerMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof showCustomer>>, ShowCustomerMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  showCustomer(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ShowCustomerMutationResult = NonNullable<Awaited<ReturnType<typeof showCustomer>>>
+
+    export type ShowCustomerMutationError = ErrorResponse
+    export type ShowCustomerMutationVariables = {id: string}
+
+    /**
+ * @summary Вернуть скрытого клиента
+ */
+export const useShowCustomer = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof showCustomer>>, TError,ShowCustomerMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof showCustomer>>,
+        TError,
+        ShowCustomerMutationVariables,
+        TContext
+      > => {
+      return useMutation(getShowCustomerMutationOptions(options), queryClient);
+    }
+
 export type scheduleCustomerTemplateResponse200 = {
   data: OrderTemplateDto
   status: 200
@@ -27891,6 +34407,267 @@ export const useDeleteCustomerPriceTerm = <TError = ErrorResponse,
       return useMutation(getDeleteCustomerPriceTermMutationOptions(options), queryClient);
     }
 
+export type getDebtPlanResponse200 = {
+  data: DebtPlanDto
+  status: 200
+}
+
+export type getDebtPlanResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getDebtPlanResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getDebtPlanResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getDebtPlanResponseSuccess = (getDebtPlanResponse200) & {
+  headers: Headers;
+};
+export type getDebtPlanResponseError = (getDebtPlanResponse400 | getDebtPlanResponse404 | getDebtPlanResponse500) & {
+  headers: Headers;
+};
+
+export type getDebtPlanResponse = (getDebtPlanResponseSuccess | getDebtPlanResponseError)
+
+export const getGetDebtPlanUrl = (customerId: string,) => {
+
+
+
+
+  return `/api/customers/${customerId}/debt-plan`
+}
+
+/**
+ * Платежи по дате и сколько по каждому ещё не оплачено: остаток долга ложится на поздние платежи.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Клиент должен 30 000, график 10 000 на 10.11 и 20 000 на 20.11 — `left` 10 000 и 20 000.
+ * 2. Принять 10 000 — `left` первого 0.
+ * @summary График платежей клиента по долгу
+ */
+export const getDebtPlan = async (customerId: string, options?: Parameters<typeof apiRequest>[1]): Promise<getDebtPlanResponse> => {
+
+  return apiRequest<getDebtPlanResponse>(getGetDebtPlanUrl(customerId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDebtPlanQueryKey = (customerId: string,) => {
+    return [
+    `/api/customers/${customerId}/debt-plan`
+    ] as const;
+    }
+
+
+export const getGetDebtPlanQueryOptions = <TData = Awaited<ReturnType<typeof getDebtPlan>>, TError = ErrorResponse>(customerId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtPlan>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDebtPlanQueryKey(customerId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDebtPlan>>> = ({ signal }) => getDebtPlan(customerId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: customerId !== null && customerId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDebtPlan>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDebtPlanQueryResult = NonNullable<Awaited<ReturnType<typeof getDebtPlan>>>
+export type GetDebtPlanQueryError = ErrorResponse
+
+
+export function useGetDebtPlan<TData = Awaited<ReturnType<typeof getDebtPlan>>, TError = ErrorResponse>(
+ customerId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtPlan>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDebtPlan>>,
+          TError,
+          Awaited<ReturnType<typeof getDebtPlan>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDebtPlan<TData = Awaited<ReturnType<typeof getDebtPlan>>, TError = ErrorResponse>(
+ customerId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtPlan>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDebtPlan>>,
+          TError,
+          Awaited<ReturnType<typeof getDebtPlan>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDebtPlan<TData = Awaited<ReturnType<typeof getDebtPlan>>, TError = ErrorResponse>(
+ customerId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtPlan>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary График платежей клиента по долгу
+ */
+
+export function useGetDebtPlan<TData = Awaited<ReturnType<typeof getDebtPlan>>, TError = ErrorResponse>(
+ customerId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDebtPlan>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDebtPlanQueryOptions(customerId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type saveDebtPlanResponse200 = {
+  data: DebtPlanDto
+  status: 200
+}
+
+export type saveDebtPlanResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type saveDebtPlanResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type saveDebtPlanResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type saveDebtPlanResponseSuccess = (saveDebtPlanResponse200) & {
+  headers: Headers;
+};
+export type saveDebtPlanResponseError = (saveDebtPlanResponse400 | saveDebtPlanResponse404 | saveDebtPlanResponse500) & {
+  headers: Headers;
+};
+
+export type saveDebtPlanResponse = (saveDebtPlanResponseSuccess | saveDebtPlanResponseError)
+
+export const getSaveDebtPlanUrl = (customerId: string,) => {
+
+
+
+
+  return `/api/customers/${customerId}/debt-plan`
+}
+
+/**
+ * Заменяет график целиком; пустой список — графика нет. Перед каждым сроком клиенту уходит напоминание за столько дней, сколько задано в настройке напоминаний.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Задать два платежа — `GET` вернёт их по дате.
+ * 2. Негативный 404 `CUSTOMER_NOT_FOUND`: клиент другого продавца.
+ * 3. Негативный 400: сумма 0.
+ * @summary Задать график платежей клиента
+ */
+export const saveDebtPlan = async (customerId: string,
+    debtPlanRequest: DebtPlanRequest, options?: Parameters<typeof apiRequest>[1]): Promise<saveDebtPlanResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<saveDebtPlanResponse>(getSaveDebtPlanUrl(customerId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(debtPlanRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveDebtPlanMutationKey = () => ['saveDebtPlan'] as const;
+
+export const getSaveDebtPlanMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDebtPlan>>, TError,SaveDebtPlanMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveDebtPlan>>, TError,SaveDebtPlanMutationVariables, TContext> => {
+
+const mutationKey = getSaveDebtPlanMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveDebtPlan>>, SaveDebtPlanMutationVariables> = (props) => {
+          const {customerId,data} = props ?? {};
+
+          return  saveDebtPlan(customerId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveDebtPlanMutationResult = NonNullable<Awaited<ReturnType<typeof saveDebtPlan>>>
+    export type SaveDebtPlanMutationBody = DebtPlanRequest
+    export type SaveDebtPlanMutationError = ErrorResponse
+    export type SaveDebtPlanMutationVariables = {customerId: string;data: DebtPlanRequest}
+
+    /**
+ * @summary Задать график платежей клиента
+ */
+export const useSaveDebtPlan = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveDebtPlan>>, TError,SaveDebtPlanMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveDebtPlan>>,
+        TError,
+        SaveDebtPlanMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveDebtPlanMutationOptions(options), queryClient);
+    }
+
 export type getCustomerCreditResponse200 = {
   data: CustomerCreditDto
   status: 200
@@ -28192,7 +34969,7 @@ export const getSetShopShowcaseUrl = () => {
 /**
  * Открывает гостю на странице ссылки товары без цен: название, снимок, рубрику и единицу. Ни цен,
  * ни остатков; заказать можно только после одобренной заявки на доступ. Признак переезжает
- * на новую ссылку при смене кода.
+ * на новую ссылку при смене кода. У новой ссылки витрина открыта сразу.
  *
  * **Как проверить вручную**
  *
@@ -30894,6 +37671,132 @@ export const useDeleteCatalogCategory = <TError = ErrorResponse,
       return useMutation(getDeleteCatalogCategoryMutationOptions(options), queryClient);
     }
 
+export type setCatalogCategoryImageResponse200 = {
+  data: ItemCategoryDto
+  status: 200
+}
+
+export type setCatalogCategoryImageResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type setCatalogCategoryImageResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type setCatalogCategoryImageResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type setCatalogCategoryImageResponseSuccess = (setCatalogCategoryImageResponse200) & {
+  headers: Headers;
+};
+export type setCatalogCategoryImageResponseError = (setCatalogCategoryImageResponse400 | setCatalogCategoryImageResponse404 | setCatalogCategoryImageResponse500) & {
+  headers: Headers;
+};
+
+export type setCatalogCategoryImageResponse = (setCatalogCategoryImageResponseSuccess | setCatalogCategoryImageResponseError)
+
+export const getSetCatalogCategoryImageUrl = (id: string,) => {
+
+
+
+
+  return `/api/catalog/categories/${id}/image`
+}
+
+/**
+ * Картинка своя у каждого раздела и подраздела. `imageUrl` — загруженный файл `/api/files/<id>` или публичная ссылка https (ссылка «Поделиться» Google Диска превращается в адрес картинки, `imageSrc`). Пусто — картинка убирается. Клиент видит её у раздела в окне «Все товары» и в колонке разделов каталога.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Прислать ссылку `https://drive.google.com/file/d/<id>/view` — `imageSrc` — копия-картинка Диска.
+ * 2. Прислать пустое `imageUrl` — `imageUrl` и `imageSrc` пусты.
+ * 3. Негативный 400 `CATALOG_CATEGORY_IMAGE_UNKNOWN`: `/api/files/<чужой id>`.
+ * 4. Негативный 400 `CATALOG_MEDIA_LINK_FOLDER`: ссылка на папку Диска.
+ * @summary Поставить или убрать картинку раздела
+ */
+export const setCatalogCategoryImage = async (id: string,
+    setCategoryImageRequest: SetCategoryImageRequest, options?: Parameters<typeof apiRequest>[1]): Promise<setCatalogCategoryImageResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<setCatalogCategoryImageResponse>(getSetCatalogCategoryImageUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setCategoryImageRequest)
+  }
+);}
+
+
+
+
+
+export const getSetCatalogCategoryImageMutationKey = () => ['setCatalogCategoryImage'] as const;
+
+export const getSetCatalogCategoryImageMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCatalogCategoryImage>>, TError,SetCatalogCategoryImageMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCatalogCategoryImage>>, TError,SetCatalogCategoryImageMutationVariables, TContext> => {
+
+const mutationKey = getSetCatalogCategoryImageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCatalogCategoryImage>>, SetCatalogCategoryImageMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setCatalogCategoryImage(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCatalogCategoryImageMutationResult = NonNullable<Awaited<ReturnType<typeof setCatalogCategoryImage>>>
+    export type SetCatalogCategoryImageMutationBody = SetCategoryImageRequest
+    export type SetCatalogCategoryImageMutationError = ErrorResponse
+    export type SetCatalogCategoryImageMutationVariables = {id: string;data: SetCategoryImageRequest}
+
+    /**
+ * @summary Поставить или убрать картинку раздела
+ */
+export const useSetCatalogCategoryImage = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCatalogCategoryImage>>, TError,SetCatalogCategoryImageMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setCatalogCategoryImage>>,
+        TError,
+        SetCatalogCategoryImageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetCatalogCategoryImageMutationOptions(options), queryClient);
+    }
+
 export type setCatalogBoardVisibilityResponse200 = {
   data: BulkItemsResult
   status: 200
@@ -31144,6 +38047,277 @@ export const useMoveCatalogBoardItems = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getMoveCatalogBoardItemsMutationOptions(options), queryClient);
+    }
+
+export type getSavingsNormResponse200 = {
+  data: SavingsNormDto
+  status: 200
+}
+
+export type getSavingsNormResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getSavingsNormResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getSavingsNormResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getSavingsNormResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getSavingsNormResponseSuccess = (getSavingsNormResponse200) & {
+  headers: Headers;
+};
+export type getSavingsNormResponseError = (getSavingsNormResponse400 | getSavingsNormResponse403 | getSavingsNormResponse404 | getSavingsNormResponse500) & {
+  headers: Headers;
+};
+
+export type getSavingsNormResponse = (getSavingsNormResponseSuccess | getSavingsNormResponseError)
+
+export const getGetSavingsNormUrl = () => {
+
+
+
+
+  return `/api/analytics/savings-norm`
+}
+
+/**
+ * Стоимость часа менеджера и минуты на заявку из кабинета и не из кабинета. Хоть одно поле пустое — норма не задана, экономия в обзоре не считается.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Новый магазин — все три поля пустые.
+ * 2. Владелец задал норму `PUT` — здесь те же значения.
+ * 3. Сотрудник без права на аналитику — 403.
+ * @summary Норма экономии
+ */
+export const getSavingsNorm = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getSavingsNormResponse> => {
+
+  return apiRequest<getSavingsNormResponse>(getGetSavingsNormUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSavingsNormQueryKey = () => {
+    return [
+    `/api/analytics/savings-norm`
+    ] as const;
+    }
+
+
+export const getGetSavingsNormQueryOptions = <TData = Awaited<ReturnType<typeof getSavingsNorm>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSavingsNorm>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSavingsNormQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSavingsNorm>>> = ({ signal }) => getSavingsNorm({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSavingsNorm>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSavingsNormQueryResult = NonNullable<Awaited<ReturnType<typeof getSavingsNorm>>>
+export type GetSavingsNormQueryError = ErrorResponse
+
+
+export function useGetSavingsNorm<TData = Awaited<ReturnType<typeof getSavingsNorm>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSavingsNorm>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSavingsNorm>>,
+          TError,
+          Awaited<ReturnType<typeof getSavingsNorm>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSavingsNorm<TData = Awaited<ReturnType<typeof getSavingsNorm>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSavingsNorm>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSavingsNorm>>,
+          TError,
+          Awaited<ReturnType<typeof getSavingsNorm>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSavingsNorm<TData = Awaited<ReturnType<typeof getSavingsNorm>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSavingsNorm>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Норма экономии
+ */
+
+export function useGetSavingsNorm<TData = Awaited<ReturnType<typeof getSavingsNorm>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSavingsNorm>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSavingsNormQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type saveSavingsNormResponse200 = {
+  data: SavingsNormDto
+  status: 200
+}
+
+export type saveSavingsNormResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type saveSavingsNormResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type saveSavingsNormResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type saveSavingsNormResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type saveSavingsNormResponseSuccess = (saveSavingsNormResponse200) & {
+  headers: Headers;
+};
+export type saveSavingsNormResponseError = (saveSavingsNormResponse400 | saveSavingsNormResponse403 | saveSavingsNormResponse404 | saveSavingsNormResponse500) & {
+  headers: Headers;
+};
+
+export type saveSavingsNormResponse = (saveSavingsNormResponseSuccess | saveSavingsNormResponseError)
+
+export const getSaveSavingsNormUrl = () => {
+
+
+
+
+  return `/api/analytics/savings-norm`
+}
+
+/**
+ * Только владелец: ставка часа менеджера — его сведения.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `PUT` с `{"hourRate":2500,"minutesPerOrder":7,"portalMinutesPerOrder":2}` — 200.
+ * 2. `GET /api/analytics/overview` — `channels.savings` посчитан: заявок из кабинета × (7 − 2) ÷ 60 × 2500.
+ * 3. `minutesPerOrder: 0`, пустая ставка или минуты кабинета не меньше прочих — 400. Не владелец — 403.
+ * @summary Задать норму экономии
+ */
+export const saveSavingsNorm = async (savingsNormRequest: SavingsNormRequest, options?: Parameters<typeof apiRequest>[1]): Promise<saveSavingsNormResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<saveSavingsNormResponse>(getSaveSavingsNormUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(savingsNormRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveSavingsNormMutationKey = () => ['saveSavingsNorm'] as const;
+
+export const getSaveSavingsNormMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveSavingsNorm>>, TError,SaveSavingsNormMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveSavingsNorm>>, TError,SaveSavingsNormMutationVariables, TContext> => {
+
+const mutationKey = getSaveSavingsNormMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveSavingsNorm>>, SaveSavingsNormMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveSavingsNorm(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveSavingsNormMutationResult = NonNullable<Awaited<ReturnType<typeof saveSavingsNorm>>>
+    export type SaveSavingsNormMutationBody = SavingsNormRequest
+    export type SaveSavingsNormMutationError = ErrorResponse
+    export type SaveSavingsNormMutationVariables = {data: SavingsNormRequest}
+
+    /**
+ * @summary Задать норму экономии
+ */
+export const useSaveSavingsNorm = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveSavingsNorm>>, TError,SaveSavingsNormMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveSavingsNorm>>,
+        TError,
+        SaveSavingsNormMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSaveSavingsNormMutationOptions(options), queryClient);
     }
 
 export type getAnalyticsDashboardResponse200 = {
@@ -33749,6 +40923,271 @@ export const useResetPlatformTenantAccountPassword = <TError = ErrorResponse,
       return useMutation(getResetPlatformTenantAccountPasswordMutationOptions(options), queryClient);
     }
 
+export type listPlatformPaymentBanksResponse200 = {
+  data: PaymentBankDto[]
+  status: 200
+}
+
+export type listPlatformPaymentBanksResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPlatformPaymentBanksResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPlatformPaymentBanksResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPlatformPaymentBanksResponseSuccess = (listPlatformPaymentBanksResponse200) & {
+  headers: Headers;
+};
+export type listPlatformPaymentBanksResponseError = (listPlatformPaymentBanksResponse400 | listPlatformPaymentBanksResponse404 | listPlatformPaymentBanksResponse500) & {
+  headers: Headers;
+};
+
+export type listPlatformPaymentBanksResponse = (listPlatformPaymentBanksResponseSuccess | listPlatformPaymentBanksResponseError)
+
+export const getListPlatformPaymentBanksUrl = () => {
+
+
+
+
+  return `/api/tenant/platform/payment-banks`
+}
+
+/**
+ * Для администратора платформы: все страны, со скрытыми, по стране и порядку.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Суперадмином — 8 банков Казахстана, первым Kaspi.
+ * 2. Негативный 403: сотрудником арендатора.
+ * @summary Все банки справочника
+ */
+export const listPlatformPaymentBanks = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listPlatformPaymentBanksResponse> => {
+
+  return apiRequest<listPlatformPaymentBanksResponse>(getListPlatformPaymentBanksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformPaymentBanksQueryKey = () => {
+    return [
+    `/api/tenant/platform/payment-banks`
+    ] as const;
+    }
+
+
+export const getListPlatformPaymentBanksQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformPaymentBanksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformPaymentBanks>>> = ({ signal }) => listPlatformPaymentBanks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPlatformPaymentBanksQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformPaymentBanks>>>
+export type ListPlatformPaymentBanksQueryError = ErrorResponse
+
+
+export function useListPlatformPaymentBanks<TData = Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformPaymentBanks>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformPaymentBanks>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformPaymentBanks<TData = Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformPaymentBanks>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformPaymentBanks>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformPaymentBanks<TData = Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Все банки справочника
+ */
+
+export function useListPlatformPaymentBanks<TData = Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformPaymentBanks>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPlatformPaymentBanksQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createPlatformPaymentBankResponse201 = {
+  data: PaymentBankDto
+  status: 201
+}
+
+export type createPlatformPaymentBankResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createPlatformPaymentBankResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createPlatformPaymentBankResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type createPlatformPaymentBankResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createPlatformPaymentBankResponseSuccess = (createPlatformPaymentBankResponse201) & {
+  headers: Headers;
+};
+export type createPlatformPaymentBankResponseError = (createPlatformPaymentBankResponse400 | createPlatformPaymentBankResponse404 | createPlatformPaymentBankResponse409 | createPlatformPaymentBankResponse500) & {
+  headers: Headers;
+};
+
+export type createPlatformPaymentBankResponse = (createPlatformPaymentBankResponseSuccess | createPlatformPaymentBankResponseError)
+
+export const getCreatePlatformPaymentBankUrl = () => {
+
+
+
+
+  return `/api/tenant/platform/payment-banks`
+}
+
+/**
+ * Код пишется в оплаты и потом не меняется. Новая страна появляется с первым её банком.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `{"country":"UZ","code":"KAPITAL","name":"Kapitalbank","sortOrder":1,"visible":true}` — 201.
+ * 2. Негативный 409 `PAYMENT_BANK_DUPLICATE`: тот же код в той же стране.
+ * 3. Негативный 400: код строчными буквами.
+ * @summary Добавить банк
+ */
+export const createPlatformPaymentBank = async (savePaymentBankRequest: SavePaymentBankRequest, options?: Parameters<typeof apiRequest>[1]): Promise<createPlatformPaymentBankResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<createPlatformPaymentBankResponse>(getCreatePlatformPaymentBankUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(savePaymentBankRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePlatformPaymentBankMutationKey = () => ['createPlatformPaymentBank'] as const;
+
+export const getCreatePlatformPaymentBankMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformPaymentBank>>, TError,CreatePlatformPaymentBankMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPlatformPaymentBank>>, TError,CreatePlatformPaymentBankMutationVariables, TContext> => {
+
+const mutationKey = getCreatePlatformPaymentBankMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPlatformPaymentBank>>, CreatePlatformPaymentBankMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPlatformPaymentBank(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePlatformPaymentBankMutationResult = NonNullable<Awaited<ReturnType<typeof createPlatformPaymentBank>>>
+    export type CreatePlatformPaymentBankMutationBody = SavePaymentBankRequest
+    export type CreatePlatformPaymentBankMutationError = ErrorResponse
+    export type CreatePlatformPaymentBankMutationVariables = {data: SavePaymentBankRequest}
+
+    /**
+ * @summary Добавить банк
+ */
+export const useCreatePlatformPaymentBank = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlatformPaymentBank>>, TError,CreatePlatformPaymentBankMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPlatformPaymentBank>>,
+        TError,
+        CreatePlatformPaymentBankMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreatePlatformPaymentBankMutationOptions(options), queryClient);
+    }
+
 export type requestWhatsappPackageResponse200 = {
   data: WhatsappPackageDto
   status: 200
@@ -34890,6 +42329,378 @@ export const useSaveBusinessDay = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSaveBusinessDayMutationOptions(options), queryClient);
+    }
+
+export type listSubstitutionsResponse200 = {
+  data: SubstitutionDto[]
+  status: 200
+}
+
+export type listSubstitutionsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listSubstitutionsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listSubstitutionsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listSubstitutionsResponseSuccess = (listSubstitutionsResponse200) & {
+  headers: Headers;
+};
+export type listSubstitutionsResponseError = (listSubstitutionsResponse400 | listSubstitutionsResponse404 | listSubstitutionsResponse500) & {
+  headers: Headers;
+};
+
+export type listSubstitutionsResponse = (listSubstitutionsResponseSuccess | listSubstitutionsResponseError)
+
+export const getListSubstitutionsUrl = () => {
+
+
+
+
+  return `/api/substitutions`
+}
+
+/**
+ * Замены, которые идут сейчас (`active`) или начнутся позже. Закончившиеся и отменённые не входят.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), завести замену — она в списке с `active: true`.
+ * 2. Нажать «Вернулся» (`POST …/end`) — список снова пуст.
+ * 3. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Действующие и будущие замены
+ */
+export const listSubstitutions = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listSubstitutionsResponse> => {
+
+  return apiRequest<listSubstitutionsResponse>(getListSubstitutionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSubstitutionsQueryKey = () => {
+    return [
+    `/api/substitutions`
+    ] as const;
+    }
+
+
+export const getListSubstitutionsQueryOptions = <TData = Awaited<ReturnType<typeof listSubstitutions>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubstitutions>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSubstitutionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSubstitutions>>> = ({ signal }) => listSubstitutions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSubstitutions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSubstitutionsQueryResult = NonNullable<Awaited<ReturnType<typeof listSubstitutions>>>
+export type ListSubstitutionsQueryError = ErrorResponse
+
+
+export function useListSubstitutions<TData = Awaited<ReturnType<typeof listSubstitutions>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubstitutions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSubstitutions>>,
+          TError,
+          Awaited<ReturnType<typeof listSubstitutions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSubstitutions<TData = Awaited<ReturnType<typeof listSubstitutions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubstitutions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSubstitutions>>,
+          TError,
+          Awaited<ReturnType<typeof listSubstitutions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSubstitutions<TData = Awaited<ReturnType<typeof listSubstitutions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubstitutions>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Действующие и будущие замены
+ */
+
+export function useListSubstitutions<TData = Awaited<ReturnType<typeof listSubstitutions>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSubstitutions>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSubstitutionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createSubstitutionResponse201 = {
+  data: SubstitutionDto
+  status: 201
+}
+
+export type createSubstitutionResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createSubstitutionResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createSubstitutionResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createSubstitutionResponseSuccess = (createSubstitutionResponse201) & {
+  headers: Headers;
+};
+export type createSubstitutionResponseError = (createSubstitutionResponse400 | createSubstitutionResponse404 | createSubstitutionResponse500) & {
+  headers: Headers;
+};
+
+export type createSubstitutionResponse = (createSubstitutionResponseSuccess | createSubstitutionResponseError)
+
+export const getCreateSubstitutionUrl = () => {
+
+
+
+
+  return `/api/substitutions`
+}
+
+/**
+ * Кто отсутствует, кто ведёт его работу, причина, с какого дня и по какой (пусто — до «Вернулся»). Дни — по часовому поясу магазина. Начинается сегодня — открытые заявки отсутствующего сразу уходят заменяющему, ему приходит уведомление `SUBSTITUTION_STARTED`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором, отправить `{"absentId":…,"substituteId":…,"reason":"SICK","from":"<сегодня>"}` — 201, заявки отсутствующего в очереди у заменяющего.
+ * 2. Негативный 400 `SUBSTITUTE_IS_ABSENT`: один и тот же сотрудник в обоих полях.
+ * 3. Негативный 400 `ASSIGNEE_NOT_ELIGIBLE`: заменяющий не ведёт заявки.
+ * 4. Негативный 400 `SUBSTITUTION_DATES`: `until` раньше `from`.
+ * 5. Негативный 409 `SUBSTITUTION_OVERLAPS`: вторая замена того же сотрудника на те же дни.
+ * @summary Назначить замену
+ */
+export const createSubstitution = async (createSubstitutionRequest: CreateSubstitutionRequest, options?: Parameters<typeof apiRequest>[1]): Promise<createSubstitutionResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<createSubstitutionResponse>(getCreateSubstitutionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createSubstitutionRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateSubstitutionMutationKey = () => ['createSubstitution'] as const;
+
+export const getCreateSubstitutionMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSubstitution>>, TError,CreateSubstitutionMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSubstitution>>, TError,CreateSubstitutionMutationVariables, TContext> => {
+
+const mutationKey = getCreateSubstitutionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSubstitution>>, CreateSubstitutionMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSubstitution(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSubstitutionMutationResult = NonNullable<Awaited<ReturnType<typeof createSubstitution>>>
+    export type CreateSubstitutionMutationBody = CreateSubstitutionRequest
+    export type CreateSubstitutionMutationError = ErrorResponse
+    export type CreateSubstitutionMutationVariables = {data: CreateSubstitutionRequest}
+
+    /**
+ * @summary Назначить замену
+ */
+export const useCreateSubstitution = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSubstitution>>, TError,CreateSubstitutionMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createSubstitution>>,
+        TError,
+        CreateSubstitutionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSubstitutionMutationOptions(options), queryClient);
+    }
+
+export type endSubstitutionResponse204 = {
+  data: void
+  status: 204
+}
+
+export type endSubstitutionResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type endSubstitutionResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type endSubstitutionResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type endSubstitutionResponseSuccess = (endSubstitutionResponse204) & {
+  headers: Headers;
+};
+export type endSubstitutionResponseError = (endSubstitutionResponse400 | endSubstitutionResponse404 | endSubstitutionResponse500) & {
+  headers: Headers;
+};
+
+export type endSubstitutionResponse = (endSubstitutionResponseSuccess | endSubstitutionResponseError)
+
+export const getEndSubstitutionUrl = (id: string,) => {
+
+
+
+
+  return `/api/substitutions/${id}/end`
+}
+
+/**
+ * Идущая замена заканчивается сейчас: незакрытые заявки, которые всё ещё у заменяющего, возвращаются. Будущая — отменяется.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Завести замену с сегодняшнего дня, вызвать метод — 204, заявки снова у отсутствующего.
+ * 2. Негативный 404 `SUBSTITUTION_NOT_FOUND`: повторный вызов.
+ * @summary «Вернулся» или «Отменить»
+ */
+export const endSubstitution = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<endSubstitutionResponse> => {
+
+  return apiRequest<endSubstitutionResponse>(getEndSubstitutionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndSubstitutionMutationKey = () => ['endSubstitution'] as const;
+
+export const getEndSubstitutionMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endSubstitution>>, TError,EndSubstitutionMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof endSubstitution>>, TError,EndSubstitutionMutationVariables, TContext> => {
+
+const mutationKey = getEndSubstitutionMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endSubstitution>>, EndSubstitutionMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  endSubstitution(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndSubstitutionMutationResult = NonNullable<Awaited<ReturnType<typeof endSubstitution>>>
+
+    export type EndSubstitutionMutationError = ErrorResponse
+    export type EndSubstitutionMutationVariables = {id: string}
+
+    /**
+ * @summary «Вернулся» или «Отменить»
+ */
+export const useEndSubstitution = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endSubstitution>>, TError,EndSubstitutionMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endSubstitution>>,
+        TError,
+        EndSubstitutionMutationVariables,
+        TContext
+      > => {
+      return useMutation(getEndSubstitutionMutationOptions(options), queryClient);
     }
 
 export type listWarehousesResponse200 = {
@@ -38323,6 +46134,2025 @@ export const usePublishReview = <TError = ErrorResponse,
       return useMutation(getPublishReviewMutationOptions(options), queryClient);
     }
 
+export type listSuppliersResponse200 = {
+  data: SupplierDto[]
+  status: 200
+}
+
+export type listSuppliersResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listSuppliersResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listSuppliersResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listSuppliersResponseSuccess = (listSuppliersResponse200) & {
+  headers: Headers;
+};
+export type listSuppliersResponseError = (listSuppliersResponse400 | listSuppliersResponse404 | listSuppliersResponse500) & {
+  headers: Headers;
+};
+
+export type listSuppliersResponse = (listSuppliersResponseSuccess | listSuppliersResponseError)
+
+export const getListSuppliersUrl = () => {
+
+
+
+
+  return `/api/purchase/suppliers`
+}
+
+/**
+ * Скрытые — в конце.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `GET /api/purchase/suppliers` — 200, у каждого `debts` по валютам его закупок, нулевые не выдаются.
+ * @summary Поставщики и долг по валютам
+ */
+export const listSuppliers = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listSuppliersResponse> => {
+
+  return apiRequest<listSuppliersResponse>(getListSuppliersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSuppliersQueryKey = () => {
+    return [
+    `/api/purchase/suppliers`
+    ] as const;
+    }
+
+
+export const getListSuppliersQueryOptions = <TData = Awaited<ReturnType<typeof listSuppliers>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSuppliers>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSuppliersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSuppliers>>> = ({ signal }) => listSuppliers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSuppliers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSuppliersQueryResult = NonNullable<Awaited<ReturnType<typeof listSuppliers>>>
+export type ListSuppliersQueryError = ErrorResponse
+
+
+export function useListSuppliers<TData = Awaited<ReturnType<typeof listSuppliers>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSuppliers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSuppliers>>,
+          TError,
+          Awaited<ReturnType<typeof listSuppliers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSuppliers<TData = Awaited<ReturnType<typeof listSuppliers>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSuppliers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSuppliers>>,
+          TError,
+          Awaited<ReturnType<typeof listSuppliers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSuppliers<TData = Awaited<ReturnType<typeof listSuppliers>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSuppliers>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Поставщики и долг по валютам
+ */
+
+export function useListSuppliers<TData = Awaited<ReturnType<typeof listSuppliers>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSuppliers>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSuppliersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createSupplierResponse201 = {
+  data: SupplierDto
+  status: 201
+}
+
+export type createSupplierResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createSupplierResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createSupplierResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createSupplierResponseSuccess = (createSupplierResponse201) & {
+  headers: Headers;
+};
+export type createSupplierResponseError = (createSupplierResponse400 | createSupplierResponse404 | createSupplierResponse500) & {
+  headers: Headers;
+};
+
+export type createSupplierResponse = (createSupplierResponseSuccess | createSupplierResponseError)
+
+export const getCreateSupplierUrl = () => {
+
+
+
+
+  return `/api/purchase/suppliers`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `POST` `{"name":"Гоя Даша","direction":"GRID","currency":"CNY","archived":false}` — 201.
+ * 2. Негативный 409 `PURCHASE_SUPPLIER_NAME_TAKEN`: то же название в другом регистре.
+ * @summary Добавить поставщика
+ */
+export const createSupplier = async (saveSupplierRequest: SaveSupplierRequest, options?: Parameters<typeof apiRequest>[1]): Promise<createSupplierResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<createSupplierResponse>(getCreateSupplierUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveSupplierRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateSupplierMutationKey = () => ['createSupplier'] as const;
+
+export const getCreateSupplierMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupplier>>, TError,CreateSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSupplier>>, TError,CreateSupplierMutationVariables, TContext> => {
+
+const mutationKey = getCreateSupplierMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSupplier>>, CreateSupplierMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSupplier(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSupplierMutationResult = NonNullable<Awaited<ReturnType<typeof createSupplier>>>
+    export type CreateSupplierMutationBody = SaveSupplierRequest
+    export type CreateSupplierMutationError = ErrorResponse
+    export type CreateSupplierMutationVariables = {data: SaveSupplierRequest}
+
+    /**
+ * @summary Добавить поставщика
+ */
+export const useCreateSupplier = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupplier>>, TError,CreateSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createSupplier>>,
+        TError,
+        CreateSupplierMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateSupplierMutationOptions(options), queryClient);
+    }
+
+export type listPurchasesResponse200 = {
+  data: PurchaseSummaryDto[]
+  status: 200
+}
+
+export type listPurchasesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPurchasesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPurchasesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPurchasesResponseSuccess = (listPurchasesResponse200) & {
+  headers: Headers;
+};
+export type listPurchasesResponseError = (listPurchasesResponse400 | listPurchasesResponse404 | listPurchasesResponse500) & {
+  headers: Headers;
+};
+
+export type listPurchasesResponse = (listPurchasesResponseSuccess | listPurchasesResponseError)
+
+export const getListPurchasesUrl = (params?: ListPurchasesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/purchase/purchases?${stringifiedParams}` : `/api/purchase/purchases`
+}
+
+/**
+ * Новые — сверху.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `GET /api/purchase/purchases?supplierId=<id>` — 200, закупки этого поставщика; без параметра — все.
+ * @summary Закупки с суммой, оплатами и долгом
+ */
+export const listPurchases = async (params?: ListPurchasesParams, options?: Parameters<typeof apiRequest>[1]): Promise<listPurchasesResponse> => {
+
+  return apiRequest<listPurchasesResponse>(getListPurchasesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPurchasesQueryKey = (params?: ListPurchasesParams,) => {
+    return [
+    `/api/purchase/purchases`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPurchasesQueryOptions = <TData = Awaited<ReturnType<typeof listPurchases>>, TError = ErrorResponse>(params?: ListPurchasesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchases>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPurchasesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPurchases>>> = ({ signal }) => listPurchases(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPurchases>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPurchasesQueryResult = NonNullable<Awaited<ReturnType<typeof listPurchases>>>
+export type ListPurchasesQueryError = ErrorResponse
+
+
+export function useListPurchases<TData = Awaited<ReturnType<typeof listPurchases>>, TError = ErrorResponse>(
+ params: undefined |  ListPurchasesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchases>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPurchases>>,
+          TError,
+          Awaited<ReturnType<typeof listPurchases>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPurchases<TData = Awaited<ReturnType<typeof listPurchases>>, TError = ErrorResponse>(
+ params?: ListPurchasesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchases>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPurchases>>,
+          TError,
+          Awaited<ReturnType<typeof listPurchases>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPurchases<TData = Awaited<ReturnType<typeof listPurchases>>, TError = ErrorResponse>(
+ params?: ListPurchasesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchases>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Закупки с суммой, оплатами и долгом
+ */
+
+export function useListPurchases<TData = Awaited<ReturnType<typeof listPurchases>>, TError = ErrorResponse>(
+ params?: ListPurchasesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchases>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPurchasesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createPurchaseResponse201 = {
+  data: PurchaseDto
+  status: 201
+}
+
+export type createPurchaseResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createPurchaseResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createPurchaseResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createPurchaseResponseSuccess = (createPurchaseResponse201) & {
+  headers: Headers;
+};
+export type createPurchaseResponseError = (createPurchaseResponse400 | createPurchaseResponse404 | createPurchaseResponse500) & {
+  headers: Headers;
+};
+
+export type createPurchaseResponse = (createPurchaseResponseSuccess | createPurchaseResponseError)
+
+export const getCreatePurchaseUrl = () => {
+
+
+
+
+  return `/api/purchase/purchases`
+}
+
+/**
+ * Пустое `direction` — как у поставщика.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST` `{"supplierId":"<id>","supplierNumber":"0007","title":"2026 Осень и зима","documentDate":"2026-05-09","currency":"CNY","status":"OPEN"}` — 201, `head.total` = 0.
+ * 2. Негативный 404 `PURCHASE_SUPPLIER_NOT_FOUND`: чужой поставщик.
+ * @summary Новая закупка у поставщика
+ */
+export const createPurchase = async (savePurchaseRequest: SavePurchaseRequest, options?: Parameters<typeof apiRequest>[1]): Promise<createPurchaseResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<createPurchaseResponse>(getCreatePurchaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(savePurchaseRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePurchaseMutationKey = () => ['createPurchase'] as const;
+
+export const getCreatePurchaseMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPurchase>>, TError,CreatePurchaseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPurchase>>, TError,CreatePurchaseMutationVariables, TContext> => {
+
+const mutationKey = getCreatePurchaseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPurchase>>, CreatePurchaseMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPurchase(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePurchaseMutationResult = NonNullable<Awaited<ReturnType<typeof createPurchase>>>
+    export type CreatePurchaseMutationBody = SavePurchaseRequest
+    export type CreatePurchaseMutationError = ErrorResponse
+    export type CreatePurchaseMutationVariables = {data: SavePurchaseRequest}
+
+    /**
+ * @summary Новая закупка у поставщика
+ */
+export const useCreatePurchase = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPurchase>>, TError,CreatePurchaseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPurchase>>,
+        TError,
+        CreatePurchaseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreatePurchaseMutationOptions(options), queryClient);
+    }
+
+export type addPurchaseShipmentResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type addPurchaseShipmentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type addPurchaseShipmentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type addPurchaseShipmentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type addPurchaseShipmentResponseSuccess = (addPurchaseShipmentResponse200) & {
+  headers: Headers;
+};
+export type addPurchaseShipmentResponseError = (addPurchaseShipmentResponse400 | addPurchaseShipmentResponse404 | addPurchaseShipmentResponse500) & {
+  headers: Headers;
+};
+
+export type addPurchaseShipmentResponse = (addPurchaseShipmentResponseSuccess | addPurchaseShipmentResponseError)
+
+export const getAddPurchaseShipmentUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/shipments`
+}
+
+/**
+ * Дата, номера мест как у поставщика («55,56»), сбор в валюте закупки и что уехало. Отгружено по строке не больше заказанного; принимается и в закрытую закупку.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST` `{"shippedOn":"2026-07-08","placesText":"55,56","fee":140,"lines":[{"lineId":"<id>","quantity":84}]}` — 200, у строки `shipped` 84.
+ * 2. Негативный 400 `PURCHASE_SHIPPED_TOO_MUCH`: отгрузить больше заказанного.
+ * @summary Записать отгрузку поставщика
+ */
+export const addPurchaseShipment = async (id: string,
+    saveShipmentRequest: SaveShipmentRequest, options?: Parameters<typeof apiRequest>[1]): Promise<addPurchaseShipmentResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<addPurchaseShipmentResponse>(getAddPurchaseShipmentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveShipmentRequest)
+  }
+);}
+
+
+
+
+
+export const getAddPurchaseShipmentMutationKey = () => ['addPurchaseShipment'] as const;
+
+export const getAddPurchaseShipmentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchaseShipment>>, TError,AddPurchaseShipmentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof addPurchaseShipment>>, TError,AddPurchaseShipmentMutationVariables, TContext> => {
+
+const mutationKey = getAddPurchaseShipmentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPurchaseShipment>>, AddPurchaseShipmentMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addPurchaseShipment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddPurchaseShipmentMutationResult = NonNullable<Awaited<ReturnType<typeof addPurchaseShipment>>>
+    export type AddPurchaseShipmentMutationBody = SaveShipmentRequest
+    export type AddPurchaseShipmentMutationError = ErrorResponse
+    export type AddPurchaseShipmentMutationVariables = {id: string;data: SaveShipmentRequest}
+
+    /**
+ * @summary Записать отгрузку поставщика
+ */
+export const useAddPurchaseShipment = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchaseShipment>>, TError,AddPurchaseShipmentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addPurchaseShipment>>,
+        TError,
+        AddPurchaseShipmentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddPurchaseShipmentMutationOptions(options), queryClient);
+    }
+
+export type addPurchasePlaceResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type addPurchasePlaceResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type addPurchasePlaceResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type addPurchasePlaceResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type addPurchasePlaceResponseSuccess = (addPurchasePlaceResponse200) & {
+  headers: Headers;
+};
+export type addPurchasePlaceResponseError = (addPurchasePlaceResponse400 | addPurchasePlaceResponse404 | addPurchasePlaceResponse500) & {
+  headers: Headers;
+};
+
+export type addPurchasePlaceResponse = (addPurchasePlaceResponseSuccess | addPurchasePlaceResponseError)
+
+export const getAddPurchasePlaceUrl = (id: string,
+    shipmentId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/shipments/${shipmentId}/places`
+}
+
+/**
+ * Вид — из `placeKinds` направления (`GET /directions`); `content` — что лежит в месте, необязательно.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST` `{"kind":"BAG","number":"55","grossWeight":33.2,"volume":0.12}` — 200.
+ * 2. Негативный 400 `PURCHASE_PLACE_KIND_UNKNOWN`: `PALLET` у закупки `GRID`.
+ * 3. Негативный 400 `PURCHASE_PLACE_CONTENT_TOO_MUCH`: в содержимом больше отгруженного.
+ * @summary Добавить грузовое место к отгрузке
+ */
+export const addPurchasePlace = async (id: string,
+    shipmentId: string,
+    savePlaceRequest: SavePlaceRequest, options?: Parameters<typeof apiRequest>[1]): Promise<addPurchasePlaceResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<addPurchasePlaceResponse>(getAddPurchasePlaceUrl(id,shipmentId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(savePlaceRequest)
+  }
+);}
+
+
+
+
+
+export const getAddPurchasePlaceMutationKey = () => ['addPurchasePlace'] as const;
+
+export const getAddPurchasePlaceMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchasePlace>>, TError,AddPurchasePlaceMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof addPurchasePlace>>, TError,AddPurchasePlaceMutationVariables, TContext> => {
+
+const mutationKey = getAddPurchasePlaceMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPurchasePlace>>, AddPurchasePlaceMutationVariables> = (props) => {
+          const {id,shipmentId,data} = props ?? {};
+
+          return  addPurchasePlace(id,shipmentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddPurchasePlaceMutationResult = NonNullable<Awaited<ReturnType<typeof addPurchasePlace>>>
+    export type AddPurchasePlaceMutationBody = SavePlaceRequest
+    export type AddPurchasePlaceMutationError = ErrorResponse
+    export type AddPurchasePlaceMutationVariables = {id: string;shipmentId: string;data: SavePlaceRequest}
+
+    /**
+ * @summary Добавить грузовое место к отгрузке
+ */
+export const useAddPurchasePlace = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchasePlace>>, TError,AddPurchasePlaceMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addPurchasePlace>>,
+        TError,
+        AddPurchasePlaceMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddPurchasePlaceMutationOptions(options), queryClient);
+    }
+
+export type createPurchaseReceiptResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type createPurchaseReceiptResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createPurchaseReceiptResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createPurchaseReceiptResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createPurchaseReceiptResponseSuccess = (createPurchaseReceiptResponse200) & {
+  headers: Headers;
+};
+export type createPurchaseReceiptResponseError = (createPurchaseReceiptResponse400 | createPurchaseReceiptResponse404 | createPurchaseReceiptResponse500) & {
+  headers: Headers;
+};
+
+export type createPurchaseReceiptResponse = (createPurchaseReceiptResponseSuccess | createPurchaseReceiptResponseError)
+
+export const getCreatePurchaseReceiptUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/receipts`
+}
+
+/**
+ * Строки с количеством пришедшего (по умолчанию — отгруженное); у одежды строка раскладывается по размерам, пресс — по составу. Строки без связи с каталогом не берутся.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Связать строку с каталогом и `POST` `{"shipmentId":"<id>","warehouseId":"<склад>","receivedOn":"2026-07-20","lines":[{"lineId":"<id>","quantity":84}]}` — 200, в `receipts` черновик.
+ * 2. Негативный 400 `PURCHASE_RECEIVED_TOO_MUCH`: больше отгруженного.
+ * 3. Негативный 400 `PURCHASE_RECEIPT_EMPTY`: все строки без связи с каталогом.
+ * @summary Черновик прихода по отгрузке
+ */
+export const createPurchaseReceipt = async (id: string,
+    saveReceiptRequest: SaveReceiptRequest, options?: Parameters<typeof apiRequest>[1]): Promise<createPurchaseReceiptResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<createPurchaseReceiptResponse>(getCreatePurchaseReceiptUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveReceiptRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePurchaseReceiptMutationKey = () => ['createPurchaseReceipt'] as const;
+
+export const getCreatePurchaseReceiptMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPurchaseReceipt>>, TError,CreatePurchaseReceiptMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPurchaseReceipt>>, TError,CreatePurchaseReceiptMutationVariables, TContext> => {
+
+const mutationKey = getCreatePurchaseReceiptMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPurchaseReceipt>>, CreatePurchaseReceiptMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createPurchaseReceipt(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePurchaseReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof createPurchaseReceipt>>>
+    export type CreatePurchaseReceiptMutationBody = SaveReceiptRequest
+    export type CreatePurchaseReceiptMutationError = ErrorResponse
+    export type CreatePurchaseReceiptMutationVariables = {id: string;data: SaveReceiptRequest}
+
+    /**
+ * @summary Черновик прихода по отгрузке
+ */
+export const useCreatePurchaseReceipt = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPurchaseReceipt>>, TError,CreatePurchaseReceiptMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPurchaseReceipt>>,
+        TError,
+        CreatePurchaseReceiptMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreatePurchaseReceiptMutationOptions(options), queryClient);
+    }
+
+export type recostPurchaseReceiptResponse200 = {
+  data: ReceiptPostedDto
+  status: 200
+}
+
+export type recostPurchaseReceiptResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type recostPurchaseReceiptResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type recostPurchaseReceiptResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type recostPurchaseReceiptResponseSuccess = (recostPurchaseReceiptResponse200) & {
+  headers: Headers;
+};
+export type recostPurchaseReceiptResponseError = (recostPurchaseReceiptResponse400 | recostPurchaseReceiptResponse404 | recostPurchaseReceiptResponse500) & {
+  headers: Headers;
+};
+
+export type recostPurchaseReceiptResponse = (recostPurchaseReceiptResponseSuccess | recostPurchaseReceiptResponseError)
+
+export const getRecostPurchaseReceiptUrl = (id: string,
+    receiptId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/receipts/${receiptId}/recost`
+}
+
+/**
+ * Партия доставки или расход пришли позже товара: себестоимость считается заново и пишется в закупочную цену. Себестоимость прошлых заказов не меняется.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Добавить партию с местом этой отгрузки и `POST` `{}` — 200, закупочная цена выросла на долю доставки.
+ * 2. Негативный 409 `PURCHASE_RECEIPT_CHANGED`: приход не проведён.
+ * @summary Пересчитать себестоимость проведённого прихода
+ */
+export const recostPurchaseReceipt = async (id: string,
+    receiptId: string,
+    recostReceiptRequest: RecostReceiptRequest, options?: Parameters<typeof apiRequest>[1]): Promise<recostPurchaseReceiptResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<recostPurchaseReceiptResponse>(getRecostPurchaseReceiptUrl(id,receiptId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(recostReceiptRequest)
+  }
+);}
+
+
+
+
+
+export const getRecostPurchaseReceiptMutationKey = () => ['recostPurchaseReceipt'] as const;
+
+export const getRecostPurchaseReceiptMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recostPurchaseReceipt>>, TError,RecostPurchaseReceiptMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof recostPurchaseReceipt>>, TError,RecostPurchaseReceiptMutationVariables, TContext> => {
+
+const mutationKey = getRecostPurchaseReceiptMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recostPurchaseReceipt>>, RecostPurchaseReceiptMutationVariables> = (props) => {
+          const {id,receiptId,data} = props ?? {};
+
+          return  recostPurchaseReceipt(id,receiptId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecostPurchaseReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof recostPurchaseReceipt>>>
+    export type RecostPurchaseReceiptMutationBody = RecostReceiptRequest
+    export type RecostPurchaseReceiptMutationError = ErrorResponse
+    export type RecostPurchaseReceiptMutationVariables = {id: string;receiptId: string;data: RecostReceiptRequest}
+
+    /**
+ * @summary Пересчитать себестоимость проведённого прихода
+ */
+export const useRecostPurchaseReceipt = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recostPurchaseReceipt>>, TError,RecostPurchaseReceiptMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof recostPurchaseReceipt>>,
+        TError,
+        RecostPurchaseReceiptMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRecostPurchaseReceiptMutationOptions(options), queryClient);
+    }
+
+export type postPurchaseReceiptResponse200 = {
+  data: ReceiptPostedDto
+  status: 200
+}
+
+export type postPurchaseReceiptResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type postPurchaseReceiptResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type postPurchaseReceiptResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type postPurchaseReceiptResponseSuccess = (postPurchaseReceiptResponse200) & {
+  headers: Headers;
+};
+export type postPurchaseReceiptResponseError = (postPurchaseReceiptResponse400 | postPurchaseReceiptResponse404 | postPurchaseReceiptResponse500) & {
+  headers: Headers;
+};
+
+export type postPurchaseReceiptResponse = (postPurchaseReceiptResponseSuccess | postPurchaseReceiptResponseError)
+
+export const getPostPurchaseReceiptUrl = (id: string,
+    receiptId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/receipts/${receiptId}/post`
+}
+
+/**
+ * Поступление на склад (при учёте в 1С — без него), себестоимость штуки по строкам, средняя по позиции — в закупочную цену. Нет курса — товар приходует, цену не меняет, в `warnings` причина. Ручная цена новее прихода остаётся и названа в `keptManualItems` — повтор с `overwriteManual: true` перетрёт.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST` `{"version":0}` — 200, на складе товар, у позиций закупочная цена.
+ * 2. Негативный 409 `PURCHASE_RECEIPT_CHANGED`: тот же запрос второй раз.
+ * @summary Провести приход: склад и себестоимость
+ */
+export const postPurchaseReceipt = async (id: string,
+    receiptId: string,
+    postReceiptRequest: PostReceiptRequest, options?: Parameters<typeof apiRequest>[1]): Promise<postPurchaseReceiptResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<postPurchaseReceiptResponse>(getPostPurchaseReceiptUrl(id,receiptId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(postReceiptRequest)
+  }
+);}
+
+
+
+
+
+export const getPostPurchaseReceiptMutationKey = () => ['postPurchaseReceipt'] as const;
+
+export const getPostPurchaseReceiptMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postPurchaseReceipt>>, TError,PostPurchaseReceiptMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof postPurchaseReceipt>>, TError,PostPurchaseReceiptMutationVariables, TContext> => {
+
+const mutationKey = getPostPurchaseReceiptMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postPurchaseReceipt>>, PostPurchaseReceiptMutationVariables> = (props) => {
+          const {id,receiptId,data} = props ?? {};
+
+          return  postPurchaseReceipt(id,receiptId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostPurchaseReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof postPurchaseReceipt>>>
+    export type PostPurchaseReceiptMutationBody = PostReceiptRequest
+    export type PostPurchaseReceiptMutationError = ErrorResponse
+    export type PostPurchaseReceiptMutationVariables = {id: string;receiptId: string;data: PostReceiptRequest}
+
+    /**
+ * @summary Провести приход: склад и себестоимость
+ */
+export const usePostPurchaseReceipt = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postPurchaseReceipt>>, TError,PostPurchaseReceiptMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postPurchaseReceipt>>,
+        TError,
+        PostPurchaseReceiptMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostPurchaseReceiptMutationOptions(options), queryClient);
+    }
+
+export type addPurchasePaymentResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type addPurchasePaymentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type addPurchasePaymentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type addPurchasePaymentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type addPurchasePaymentResponseSuccess = (addPurchasePaymentResponse200) & {
+  headers: Headers;
+};
+export type addPurchasePaymentResponseError = (addPurchasePaymentResponse400 | addPurchasePaymentResponse404 | addPurchasePaymentResponse500) & {
+  headers: Headers;
+};
+
+export type addPurchasePaymentResponse = (addPurchasePaymentResponseSuccess | addPurchasePaymentResponseError)
+
+export const getAddPurchasePaymentUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/payments`
+}
+
+/**
+ * Запись, а не платёж: деньги через систему не ходят. Принимается и в закрытую закупку; переплата — отрицательный долг, аванс.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST` `{"paidOn":"2026-06-26","amount":67400}` — 200, `head.debt` уменьшился на 67400.
+ * 2. Негативный 400: `amount` 0.
+ * @summary Записать оплату поставщику
+ */
+export const addPurchasePayment = async (id: string,
+    savePaymentRequest: SavePaymentRequest, options?: Parameters<typeof apiRequest>[1]): Promise<addPurchasePaymentResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<addPurchasePaymentResponse>(getAddPurchasePaymentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(savePaymentRequest)
+  }
+);}
+
+
+
+
+
+export const getAddPurchasePaymentMutationKey = () => ['addPurchasePayment'] as const;
+
+export const getAddPurchasePaymentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchasePayment>>, TError,AddPurchasePaymentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof addPurchasePayment>>, TError,AddPurchasePaymentMutationVariables, TContext> => {
+
+const mutationKey = getAddPurchasePaymentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPurchasePayment>>, AddPurchasePaymentMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addPurchasePayment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddPurchasePaymentMutationResult = NonNullable<Awaited<ReturnType<typeof addPurchasePayment>>>
+    export type AddPurchasePaymentMutationBody = SavePaymentRequest
+    export type AddPurchasePaymentMutationError = ErrorResponse
+    export type AddPurchasePaymentMutationVariables = {id: string;data: SavePaymentRequest}
+
+    /**
+ * @summary Записать оплату поставщику
+ */
+export const useAddPurchasePayment = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchasePayment>>, TError,AddPurchasePaymentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addPurchasePayment>>,
+        TError,
+        AddPurchasePaymentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddPurchasePaymentMutationOptions(options), queryClient);
+    }
+
+export type addPurchaseLineResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type addPurchaseLineResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type addPurchaseLineResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type addPurchaseLineResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type addPurchaseLineResponseSuccess = (addPurchaseLineResponse200) & {
+  headers: Headers;
+};
+export type addPurchaseLineResponseError = (addPurchaseLineResponse400 | addPurchaseLineResponse404 | addPurchaseLineResponse500) & {
+  headers: Headers;
+};
+
+export type addPurchaseLineResponse = (addPurchaseLineResponseSuccess | addPurchaseLineResponseError)
+
+export const getAddPurchaseLineUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/lines`
+}
+
+/**
+ * Колонки `attributes` — по направлению закупки; ответ — закупка целиком с новыми итогами.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST` `{"groupNo":1,"supplierArticle":"26017-80","attributes":{"COLOR":"2406тем шоколад","VARIANT":"черный норка"},"unit":"PCS","quantity":24,"price":280}` — 200, сумма строки 6720.
+ * 2. Негативный 400 `PURCHASE_ATTRIBUTE_UNKNOWN`: колонка `TARA` у закупки `GRID`.
+ * 3. Негативный 409 `PURCHASE_CLOSED`: закрытая закупка.
+ * @summary Добавить строку закупки
+ */
+export const addPurchaseLine = async (id: string,
+    saveLineRequest: SaveLineRequest, options?: Parameters<typeof apiRequest>[1]): Promise<addPurchaseLineResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<addPurchaseLineResponse>(getAddPurchaseLineUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveLineRequest)
+  }
+);}
+
+
+
+
+
+export const getAddPurchaseLineMutationKey = () => ['addPurchaseLine'] as const;
+
+export const getAddPurchaseLineMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchaseLine>>, TError,AddPurchaseLineMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof addPurchaseLine>>, TError,AddPurchaseLineMutationVariables, TContext> => {
+
+const mutationKey = getAddPurchaseLineMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPurchaseLine>>, AddPurchaseLineMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addPurchaseLine(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddPurchaseLineMutationResult = NonNullable<Awaited<ReturnType<typeof addPurchaseLine>>>
+    export type AddPurchaseLineMutationBody = SaveLineRequest
+    export type AddPurchaseLineMutationError = ErrorResponse
+    export type AddPurchaseLineMutationVariables = {id: string;data: SaveLineRequest}
+
+    /**
+ * @summary Добавить строку закупки
+ */
+export const useAddPurchaseLine = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchaseLine>>, TError,AddPurchaseLineMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addPurchaseLine>>,
+        TError,
+        AddPurchaseLineMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddPurchaseLineMutationOptions(options), queryClient);
+    }
+
+export type previewPurchaseImportResponse200 = {
+  data: InvoicePreviewDto
+  status: 200
+}
+
+export type previewPurchaseImportResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type previewPurchaseImportResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type previewPurchaseImportResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type previewPurchaseImportResponseSuccess = (previewPurchaseImportResponse200) & {
+  headers: Headers;
+};
+export type previewPurchaseImportResponseError = (previewPurchaseImportResponse400 | previewPurchaseImportResponse404 | previewPurchaseImportResponse500) & {
+  headers: Headers;
+};
+
+export type previewPurchaseImportResponse = (previewPurchaseImportResponseSuccess | previewPurchaseImportResponseError)
+
+export const getPreviewPurchaseImportUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/import/preview`
+}
+
+/**
+ * Файл (.xlsx, .csv) разбирается и сверяется со строками закупки; закупка не меняется. Без части `request` сопоставление колонок угадывается по заголовкам (строка заголовков ищется ниже шапки), с ней — берётся присланное.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Завести закупку `GRID` в CNY.
+ * 2. Отправить накладную поставщика частью `file` — 200: `mapping` с угаданными колонками, `lines` с `change: ADDED`, `totalsMatch: true`, оплаты из файла в `payments`.
+ * 3. Подтвердить её (`commitPurchaseImport`) и снова сделать предпросмотр — все строки `UNCHANGED`.
+ * 4. Негативный 400 `PURCHASE_IMPORT_COLUMN_MISSING`: `request` с сопоставлением без `QUANTITY`.
+ * @summary Предпросмотр загрузки накладной поставщика
+ */
+export const previewPurchaseImport = async (id: string,
+    previewPurchaseImportBody?: PreviewPurchaseImportBody, options?: Parameters<typeof apiRequest>[1]): Promise<previewPurchaseImportResponse> => {
+    const formData = new FormData();
+if(previewPurchaseImportBody?.file !== undefined) {
+ formData.append(`file`, previewPurchaseImportBody.file);
+ }
+if(previewPurchaseImportBody?.request !== undefined) {
+ formData.append(`request`, JSON.stringify(previewPurchaseImportBody.request));
+ }
+
+  return apiRequest<previewPurchaseImportResponse>(getPreviewPurchaseImportUrl(id),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getPreviewPurchaseImportMutationKey = () => ['previewPurchaseImport'] as const;
+
+export const getPreviewPurchaseImportMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewPurchaseImport>>, TError,PreviewPurchaseImportMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewPurchaseImport>>, TError,PreviewPurchaseImportMutationVariables, TContext> => {
+
+const mutationKey = getPreviewPurchaseImportMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewPurchaseImport>>, PreviewPurchaseImportMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  previewPurchaseImport(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewPurchaseImportMutationResult = NonNullable<Awaited<ReturnType<typeof previewPurchaseImport>>>
+    export type PreviewPurchaseImportMutationBody = PreviewPurchaseImportBody | undefined
+    export type PreviewPurchaseImportMutationError = ErrorResponse
+    export type PreviewPurchaseImportMutationVariables = {id: string;data?: PreviewPurchaseImportBody}
+
+    /**
+ * @summary Предпросмотр загрузки накладной поставщика
+ */
+export const usePreviewPurchaseImport = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewPurchaseImport>>, TError,PreviewPurchaseImportMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof previewPurchaseImport>>,
+        TError,
+        PreviewPurchaseImportMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPreviewPurchaseImportMutationOptions(options), queryClient);
+    }
+
+export type commitPurchaseImportResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type commitPurchaseImportResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type commitPurchaseImportResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type commitPurchaseImportResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type commitPurchaseImportResponseSuccess = (commitPurchaseImportResponse200) & {
+  headers: Headers;
+};
+export type commitPurchaseImportResponseError = (commitPurchaseImportResponse400 | commitPurchaseImportResponse404 | commitPurchaseImportResponse500) & {
+  headers: Headers;
+};
+
+export type commitPurchaseImportResponse = (commitPurchaseImportResponseSuccess | commitPurchaseImportResponseError)
+
+export const getCommitPurchaseImportUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/import/commit`
+}
+
+/**
+ * Файл присылается второй раз вместе с сопоставлением из предпросмотра — между шагами он не хранится. Строки сверяются по ключу «артикул + наименование + колонки направления»: новые добавляются, найденные получают №, единицу, количество и цену из файла, строки закупки, которых нет в файле, удаляются. С `importPayments: true` добавляются оплаты файла, которых ещё нет (та же дата и сумма). Всё или ничего.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Подтвердить файл из предпросмотра — 200, строки и итог как в файле, долг — как в строке «долг».
+ * 2. Подтвердить тот же файл ещё раз — строк и оплат не прибавилось.
+ * 3. Негативный 400 `PURCHASE_IMPORT_TOTAL_MISMATCH`: поправить в файле цену, не трогая итог.
+ * 4. Негативный 400 `PURCHASE_IMPORT_HAS_PROBLEMS`: «84ш» в количестве.
+ * 5. Негативный 409 `PURCHASE_CLOSED`: закрытая закупка.
+ * @summary Загрузить накладную поставщика в закупку
+ */
+export const commitPurchaseImport = async (id: string,
+    commitPurchaseImportBody?: CommitPurchaseImportBody, options?: Parameters<typeof apiRequest>[1]): Promise<commitPurchaseImportResponse> => {
+    const formData = new FormData();
+if(commitPurchaseImportBody?.file !== undefined) {
+ formData.append(`file`, commitPurchaseImportBody.file);
+ }
+if(commitPurchaseImportBody?.request !== undefined) {
+ formData.append(`request`, JSON.stringify(commitPurchaseImportBody.request));
+ }
+
+  return apiRequest<commitPurchaseImportResponse>(getCommitPurchaseImportUrl(id),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getCommitPurchaseImportMutationKey = () => ['commitPurchaseImport'] as const;
+
+export const getCommitPurchaseImportMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commitPurchaseImport>>, TError,CommitPurchaseImportMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof commitPurchaseImport>>, TError,CommitPurchaseImportMutationVariables, TContext> => {
+
+const mutationKey = getCommitPurchaseImportMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof commitPurchaseImport>>, CommitPurchaseImportMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  commitPurchaseImport(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CommitPurchaseImportMutationResult = NonNullable<Awaited<ReturnType<typeof commitPurchaseImport>>>
+    export type CommitPurchaseImportMutationBody = CommitPurchaseImportBody | undefined
+    export type CommitPurchaseImportMutationError = ErrorResponse
+    export type CommitPurchaseImportMutationVariables = {id: string;data?: CommitPurchaseImportBody}
+
+    /**
+ * @summary Загрузить накладную поставщика в закупку
+ */
+export const useCommitPurchaseImport = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commitPurchaseImport>>, TError,CommitPurchaseImportMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof commitPurchaseImport>>,
+        TError,
+        CommitPurchaseImportMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCommitPurchaseImportMutationOptions(options), queryClient);
+    }
+
+export type addPurchaseExpenseResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type addPurchaseExpenseResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type addPurchaseExpenseResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type addPurchaseExpenseResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type addPurchaseExpenseResponseSuccess = (addPurchaseExpenseResponse200) & {
+  headers: Headers;
+};
+export type addPurchaseExpenseResponseError = (addPurchaseExpenseResponse400 | addPurchaseExpenseResponse404 | addPurchaseExpenseResponse500) & {
+  headers: Headers;
+};
+
+export type addPurchaseExpenseResponse = (addPurchaseExpenseResponseSuccess | addPurchaseExpenseResponseError)
+
+export const getAddPurchaseExpenseUrl = (id: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/expenses`
+}
+
+/**
+ * Таможня, акциз, сертификация, брокер, погрузка — делится на все строки закупки. В тенге курс 1.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST` `{"kind":"CUSTOMS","amount":12000,"currency":"KZT"}` — 200, в `expenses` расход с `rate` 1.
+ * 2. Негативный 400: `amount` 0.
+ * @summary Записать дополнительный расход закупки
+ */
+export const addPurchaseExpense = async (id: string,
+    saveExpenseRequest: SaveExpenseRequest, options?: Parameters<typeof apiRequest>[1]): Promise<addPurchaseExpenseResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<addPurchaseExpenseResponse>(getAddPurchaseExpenseUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveExpenseRequest)
+  }
+);}
+
+
+
+
+
+export const getAddPurchaseExpenseMutationKey = () => ['addPurchaseExpense'] as const;
+
+export const getAddPurchaseExpenseMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchaseExpense>>, TError,AddPurchaseExpenseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof addPurchaseExpense>>, TError,AddPurchaseExpenseMutationVariables, TContext> => {
+
+const mutationKey = getAddPurchaseExpenseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPurchaseExpense>>, AddPurchaseExpenseMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addPurchaseExpense(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddPurchaseExpenseMutationResult = NonNullable<Awaited<ReturnType<typeof addPurchaseExpense>>>
+    export type AddPurchaseExpenseMutationBody = SaveExpenseRequest
+    export type AddPurchaseExpenseMutationError = ErrorResponse
+    export type AddPurchaseExpenseMutationVariables = {id: string;data: SaveExpenseRequest}
+
+    /**
+ * @summary Записать дополнительный расход закупки
+ */
+export const useAddPurchaseExpense = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPurchaseExpense>>, TError,AddPurchaseExpenseMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof addPurchaseExpense>>,
+        TError,
+        AddPurchaseExpenseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAddPurchaseExpenseMutationOptions(options), queryClient);
+    }
+
+export type listDeliveryBatchesResponse200 = {
+  data: DeliveryBatchDto[]
+  status: 200
+}
+
+export type listDeliveryBatchesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listDeliveryBatchesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listDeliveryBatchesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listDeliveryBatchesResponseSuccess = (listDeliveryBatchesResponse200) & {
+  headers: Headers;
+};
+export type listDeliveryBatchesResponseError = (listDeliveryBatchesResponse400 | listDeliveryBatchesResponse404 | listDeliveryBatchesResponse500) & {
+  headers: Headers;
+};
+
+export type listDeliveryBatchesResponse = (listDeliveryBatchesResponseSuccess | listDeliveryBatchesResponseError)
+
+export const getListDeliveryBatchesUrl = () => {
+
+
+
+
+  return `/api/purchase/batches`
+}
+
+/**
+ * Новые — сверху.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `GET /api/purchase/batches` — 200, у партий `totalWeight`, `totalCost`.
+ * @summary Партии доставки с местами и итогами
+ */
+export const listDeliveryBatches = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listDeliveryBatchesResponse> => {
+
+  return apiRequest<listDeliveryBatchesResponse>(getListDeliveryBatchesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDeliveryBatchesQueryKey = () => {
+    return [
+    `/api/purchase/batches`
+    ] as const;
+    }
+
+
+export const getListDeliveryBatchesQueryOptions = <TData = Awaited<ReturnType<typeof listDeliveryBatches>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDeliveryBatches>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDeliveryBatchesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeliveryBatches>>> = ({ signal }) => listDeliveryBatches({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDeliveryBatches>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListDeliveryBatchesQueryResult = NonNullable<Awaited<ReturnType<typeof listDeliveryBatches>>>
+export type ListDeliveryBatchesQueryError = ErrorResponse
+
+
+export function useListDeliveryBatches<TData = Awaited<ReturnType<typeof listDeliveryBatches>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDeliveryBatches>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDeliveryBatches>>,
+          TError,
+          Awaited<ReturnType<typeof listDeliveryBatches>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListDeliveryBatches<TData = Awaited<ReturnType<typeof listDeliveryBatches>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDeliveryBatches>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDeliveryBatches>>,
+          TError,
+          Awaited<ReturnType<typeof listDeliveryBatches>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListDeliveryBatches<TData = Awaited<ReturnType<typeof listDeliveryBatches>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDeliveryBatches>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Партии доставки с местами и итогами
+ */
+
+export function useListDeliveryBatches<TData = Awaited<ReturnType<typeof listDeliveryBatches>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDeliveryBatches>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListDeliveryBatchesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type createDeliveryBatchResponse201 = {
+  data: DeliveryBatchDto
+  status: 201
+}
+
+export type createDeliveryBatchResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type createDeliveryBatchResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type createDeliveryBatchResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type createDeliveryBatchResponseSuccess = (createDeliveryBatchResponse201) & {
+  headers: Headers;
+};
+export type createDeliveryBatchResponseError = (createDeliveryBatchResponse400 | createDeliveryBatchResponse404 | createDeliveryBatchResponse500) & {
+  headers: Headers;
+};
+
+export type createDeliveryBatchResponse = (createDeliveryBatchResponseSuccess | createDeliveryBatchResponseError)
+
+export const getCreateDeliveryBatchUrl = () => {
+
+
+
+
+  return `/api/purchase/batches`
+}
+
+/**
+ * Места — любых закупок арендатора, с суммой места в валюте партии; итоги считает сервер. В тенге курс 1.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST` `{"carrier":"склад900","clientCode":"A876","currency":"USD","rate":505,"places":[{"placeId":"<id>","cost":79.68}]}` — 201, `totalCost` 79.68.
+ * 2. Негативный 409 `PURCHASE_PLACE_IN_OTHER_BATCH`: то же место во второй партии.
+ * @summary Завести партию доставки — как ведомость карго
+ */
+export const createDeliveryBatch = async (saveBatchRequest: SaveBatchRequest, options?: Parameters<typeof apiRequest>[1]): Promise<createDeliveryBatchResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<createDeliveryBatchResponse>(getCreateDeliveryBatchUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveBatchRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateDeliveryBatchMutationKey = () => ['createDeliveryBatch'] as const;
+
+export const getCreateDeliveryBatchMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeliveryBatch>>, TError,CreateDeliveryBatchMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDeliveryBatch>>, TError,CreateDeliveryBatchMutationVariables, TContext> => {
+
+const mutationKey = getCreateDeliveryBatchMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDeliveryBatch>>, CreateDeliveryBatchMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDeliveryBatch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDeliveryBatchMutationResult = NonNullable<Awaited<ReturnType<typeof createDeliveryBatch>>>
+    export type CreateDeliveryBatchMutationBody = SaveBatchRequest
+    export type CreateDeliveryBatchMutationError = ErrorResponse
+    export type CreateDeliveryBatchMutationVariables = {data: SaveBatchRequest}
+
+    /**
+ * @summary Завести партию доставки — как ведомость карго
+ */
+export const useCreateDeliveryBatch = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDeliveryBatch>>, TError,CreateDeliveryBatchMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createDeliveryBatch>>,
+        TError,
+        CreateDeliveryBatchMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateDeliveryBatchMutationOptions(options), queryClient);
+    }
+
 export type getPromoArrivalsResponse200 = {
   data: NoveltyBatchDto[]
   status: 200
@@ -38854,6 +48684,131 @@ export const useSavePortalTemplate = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSavePortalTemplateMutationOptions(options), queryClient);
+    }
+
+export type savePortalTemplateFromOrderResponse201 = {
+  data: OrderTemplateDto
+  status: 201
+}
+
+export type savePortalTemplateFromOrderResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type savePortalTemplateFromOrderResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type savePortalTemplateFromOrderResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type savePortalTemplateFromOrderResponseSuccess = (savePortalTemplateFromOrderResponse201) & {
+  headers: Headers;
+};
+export type savePortalTemplateFromOrderResponseError = (savePortalTemplateFromOrderResponse400 | savePortalTemplateFromOrderResponse404 | savePortalTemplateFromOrderResponse500) & {
+  headers: Headers;
+};
+
+export type savePortalTemplateFromOrderResponse = (savePortalTemplateFromOrderResponseSuccess | savePortalTemplateFromOrderResponseError)
+
+export const getSavePortalTemplateFromOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/portal/templates/from-order/${orderId}`
+}
+
+/**
+ * Состав берётся из заявки клиента — любой, отменённой тоже. Позиции без товара каталога пропускаются.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отменить свою заявку и вызвать метод с названием — 201, позиций столько же, сколько товаров каталога в заявке.
+ * 2. Негативный 404: чужая или несуществующая заявка.
+ * 3. Негативный 400: пустое название.
+ * @summary Сохранить шаблоном свою заявку
+ */
+export const savePortalTemplateFromOrder = async (orderId: string,
+    saveTemplateRequest: SaveTemplateRequest, options?: Parameters<typeof apiRequest>[1]): Promise<savePortalTemplateFromOrderResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<savePortalTemplateFromOrderResponse>(getSavePortalTemplateFromOrderUrl(orderId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saveTemplateRequest)
+  }
+);}
+
+
+
+
+
+export const getSavePortalTemplateFromOrderMutationKey = () => ['savePortalTemplateFromOrder'] as const;
+
+export const getSavePortalTemplateFromOrderMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePortalTemplateFromOrder>>, TError,SavePortalTemplateFromOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof savePortalTemplateFromOrder>>, TError,SavePortalTemplateFromOrderMutationVariables, TContext> => {
+
+const mutationKey = getSavePortalTemplateFromOrderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof savePortalTemplateFromOrder>>, SavePortalTemplateFromOrderMutationVariables> = (props) => {
+          const {orderId,data} = props ?? {};
+
+          return  savePortalTemplateFromOrder(orderId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SavePortalTemplateFromOrderMutationResult = NonNullable<Awaited<ReturnType<typeof savePortalTemplateFromOrder>>>
+    export type SavePortalTemplateFromOrderMutationBody = SaveTemplateRequest
+    export type SavePortalTemplateFromOrderMutationError = ErrorResponse
+    export type SavePortalTemplateFromOrderMutationVariables = {orderId: string;data: SaveTemplateRequest}
+
+    /**
+ * @summary Сохранить шаблоном свою заявку
+ */
+export const useSavePortalTemplateFromOrder = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof savePortalTemplateFromOrder>>, TError,SavePortalTemplateFromOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof savePortalTemplateFromOrder>>,
+        TError,
+        SavePortalTemplateFromOrderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSavePortalTemplateFromOrderMutationOptions(options), queryClient);
     }
 
 export type resetPortalServiceDataResponse200 = {
@@ -41017,20 +50972,37 @@ export const getDeclineMyPortalOrderUrl = (id: string,) => {
 /**
  * Ответ на пересогласование отказом: заявка закрывается. Молчание отказом не считается — у него свой срок и своя судьба.
  *
+ * Тело необязательно: `reason` (REPLACEMENT, PRICE, WAIT, BOUGHT_ELSEWHERE, OTHER) и `comment` — менеджер видит их в переписке заявки и в уведомлении.
+ *
  * **Как проверить вручную**
  *
  * 1. Дождаться пересогласования и отказаться — состояние `CLOSED`.
  * 2. Негативный 409: отказаться от заявки, которая ответа не ждёт.
  * @summary Отказываюсь
  */
-export const declineMyPortalOrder = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<declineMyPortalOrderResponse> => {
+export const declineMyPortalOrder = async (id: string,
+    declineOrderRequest?: DeclineOrderRequest, options?: Parameters<typeof apiRequest>[1]): Promise<declineMyPortalOrderResponse> => {
 
-  return apiRequest<declineMyPortalOrderResponse>(getDeclineMyPortalOrderUrl(id),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<declineMyPortalOrderResponse>(getDeclineMyPortalOrderUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(declineOrderRequest)
   }
 );}
 
@@ -41055,9 +51027,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof declineMyPortalOrder>>, DeclineMyPortalOrderMutationVariables> = (props) => {
-          const {id} = props ?? {};
+          const {id,data} = props ?? {};
 
-          return  declineMyPortalOrder(id,requestOptions)
+          return  declineMyPortalOrder(id,data,requestOptions)
         }
 
 
@@ -41068,9 +51040,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type DeclineMyPortalOrderMutationResult = NonNullable<Awaited<ReturnType<typeof declineMyPortalOrder>>>
-
+    export type DeclineMyPortalOrderMutationBody = DeclineOrderRequest | undefined
     export type DeclineMyPortalOrderMutationError = ErrorResponse
-    export type DeclineMyPortalOrderMutationVariables = {id: string}
+    export type DeclineMyPortalOrderMutationVariables = {id: string;data?: DeclineOrderRequest}
 
     /**
  * @summary Отказываюсь
@@ -41261,14 +51233,29 @@ export const getCancelMyPortalOrderUrl = (id: string,) => {
  * 2. Негативный 409: отменить принятую заявку. Успех здесь означал бы отмену того, что уже пошло в отгрузку.
  * @summary Отменить заявку
  */
-export const cancelMyPortalOrder = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<cancelMyPortalOrderResponse> => {
+export const cancelMyPortalOrder = async (id: string,
+    declineOrderRequest?: DeclineOrderRequest, options?: Parameters<typeof apiRequest>[1]): Promise<cancelMyPortalOrderResponse> => {
 
-  return apiRequest<cancelMyPortalOrderResponse>(getCancelMyPortalOrderUrl(id),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<cancelMyPortalOrderResponse>(getCancelMyPortalOrderUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(declineOrderRequest)
   }
 );}
 
@@ -41293,9 +51280,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelMyPortalOrder>>, CancelMyPortalOrderMutationVariables> = (props) => {
-          const {id} = props ?? {};
+          const {id,data} = props ?? {};
 
-          return  cancelMyPortalOrder(id,requestOptions)
+          return  cancelMyPortalOrder(id,data,requestOptions)
         }
 
 
@@ -41306,9 +51293,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type CancelMyPortalOrderMutationResult = NonNullable<Awaited<ReturnType<typeof cancelMyPortalOrder>>>
-
+    export type CancelMyPortalOrderMutationBody = DeclineOrderRequest | undefined
     export type CancelMyPortalOrderMutationError = ErrorResponse
-    export type CancelMyPortalOrderMutationVariables = {id: string}
+    export type CancelMyPortalOrderMutationVariables = {id: string;data?: DeclineOrderRequest}
 
     /**
  * @summary Отменить заявку
@@ -41322,6 +51309,139 @@ export const useCancelMyPortalOrder = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getCancelMyPortalOrderMutationOptions(options), queryClient);
+    }
+
+export type answerMyPortalOrderResponse200 = {
+  data: PortalOrderDto
+  status: 200
+}
+
+export type answerMyPortalOrderResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type answerMyPortalOrderResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type answerMyPortalOrderResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type answerMyPortalOrderResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type answerMyPortalOrderResponseSuccess = (answerMyPortalOrderResponse200) & {
+  headers: Headers;
+};
+export type answerMyPortalOrderResponseError = (answerMyPortalOrderResponse400 | answerMyPortalOrderResponse404 | answerMyPortalOrderResponse409 | answerMyPortalOrderResponse500) & {
+  headers: Headers;
+};
+
+export type answerMyPortalOrderResponse = (answerMyPortalOrderResponseSuccess | answerMyPortalOrderResponseError)
+
+export const getAnswerMyPortalOrderUrl = (id: string,) => {
+
+
+
+
+  return `/api/portal/orders/${id}/answer`
+}
+
+/**
+ * Ответ на пересогласование по каждой изменённой строке: `ACCEPT` — согласен, `REMOVE` — убрать позицию, `WAIT` — подожду исходный товар (только у строки, где склад назвал срок, `expectedOn` в отличии). `message` уходит в переписку заявки.
+ *
+ * Все строки `ACCEPT` и без сообщения — то же, что `confirm`: заявка принята. Иначе заявка возвращается менеджеру (`CUSTOMER_REPLIED`) с решениями у строк — снятие позиции проверяет менеджер.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Дождаться пересогласования, ответить всем `ACCEPT` — `ACCEPTED`.
+ * 2. Ответить `REMOVE` по одной строке — `CUSTOMER_REPLIED`, у менеджера решения в `GET /api/drafts/{id}/consent` → `customerDecisions`.
+ * 3. Негативный 400: `lineId` не из отличий или `WAIT` у строки без срока.
+ * 4. Негативный 409: повторный ответ — заявка ответа уже не ждёт.
+ * @summary Ответить по строкам
+ */
+export const answerMyPortalOrder = async (id: string,
+    answerOrderRequest: AnswerOrderRequest, options?: Parameters<typeof apiRequest>[1]): Promise<answerMyPortalOrderResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<answerMyPortalOrderResponse>(getAnswerMyPortalOrderUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(answerOrderRequest)
+  }
+);}
+
+
+
+
+
+export const getAnswerMyPortalOrderMutationKey = () => ['answerMyPortalOrder'] as const;
+
+export const getAnswerMyPortalOrderMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerMyPortalOrder>>, TError,AnswerMyPortalOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof answerMyPortalOrder>>, TError,AnswerMyPortalOrderMutationVariables, TContext> => {
+
+const mutationKey = getAnswerMyPortalOrderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof answerMyPortalOrder>>, AnswerMyPortalOrderMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  answerMyPortalOrder(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnswerMyPortalOrderMutationResult = NonNullable<Awaited<ReturnType<typeof answerMyPortalOrder>>>
+    export type AnswerMyPortalOrderMutationBody = AnswerOrderRequest
+    export type AnswerMyPortalOrderMutationError = ErrorResponse
+    export type AnswerMyPortalOrderMutationVariables = {id: string;data: AnswerOrderRequest}
+
+    /**
+ * @summary Ответить по строкам
+ */
+export const useAnswerMyPortalOrder = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerMyPortalOrder>>, TError,AnswerMyPortalOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof answerMyPortalOrder>>,
+        TError,
+        AnswerMyPortalOrderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAnswerMyPortalOrderMutationOptions(options), queryClient);
     }
 
 export type readPortalNotificationResponse204 = {
@@ -41569,6 +51689,881 @@ export const useSubmitSupplierLead = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getSubmitSupplierLeadMutationOptions(options), queryClient);
+    }
+
+export type forwardSupplierJoinResponse200 = {
+  data: OwnerLinkDto
+  status: 200
+}
+
+export type forwardSupplierJoinResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type forwardSupplierJoinResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type forwardSupplierJoinResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type forwardSupplierJoinResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type forwardSupplierJoinResponseSuccess = (forwardSupplierJoinResponse200) & {
+  headers: Headers;
+};
+export type forwardSupplierJoinResponseError = (forwardSupplierJoinResponse400 | forwardSupplierJoinResponse404 | forwardSupplierJoinResponse409 | forwardSupplierJoinResponse500) & {
+  headers: Headers;
+};
+
+export type forwardSupplierJoinResponse = (forwardSupplierJoinResponseSuccess | forwardSupplierJoinResponseError)
+
+export const getForwardSupplierJoinUrl = (code: string,) => {
+
+
+
+
+  return `/api/portal/join/${code}/forward`
+}
+
+/**
+ * Без входа. Приглашение запоминает продавца; ответ — ссылка владельцу, одна на номер продавца: следующие приглашения к тому же продавцу копятся под ней. Отправляет её сам продавец.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Передать два разных приглашения с одним номером продавца — ссылка одна и та же.
+ * 2. Негативный 404: код погашенного приглашения. Негативный 409: компания уже подключена.
+ * @summary Продавец передаёт приглашение владельцу
+ */
+export const forwardSupplierJoin = async (code: string,
+    forwardReferralRequest: ForwardReferralRequest, options?: Parameters<typeof apiRequest>[1]): Promise<forwardSupplierJoinResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<forwardSupplierJoinResponse>(getForwardSupplierJoinUrl(code),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(forwardReferralRequest)
+  }
+);}
+
+
+
+
+
+export const getForwardSupplierJoinMutationKey = () => ['forwardSupplierJoin'] as const;
+
+export const getForwardSupplierJoinMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forwardSupplierJoin>>, TError,ForwardSupplierJoinMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof forwardSupplierJoin>>, TError,ForwardSupplierJoinMutationVariables, TContext> => {
+
+const mutationKey = getForwardSupplierJoinMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof forwardSupplierJoin>>, ForwardSupplierJoinMutationVariables> = (props) => {
+          const {code,data} = props ?? {};
+
+          return  forwardSupplierJoin(code,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ForwardSupplierJoinMutationResult = NonNullable<Awaited<ReturnType<typeof forwardSupplierJoin>>>
+    export type ForwardSupplierJoinMutationBody = ForwardReferralRequest
+    export type ForwardSupplierJoinMutationError = ErrorResponse
+    export type ForwardSupplierJoinMutationVariables = {code: string;data: ForwardReferralRequest}
+
+    /**
+ * @summary Продавец передаёт приглашение владельцу
+ */
+export const useForwardSupplierJoin = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forwardSupplierJoin>>, TError,ForwardSupplierJoinMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof forwardSupplierJoin>>,
+        TError,
+        ForwardSupplierJoinMutationVariables,
+        TContext
+      > => {
+      return useMutation(getForwardSupplierJoinMutationOptions(options), queryClient);
+    }
+
+export type getStaffJoinResponse200 = {
+  data: StaffJoinDto
+  status: 200
+}
+
+export type getStaffJoinResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getStaffJoinResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getStaffJoinResponse410 = {
+  data: ErrorResponse
+  status: 410
+}
+
+export type getStaffJoinResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getStaffJoinResponseSuccess = (getStaffJoinResponse200) & {
+  headers: Headers;
+};
+export type getStaffJoinResponseError = (getStaffJoinResponse400 | getStaffJoinResponse404 | getStaffJoinResponse410 | getStaffJoinResponse500) & {
+  headers: Headers;
+};
+
+export type getStaffJoinResponse = (getStaffJoinResponseSuccess | getStaffJoinResponseError)
+
+export const getGetStaffJoinUrl = (token: string,) => {
+
+
+
+
+  return `/api/portal/join/staff/${token}`
+}
+
+/**
+ * Без входа. Имя и логин сотрудника по токену из `joinToken` ответа заведения или сброса пароля.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Завести сотрудника, открыть `/api/portal/join/staff/<joinToken>` — имя и логин.
+ * 2. Негативный 410: ссылка уже использована или прошло 7 дней. Негативный 404: неизвестный токен.
+ * @summary Кто по ссылке сотруднику
+ */
+export const getStaffJoin = async (token: string, options?: Parameters<typeof apiRequest>[1]): Promise<getStaffJoinResponse> => {
+
+  return apiRequest<getStaffJoinResponse>(getGetStaffJoinUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffJoinQueryKey = (token: string,) => {
+    return [
+    `/api/portal/join/staff/${token}`
+    ] as const;
+    }
+
+
+export const getGetStaffJoinQueryOptions = <TData = Awaited<ReturnType<typeof getStaffJoin>>, TError = ErrorResponse>(token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStaffJoin>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffJoinQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffJoin>>> = ({ signal }) => getStaffJoin(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffJoin>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetStaffJoinQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffJoin>>>
+export type GetStaffJoinQueryError = ErrorResponse
+
+
+export function useGetStaffJoin<TData = Awaited<ReturnType<typeof getStaffJoin>>, TError = ErrorResponse>(
+ token: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStaffJoin>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStaffJoin>>,
+          TError,
+          Awaited<ReturnType<typeof getStaffJoin>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetStaffJoin<TData = Awaited<ReturnType<typeof getStaffJoin>>, TError = ErrorResponse>(
+ token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStaffJoin>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStaffJoin>>,
+          TError,
+          Awaited<ReturnType<typeof getStaffJoin>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetStaffJoin<TData = Awaited<ReturnType<typeof getStaffJoin>>, TError = ErrorResponse>(
+ token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStaffJoin>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Кто по ссылке сотруднику
+ */
+
+export function useGetStaffJoin<TData = Awaited<ReturnType<typeof getStaffJoin>>, TError = ErrorResponse>(
+ token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStaffJoin>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetStaffJoinQueryOptions(token,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type setStaffJoinPasswordResponse200 = {
+  data: StaffJoinDto
+  status: 200
+}
+
+export type setStaffJoinPasswordResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type setStaffJoinPasswordResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type setStaffJoinPasswordResponse410 = {
+  data: ErrorResponse
+  status: 410
+}
+
+export type setStaffJoinPasswordResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type setStaffJoinPasswordResponseSuccess = (setStaffJoinPasswordResponse200) & {
+  headers: Headers;
+};
+export type setStaffJoinPasswordResponseError = (setStaffJoinPasswordResponse400 | setStaffJoinPasswordResponse404 | setStaffJoinPasswordResponse410 | setStaffJoinPasswordResponse500) & {
+  headers: Headers;
+};
+
+export type setStaffJoinPasswordResponse = (setStaffJoinPasswordResponseSuccess | setStaffJoinPasswordResponseError)
+
+export const getSetStaffJoinPasswordUrl = (token: string,) => {
+
+
+
+
+  return `/api/portal/join/staff/${token}`
+}
+
+/**
+ * Без входа. Пароль постоянный — менять при входе не потребуется; ссылка гаснет.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отправить пароль от 8 знаков — `200`, войти в рабочее место номером и этим паролем.
+ * 2. Тот же токен ещё раз — `410`. Негативный 400: пароль короче 8 знаков.
+ * @summary Сотрудник задаёт пароль по ссылке
+ */
+export const setStaffJoinPassword = async (token: string,
+    staffJoinPasswordRequest: StaffJoinPasswordRequest, options?: Parameters<typeof apiRequest>[1]): Promise<setStaffJoinPasswordResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<setStaffJoinPasswordResponse>(getSetStaffJoinPasswordUrl(token),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(staffJoinPasswordRequest)
+  }
+);}
+
+
+
+
+
+export const getSetStaffJoinPasswordMutationKey = () => ['setStaffJoinPassword'] as const;
+
+export const getSetStaffJoinPasswordMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setStaffJoinPassword>>, TError,SetStaffJoinPasswordMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof setStaffJoinPassword>>, TError,SetStaffJoinPasswordMutationVariables, TContext> => {
+
+const mutationKey = getSetStaffJoinPasswordMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setStaffJoinPassword>>, SetStaffJoinPasswordMutationVariables> = (props) => {
+          const {token,data} = props ?? {};
+
+          return  setStaffJoinPassword(token,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetStaffJoinPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof setStaffJoinPassword>>>
+    export type SetStaffJoinPasswordMutationBody = StaffJoinPasswordRequest
+    export type SetStaffJoinPasswordMutationError = ErrorResponse
+    export type SetStaffJoinPasswordMutationVariables = {token: string;data: StaffJoinPasswordRequest}
+
+    /**
+ * @summary Сотрудник задаёт пароль по ссылке
+ */
+export const useSetStaffJoinPassword = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setStaffJoinPassword>>, TError,SetStaffJoinPasswordMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setStaffJoinPassword>>,
+        TError,
+        SetStaffJoinPasswordMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetStaffJoinPasswordMutationOptions(options), queryClient);
+    }
+
+export type requestSupplierSignupResponse204 = {
+  data: void
+  status: 204
+}
+
+export type requestSupplierSignupResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type requestSupplierSignupResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type requestSupplierSignupResponse429 = {
+  data: ErrorResponse
+  status: 429
+}
+
+export type requestSupplierSignupResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type requestSupplierSignupResponseSuccess = (requestSupplierSignupResponse204) & {
+  headers: Headers;
+};
+export type requestSupplierSignupResponseError = (requestSupplierSignupResponse400 | requestSupplierSignupResponse404 | requestSupplierSignupResponse429 | requestSupplierSignupResponse500) & {
+  headers: Headers;
+};
+
+export type requestSupplierSignupResponse = (requestSupplierSignupResponseSuccess | requestSupplierSignupResponseError)
+
+export const getRequestSupplierSignupUrl = () => {
+
+
+
+
+  return `/api/portal/join/signup`
+}
+
+/**
+ * Без входа. На почту уходит ссылка подтверждения на 24 часа. Номер или БИН уже заняты — ответ тот же `204`, а на почту уходит «магазин уже подключён».
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отправить с редакцией из `/api/portal/join/consent-notice` — `204`; на стенде ссылка в журнале.
+ * 2. Тот же БИН ещё раз — `204`, в журнале «магазин уже есть».
+ * 3. Негативный 400: устаревшая редакция согласия. Негативный 429: четвёртая заявка с номера за сутки.
+ * @summary Заявка на самоподключение
+ */
+export const requestSupplierSignup = async (supplierSignupRequest: SupplierSignupRequest, options?: Parameters<typeof apiRequest>[1]): Promise<requestSupplierSignupResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<requestSupplierSignupResponse>(getRequestSupplierSignupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(supplierSignupRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestSupplierSignupMutationKey = () => ['requestSupplierSignup'] as const;
+
+export const getRequestSupplierSignupMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestSupplierSignup>>, TError,RequestSupplierSignupMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestSupplierSignup>>, TError,RequestSupplierSignupMutationVariables, TContext> => {
+
+const mutationKey = getRequestSupplierSignupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestSupplierSignup>>, RequestSupplierSignupMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestSupplierSignup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestSupplierSignupMutationResult = NonNullable<Awaited<ReturnType<typeof requestSupplierSignup>>>
+    export type RequestSupplierSignupMutationBody = SupplierSignupRequest
+    export type RequestSupplierSignupMutationError = ErrorResponse
+    export type RequestSupplierSignupMutationVariables = {data: SupplierSignupRequest}
+
+    /**
+ * @summary Заявка на самоподключение
+ */
+export const useRequestSupplierSignup = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestSupplierSignup>>, TError,RequestSupplierSignupMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof requestSupplierSignup>>,
+        TError,
+        RequestSupplierSignupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRequestSupplierSignupMutationOptions(options), queryClient);
+    }
+
+export type confirmSupplierSignupResponse200 = {
+  data: SignupConfirmedDto
+  status: 200
+}
+
+export type confirmSupplierSignupResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type confirmSupplierSignupResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type confirmSupplierSignupResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type confirmSupplierSignupResponseSuccess = (confirmSupplierSignupResponse200) & {
+  headers: Headers;
+};
+export type confirmSupplierSignupResponseError = (confirmSupplierSignupResponse400 | confirmSupplierSignupResponse404 | confirmSupplierSignupResponse500) & {
+  headers: Headers;
+};
+
+export type confirmSupplierSignupResponse = (confirmSupplierSignupResponseSuccess | confirmSupplierSignupResponseError)
+
+export const getConfirmSupplierSignupUrl = () => {
+
+
+
+
+  return `/api/portal/join/signup/confirm`
+}
+
+/**
+ * Токен из письма и пароль владельца. Заводится арендатор на «Бизнесе» с пробным периодом 14 дней и учётная запись владельца; ответ — логин для входа.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Токен из ссылки в журнале и пароль от 8 знаков — `200`, `login` = номер с «+».
+ * 2. Тот же токен ещё раз — `404`. Через сутки — `404`.
+ * @summary Подтвердить самоподключение
+ */
+export const confirmSupplierSignup = async (signupConfirmRequest: SignupConfirmRequest, options?: Parameters<typeof apiRequest>[1]): Promise<confirmSupplierSignupResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<confirmSupplierSignupResponse>(getConfirmSupplierSignupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(signupConfirmRequest)
+  }
+);}
+
+
+
+
+
+export const getConfirmSupplierSignupMutationKey = () => ['confirmSupplierSignup'] as const;
+
+export const getConfirmSupplierSignupMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmSupplierSignup>>, TError,ConfirmSupplierSignupMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmSupplierSignup>>, TError,ConfirmSupplierSignupMutationVariables, TContext> => {
+
+const mutationKey = getConfirmSupplierSignupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmSupplierSignup>>, ConfirmSupplierSignupMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmSupplierSignup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmSupplierSignupMutationResult = NonNullable<Awaited<ReturnType<typeof confirmSupplierSignup>>>
+    export type ConfirmSupplierSignupMutationBody = SignupConfirmRequest
+    export type ConfirmSupplierSignupMutationError = ErrorResponse
+    export type ConfirmSupplierSignupMutationVariables = {data: SignupConfirmRequest}
+
+    /**
+ * @summary Подтвердить самоподключение
+ */
+export const useConfirmSupplierSignup = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmSupplierSignup>>, TError,ConfirmSupplierSignupMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmSupplierSignup>>,
+        TError,
+        ConfirmSupplierSignupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConfirmSupplierSignupMutationOptions(options), queryClient);
+    }
+
+export type countShareLoginResponse204 = {
+  data: void
+  status: 204
+}
+
+export type countShareLoginResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type countShareLoginResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type countShareLoginResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type countShareLoginResponseSuccess = (countShareLoginResponse204) & {
+  headers: Headers;
+};
+export type countShareLoginResponseError = (countShareLoginResponse400 | countShareLoginResponse404 | countShareLoginResponse500) & {
+  headers: Headers;
+};
+
+export type countShareLoginResponse = (countShareLoginResponseSuccess | countShareLoginResponseError)
+
+export const getCountShareLoginUrl = (code: string,
+    kind: string,) => {
+
+
+
+
+  return `/api/portal/join-shop/${code}/share/${kind}/login`
+}
+
+/**
+ * Кабинет вызывает, когда вошедший клиент открыл ссылку «Поделиться» и переходит в магазин:
+ * `logins` за день +1. Без входа — счётчик, а не данные человека.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST …/share/i/login` — 204, `logins` за день +1.
+ * 2. Негативный 404 `SHOP_LINK_NOT_FOUND`: неизвестный код или вид.
+ * @summary Вход клиента по ссылке «Поделиться»
+ */
+export const countShareLogin = async (code: string,
+    kind: string, options?: Parameters<typeof apiRequest>[1]): Promise<countShareLoginResponse> => {
+
+  return apiRequest<countShareLoginResponse>(getCountShareLoginUrl(code,kind),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCountShareLoginMutationKey = () => ['countShareLogin'] as const;
+
+export const getCountShareLoginMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof countShareLogin>>, TError,CountShareLoginMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof countShareLogin>>, TError,CountShareLoginMutationVariables, TContext> => {
+
+const mutationKey = getCountShareLoginMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof countShareLogin>>, CountShareLoginMutationVariables> = (props) => {
+          const {code,kind} = props ?? {};
+
+          return  countShareLogin(code,kind,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CountShareLoginMutationResult = NonNullable<Awaited<ReturnType<typeof countShareLogin>>>
+
+    export type CountShareLoginMutationError = ErrorResponse
+    export type CountShareLoginMutationVariables = {code: string;kind: string}
+
+    /**
+ * @summary Вход клиента по ссылке «Поделиться»
+ */
+export const useCountShareLogin = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof countShareLogin>>, TError,CountShareLoginMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof countShareLogin>>,
+        TError,
+        CountShareLoginMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCountShareLoginMutationOptions(options), queryClient);
+    }
+
+export type countShareCartResponse204 = {
+  data: void
+  status: 204
+}
+
+export type countShareCartResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type countShareCartResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type countShareCartResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type countShareCartResponseSuccess = (countShareCartResponse204) & {
+  headers: Headers;
+};
+export type countShareCartResponseError = (countShareCartResponse400 | countShareCartResponse404 | countShareCartResponse500) & {
+  headers: Headers;
+};
+
+export type countShareCartResponse = (countShareCartResponseSuccess | countShareCartResponseError)
+
+export const getCountShareCartUrl = (code: string,
+    kind: string,) => {
+
+
+
+
+  return `/api/portal/join-shop/${code}/share/${kind}/cart`
+}
+
+/**
+ * Кабинет вызывает один раз за визит по ссылке «Поделиться»: при первом добавлении товара
+ * в корзину. `carts` за день +1. Без людей и товаров — только счётчик.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST …/share/i/cart` — 204, `carts` за день +1.
+ * 2. Негативный 404 `SHOP_LINK_NOT_FOUND`: неизвестный код или вид.
+ * @summary Корзина после ссылки «Поделиться»
+ */
+export const countShareCart = async (code: string,
+    kind: string, options?: Parameters<typeof apiRequest>[1]): Promise<countShareCartResponse> => {
+
+  return apiRequest<countShareCartResponse>(getCountShareCartUrl(code,kind),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCountShareCartMutationKey = () => ['countShareCart'] as const;
+
+export const getCountShareCartMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof countShareCart>>, TError,CountShareCartMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof countShareCart>>, TError,CountShareCartMutationVariables, TContext> => {
+
+const mutationKey = getCountShareCartMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof countShareCart>>, CountShareCartMutationVariables> = (props) => {
+          const {code,kind} = props ?? {};
+
+          return  countShareCart(code,kind,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CountShareCartMutationResult = NonNullable<Awaited<ReturnType<typeof countShareCart>>>
+
+    export type CountShareCartMutationError = ErrorResponse
+    export type CountShareCartMutationVariables = {code: string;kind: string}
+
+    /**
+ * @summary Корзина после ссылки «Поделиться»
+ */
+export const useCountShareCart = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof countShareCart>>, TError,CountShareCartMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof countShareCart>>,
+        TError,
+        CountShareCartMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCountShareCartMutationOptions(options), queryClient);
     }
 
 export type createAccessRequestResponse201 = {
@@ -42676,12 +53671,19 @@ export type addPortalFavoritesToCartResponseError = (addPortalFavoritesToCartRes
 
 export type addPortalFavoritesToCartResponse = (addPortalFavoritesToCartResponseSuccess | addPortalFavoritesToCartResponseError)
 
-export const getAddPortalFavoritesToCartUrl = () => {
+export const getAddPortalFavoritesToCartUrl = (params?: AddPortalFavoritesToCartParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/portal/favorites/to-cart`
+  return stringifiedParams.length > 0 ? `/api/portal/favorites/to-cart?${stringifiedParams}` : `/api/portal/favorites/to-cart`
 }
 
 /**
@@ -42699,9 +53701,9 @@ export const getAddPortalFavoritesToCartUrl = () => {
  * 6. Негативный 403: заголовок чужого поставщика.
  * @summary Добавить доступное в заявку
  */
-export const addPortalFavoritesToCart = async ( options?: Parameters<typeof apiRequest>[1]): Promise<addPortalFavoritesToCartResponse> => {
+export const addPortalFavoritesToCart = async (params?: AddPortalFavoritesToCartParams, options?: Parameters<typeof apiRequest>[1]): Promise<addPortalFavoritesToCartResponse> => {
 
-  return apiRequest<addPortalFavoritesToCartResponse>(getAddPortalFavoritesToCartUrl(),
+  return apiRequest<addPortalFavoritesToCartResponse>(getAddPortalFavoritesToCartUrl(params),
   {
     ...options,
     method: 'POST'
@@ -42717,8 +53719,8 @@ export const addPortalFavoritesToCart = async ( options?: Parameters<typeof apiR
 export const getAddPortalFavoritesToCartMutationKey = () => ['addPortalFavoritesToCart'] as const;
 
 export const getAddPortalFavoritesToCartMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPortalFavoritesToCart>>, TError,void, TContext>, request?: SecondParameter<typeof apiRequest>}
-): UseMutationOptions<Awaited<ReturnType<typeof addPortalFavoritesToCart>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPortalFavoritesToCart>>, TError,AddPortalFavoritesToCartMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof addPortalFavoritesToCart>>, TError,AddPortalFavoritesToCartMutationVariables, TContext> => {
 
 const mutationKey = getAddPortalFavoritesToCartMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -42730,10 +53732,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPortalFavoritesToCart>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addPortalFavoritesToCart>>, AddPortalFavoritesToCartMutationVariables> = (props) => {
+          const {params} = props ?? {};
 
-
-          return  addPortalFavoritesToCart(requestOptions)
+          return  addPortalFavoritesToCart(params,requestOptions)
         }
 
 
@@ -42746,20 +53748,155 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AddPortalFavoritesToCartMutationResult = NonNullable<Awaited<ReturnType<typeof addPortalFavoritesToCart>>>
 
     export type AddPortalFavoritesToCartMutationError = ErrorResponse
-
+    export type AddPortalFavoritesToCartMutationVariables = {params?: AddPortalFavoritesToCartParams}
 
     /**
  * @summary Добавить доступное в заявку
  */
 export const useAddPortalFavoritesToCart = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPortalFavoritesToCart>>, TError,void, TContext>, request?: SecondParameter<typeof apiRequest>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPortalFavoritesToCart>>, TError,AddPortalFavoritesToCartMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof addPortalFavoritesToCart>>,
         TError,
-        void,
+        AddPortalFavoritesToCartMutationVariables,
         TContext
       > => {
       return useMutation(getAddPortalFavoritesToCartMutationOptions(options), queryClient);
+    }
+
+export type claimPortalDebtPaymentResponse200 = {
+  data: CustomerDebtDto
+  status: 200
+}
+
+export type claimPortalDebtPaymentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type claimPortalDebtPaymentResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type claimPortalDebtPaymentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type claimPortalDebtPaymentResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type claimPortalDebtPaymentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type claimPortalDebtPaymentResponseSuccess = (claimPortalDebtPaymentResponse200) & {
+  headers: Headers;
+};
+export type claimPortalDebtPaymentResponseError = (claimPortalDebtPaymentResponse400 | claimPortalDebtPaymentResponse403 | claimPortalDebtPaymentResponse404 | claimPortalDebtPaymentResponse409 | claimPortalDebtPaymentResponse500) & {
+  headers: Headers;
+};
+
+export type claimPortalDebtPaymentResponse = (claimPortalDebtPaymentResponseSuccess | claimPortalDebtPaymentResponseError)
+
+export const getClaimPortalDebtPaymentUrl = () => {
+
+
+
+
+  return `/api/portal/debt/claims`
+}
+
+/**
+ * Клиент отмечает, за какие товары и сколько он заплатил (например, за то, что уже продал). Долг не меняется, пока продавец не подтвердит: сумма видна как «на подтверждении». Подтвердил — выплата за эти товары; отклонил — причина видна здесь же.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Сообщить 12 000 за строку «Пальто» — `pending` 12 000, у строки `pending` 12 000, `debt` прежний; в `claims` сообщение `PENDING`.
+ * 2. Негативный 409 `DEBT_CLAIM_EXCEEDS_LINE`: больше остатка строки за вычетом сообщённого.
+ * 3. Негативный 404 `DEBT_CLAIM_LINE_NOT_FOUND`: строка чужого или обычного заказа.
+ * 4. Негативный 403: сотрудник продавца, открывший кабинет как клиент.
+ * @summary Сообщить об оплате долга
+ */
+export const claimPortalDebtPayment = async (debtClaimRequest: DebtClaimRequest, options?: Parameters<typeof apiRequest>[1]): Promise<claimPortalDebtPaymentResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<claimPortalDebtPaymentResponse>(getClaimPortalDebtPaymentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(debtClaimRequest)
+  }
+);}
+
+
+
+
+
+export const getClaimPortalDebtPaymentMutationKey = () => ['claimPortalDebtPayment'] as const;
+
+export const getClaimPortalDebtPaymentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimPortalDebtPayment>>, TError,ClaimPortalDebtPaymentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimPortalDebtPayment>>, TError,ClaimPortalDebtPaymentMutationVariables, TContext> => {
+
+const mutationKey = getClaimPortalDebtPaymentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimPortalDebtPayment>>, ClaimPortalDebtPaymentMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  claimPortalDebtPayment(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClaimPortalDebtPaymentMutationResult = NonNullable<Awaited<ReturnType<typeof claimPortalDebtPayment>>>
+    export type ClaimPortalDebtPaymentMutationBody = DebtClaimRequest
+    export type ClaimPortalDebtPaymentMutationError = ErrorResponse
+    export type ClaimPortalDebtPaymentMutationVariables = {data: DebtClaimRequest}
+
+    /**
+ * @summary Сообщить об оплате долга
+ */
+export const useClaimPortalDebtPayment = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimPortalDebtPayment>>, TError,ClaimPortalDebtPaymentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof claimPortalDebtPayment>>,
+        TError,
+        ClaimPortalDebtPaymentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getClaimPortalDebtPaymentMutationOptions(options), queryClient);
     }
 
 export type putPortalCartWholesaleMinimumResponse200 = {
@@ -42911,12 +54048,20 @@ export type fillPortalCartFromTemplateResponseError = (fillPortalCartFromTemplat
 
 export type fillPortalCartFromTemplateResponse = (fillPortalCartFromTemplateResponseSuccess | fillPortalCartFromTemplateResponseError)
 
-export const getFillPortalCartFromTemplateUrl = (templateId: string,) => {
+export const getFillPortalCartFromTemplateUrl = (templateId: string,
+    params?: FillPortalCartFromTemplateParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/portal/cart/from-template/${templateId}`
+  return stringifiedParams.length > 0 ? `/api/portal/cart/from-template/${templateId}?${stringifiedParams}` : `/api/portal/cart/from-template/${templateId}`
 }
 
 /**
@@ -42930,9 +54075,10 @@ export const getFillPortalCartFromTemplateUrl = (templateId: string,) => {
  * 4. Негативный 403: заголовок чужого поставщика.
  * @summary Загрузить шаблон в корзину
  */
-export const fillPortalCartFromTemplate = async (templateId: string, options?: Parameters<typeof apiRequest>[1]): Promise<fillPortalCartFromTemplateResponse> => {
+export const fillPortalCartFromTemplate = async (templateId: string,
+    params?: FillPortalCartFromTemplateParams, options?: Parameters<typeof apiRequest>[1]): Promise<fillPortalCartFromTemplateResponse> => {
 
-  return apiRequest<fillPortalCartFromTemplateResponse>(getFillPortalCartFromTemplateUrl(templateId),
+  return apiRequest<fillPortalCartFromTemplateResponse>(getFillPortalCartFromTemplateUrl(templateId,params),
   {
     ...options,
     method: 'POST'
@@ -42962,9 +54108,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof fillPortalCartFromTemplate>>, FillPortalCartFromTemplateMutationVariables> = (props) => {
-          const {templateId} = props ?? {};
+          const {templateId,params} = props ?? {};
 
-          return  fillPortalCartFromTemplate(templateId,requestOptions)
+          return  fillPortalCartFromTemplate(templateId,params,requestOptions)
         }
 
 
@@ -42977,7 +54123,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type FillPortalCartFromTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof fillPortalCartFromTemplate>>>
 
     export type FillPortalCartFromTemplateMutationError = ErrorResponse
-    export type FillPortalCartFromTemplateMutationVariables = {templateId: string}
+    export type FillPortalCartFromTemplateMutationVariables = {templateId: string;params?: FillPortalCartFromTemplateParams}
 
     /**
  * @summary Загрузить шаблон в корзину
@@ -43027,12 +54173,20 @@ export type fillPortalCartFromOrderResponseError = (fillPortalCartFromOrderRespo
 
 export type fillPortalCartFromOrderResponse = (fillPortalCartFromOrderResponseSuccess | fillPortalCartFromOrderResponseError)
 
-export const getFillPortalCartFromOrderUrl = (orderId: string,) => {
+export const getFillPortalCartFromOrderUrl = (orderId: string,
+    params?: FillPortalCartFromOrderParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/portal/cart/from-order/${orderId}`
+  return stringifiedParams.length > 0 ? `/api/portal/cart/from-order/${orderId}?${stringifiedParams}` : `/api/portal/cart/from-order/${orderId}`
 }
 
 /**
@@ -43046,9 +54200,10 @@ export const getFillPortalCartFromOrderUrl = (orderId: string,) => {
  * 4. Негативный 403: заголовок чужого поставщика.
  * @summary Заказать то же ещё раз
  */
-export const fillPortalCartFromOrder = async (orderId: string, options?: Parameters<typeof apiRequest>[1]): Promise<fillPortalCartFromOrderResponse> => {
+export const fillPortalCartFromOrder = async (orderId: string,
+    params?: FillPortalCartFromOrderParams, options?: Parameters<typeof apiRequest>[1]): Promise<fillPortalCartFromOrderResponse> => {
 
-  return apiRequest<fillPortalCartFromOrderResponse>(getFillPortalCartFromOrderUrl(orderId),
+  return apiRequest<fillPortalCartFromOrderResponse>(getFillPortalCartFromOrderUrl(orderId,params),
   {
     ...options,
     method: 'POST'
@@ -43078,9 +54233,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof fillPortalCartFromOrder>>, FillPortalCartFromOrderMutationVariables> = (props) => {
-          const {orderId} = props ?? {};
+          const {orderId,params} = props ?? {};
 
-          return  fillPortalCartFromOrder(orderId,requestOptions)
+          return  fillPortalCartFromOrder(orderId,params,requestOptions)
         }
 
 
@@ -43093,7 +54248,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type FillPortalCartFromOrderMutationResult = NonNullable<Awaited<ReturnType<typeof fillPortalCartFromOrder>>>
 
     export type FillPortalCartFromOrderMutationError = ErrorResponse
-    export type FillPortalCartFromOrderMutationVariables = {orderId: string}
+    export type FillPortalCartFromOrderMutationVariables = {orderId: string;params?: FillPortalCartFromOrderParams}
 
     /**
  * @summary Заказать то же ещё раз
@@ -43143,12 +54298,19 @@ export type repeatLastPortalOrderResponseError = (repeatLastPortalOrderResponse4
 
 export type repeatLastPortalOrderResponse = (repeatLastPortalOrderResponseSuccess | repeatLastPortalOrderResponseError)
 
-export const getRepeatLastPortalOrderUrl = () => {
+export const getRepeatLastPortalOrderUrl = (params?: RepeatLastPortalOrderParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/portal/cart/from-last-order`
+  return stringifiedParams.length > 0 ? `/api/portal/cart/from-last-order?${stringifiedParams}` : `/api/portal/cart/from-last-order`
 }
 
 /**
@@ -43164,9 +54326,9 @@ export const getRepeatLastPortalOrderUrl = () => {
  * 4. Негативный 403: заголовок чужого поставщика.
  * @summary Повторить прошлый заказ
  */
-export const repeatLastPortalOrder = async ( options?: Parameters<typeof apiRequest>[1]): Promise<repeatLastPortalOrderResponse> => {
+export const repeatLastPortalOrder = async (params?: RepeatLastPortalOrderParams, options?: Parameters<typeof apiRequest>[1]): Promise<repeatLastPortalOrderResponse> => {
 
-  return apiRequest<repeatLastPortalOrderResponse>(getRepeatLastPortalOrderUrl(),
+  return apiRequest<repeatLastPortalOrderResponse>(getRepeatLastPortalOrderUrl(params),
   {
     ...options,
     method: 'POST'
@@ -43182,8 +54344,8 @@ export const repeatLastPortalOrder = async ( options?: Parameters<typeof apiRequ
 export const getRepeatLastPortalOrderMutationKey = () => ['repeatLastPortalOrder'] as const;
 
 export const getRepeatLastPortalOrderMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repeatLastPortalOrder>>, TError,void, TContext>, request?: SecondParameter<typeof apiRequest>}
-): UseMutationOptions<Awaited<ReturnType<typeof repeatLastPortalOrder>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repeatLastPortalOrder>>, TError,RepeatLastPortalOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof repeatLastPortalOrder>>, TError,RepeatLastPortalOrderMutationVariables, TContext> => {
 
 const mutationKey = getRepeatLastPortalOrderMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -43195,10 +54357,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof repeatLastPortalOrder>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof repeatLastPortalOrder>>, RepeatLastPortalOrderMutationVariables> = (props) => {
+          const {params} = props ?? {};
 
-
-          return  repeatLastPortalOrder(requestOptions)
+          return  repeatLastPortalOrder(params,requestOptions)
         }
 
 
@@ -43211,17 +54373,17 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RepeatLastPortalOrderMutationResult = NonNullable<Awaited<ReturnType<typeof repeatLastPortalOrder>>>
 
     export type RepeatLastPortalOrderMutationError = ErrorResponse
-
+    export type RepeatLastPortalOrderMutationVariables = {params?: RepeatLastPortalOrderParams}
 
     /**
  * @summary Повторить прошлый заказ
  */
 export const useRepeatLastPortalOrder = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repeatLastPortalOrder>>, TError,void, TContext>, request?: SecondParameter<typeof apiRequest>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof repeatLastPortalOrder>>, TError,RepeatLastPortalOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof repeatLastPortalOrder>>,
         TError,
-        void,
+        RepeatLastPortalOrderMutationVariables,
         TContext
       > => {
       return useMutation(getRepeatLastPortalOrderMutationOptions(options), queryClient);
@@ -45754,6 +56916,250 @@ export const useLinkUnmatchedLine = <TError = ErrorResponse | UnmatchedLinkResul
       return useMutation(getLinkUnmatchedLineMutationOptions(options), queryClient);
     }
 
+export type rejectDebtClaimResponse200 = {
+  data: DebtClaimDto
+  status: 200
+}
+
+export type rejectDebtClaimResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type rejectDebtClaimResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type rejectDebtClaimResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type rejectDebtClaimResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type rejectDebtClaimResponseSuccess = (rejectDebtClaimResponse200) & {
+  headers: Headers;
+};
+export type rejectDebtClaimResponseError = (rejectDebtClaimResponse400 | rejectDebtClaimResponse404 | rejectDebtClaimResponse409 | rejectDebtClaimResponse500) & {
+  headers: Headers;
+};
+
+export type rejectDebtClaimResponse = (rejectDebtClaimResponseSuccess | rejectDebtClaimResponseError)
+
+export const getRejectDebtClaimUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/debt-claims/${id}/reject`
+}
+
+/**
+ * Денег не было: долг прежний, клиент видит «Отклонено» и причину.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отклонить с причиной «перевод не пришёл» — у клиента в `GET /api/portal/debt` сообщение `REJECTED` с этой причиной, `pending` снова ноль.
+ * 2. Негативный 400: пустая причина.
+ * @summary Отклонить оплату, о которой сообщил клиент
+ */
+export const rejectDebtClaim = async (id: string,
+    rejectDebtClaimRequest: RejectDebtClaimRequest, options?: Parameters<typeof apiRequest>[1]): Promise<rejectDebtClaimResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<rejectDebtClaimResponse>(getRejectDebtClaimUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(rejectDebtClaimRequest)
+  }
+);}
+
+
+
+
+
+export const getRejectDebtClaimMutationKey = () => ['rejectDebtClaim'] as const;
+
+export const getRejectDebtClaimMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectDebtClaim>>, TError,RejectDebtClaimMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectDebtClaim>>, TError,RejectDebtClaimMutationVariables, TContext> => {
+
+const mutationKey = getRejectDebtClaimMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectDebtClaim>>, RejectDebtClaimMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rejectDebtClaim(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectDebtClaimMutationResult = NonNullable<Awaited<ReturnType<typeof rejectDebtClaim>>>
+    export type RejectDebtClaimMutationBody = RejectDebtClaimRequest
+    export type RejectDebtClaimMutationError = ErrorResponse
+    export type RejectDebtClaimMutationVariables = {id: string;data: RejectDebtClaimRequest}
+
+    /**
+ * @summary Отклонить оплату, о которой сообщил клиент
+ */
+export const useRejectDebtClaim = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectDebtClaim>>, TError,RejectDebtClaimMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rejectDebtClaim>>,
+        TError,
+        RejectDebtClaimMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRejectDebtClaimMutationOptions(options), queryClient);
+    }
+
+export type confirmDebtClaimResponse200 = {
+  data: DebtClaimDto
+  status: 200
+}
+
+export type confirmDebtClaimResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type confirmDebtClaimResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type confirmDebtClaimResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type confirmDebtClaimResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type confirmDebtClaimResponseSuccess = (confirmDebtClaimResponse200) & {
+  headers: Headers;
+};
+export type confirmDebtClaimResponseError = (confirmDebtClaimResponse400 | confirmDebtClaimResponse404 | confirmDebtClaimResponse409 | confirmDebtClaimResponse500) & {
+  headers: Headers;
+};
+
+export type confirmDebtClaimResponse = (confirmDebtClaimResponseSuccess | confirmDebtClaimResponseError)
+
+export const getConfirmDebtClaimUrl = (id: string,) => {
+
+
+
+
+  return `/api/orders/debt-claims/${id}/confirm`
+}
+
+/**
+ * Деньги получены: по каждому заказу записывается выплата с разбивкой по названным товарам, долг уменьшается, клиент видит «Подтверждено». Остаток перепроверяется сейчас: если после сообщения приняли деньги у кассы или оформили возврат, переплату не запишем.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Клиент сообщил 12 000 за «Пальто» — подтвердить: в `GET /api/orders/{id}/payments` выплата 12 000, у клиента остаток по строке меньше на 12 000.
+ * 2. Негативный 409 `DEBT_CLAIM_DECIDED`: подтвердить второй раз.
+ * 3. Негативный 409 `DEBT_CLAIM_EXCEEDS_LINE`: остаток товара за это время стал меньше.
+ * @summary Подтвердить оплату, о которой сообщил клиент
+ */
+export const confirmDebtClaim = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<confirmDebtClaimResponse> => {
+
+  return apiRequest<confirmDebtClaimResponse>(getConfirmDebtClaimUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getConfirmDebtClaimMutationKey = () => ['confirmDebtClaim'] as const;
+
+export const getConfirmDebtClaimMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmDebtClaim>>, TError,ConfirmDebtClaimMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmDebtClaim>>, TError,ConfirmDebtClaimMutationVariables, TContext> => {
+
+const mutationKey = getConfirmDebtClaimMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmDebtClaim>>, ConfirmDebtClaimMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  confirmDebtClaim(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmDebtClaimMutationResult = NonNullable<Awaited<ReturnType<typeof confirmDebtClaim>>>
+
+    export type ConfirmDebtClaimMutationError = ErrorResponse
+    export type ConfirmDebtClaimMutationVariables = {id: string}
+
+    /**
+ * @summary Подтвердить оплату, о которой сообщил клиент
+ */
+export const useConfirmDebtClaim = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmDebtClaim>>, TError,ConfirmDebtClaimMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmDebtClaim>>,
+        TError,
+        ConfirmDebtClaimMutationVariables,
+        TContext
+      > => {
+      return useMutation(getConfirmDebtClaimMutationOptions(options), queryClient);
+    }
+
 export type markNotificationReadResponse200 = {
   data: void
   status: 200
@@ -45867,6 +57273,852 @@ export const useMarkNotificationRead = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getMarkNotificationReadMutationOptions(options), queryClient);
+    }
+
+export type rotateMyInviteResponse200 = {
+  data: StaffInviteDto
+  status: 200
+}
+
+export type rotateMyInviteResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type rotateMyInviteResponse403 = {
+  data: StaffInviteDto
+  status: 403
+}
+
+export type rotateMyInviteResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type rotateMyInviteResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type rotateMyInviteResponseSuccess = (rotateMyInviteResponse200) & {
+  headers: Headers;
+};
+export type rotateMyInviteResponseError = (rotateMyInviteResponse400 | rotateMyInviteResponse403 | rotateMyInviteResponse404 | rotateMyInviteResponse500) & {
+  headers: Headers;
+};
+
+export type rotateMyInviteResponse = (rotateMyInviteResponseSuccess | rotateMyInviteResponseError)
+
+export const getRotateMyInviteUrl = () => {
+
+
+
+
+  return `/api/my/invite/rotate`
+}
+
+/**
+ * Прежняя личная ссылка гаснет — например, её переслали не тому.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `POST` — 200 с новым кодом; страница по старому коду — 404 `SHOP_LINK_NOT_FOUND`.
+ * 2. Негативный 403: нет полного доступа к заявкам.
+ * @summary Сменить мою ссылку
+ */
+export const rotateMyInvite = async ( options?: Parameters<typeof apiRequest>[1]): Promise<rotateMyInviteResponse> => {
+
+  return apiRequest<rotateMyInviteResponse>(getRotateMyInviteUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRotateMyInviteMutationKey = () => ['rotateMyInvite'] as const;
+
+export const getRotateMyInviteMutationOptions = <TError = ErrorResponse | StaffInviteDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateMyInvite>>, TError,void, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof rotateMyInvite>>, TError,void, TContext> => {
+
+const mutationKey = getRotateMyInviteMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rotateMyInvite>>, void> = () => {
+
+
+          return  rotateMyInvite(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RotateMyInviteMutationResult = NonNullable<Awaited<ReturnType<typeof rotateMyInvite>>>
+
+    export type RotateMyInviteMutationError = ErrorResponse | StaffInviteDto
+
+
+    /**
+ * @summary Сменить мою ссылку
+ */
+export const useRotateMyInvite = <TError = ErrorResponse | StaffInviteDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rotateMyInvite>>, TError,void, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rotateMyInvite>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRotateMyInviteMutationOptions(options), queryClient);
+    }
+
+export type inviteByPhoneResponse200 = {
+  data: InvitationDto
+  status: 200
+}
+
+export type inviteByPhoneResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type inviteByPhoneResponse403 = {
+  data: InvitationDto
+  status: 403
+}
+
+export type inviteByPhoneResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type inviteByPhoneResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type inviteByPhoneResponseSuccess = (inviteByPhoneResponse200) & {
+  headers: Headers;
+};
+export type inviteByPhoneResponseError = (inviteByPhoneResponse400 | inviteByPhoneResponse403 | inviteByPhoneResponse404 | inviteByPhoneResponse500) & {
+  headers: Headers;
+};
+
+export type inviteByPhoneResponse = (inviteByPhoneResponseSuccess | inviteByPhoneResponseError)
+
+export const getInviteByPhoneUrl = () => {
+
+
+
+
+  return `/api/my/invite/phone`
+}
+
+/**
+ * Отложенное приглашение — для того, у кого под рукой нет приложения: клиент сразу закрепляется
+ * за сотрудником (если ещё ничей), приглашение уходит в WhatsApp и ждёт его в кабинете, пока он
+ * не войдёт под этим номером. Выписка та же, что у администратора в «Клиентах».
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `{"phone":"77010000099","name":"Айгуль"}` — 200, в карточке клиента продавец — вы.
+ * 2. Негативный 400: номер не цифрами; 409 `CUSTOMER_LIMIT_REACHED`: места по тарифу кончились.
+ * @summary Пригласить клиента по номеру
+ */
+export const inviteByPhone = async (issueInvitationRequest: IssueInvitationRequest, options?: Parameters<typeof apiRequest>[1]): Promise<inviteByPhoneResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<inviteByPhoneResponse>(getInviteByPhoneUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(issueInvitationRequest)
+  }
+);}
+
+
+
+
+
+export const getInviteByPhoneMutationKey = () => ['inviteByPhone'] as const;
+
+export const getInviteByPhoneMutationOptions = <TError = ErrorResponse | InvitationDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteByPhone>>, TError,InviteByPhoneMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteByPhone>>, TError,InviteByPhoneMutationVariables, TContext> => {
+
+const mutationKey = getInviteByPhoneMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteByPhone>>, InviteByPhoneMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  inviteByPhone(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteByPhoneMutationResult = NonNullable<Awaited<ReturnType<typeof inviteByPhone>>>
+    export type InviteByPhoneMutationBody = IssueInvitationRequest
+    export type InviteByPhoneMutationError = ErrorResponse | InvitationDto
+    export type InviteByPhoneMutationVariables = {data: IssueInvitationRequest}
+
+    /**
+ * @summary Пригласить клиента по номеру
+ */
+export const useInviteByPhone = <TError = ErrorResponse | InvitationDto,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteByPhone>>, TError,InviteByPhoneMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof inviteByPhone>>,
+        TError,
+        InviteByPhoneMutationVariables,
+        TContext
+      > => {
+      return useMutation(getInviteByPhoneMutationOptions(options), queryClient);
+    }
+
+export type handOverResponse200 = {
+  data: HandoverDto
+  status: 200
+}
+
+export type handOverResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type handOverResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type handOverResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type handOverResponseSuccess = (handOverResponse200) & {
+  headers: Headers;
+};
+export type handOverResponseError = (handOverResponse400 | handOverResponse404 | handOverResponse500) & {
+  headers: Headers;
+};
+
+export type handOverResponse = (handOverResponseSuccess | handOverResponseError)
+
+export const getHandOverUrl = () => {
+
+
+
+
+  return `/api/handovers`
+}
+
+/**
+ * Клиенты уходящего делятся между получателями поровну; его открытые заявки уходят продавцу своего клиента, остальные — первому получателю (журнал назначений: `handover`). Замены с участием уходящего заканчиваются. Клиентам с кабинетом приходит `MANAGER_CHANGED`, получателям — `CUSTOMERS_HANDED_OVER`. Вход уходящему не закрывается: это отдельный запрос `DELETE /api/tenant/staff/{id}/access`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором, отправить `{"fromId":…,"toIds":[…, …]}` — 200, в ответе сколько клиентов и заявок ушло; в «Клиентах» у них новые продавцы.
+ * 2. Негативный 400 `HANDOVER_TO_SELF`: уходящий среди получателей.
+ * 3. Негативный 400 `ASSIGNEE_NOT_ELIGIBLE`: получатель не ведёт заявки.
+ * 4. Негативный 400: пустой `toIds`.
+ * @summary Передать клиентов и заявки насовсем
+ */
+export const handOver = async (handoverRequest: HandoverRequest, options?: Parameters<typeof apiRequest>[1]): Promise<handOverResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<handOverResponse>(getHandOverUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(handoverRequest)
+  }
+);}
+
+
+
+
+
+export const getHandOverMutationKey = () => ['handOver'] as const;
+
+export const getHandOverMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handOver>>, TError,HandOverMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof handOver>>, TError,HandOverMutationVariables, TContext> => {
+
+const mutationKey = getHandOverMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof handOver>>, HandOverMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  handOver(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type HandOverMutationResult = NonNullable<Awaited<ReturnType<typeof handOver>>>
+    export type HandOverMutationBody = HandoverRequest
+    export type HandOverMutationError = ErrorResponse
+    export type HandOverMutationVariables = {data: HandoverRequest}
+
+    /**
+ * @summary Передать клиентов и заявки насовсем
+ */
+export const useHandOver = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof handOver>>, TError,HandOverMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof handOver>>,
+        TError,
+        HandOverMutationVariables,
+        TContext
+      > => {
+      return useMutation(getHandOverMutationOptions(options), queryClient);
+    }
+
+export type resendExchangeOrderResponse200 = {
+  data: ExchangeOrderTraceDto
+  status: 200
+}
+
+export type resendExchangeOrderResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type resendExchangeOrderResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type resendExchangeOrderResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type resendExchangeOrderResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type resendExchangeOrderResponseSuccess = (resendExchangeOrderResponse200) & {
+  headers: Headers;
+};
+export type resendExchangeOrderResponseError = (resendExchangeOrderResponse400 | resendExchangeOrderResponse404 | resendExchangeOrderResponse409 | resendExchangeOrderResponse500) & {
+  headers: Headers;
+};
+
+export type resendExchangeOrderResponse = (resendExchangeOrderResponseSuccess | resendExchangeOrderResponseError)
+
+export const getResendExchangeOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/exchange/orders/${orderId}/resend`
+}
+
+/**
+ * Только заказ, который 1С не примет: после того как товарам дали коды 1С, он встаёт новой
+ * ревизией — `PENDING`, или снова `REJECTED`, если код есть не у всех.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Связать товар с кодом (`PUT /api/exchange/items/{itemId}/code`), затем этот вызов — последняя
+ *    ревизия `PENDING`.
+ * 2. Негативный 409 `EXCHANGE_ORDER_NOT_REJECTED`: заказ и так в очереди.
+ * @summary Отправить заказ в 1С заново
+ */
+export const resendExchangeOrder = async (orderId: string, options?: Parameters<typeof apiRequest>[1]): Promise<resendExchangeOrderResponse> => {
+
+  return apiRequest<resendExchangeOrderResponse>(getResendExchangeOrderUrl(orderId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResendExchangeOrderMutationKey = () => ['resendExchangeOrder'] as const;
+
+export const getResendExchangeOrderMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendExchangeOrder>>, TError,ResendExchangeOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendExchangeOrder>>, TError,ResendExchangeOrderMutationVariables, TContext> => {
+
+const mutationKey = getResendExchangeOrderMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendExchangeOrder>>, ResendExchangeOrderMutationVariables> = (props) => {
+          const {orderId} = props ?? {};
+
+          return  resendExchangeOrder(orderId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendExchangeOrderMutationResult = NonNullable<Awaited<ReturnType<typeof resendExchangeOrder>>>
+
+    export type ResendExchangeOrderMutationError = ErrorResponse
+    export type ResendExchangeOrderMutationVariables = {orderId: string}
+
+    /**
+ * @summary Отправить заказ в 1С заново
+ */
+export const useResendExchangeOrder = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendExchangeOrder>>, TError,ResendExchangeOrderMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resendExchangeOrder>>,
+        TError,
+        ResendExchangeOrderMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResendExchangeOrderMutationOptions(options), queryClient);
+    }
+
+export type listExchangeKeysResponse200 = {
+  data: ExchangeKeyDto[]
+  status: 200
+}
+
+export type listExchangeKeysResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listExchangeKeysResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listExchangeKeysResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listExchangeKeysResponseSuccess = (listExchangeKeysResponse200) & {
+  headers: Headers;
+};
+export type listExchangeKeysResponseError = (listExchangeKeysResponse400 | listExchangeKeysResponse404 | listExchangeKeysResponse500) & {
+  headers: Headers;
+};
+
+export type listExchangeKeysResponse = (listExchangeKeysResponseSuccess | listExchangeKeysResponseError)
+
+export const getListExchangeKeysUrl = () => {
+
+
+
+
+  return `/api/exchange/keys`
+}
+
+/**
+ * Когда выдан и когда им последний раз пользовалась 1С. Самого ключа нет — хранится отпечаток.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Выдать ключ — он в списке, `lastUsedAt` пусто; после обмена 1С — время.
+ * 2. Отозвать — из списка пропал.
+ * @summary Действующие ключи обмена
+ */
+export const listExchangeKeys = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listExchangeKeysResponse> => {
+
+  return apiRequest<listExchangeKeysResponse>(getListExchangeKeysUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExchangeKeysQueryKey = () => {
+    return [
+    `/api/exchange/keys`
+    ] as const;
+    }
+
+
+export const getListExchangeKeysQueryOptions = <TData = Awaited<ReturnType<typeof listExchangeKeys>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeKeys>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExchangeKeysQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExchangeKeys>>> = ({ signal }) => listExchangeKeys({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExchangeKeys>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListExchangeKeysQueryResult = NonNullable<Awaited<ReturnType<typeof listExchangeKeys>>>
+export type ListExchangeKeysQueryError = ErrorResponse
+
+
+export function useListExchangeKeys<TData = Awaited<ReturnType<typeof listExchangeKeys>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeKeys>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listExchangeKeys>>,
+          TError,
+          Awaited<ReturnType<typeof listExchangeKeys>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListExchangeKeys<TData = Awaited<ReturnType<typeof listExchangeKeys>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeKeys>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listExchangeKeys>>,
+          TError,
+          Awaited<ReturnType<typeof listExchangeKeys>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListExchangeKeys<TData = Awaited<ReturnType<typeof listExchangeKeys>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeKeys>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Действующие ключи обмена
+ */
+
+export function useListExchangeKeys<TData = Awaited<ReturnType<typeof listExchangeKeys>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeKeys>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListExchangeKeysQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type issueExchangeKeyResponse201 = {
+  data: IssuedExchangeKeyDto
+  status: 201
+}
+
+export type issueExchangeKeyResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type issueExchangeKeyResponse403 = {
+  data: void
+  status: 403
+}
+
+export type issueExchangeKeyResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type issueExchangeKeyResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type issueExchangeKeyResponseSuccess = (issueExchangeKeyResponse201) & {
+  headers: Headers;
+};
+export type issueExchangeKeyResponseError = (issueExchangeKeyResponse400 | issueExchangeKeyResponse403 | issueExchangeKeyResponse404 | issueExchangeKeyResponse500) & {
+  headers: Headers;
+};
+
+export type issueExchangeKeyResponse = (issueExchangeKeyResponseSuccess | issueExchangeKeyResponseError)
+
+export const getIssueExchangeKeyUrl = () => {
+
+
+
+
+  return `/api/exchange/keys`
+}
+
+/**
+ * Ключ открытым текстом в ответе — единственный раз: дальше хранится только отпечаток.
+ * Прежние ключи не отзываются (у магазина может быть несколько баз 1С). Пишется в журнал
+ * доступа (`EXCHANGE_KEY_ISSUED`).
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Администратором — 201 с `key`; `GET /api/1c/orders` с этим ключом в `X-Exchange-Key` — 200.
+ * 2. Негативный 403: под менеджером.
+ * @summary Выдать ключ обмена
+ */
+export const issueExchangeKey = async ( options?: Parameters<typeof apiRequest>[1]): Promise<issueExchangeKeyResponse> => {
+
+  return apiRequest<issueExchangeKeyResponse>(getIssueExchangeKeyUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getIssueExchangeKeyMutationKey = () => ['issueExchangeKey'] as const;
+
+export const getIssueExchangeKeyMutationOptions = <TError = ErrorResponse | void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueExchangeKey>>, TError,void, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof issueExchangeKey>>, TError,void, TContext> => {
+
+const mutationKey = getIssueExchangeKeyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof issueExchangeKey>>, void> = () => {
+
+
+          return  issueExchangeKey(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type IssueExchangeKeyMutationResult = NonNullable<Awaited<ReturnType<typeof issueExchangeKey>>>
+
+    export type IssueExchangeKeyMutationError = ErrorResponse | void
+
+
+    /**
+ * @summary Выдать ключ обмена
+ */
+export const useIssueExchangeKey = <TError = ErrorResponse | void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof issueExchangeKey>>, TError,void, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof issueExchangeKey>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getIssueExchangeKeyMutationOptions(options), queryClient);
+    }
+
+export type revokeExchangeKeyResponse204 = {
+  data: void
+  status: 204
+}
+
+export type revokeExchangeKeyResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type revokeExchangeKeyResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type revokeExchangeKeyResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type revokeExchangeKeyResponseSuccess = (revokeExchangeKeyResponse204) & {
+  headers: Headers;
+};
+export type revokeExchangeKeyResponseError = (revokeExchangeKeyResponse400 | revokeExchangeKeyResponse404 | revokeExchangeKeyResponse500) & {
+  headers: Headers;
+};
+
+export type revokeExchangeKeyResponse = (revokeExchangeKeyResponseSuccess | revokeExchangeKeyResponseError)
+
+export const getRevokeExchangeKeyUrl = (credentialId: string,) => {
+
+
+
+
+  return `/api/exchange/keys/${credentialId}/revoke`
+}
+
+/**
+ * Действует сразу: 1С с этим ключом получит 401. Журнал доступа — `EXCHANGE_KEY_REVOKED`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Отозвать выданный — 204; `GET /api/1c/orders` с ним — 401.
+ * 2. Негативный 404 `EXCHANGE_KEY_NOT_FOUND`: повторный отзыв или чужой ключ.
+ * @summary Отозвать ключ обмена
+ */
+export const revokeExchangeKey = async (credentialId: string, options?: Parameters<typeof apiRequest>[1]): Promise<revokeExchangeKeyResponse> => {
+
+  return apiRequest<revokeExchangeKeyResponse>(getRevokeExchangeKeyUrl(credentialId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeExchangeKeyMutationKey = () => ['revokeExchangeKey'] as const;
+
+export const getRevokeExchangeKeyMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeExchangeKey>>, TError,RevokeExchangeKeyMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeExchangeKey>>, TError,RevokeExchangeKeyMutationVariables, TContext> => {
+
+const mutationKey = getRevokeExchangeKeyMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeExchangeKey>>, RevokeExchangeKeyMutationVariables> = (props) => {
+          const {credentialId} = props ?? {};
+
+          return  revokeExchangeKey(credentialId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeExchangeKeyMutationResult = NonNullable<Awaited<ReturnType<typeof revokeExchangeKey>>>
+
+    export type RevokeExchangeKeyMutationError = ErrorResponse
+    export type RevokeExchangeKeyMutationVariables = {credentialId: string}
+
+    /**
+ * @summary Отозвать ключ обмена
+ */
+export const useRevokeExchangeKey = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeExchangeKey>>, TError,RevokeExchangeKeyMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revokeExchangeKey>>,
+        TError,
+        RevokeExchangeKeyMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeExchangeKeyMutationOptions(options), queryClient);
     }
 
 export type requestFullExportResponse202 = {
@@ -48114,7 +60366,7 @@ export const getRenegotiateDraftUrl = (id: string,) => {
 /**
  * Изменённый состав уходит клиенту в кабинет: он увидит две редакции рядом и ответит кнопкой. Прежнее согласие аннулируется — ответ «да» по нему относился бы к позициям, которых в заявке уже нет.
  *
- * Сообщения в переписку при этом не уходит: у заявки из кабинета нет диалога, и писать некуда.
+ * Тело необязательно: `note` — комментарий клиенту (до 500 символов), `lines[].note` — пояснение к строке (до 300). Комментарий ложится в снимок редакции и сообщением менеджера в переписку заявки; пояснения строк — в снимок, клиент видит их у самих строк. Без пояснения у строки клиент видит ответ склада.
  *
  * **Как проверить вручную**
  *
@@ -48125,14 +60377,29 @@ export const getRenegotiateDraftUrl = (id: string,) => {
  * 5. Негативный 403: заявка ведётся другим менеджером.
  * @summary Отправить на пересогласование
  */
-export const renegotiateDraft = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<renegotiateDraftResponse> => {
+export const renegotiateDraft = async (id: string,
+    renegotiateRequest?: RenegotiateRequest, options?: Parameters<typeof apiRequest>[1]): Promise<renegotiateDraftResponse> => {
 
-  return apiRequest<renegotiateDraftResponse>(getRenegotiateDraftUrl(id),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<renegotiateDraftResponse>(getRenegotiateDraftUrl(id),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(renegotiateRequest)
   }
 );}
 
@@ -48157,9 +60424,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof renegotiateDraft>>, RenegotiateDraftMutationVariables> = (props) => {
-          const {id} = props ?? {};
+          const {id,data} = props ?? {};
 
-          return  renegotiateDraft(id,requestOptions)
+          return  renegotiateDraft(id,data,requestOptions)
         }
 
 
@@ -48170,9 +60437,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type RenegotiateDraftMutationResult = NonNullable<Awaited<ReturnType<typeof renegotiateDraft>>>
-
+    export type RenegotiateDraftMutationBody = RenegotiateRequest | undefined
     export type RenegotiateDraftMutationError = ErrorResponse
-    export type RenegotiateDraftMutationVariables = {id: string}
+    export type RenegotiateDraftMutationVariables = {id: string;data?: RenegotiateRequest}
 
     /**
  * @summary Отправить на пересогласование
@@ -49390,6 +61657,136 @@ export const useRequestCreditOverride = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getRequestCreditOverrideMutationOptions(options), queryClient);
+    }
+
+export type decideDraftCreditResponse200 = {
+  data: DraftDetailDto
+  status: 200
+}
+
+export type decideDraftCreditResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type decideDraftCreditResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type decideDraftCreditResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type decideDraftCreditResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type decideDraftCreditResponseSuccess = (decideDraftCreditResponse200) & {
+  headers: Headers;
+};
+export type decideDraftCreditResponseError = (decideDraftCreditResponse400 | decideDraftCreditResponse404 | decideDraftCreditResponse409 | decideDraftCreditResponse500) & {
+  headers: Headers;
+};
+
+export type decideDraftCreditResponse = (decideDraftCreditResponseSuccess | decideDraftCreditResponseError)
+
+export const getDecideDraftCreditUrl = (id: string,) => {
+
+
+
+
+  return `/api/drafts/${id}/credit-decision`
+}
+
+/**
+ * Клиент при подаче из кабинета попросил товар в долг (`creditRequest: REQUESTED`). `approve: true` — продавец согласен, заказ потом выдаётся «Под реализацию»; `false` — только за оплату, клиент увидит отказ в «Моих заявках» и решит, брать ли за деньги. Решение можно сменить, пока заказ не выдан и не оплачен.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Подать заявку из кабинета с `credit: true` — в очереди `creditRequest: REQUESTED`.
+ * 2. Вызвать с `{"approve": false}` — 200, `creditRequest: DECLINED`.
+ * 3. Негативный 409 `ORDER_CREDIT_NOT_REQUESTED`: заявка за оплату.
+ * @summary Решить по просьбе клиента «в долг»
+ */
+export const decideDraftCredit = async (id: string,
+    creditDecisionRequest: CreditDecisionRequest, options?: Parameters<typeof apiRequest>[1]): Promise<decideDraftCreditResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<decideDraftCreditResponse>(getDecideDraftCreditUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(creditDecisionRequest)
+  }
+);}
+
+
+
+
+
+export const getDecideDraftCreditMutationKey = () => ['decideDraftCredit'] as const;
+
+export const getDecideDraftCreditMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideDraftCredit>>, TError,DecideDraftCreditMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideDraftCredit>>, TError,DecideDraftCreditMutationVariables, TContext> => {
+
+const mutationKey = getDecideDraftCreditMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideDraftCredit>>, DecideDraftCreditMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  decideDraftCredit(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideDraftCreditMutationResult = NonNullable<Awaited<ReturnType<typeof decideDraftCredit>>>
+    export type DecideDraftCreditMutationBody = CreditDecisionRequest
+    export type DecideDraftCreditMutationError = ErrorResponse
+    export type DecideDraftCreditMutationVariables = {id: string;data: CreditDecisionRequest}
+
+    /**
+ * @summary Решить по просьбе клиента «в долг»
+ */
+export const useDecideDraftCredit = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideDraftCredit>>, TError,DecideDraftCreditMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof decideDraftCredit>>,
+        TError,
+        DecideDraftCreditMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDecideDraftCreditMutationOptions(options), queryClient);
     }
 
 export type consignDraftOverCounterResponse200 = {
@@ -52992,6 +65389,135 @@ export const useReceiveCustomerDebtPayment = <TError = ErrorResponse,
       return useMutation(getReceiveCustomerDebtPaymentMutationOptions(options), queryClient);
     }
 
+export type receiveCustomerDebtByItemsResponse200 = {
+  data: CustomerDebtDto
+  status: 200
+}
+
+export type receiveCustomerDebtByItemsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type receiveCustomerDebtByItemsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type receiveCustomerDebtByItemsResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type receiveCustomerDebtByItemsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type receiveCustomerDebtByItemsResponseSuccess = (receiveCustomerDebtByItemsResponse200) & {
+  headers: Headers;
+};
+export type receiveCustomerDebtByItemsResponseError = (receiveCustomerDebtByItemsResponse400 | receiveCustomerDebtByItemsResponse404 | receiveCustomerDebtByItemsResponse409 | receiveCustomerDebtByItemsResponse500) & {
+  headers: Headers;
+};
+
+export type receiveCustomerDebtByItemsResponse = (receiveCustomerDebtByItemsResponseSuccess | receiveCustomerDebtByItemsResponseError)
+
+export const getReceiveCustomerDebtByItemsUrl = (customerId: string,) => {
+
+
+
+
+  return `/api/customers/${customerId}/debt-payments/by-items`
+}
+
+/**
+ * Продавец принял деньги и называет, за какие товары: по каждому заказу записывается выплата с разбивкой по строкам — клиент видит её в «Долге» у этих товаров. Больше остатка товара — отказ.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Принять 12 000 за «Пальто» — у строки `paid` 12 000, остаток меньше.
+ * 2. Негативный 409 `DEBT_CLAIM_EXCEEDS_LINE`: больше остатка товара.
+ * @summary Принять оплату за выбранные товары
+ */
+export const receiveCustomerDebtByItems = async (customerId: string,
+    debtClaimRequest: DebtClaimRequest, options?: Parameters<typeof apiRequest>[1]): Promise<receiveCustomerDebtByItemsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<receiveCustomerDebtByItemsResponse>(getReceiveCustomerDebtByItemsUrl(customerId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(debtClaimRequest)
+  }
+);}
+
+
+
+
+
+export const getReceiveCustomerDebtByItemsMutationKey = () => ['receiveCustomerDebtByItems'] as const;
+
+export const getReceiveCustomerDebtByItemsMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveCustomerDebtByItems>>, TError,ReceiveCustomerDebtByItemsMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveCustomerDebtByItems>>, TError,ReceiveCustomerDebtByItemsMutationVariables, TContext> => {
+
+const mutationKey = getReceiveCustomerDebtByItemsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveCustomerDebtByItems>>, ReceiveCustomerDebtByItemsMutationVariables> = (props) => {
+          const {customerId,data} = props ?? {};
+
+          return  receiveCustomerDebtByItems(customerId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveCustomerDebtByItemsMutationResult = NonNullable<Awaited<ReturnType<typeof receiveCustomerDebtByItems>>>
+    export type ReceiveCustomerDebtByItemsMutationBody = DebtClaimRequest
+    export type ReceiveCustomerDebtByItemsMutationError = ErrorResponse
+    export type ReceiveCustomerDebtByItemsMutationVariables = {customerId: string;data: DebtClaimRequest}
+
+    /**
+ * @summary Принять оплату за выбранные товары
+ */
+export const useReceiveCustomerDebtByItems = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveCustomerDebtByItems>>, TError,ReceiveCustomerDebtByItemsMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof receiveCustomerDebtByItems>>,
+        TError,
+        ReceiveCustomerDebtByItemsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getReceiveCustomerDebtByItemsMutationOptions(options), queryClient);
+    }
+
 export type getShopLinkResponse200 = {
   data: ShopLinkDto
   status: 200
@@ -53451,6 +65977,135 @@ export const useDismissTenantReferral = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getDismissTenantReferralMutationOptions(options), queryClient);
+    }
+
+export type acceptReferralResponse200 = {
+  data: AcceptedReferralDto
+  status: 200
+}
+
+export type acceptReferralResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type acceptReferralResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type acceptReferralResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type acceptReferralResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type acceptReferralResponseSuccess = (acceptReferralResponse200) & {
+  headers: Headers;
+};
+export type acceptReferralResponseError = (acceptReferralResponse400 | acceptReferralResponse404 | acceptReferralResponse409 | acceptReferralResponse500) & {
+  headers: Headers;
+};
+
+export type acceptReferralResponse = (acceptReferralResponseSuccess | acceptReferralResponseError)
+
+export const getAcceptReferralUrl = () => {
+
+
+
+
+  return `/api/customers/referrals/accept`
+}
+
+/**
+ * Для поставщика, который уже подключён к Q-Order: клиент позвал его ссылкой, а заводить компанию второй раз некуда. Приглашение ложится на магазин вошедшего, позвавшим клиентам выписывается приглашение в кабинет и они закрепляются за принявшим. Нужен код из ссылки клиента или ссылки владельцу от продавца.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Клиентом создать приглашение (`POST /api/portal/referrals`), войти администратором (`77010000101`) и принять его код — `invited: 1`, клиент в списке клиентов.
+ * 2. Повторить тот же код — 409 `REFERRAL_ALREADY_CONNECTED`.
+ * 3. Негативный 404: выдуманный код.
+ * @summary Принять приглашение клиента в свой магазин
+ */
+export const acceptReferral = async (acceptReferralRequest: AcceptReferralRequest, options?: Parameters<typeof apiRequest>[1]): Promise<acceptReferralResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<acceptReferralResponse>(getAcceptReferralUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(acceptReferralRequest)
+  }
+);}
+
+
+
+
+
+export const getAcceptReferralMutationKey = () => ['acceptReferral'] as const;
+
+export const getAcceptReferralMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptReferral>>, TError,AcceptReferralMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptReferral>>, TError,AcceptReferralMutationVariables, TContext> => {
+
+const mutationKey = getAcceptReferralMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptReferral>>, AcceptReferralMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  acceptReferral(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptReferralMutationResult = NonNullable<Awaited<ReturnType<typeof acceptReferral>>>
+    export type AcceptReferralMutationBody = AcceptReferralRequest
+    export type AcceptReferralMutationError = ErrorResponse
+    export type AcceptReferralMutationVariables = {data: AcceptReferralRequest}
+
+    /**
+ * @summary Принять приглашение клиента в свой магазин
+ */
+export const useAcceptReferral = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptReferral>>, TError,AcceptReferralMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof acceptReferral>>,
+        TError,
+        AcceptReferralMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAcceptReferralMutationOptions(options), queryClient);
     }
 
 export type offerCabinetResponse204 = {
@@ -57635,6 +70290,130 @@ export const usePromoteCatalogAttribute = <TError = ErrorResponse,
       return useMutation(getPromoteCatalogAttributeMutationOptions(options), queryClient);
     }
 
+export type uploadCatalogCategoryImageResponse200 = {
+  data: CategoryImageDto
+  status: 200
+}
+
+export type uploadCatalogCategoryImageResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type uploadCatalogCategoryImageResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type uploadCatalogCategoryImageResponse413 = {
+  data: ErrorResponse
+  status: 413
+}
+
+export type uploadCatalogCategoryImageResponse415 = {
+  data: ErrorResponse
+  status: 415
+}
+
+export type uploadCatalogCategoryImageResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type uploadCatalogCategoryImageResponseSuccess = (uploadCatalogCategoryImageResponse200) & {
+  headers: Headers;
+};
+export type uploadCatalogCategoryImageResponseError = (uploadCatalogCategoryImageResponse400 | uploadCatalogCategoryImageResponse404 | uploadCatalogCategoryImageResponse413 | uploadCatalogCategoryImageResponse415 | uploadCatalogCategoryImageResponse500) & {
+  headers: Headers;
+};
+
+export type uploadCatalogCategoryImageResponse = (uploadCatalogCategoryImageResponseSuccess | uploadCatalogCategoryImageResponseError)
+
+export const getUploadCatalogCategoryImageUrl = () => {
+
+
+
+
+  return `/api/catalog/categories/image`
+}
+
+/**
+ * Файл ложится в хранилище арендатора (его Google Диск, папка «Разделы каталога», или общее хранилище). Ответ `url` присылают в `imageUrl` раздела. Брошенные прежние загрузки, которых нет ни у одного раздела, снимаются.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Подключить хранилище, отправить JPEG полем `file` — `fileId` и `url`.
+ * 2. `PUT /api/catalog/categories/{id}/image` с этим `url` — у раздела `imageSrc` тот же.
+ * 3. Негативный 413: файл больше 10 МБ; 415: не JPEG, PNG или WebP.
+ * @summary Загрузить картинку раздела
+ */
+export const uploadCatalogCategoryImage = async (uploadCatalogCategoryImageBody?: UploadCatalogCategoryImageBody, options?: Parameters<typeof apiRequest>[1]): Promise<uploadCatalogCategoryImageResponse> => {
+    const formData = new FormData();
+if(uploadCatalogCategoryImageBody?.file !== undefined) {
+ formData.append(`file`, uploadCatalogCategoryImageBody.file);
+ }
+
+  return apiRequest<uploadCatalogCategoryImageResponse>(getUploadCatalogCategoryImageUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getUploadCatalogCategoryImageMutationKey = () => ['uploadCatalogCategoryImage'] as const;
+
+export const getUploadCatalogCategoryImageMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadCatalogCategoryImage>>, TError,UploadCatalogCategoryImageMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof uploadCatalogCategoryImage>>, TError,UploadCatalogCategoryImageMutationVariables, TContext> => {
+
+const mutationKey = getUploadCatalogCategoryImageMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof uploadCatalogCategoryImage>>, UploadCatalogCategoryImageMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  uploadCatalogCategoryImage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UploadCatalogCategoryImageMutationResult = NonNullable<Awaited<ReturnType<typeof uploadCatalogCategoryImage>>>
+    export type UploadCatalogCategoryImageMutationBody = UploadCatalogCategoryImageBody | undefined
+    export type UploadCatalogCategoryImageMutationError = ErrorResponse
+    export type UploadCatalogCategoryImageMutationVariables = {data?: UploadCatalogCategoryImageBody}
+
+    /**
+ * @summary Загрузить картинку раздела
+ */
+export const useUploadCatalogCategoryImage = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof uploadCatalogCategoryImage>>, TError,UploadCatalogCategoryImageMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof uploadCatalogCategoryImage>>,
+        TError,
+        UploadCatalogCategoryImageMutationVariables,
+        TContext
+      > => {
+      return useMutation(getUploadCatalogCategoryImageMutationOptions(options), queryClient);
+    }
+
 export type restoreCatalogBoardItemsResponse200 = {
   data: BulkItemsResult
   status: 200
@@ -58505,6 +71284,130 @@ export const useAcceptStockExchange = <TError = ErrorResponse | void,
       return useMutation(getAcceptStockExchangeMutationOptions(options), queryClient);
     }
 
+export type ackExchangePaymentsResponse200 = {
+  data: ExchangeOrderAckDto
+  status: 200
+}
+
+export type ackExchangePaymentsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type ackExchangePaymentsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type ackExchangePaymentsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type ackExchangePaymentsResponseSuccess = (ackExchangePaymentsResponse200) & {
+  headers: Headers;
+};
+export type ackExchangePaymentsResponseError = (ackExchangePaymentsResponse400 | ackExchangePaymentsResponse404 | ackExchangePaymentsResponse500) & {
+  headers: Headers;
+};
+
+export type ackExchangePaymentsResponse = (ackExchangePaymentsResponseSuccess | ackExchangePaymentsResponseError)
+
+export const getAckExchangePaymentsUrl = () => {
+
+
+
+
+  return `/api/1c/payments/ack`
+}
+
+/**
+ * 1С сообщает, какие ревизии оплат заведены и под каким номером документа. Подтверждение
+ * чужой или уже подтверждённой ревизии не считается и ошибкой не является — повтор безопасен.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `[{"paymentId":"…","revision":1,"documentNumber":"ПКО-00009"}]` — `acked = 1`.
+ * 2. Повтор того же — `acked = 0`.
+ * @summary Подтвердить оплаты
+ */
+export const ackExchangePayments = async (exchangePaymentAck: ExchangePaymentAck[], options?: Parameters<typeof apiRequest>[1]): Promise<ackExchangePaymentsResponse> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiRequest<ackExchangePaymentsResponse>(getAckExchangePaymentsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(exchangePaymentAck)
+  }
+);}
+
+
+
+
+
+export const getAckExchangePaymentsMutationKey = () => ['ackExchangePayments'] as const;
+
+export const getAckExchangePaymentsMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ackExchangePayments>>, TError,AckExchangePaymentsMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof ackExchangePayments>>, TError,AckExchangePaymentsMutationVariables, TContext> => {
+
+const mutationKey = getAckExchangePaymentsMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof ackExchangePayments>>, AckExchangePaymentsMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  ackExchangePayments(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AckExchangePaymentsMutationResult = NonNullable<Awaited<ReturnType<typeof ackExchangePayments>>>
+    export type AckExchangePaymentsMutationBody = ExchangePaymentAck[]
+    export type AckExchangePaymentsMutationError = ErrorResponse
+    export type AckExchangePaymentsMutationVariables = {data: ExchangePaymentAck[]}
+
+    /**
+ * @summary Подтвердить оплаты
+ */
+export const useAckExchangePayments = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof ackExchangePayments>>, TError,AckExchangePaymentsMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof ackExchangePayments>>,
+        TError,
+        AckExchangePaymentsMutationVariables,
+        TContext
+      > => {
+      return useMutation(getAckExchangePaymentsMutationOptions(options), queryClient);
+    }
+
 export type ackExchangeOrdersResponse200 = {
   data: ExchangeOrderAckDto
   status: 200
@@ -59016,6 +71919,148 @@ export function useListSections<TData = Awaited<ReturnType<typeof listSections>>
 
 
 
+export type listPlatformTenantLimitRefusalsResponse200 = {
+  data: LimitRefusalCountDto[]
+  status: 200
+}
+
+export type listPlatformTenantLimitRefusalsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPlatformTenantLimitRefusalsResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type listPlatformTenantLimitRefusalsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPlatformTenantLimitRefusalsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPlatformTenantLimitRefusalsResponseSuccess = (listPlatformTenantLimitRefusalsResponse200) & {
+  headers: Headers;
+};
+export type listPlatformTenantLimitRefusalsResponseError = (listPlatformTenantLimitRefusalsResponse400 | listPlatformTenantLimitRefusalsResponse403 | listPlatformTenantLimitRefusalsResponse404 | listPlatformTenantLimitRefusalsResponse500) & {
+  headers: Headers;
+};
+
+export type listPlatformTenantLimitRefusalsResponse = (listPlatformTenantLimitRefusalsResponseSuccess | listPlatformTenantLimitRefusalsResponseError)
+
+export const getListPlatformTenantLimitRefusalsUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/platform/tenants/${id}/limit-refusals`
+}
+
+/**
+ * Сколько раз за последние 30 дней действие арендатора отказало по потолку тарифа (409 `…_LIMIT_REACHED`), по видам потолка, сначала частые. Нет отказов — пустой список.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Арендатор на Старте заводит третьего сотрудника — 409.
+ * 2. `GET /api/tenant/platform/tenants/{id}/limit-refusals` — `[{"kind":"STAFF","count":1}]`.
+ * 3. Токен сотрудника арендатора — 403.
+ * @summary Отказы по лимиту тарифа за 30 дней
+ */
+export const listPlatformTenantLimitRefusals = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<listPlatformTenantLimitRefusalsResponse> => {
+
+  return apiRequest<listPlatformTenantLimitRefusalsResponse>(getListPlatformTenantLimitRefusalsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformTenantLimitRefusalsQueryKey = (id: string,) => {
+    return [
+    `/api/tenant/platform/tenants/${id}/limit-refusals`
+    ] as const;
+    }
+
+
+export const getListPlatformTenantLimitRefusalsQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformTenantLimitRefusalsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>> = ({ signal }) => listPlatformTenantLimitRefusals(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPlatformTenantLimitRefusalsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>>
+export type ListPlatformTenantLimitRefusalsQueryError = ErrorResponse
+
+
+export function useListPlatformTenantLimitRefusals<TData = Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformTenantLimitRefusals<TData = Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformTenantLimitRefusals<TData = Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Отказы по лимиту тарифа за 30 дней
+ */
+
+export function useListPlatformTenantLimitRefusals<TData = Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformTenantLimitRefusals>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPlatformTenantLimitRefusalsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getPlatformTariffsResponse200 = {
   data: TariffDto[]
   status: 200
@@ -59429,6 +72474,155 @@ export function useListPlatformReferrals<TData = Awaited<ReturnType<typeof listP
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListPlatformReferralsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type listPlatformChannelSharesResponse200 = {
+  data: PlatformChannelShareDto[]
+  status: 200
+}
+
+export type listPlatformChannelSharesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPlatformChannelSharesResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type listPlatformChannelSharesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPlatformChannelSharesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPlatformChannelSharesResponseSuccess = (listPlatformChannelSharesResponse200) & {
+  headers: Headers;
+};
+export type listPlatformChannelSharesResponseError = (listPlatformChannelSharesResponse400 | listPlatformChannelSharesResponse403 | listPlatformChannelSharesResponse404 | listPlatformChannelSharesResponse500) & {
+  headers: Headers;
+};
+
+export type listPlatformChannelSharesResponse = (listPlatformChannelSharesResponseSuccess | listPlatformChannelSharesResponseError)
+
+export const getListPlatformChannelSharesUrl = (params: ListPlatformChannelSharesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/tenant/platform/analytics/channels?${stringifiedParams}` : `/api/tenant/platform/analytics/channels`
+}
+
+/**
+ * Заявки за период по всем каналам и доля пришедших из кабинета клиента — по дням магазина, из той же сводки, что плитка «Каналы и экономия». Арендатора без заявок в периоде в ответе нет.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `GET /api/tenant/platform/analytics/channels?from=2026-10-01&to=2026-10-31` токеном платформы — 200, строка на арендатора с заявками.
+ * 2. `from` позже `to` — 400 `ANALYTICS_PERIOD_INVALID`.
+ * 3. Токен сотрудника арендатора — 403.
+ * @summary Доля кабинета по арендаторам
+ */
+export const listPlatformChannelShares = async (params: ListPlatformChannelSharesParams, options?: Parameters<typeof apiRequest>[1]): Promise<listPlatformChannelSharesResponse> => {
+
+  return apiRequest<listPlatformChannelSharesResponse>(getListPlatformChannelSharesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPlatformChannelSharesQueryKey = (params?: ListPlatformChannelSharesParams,) => {
+    return [
+    `/api/tenant/platform/analytics/channels`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPlatformChannelSharesQueryOptions = <TData = Awaited<ReturnType<typeof listPlatformChannelShares>>, TError = ErrorResponse>(params: ListPlatformChannelSharesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformChannelShares>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlatformChannelSharesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlatformChannelShares>>> = ({ signal }) => listPlatformChannelShares(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlatformChannelShares>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPlatformChannelSharesQueryResult = NonNullable<Awaited<ReturnType<typeof listPlatformChannelShares>>>
+export type ListPlatformChannelSharesQueryError = ErrorResponse
+
+
+export function useListPlatformChannelShares<TData = Awaited<ReturnType<typeof listPlatformChannelShares>>, TError = ErrorResponse>(
+ params: ListPlatformChannelSharesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformChannelShares>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformChannelShares>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformChannelShares>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformChannelShares<TData = Awaited<ReturnType<typeof listPlatformChannelShares>>, TError = ErrorResponse>(
+ params: ListPlatformChannelSharesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformChannelShares>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformChannelShares>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformChannelShares>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlatformChannelShares<TData = Awaited<ReturnType<typeof listPlatformChannelShares>>, TError = ErrorResponse>(
+ params: ListPlatformChannelSharesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformChannelShares>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Доля кабинета по арендаторам
+ */
+
+export function useListPlatformChannelShares<TData = Awaited<ReturnType<typeof listPlatformChannelShares>>, TError = ErrorResponse>(
+ params: ListPlatformChannelSharesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlatformChannelShares>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPlatformChannelSharesQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -60553,6 +73747,142 @@ export function useGetTenantBranding<TData = Awaited<ReturnType<typeof getTenant
 
 
 
+export type listUnansweredBySellerResponse200 = {
+  data: ListUnansweredBySeller200
+  status: 200
+}
+
+export type listUnansweredBySellerResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listUnansweredBySellerResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listUnansweredBySellerResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listUnansweredBySellerResponseSuccess = (listUnansweredBySellerResponse200) & {
+  headers: Headers;
+};
+export type listUnansweredBySellerResponseError = (listUnansweredBySellerResponse400 | listUnansweredBySellerResponse404 | listUnansweredBySellerResponse500) & {
+  headers: Headers;
+};
+
+export type listUnansweredBySellerResponse = (listUnansweredBySellerResponseSuccess | listUnansweredBySellerResponseError)
+
+export const getListUnansweredBySellerUrl = () => {
+
+
+
+
+  return `/api/substitutions/unanswered`
+}
+
+/**
+ * Сколько клиентов у каждого продавца ждут ответа дольше срока ответа менеджера («График работы»). Подсказка владельцу: кому назначить замену. Продавцы без таких клиентов в ответ не входят.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Клиент пишет в заявку продавца, тот не отвечает дольше срока — продавец в ответе с числом 1.
+ * 2. Продавец ответил — его в ответе нет.
+ * @summary Продавец не отвечает
+ */
+export const listUnansweredBySeller = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listUnansweredBySellerResponse> => {
+
+  return apiRequest<listUnansweredBySellerResponse>(getListUnansweredBySellerUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListUnansweredBySellerQueryKey = () => {
+    return [
+    `/api/substitutions/unanswered`
+    ] as const;
+    }
+
+
+export const getListUnansweredBySellerQueryOptions = <TData = Awaited<ReturnType<typeof listUnansweredBySeller>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnansweredBySeller>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListUnansweredBySellerQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listUnansweredBySeller>>> = ({ signal }) => listUnansweredBySeller({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listUnansweredBySeller>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListUnansweredBySellerQueryResult = NonNullable<Awaited<ReturnType<typeof listUnansweredBySeller>>>
+export type ListUnansweredBySellerQueryError = ErrorResponse
+
+
+export function useListUnansweredBySeller<TData = Awaited<ReturnType<typeof listUnansweredBySeller>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnansweredBySeller>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnansweredBySeller>>,
+          TError,
+          Awaited<ReturnType<typeof listUnansweredBySeller>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnansweredBySeller<TData = Awaited<ReturnType<typeof listUnansweredBySeller>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnansweredBySeller>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listUnansweredBySeller>>,
+          TError,
+          Awaited<ReturnType<typeof listUnansweredBySeller>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListUnansweredBySeller<TData = Awaited<ReturnType<typeof listUnansweredBySeller>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnansweredBySeller>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Продавец не отвечает
+ */
+
+export function useListUnansweredBySeller<TData = Awaited<ReturnType<typeof listUnansweredBySeller>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listUnansweredBySeller>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListUnansweredBySellerQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type streamDraftUpdatesResponse200 = {
   data: SseEmitter
   status: 200
@@ -60591,7 +73921,7 @@ export const getStreamDraftUpdatesUrl = () => {
 }
 
 /**
- * События `draft-created` с телом краткой карточки заявки. Арендатор берётся из проверенной сессии, поэтому подписаться на чужую очередь нельзя.
+ * События `draft-created`, `draft-assignment` и др. с телом `{"id": …}` — только идентификатор заявки: экран перечитывает её обычным запросом, и продавец без права «Переписка: все» чужую не увидит (решение 2026-11-04). Арендатор берётся из проверенной сессии, поэтому подписаться на чужую очередь нельзя.
  *
  * **Как проверить вручную**
  *
@@ -60604,7 +73934,7 @@ export const getStreamDraftUpdatesUrl = () => {
  *
  * 1. Оставить команду работать — соединение держится открытым.
  * 2. В другом окне отправить вебхуком новое сообщение и дождаться закрытия окна сборки.
- * 3. В поток приходит событие `draft-created` с краткой карточкой заявки — той же самой, что показывает очередь после перезагрузки страницы. Расхождение состава здесь и в очереди означает, что экран покажет одно, а обновление принесёт другое.
+ * 3. В поток приходит событие `draft-created` с `id` новой заявки.
  * 4. Негативный: та же команда без заголовка с токеном — 401, поток не открывается.
  * @summary Поток обновлений очереди заявок
  */
@@ -62686,6 +76016,143 @@ export function useGetReviewModerationQueue<TData = Awaited<ReturnType<typeof ge
 
 
 
+export type listPurchaseDirectionsResponse200 = {
+  data: DirectionDto[]
+  status: 200
+}
+
+export type listPurchaseDirectionsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPurchaseDirectionsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPurchaseDirectionsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPurchaseDirectionsResponseSuccess = (listPurchaseDirectionsResponse200) & {
+  headers: Headers;
+};
+export type listPurchaseDirectionsResponseError = (listPurchaseDirectionsResponse400 | listPurchaseDirectionsResponse404 | listPurchaseDirectionsResponse500) & {
+  headers: Headers;
+};
+
+export type listPurchaseDirectionsResponse = (listPurchaseDirectionsResponseSuccess | listPurchaseDirectionsResponseError)
+
+export const getListPurchaseDirectionsUrl = () => {
+
+
+
+
+  return `/api/purchase/directions`
+}
+
+/**
+ * Подписи — на языке запроса.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти владельцем или сотрудником с правом «Закупочные цены».
+ * 2. `GET /api/purchase/directions` — 200, пять направлений; у `GRID` обязательна колонка `COLOR`.
+ * 3. Негативный 403: сотрудник без права «Закупочные цены» — даже администратор.
+ * @summary Направления закупки: колонки строки и единицы
+ */
+export const listPurchaseDirections = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listPurchaseDirectionsResponse> => {
+
+  return apiRequest<listPurchaseDirectionsResponse>(getListPurchaseDirectionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPurchaseDirectionsQueryKey = () => {
+    return [
+    `/api/purchase/directions`
+    ] as const;
+    }
+
+
+export const getListPurchaseDirectionsQueryOptions = <TData = Awaited<ReturnType<typeof listPurchaseDirections>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchaseDirections>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPurchaseDirectionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPurchaseDirections>>> = ({ signal }) => listPurchaseDirections({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPurchaseDirections>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPurchaseDirectionsQueryResult = NonNullable<Awaited<ReturnType<typeof listPurchaseDirections>>>
+export type ListPurchaseDirectionsQueryError = ErrorResponse
+
+
+export function useListPurchaseDirections<TData = Awaited<ReturnType<typeof listPurchaseDirections>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchaseDirections>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPurchaseDirections>>,
+          TError,
+          Awaited<ReturnType<typeof listPurchaseDirections>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPurchaseDirections<TData = Awaited<ReturnType<typeof listPurchaseDirections>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchaseDirections>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPurchaseDirections>>,
+          TError,
+          Awaited<ReturnType<typeof listPurchaseDirections>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPurchaseDirections<TData = Awaited<ReturnType<typeof listPurchaseDirections>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchaseDirections>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Направления закупки: колонки строки и единицы
+ */
+
+export function useListPurchaseDirections<TData = Awaited<ReturnType<typeof listPurchaseDirections>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPurchaseDirections>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPurchaseDirectionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getPromoSubscribersResponse200 = {
   data: PromoSubscribersDto
   status: 200
@@ -63217,6 +76684,137 @@ export function useGetPromoArrivalItems<TData = Awaited<ReturnType<typeof getPro
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetPromoArrivalItemsQueryOptions(batchId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getPortalTemplateLinesResponse200 = {
+  data: TemplateLineDto[]
+  status: 200
+}
+
+export type getPortalTemplateLinesResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalTemplateLinesResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalTemplateLinesResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalTemplateLinesResponseSuccess = (getPortalTemplateLinesResponse200) & {
+  headers: Headers;
+};
+export type getPortalTemplateLinesResponseError = (getPortalTemplateLinesResponse400 | getPortalTemplateLinesResponse404 | getPortalTemplateLinesResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalTemplateLinesResponse = (getPortalTemplateLinesResponseSuccess | getPortalTemplateLinesResponseError)
+
+export const getGetPortalTemplateLinesUrl = (id: string,) => {
+
+
+
+
+  return `/api/portal/templates/${id}/lines`
+}
+
+/**
+ * Позиции шаблона с названиями из каталога — для экрана правки. Позиция, снятая с продажи, приходит без названия.
+ * @summary Состав шаблона
+ */
+export const getPortalTemplateLines = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<getPortalTemplateLinesResponse> => {
+
+  return apiRequest<getPortalTemplateLinesResponse>(getGetPortalTemplateLinesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalTemplateLinesQueryKey = (id: string,) => {
+    return [
+    `/api/portal/templates/${id}/lines`
+    ] as const;
+    }
+
+
+export const getGetPortalTemplateLinesQueryOptions = <TData = Awaited<ReturnType<typeof getPortalTemplateLines>>, TError = ErrorResponse>(id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalTemplateLines>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalTemplateLinesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalTemplateLines>>> = ({ signal }) => getPortalTemplateLines(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalTemplateLines>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalTemplateLinesQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalTemplateLines>>>
+export type GetPortalTemplateLinesQueryError = ErrorResponse
+
+
+export function useGetPortalTemplateLines<TData = Awaited<ReturnType<typeof getPortalTemplateLines>>, TError = ErrorResponse>(
+ id: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalTemplateLines>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalTemplateLines>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalTemplateLines>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalTemplateLines<TData = Awaited<ReturnType<typeof getPortalTemplateLines>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalTemplateLines>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalTemplateLines>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalTemplateLines>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalTemplateLines<TData = Awaited<ReturnType<typeof getPortalTemplateLines>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalTemplateLines>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Состав шаблона
+ */
+
+export function useGetPortalTemplateLines<TData = Awaited<ReturnType<typeof getPortalTemplateLines>>, TError = ErrorResponse>(
+ id: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalTemplateLines>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalTemplateLinesQueryOptions(id,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -65787,6 +79385,150 @@ export function useGetPortalUnreadSummary<TData = Awaited<ReturnType<typeof getP
 
 
 
+export type getPortalOverviewResponse200 = {
+  data: PortalOverviewDto[]
+  status: 200
+}
+
+export type getPortalOverviewResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalOverviewResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type getPortalOverviewResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalOverviewResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalOverviewResponseSuccess = (getPortalOverviewResponse200) & {
+  headers: Headers;
+};
+export type getPortalOverviewResponseError = (getPortalOverviewResponse400 | getPortalOverviewResponse401 | getPortalOverviewResponse404 | getPortalOverviewResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalOverviewResponse = (getPortalOverviewResponseSuccess | getPortalOverviewResponseError)
+
+export const getGetPortalOverviewUrl = () => {
+
+
+
+
+  return `/api/portal/notifications/overview`
+}
+
+/**
+ * Сводка «Все магазины»: по каждому действующему поставщику клиента — непрочитанные уведомления и долг коротко (остаток, просрочено, ближайший срок). Заголовка поставщика не требует. Скрытый магазин строки не получает: клиент сам попросил его не показывать. Сбой одного поставщика не роняет сводку — его строка приходит пустой.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Принять приглашения двух поставщиков одним номером.
+ * 2. У одного выставить счёт по заявке — у него в `notifications` плашка `INVOICE_SENT`.
+ * 3. У второго выдать заказ под реализацию с графиком — у него `debt` с ближайшим сроком.
+ * 4. Скрыть первый магазин — его строки нет.
+ * 5. Негативный 401: без токена.
+ * @summary Все магазины: что ждёт клиента
+ */
+export const getPortalOverview = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getPortalOverviewResponse> => {
+
+  return apiRequest<getPortalOverviewResponse>(getGetPortalOverviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalOverviewQueryKey = () => {
+    return [
+    `/api/portal/notifications/overview`
+    ] as const;
+    }
+
+
+export const getGetPortalOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getPortalOverview>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalOverview>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalOverviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalOverview>>> = ({ signal }) => getPortalOverview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalOverview>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalOverview>>>
+export type GetPortalOverviewQueryError = ErrorResponse
+
+
+export function useGetPortalOverview<TData = Awaited<ReturnType<typeof getPortalOverview>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalOverview>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalOverview>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalOverview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalOverview<TData = Awaited<ReturnType<typeof getPortalOverview>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalOverview>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalOverview>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalOverview>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalOverview<TData = Awaited<ReturnType<typeof getPortalOverview>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalOverview>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Все магазины: что ждёт клиента
+ */
+
+export function useGetPortalOverview<TData = Awaited<ReturnType<typeof getPortalOverview>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalOverview>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalOverviewQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getPortalProfileResponse200 = {
   data: AccountDto
   status: 200
@@ -66369,6 +80111,142 @@ export function useGetSupplierJoin<TData = Awaited<ReturnType<typeof getSupplier
 
 
 
+export type getOwnerInviteResponse200 = {
+  data: OwnerInviteDto
+  status: 200
+}
+
+export type getOwnerInviteResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getOwnerInviteResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getOwnerInviteResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getOwnerInviteResponseSuccess = (getOwnerInviteResponse200) & {
+  headers: Headers;
+};
+export type getOwnerInviteResponseError = (getOwnerInviteResponse400 | getOwnerInviteResponse404 | getOwnerInviteResponse500) & {
+  headers: Headers;
+};
+
+export type getOwnerInviteResponse = (getOwnerInviteResponseSuccess | getOwnerInviteResponseError)
+
+export const getGetOwnerInviteUrl = (token: string,) => {
+
+
+
+
+  return `/api/portal/join/owner/${token}`
+}
+
+/**
+ * Без входа, по ссылке от продавца: сколько клиентов ждут, кто передал и имена клиентов, разрешивших себя называть. Номеров нет.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Открыть ссылку из ответа `forward` — `waiting` равно числу переданных приглашений.
+ * 2. Негативный 404: неизвестный токен.
+ * @summary Кто ждёт владельца в Q-Order
+ */
+export const getOwnerInvite = async (token: string, options?: Parameters<typeof apiRequest>[1]): Promise<getOwnerInviteResponse> => {
+
+  return apiRequest<getOwnerInviteResponse>(getGetOwnerInviteUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOwnerInviteQueryKey = (token: string,) => {
+    return [
+    `/api/portal/join/owner/${token}`
+    ] as const;
+    }
+
+
+export const getGetOwnerInviteQueryOptions = <TData = Awaited<ReturnType<typeof getOwnerInvite>>, TError = ErrorResponse>(token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOwnerInvite>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOwnerInviteQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOwnerInvite>>> = ({ signal }) => getOwnerInvite(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOwnerInvite>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetOwnerInviteQueryResult = NonNullable<Awaited<ReturnType<typeof getOwnerInvite>>>
+export type GetOwnerInviteQueryError = ErrorResponse
+
+
+export function useGetOwnerInvite<TData = Awaited<ReturnType<typeof getOwnerInvite>>, TError = ErrorResponse>(
+ token: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOwnerInvite>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOwnerInvite>>,
+          TError,
+          Awaited<ReturnType<typeof getOwnerInvite>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOwnerInvite<TData = Awaited<ReturnType<typeof getOwnerInvite>>, TError = ErrorResponse>(
+ token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOwnerInvite>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOwnerInvite>>,
+          TError,
+          Awaited<ReturnType<typeof getOwnerInvite>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOwnerInvite<TData = Awaited<ReturnType<typeof getOwnerInvite>>, TError = ErrorResponse>(
+ token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOwnerInvite>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Кто ждёт владельца в Q-Order
+ */
+
+export function useGetOwnerInvite<TData = Awaited<ReturnType<typeof getOwnerInvite>>, TError = ErrorResponse>(
+ token: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOwnerInvite>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetOwnerInviteQueryOptions(token,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getSupplierConsentNoticeResponse200 = {
   data: ConsentNoticeDto
   status: 200
@@ -66641,6 +80519,316 @@ export function useGetJoinShop<TData = Awaited<ReturnType<typeof getJoinShop>>, 
 
 
 
+export type getSharePageResponse200 = {
+  data: string
+  status: 200
+}
+
+export type getSharePageResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getSharePageResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getSharePageResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getSharePageResponseSuccess = (getSharePageResponse200) & {
+  headers: Headers;
+};
+export type getSharePageResponseError = (getSharePageResponse400 | getSharePageResponse404 | getSharePageResponse500) & {
+  headers: Headers;
+};
+
+export type getSharePageResponse = (getSharePageResponseSuccess | getSharePageResponseError)
+
+export const getGetSharePageUrl = (code: string,
+    kind: string,) => {
+
+
+
+
+  return `/api/portal/join-shop/${code}/share/${kind}`
+}
+
+/**
+ * HTML для мессенджера: метки превью (`og:title`, `og:description`, `og:image`) и сразу переход на
+ * `/join-shop/{code}?item=…` (`?category=…`, `?new=1`). Кабинет отдаёт этот адрес как `/s/{code}/{kind}/{ref}`.
+ * `kind`: `i` — товар, `c` — раздел, `new` — новинки. Переход человека идёт в счёт `portal.share_visit`;
+ * бот превью (WhatsApp, Telegram…) — нет. Витрина закрыта — в превью только магазин.
+ * Цен и персональных данных в ссылке и превью нет.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `curl -A WhatsApp/2 …/share/i/{itemId}` — 200, `og:title` — название товара, `og:description` —
+ *    «арт. … · размеры … · магазин»; строка в `portal.share_visit` не прибавилась.
+ * 2. Тот же адрес из браузера — переход на `/join-shop/{code}?item=…`, `visits` за день +1.
+ * 3. Витрина закрыта — `og:title` — название магазина, товара нет.
+ * 4. Негативный: неизвестный код — страница без превью с переходом на `/join-shop/{code}`.
+ * @summary Страница ссылки «Поделиться»
+ */
+export const getSharePage = async (code: string,
+    kind: string, options?: Parameters<typeof apiRequest>[1]): Promise<getSharePageResponse> => {
+
+  return apiRequest<getSharePageResponse>(getGetSharePageUrl(code,kind),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSharePageQueryKey = (code: string,
+    kind: string,) => {
+    return [
+    `/api/portal/join-shop/${code}/share/${kind}`
+    ] as const;
+    }
+
+
+export const getGetSharePageQueryOptions = <TData = Awaited<ReturnType<typeof getSharePage>>, TError = ErrorResponse>(code: string,
+    kind: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSharePageQueryKey(code,kind);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSharePage>>> = ({ signal }) => getSharePage(code,kind, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined && kind !== null && kind !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSharePage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSharePageQueryResult = NonNullable<Awaited<ReturnType<typeof getSharePage>>>
+export type GetSharePageQueryError = ErrorResponse
+
+
+export function useGetSharePage<TData = Awaited<ReturnType<typeof getSharePage>>, TError = ErrorResponse>(
+ code: string,
+    kind: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSharePage>>,
+          TError,
+          Awaited<ReturnType<typeof getSharePage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSharePage<TData = Awaited<ReturnType<typeof getSharePage>>, TError = ErrorResponse>(
+ code: string,
+    kind: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSharePage>>,
+          TError,
+          Awaited<ReturnType<typeof getSharePage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSharePage<TData = Awaited<ReturnType<typeof getSharePage>>, TError = ErrorResponse>(
+ code: string,
+    kind: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Страница ссылки «Поделиться»
+ */
+
+export function useGetSharePage<TData = Awaited<ReturnType<typeof getSharePage>>, TError = ErrorResponse>(
+ code: string,
+    kind: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSharePageQueryOptions(code,kind,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getSharePage1Response200 = {
+  data: string
+  status: 200
+}
+
+export type getSharePage1Response400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getSharePage1Response404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getSharePage1Response500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getSharePage1ResponseSuccess = (getSharePage1Response200) & {
+  headers: Headers;
+};
+export type getSharePage1ResponseError = (getSharePage1Response400 | getSharePage1Response404 | getSharePage1Response500) & {
+  headers: Headers;
+};
+
+export type getSharePage1Response = (getSharePage1ResponseSuccess | getSharePage1ResponseError)
+
+export const getGetSharePage1Url = (code: string,
+    kind: string,
+    ref: string,) => {
+
+
+
+
+  return `/api/portal/join-shop/${code}/share/${kind}/${ref}`
+}
+
+/**
+ * HTML для мессенджера: метки превью (`og:title`, `og:description`, `og:image`) и сразу переход на
+ * `/join-shop/{code}?item=…` (`?category=…`, `?new=1`). Кабинет отдаёт этот адрес как `/s/{code}/{kind}/{ref}`.
+ * `kind`: `i` — товар, `c` — раздел, `new` — новинки. Переход человека идёт в счёт `portal.share_visit`;
+ * бот превью (WhatsApp, Telegram…) — нет. Витрина закрыта — в превью только магазин.
+ * Цен и персональных данных в ссылке и превью нет.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. `curl -A WhatsApp/2 …/share/i/{itemId}` — 200, `og:title` — название товара, `og:description` —
+ *    «арт. … · размеры … · магазин»; строка в `portal.share_visit` не прибавилась.
+ * 2. Тот же адрес из браузера — переход на `/join-shop/{code}?item=…`, `visits` за день +1.
+ * 3. Витрина закрыта — `og:title` — название магазина, товара нет.
+ * 4. Негативный: неизвестный код — страница без превью с переходом на `/join-shop/{code}`.
+ * @summary Страница ссылки «Поделиться»
+ */
+export const getSharePage1 = async (code: string,
+    kind: string,
+    ref: string, options?: Parameters<typeof apiRequest>[1]): Promise<getSharePage1Response> => {
+
+  return apiRequest<getSharePage1Response>(getGetSharePage1Url(code,kind,ref),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSharePage1QueryKey = (code: string,
+    kind: string,
+    ref: string,) => {
+    return [
+    `/api/portal/join-shop/${code}/share/${kind}/${ref}`
+    ] as const;
+    }
+
+
+export const getGetSharePage1QueryOptions = <TData = Awaited<ReturnType<typeof getSharePage1>>, TError = ErrorResponse>(code: string,
+    kind: string,
+    ref: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage1>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSharePage1QueryKey(code,kind,ref);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSharePage1>>> = ({ signal }) => getSharePage1(code,kind,ref, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined && kind !== null && kind !== undefined && ref !== null && ref !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSharePage1>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetSharePage1QueryResult = NonNullable<Awaited<ReturnType<typeof getSharePage1>>>
+export type GetSharePage1QueryError = ErrorResponse
+
+
+export function useGetSharePage1<TData = Awaited<ReturnType<typeof getSharePage1>>, TError = ErrorResponse>(
+ code: string,
+    kind: string,
+    ref: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage1>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSharePage1>>,
+          TError,
+          Awaited<ReturnType<typeof getSharePage1>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSharePage1<TData = Awaited<ReturnType<typeof getSharePage1>>, TError = ErrorResponse>(
+ code: string,
+    kind: string,
+    ref: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage1>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSharePage1>>,
+          TError,
+          Awaited<ReturnType<typeof getSharePage1>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetSharePage1<TData = Awaited<ReturnType<typeof getSharePage1>>, TError = ErrorResponse>(
+ code: string,
+    kind: string,
+    ref: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage1>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Страница ссылки «Поделиться»
+ */
+
+export function useGetSharePage1<TData = Awaited<ReturnType<typeof getSharePage1>>, TError = ErrorResponse>(
+ code: string,
+    kind: string,
+    ref: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSharePage1>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetSharePage1QueryOptions(code,kind,ref,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getAccessRequestStatusResponse200 = {
   data: JoinRequestStatusDto
   status: 200
@@ -66839,7 +81027,7 @@ export const getGetJoinShopItemsUrl = (code: string,
  * **Как проверить вручную**
  *
  * 1. Продавец открыл витрину — 200 без входа, у позиций нет `price` и `stock`.
- * 2. `query=цемент` — только подходящие.
+ * 2. `query=цемент` — только подходящие; `novelty=true` — только новинки.
  * 3. Негативный 404 `SHOP_LINK_NOT_FOUND`: витрина закрыта или ссылка сменена.
  * @summary Товары магазина без цен
  */
@@ -66928,6 +81116,152 @@ export function useGetJoinShopItems<TData = Awaited<ReturnType<typeof getJoinSho
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetJoinShopItemsQueryOptions(code,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getJoinShopItemResponse200 = {
+  data: SharedItemDto
+  status: 200
+}
+
+export type getJoinShopItemResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getJoinShopItemResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getJoinShopItemResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getJoinShopItemResponseSuccess = (getJoinShopItemResponse200) & {
+  headers: Headers;
+};
+export type getJoinShopItemResponseError = (getJoinShopItemResponse400 | getJoinShopItemResponse404 | getJoinShopItemResponse500) & {
+  headers: Headers;
+};
+
+export type getJoinShopItemResponse = (getJoinShopItemResponseSuccess | getJoinShopItemResponseError)
+
+export const getGetJoinShopItemUrl = (code: string,
+    itemId: string,) => {
+
+
+
+
+  return `/api/portal/join-shop/${code}/items/${itemId}`
+}
+
+/**
+ * Карточка гостя по ссылке «Поделиться»: название, артикул, снимок и ряд размеров модели. Цены, остатка
+ * и условий нет. Только при открытой витрине, только видимый товар и не 21+.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Открытая витрина, видимый товар — 200 без входа, `sizes` по вариантам модели, нет `price`.
+ * 2. Негативный 404 `SHOP_LINK_NOT_FOUND`: витрина закрыта.
+ * 3. Негативный 404 `PORTAL_ITEM_UNAVAILABLE`: товар снят с показа или 21+.
+ * @summary Товар по ссылке «Поделиться» без цен
+ */
+export const getJoinShopItem = async (code: string,
+    itemId: string, options?: Parameters<typeof apiRequest>[1]): Promise<getJoinShopItemResponse> => {
+
+  return apiRequest<getJoinShopItemResponse>(getGetJoinShopItemUrl(code,itemId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetJoinShopItemQueryKey = (code: string,
+    itemId: string,) => {
+    return [
+    `/api/portal/join-shop/${code}/items/${itemId}`
+    ] as const;
+    }
+
+
+export const getGetJoinShopItemQueryOptions = <TData = Awaited<ReturnType<typeof getJoinShopItem>>, TError = ErrorResponse>(code: string,
+    itemId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItem>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetJoinShopItemQueryKey(code,itemId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJoinShopItem>>> = ({ signal }) => getJoinShopItem(code,itemId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined && itemId !== null && itemId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItem>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetJoinShopItemQueryResult = NonNullable<Awaited<ReturnType<typeof getJoinShopItem>>>
+export type GetJoinShopItemQueryError = ErrorResponse
+
+
+export function useGetJoinShopItem<TData = Awaited<ReturnType<typeof getJoinShopItem>>, TError = ErrorResponse>(
+ code: string,
+    itemId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItem>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getJoinShopItem>>,
+          TError,
+          Awaited<ReturnType<typeof getJoinShopItem>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetJoinShopItem<TData = Awaited<ReturnType<typeof getJoinShopItem>>, TError = ErrorResponse>(
+ code: string,
+    itemId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItem>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getJoinShopItem>>,
+          TError,
+          Awaited<ReturnType<typeof getJoinShopItem>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetJoinShopItem<TData = Awaited<ReturnType<typeof getJoinShopItem>>, TError = ErrorResponse>(
+ code: string,
+    itemId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItem>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Товар по ссылке «Поделиться» без цен
+ */
+
+export function useGetJoinShopItem<TData = Awaited<ReturnType<typeof getJoinShopItem>>, TError = ErrorResponse>(
+ code: string,
+    itemId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJoinShopItem>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetJoinShopItemQueryOptions(code,itemId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -67064,6 +81398,154 @@ export function useGetJoinShopCategories<TData = Awaited<ReturnType<typeof getJo
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetJoinShopCategoriesQueryOptions(code,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type previewPortalInvitationResponse200 = {
+  data: InvitationPreviewDto
+  status: 200
+}
+
+export type previewPortalInvitationResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type previewPortalInvitationResponse401 = {
+  data: ErrorResponse
+  status: 401
+}
+
+export type previewPortalInvitationResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type previewPortalInvitationResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type previewPortalInvitationResponseSuccess = (previewPortalInvitationResponse200) & {
+  headers: Headers;
+};
+export type previewPortalInvitationResponseError = (previewPortalInvitationResponse400 | previewPortalInvitationResponse401 | previewPortalInvitationResponse404 | previewPortalInvitationResponse500) & {
+  headers: Headers;
+};
+
+export type previewPortalInvitationResponse = (previewPortalInvitationResponseSuccess | previewPortalInvitationResponseError)
+
+export const getPreviewPortalInvitationUrl = (params: PreviewPortalInvitationParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/portal/invitation/preview?${stringifiedParams}` : `/api/portal/invitation/preview`
+}
+
+/**
+ * Имя и знак магазина по коду приглашения — для экрана активации («Вас пригласил «Лето»»). Входа не требует, как и активация. Неверный, просроченный, погашенный код — тот же отказ, что у активации; неудачи считаются попытками перебора.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Выписать приглашение, взять `code` из ссылки — `name` магазина.
+ * 2. Негативный 401 `INVITATION_INVALID`: выдуманный код.
+ * @summary Кто пригласил
+ */
+export const previewPortalInvitation = async (params: PreviewPortalInvitationParams, options?: Parameters<typeof apiRequest>[1]): Promise<previewPortalInvitationResponse> => {
+
+  return apiRequest<previewPortalInvitationResponse>(getPreviewPortalInvitationUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPreviewPortalInvitationQueryKey = (params?: PreviewPortalInvitationParams,) => {
+    return [
+    `/api/portal/invitation/preview`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getPreviewPortalInvitationQueryOptions = <TData = Awaited<ReturnType<typeof previewPortalInvitation>>, TError = ErrorResponse>(params: PreviewPortalInvitationParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewPortalInvitation>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPreviewPortalInvitationQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof previewPortalInvitation>>> = ({ signal }) => previewPortalInvitation(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof previewPortalInvitation>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PreviewPortalInvitationQueryResult = NonNullable<Awaited<ReturnType<typeof previewPortalInvitation>>>
+export type PreviewPortalInvitationQueryError = ErrorResponse
+
+
+export function usePreviewPortalInvitation<TData = Awaited<ReturnType<typeof previewPortalInvitation>>, TError = ErrorResponse>(
+ params: PreviewPortalInvitationParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewPortalInvitation>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewPortalInvitation>>,
+          TError,
+          Awaited<ReturnType<typeof previewPortalInvitation>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewPortalInvitation<TData = Awaited<ReturnType<typeof previewPortalInvitation>>, TError = ErrorResponse>(
+ params: PreviewPortalInvitationParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewPortalInvitation>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewPortalInvitation>>,
+          TError,
+          Awaited<ReturnType<typeof previewPortalInvitation>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewPortalInvitation<TData = Awaited<ReturnType<typeof previewPortalInvitation>>, TError = ErrorResponse>(
+ params: PreviewPortalInvitationParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewPortalInvitation>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Кто пригласил
+ */
+
+export function usePreviewPortalInvitation<TData = Awaited<ReturnType<typeof previewPortalInvitation>>, TError = ErrorResponse>(
+ params: PreviewPortalInvitationParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewPortalInvitation>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPreviewPortalInvitationQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -67361,6 +81843,148 @@ export function useGetPortalDeliveryOptions<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetPortalDeliveryOptionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getPortalDebtResponse200 = {
+  data: CustomerDebtDto
+  status: 200
+}
+
+export type getPortalDebtResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getPortalDebtResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getPortalDebtResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getPortalDebtResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getPortalDebtResponseSuccess = (getPortalDebtResponse200) & {
+  headers: Headers;
+};
+export type getPortalDebtResponseError = (getPortalDebtResponse400 | getPortalDebtResponse403 | getPortalDebtResponse404 | getPortalDebtResponse500) & {
+  headers: Headers;
+};
+
+export type getPortalDebtResponse = (getPortalDebtResponseSuccess | getPortalDebtResponseError)
+
+export const getGetPortalDebtUrl = () => {
+
+
+
+
+  return `/api/portal/debt`
+}
+
+/**
+ * Заказы под реализацию клиента у этого продавца: по каждому товару — цена, сколько взял, сколько вернул, оплачено и остаток; итоги и сообщения об оплате. Пустой `orders` — клиент в долг не брал, и раздела в кабинете нет. Оплачено — только подтверждённое продавцом; сообщённое и не подтверждённое — в `pending`.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Продавец выдал заказ под реализацию — он здесь, `debt` равен сумме.
+ * 2. Продавец принял выплату у кассы — `paid` вырос, строки гасятся по порядку.
+ * 3. Клиент без заказов под реализацию — `orders` пуст.
+ * @summary Мой долг
+ */
+export const getPortalDebt = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getPortalDebtResponse> => {
+
+  return apiRequest<getPortalDebtResponse>(getGetPortalDebtUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPortalDebtQueryKey = () => {
+    return [
+    `/api/portal/debt`
+    ] as const;
+    }
+
+
+export const getGetPortalDebtQueryOptions = <TData = Awaited<ReturnType<typeof getPortalDebt>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalDebt>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPortalDebtQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPortalDebt>>> = ({ signal }) => getPortalDebt({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPortalDebt>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPortalDebtQueryResult = NonNullable<Awaited<ReturnType<typeof getPortalDebt>>>
+export type GetPortalDebtQueryError = ErrorResponse
+
+
+export function useGetPortalDebt<TData = Awaited<ReturnType<typeof getPortalDebt>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalDebt>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalDebt>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalDebt>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalDebt<TData = Awaited<ReturnType<typeof getPortalDebt>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalDebt>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPortalDebt>>,
+          TError,
+          Awaited<ReturnType<typeof getPortalDebt>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPortalDebt<TData = Awaited<ReturnType<typeof getPortalDebt>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalDebt>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Мой долг
+ */
+
+export function useGetPortalDebt<TData = Awaited<ReturnType<typeof getPortalDebt>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPortalDebt>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPortalDebtQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -68021,7 +82645,8 @@ export const getGetPortalCatalogUrl = (params?: GetPortalCatalogParams,) => {
  * 6. Поставить позиции скидку в распродаже и вызвать с `onSale=true` — в ответе только товары распродажи, сначала с большей скидкой; `price` уже со скидкой, `oldPrice` — без неё; с `query` — только те из них, что находит поиск; с `categoryId` — только товары распродажи этой рубрики.
  * 7. Вызвать с `sort=DISCOUNT` при идущей распродаже — сначала товары распродажи по убыванию скидки, за ними «Хит продаж», «Новинка» и остальное по названию; распродажу выключить — порядок как у `POPULAR`.
  * 8. Завести две позиции с одним названием и поставить в распродажу одну — у строки в `variants` вариант со скидкой несёт `oldPrice` и `discountPercent`.
- * 9. Негативный 403: заголовок поставщика, у которого клиента нет.
+ * 9. Вызвать с `hit=true&promo=true` — только хиты, которые сейчас в распродаже; с `wholesaleDeal=true` — только товары, где упаковка в пересчёте на штуку дешевле розницы.
+ * 10. Негативный 403: заголовок поставщика, у которого клиента нет.
  * @summary Страница витрины
  */
 export const getPortalCatalog = async (params?: GetPortalCatalogParams, options?: Parameters<typeof apiRequest>[1]): Promise<getPortalCatalogResponse> => {
@@ -68409,6 +83034,155 @@ export function useGetPortalCatalogSubstitutes<TData = Awaited<ReturnType<typeof
 
 
 
+export type downloadPortalPriceListResponse200ApplicationPdf = {
+  data: Blob
+  status: 200
+}
+
+export type downloadPortalPriceListResponse200ApplicationVndOpenxmlformatsOfficedocumentSpreadsheetmlSheet = {
+  data: string
+  status: 200
+}
+
+export type downloadPortalPriceListResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type downloadPortalPriceListResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type downloadPortalPriceListResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type downloadPortalPriceListResponseSuccess = (downloadPortalPriceListResponse200ApplicationPdf | downloadPortalPriceListResponse200ApplicationVndOpenxmlformatsOfficedocumentSpreadsheetmlSheet) & {
+  headers: Headers;
+};
+export type downloadPortalPriceListResponseError = (downloadPortalPriceListResponse400 | downloadPortalPriceListResponse404 | downloadPortalPriceListResponse500) & {
+  headers: Headers;
+};
+
+export type downloadPortalPriceListResponse = (downloadPortalPriceListResponseSuccess | downloadPortalPriceListResponseError)
+
+export const getDownloadPortalPriceListUrl = (params?: DownloadPortalPriceListParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/portal/catalog/price-list?${stringifiedParams}` : `/api/portal/catalog/price-list`
+}
+
+/**
+ * Витрина раздела (пусто — вся) с ценами этого клиента на сегодня — той же ценой, что на витрине, — и наличием в том виде, что показывает продавец. В шапке дата и «цены действительны на дату». Закупочных цен в файле нет. До 5 000 строк. Язык — язык кабинета.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Клиенту с индивидуальной ценой `GET /api/portal/catalog/price-list?format=xlsx` — в файле его цена, а не общая.
+ * 2. `format=pdf` — PDF с той же строкой.
+ * 3. Негативный 400: `format=doc`.
+ * @summary Прайс-лист файлом
+ */
+export const downloadPortalPriceList = async (params?: DownloadPortalPriceListParams, options?: Parameters<typeof apiRequest>[1]): Promise<downloadPortalPriceListResponse> => {
+
+  return apiRequest<downloadPortalPriceListResponse>(getDownloadPortalPriceListUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadPortalPriceListQueryKey = (params?: DownloadPortalPriceListParams,) => {
+    return [
+    `/api/portal/catalog/price-list`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDownloadPortalPriceListQueryOptions = <TData = Awaited<ReturnType<typeof downloadPortalPriceList>>, TError = ErrorResponse>(params?: DownloadPortalPriceListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalPriceList>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadPortalPriceListQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadPortalPriceList>>> = ({ signal }) => downloadPortalPriceList(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadPortalPriceList>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type DownloadPortalPriceListQueryResult = NonNullable<Awaited<ReturnType<typeof downloadPortalPriceList>>>
+export type DownloadPortalPriceListQueryError = ErrorResponse
+
+
+export function useDownloadPortalPriceList<TData = Awaited<ReturnType<typeof downloadPortalPriceList>>, TError = ErrorResponse>(
+ params: undefined |  DownloadPortalPriceListParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalPriceList>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadPortalPriceList>>,
+          TError,
+          Awaited<ReturnType<typeof downloadPortalPriceList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadPortalPriceList<TData = Awaited<ReturnType<typeof downloadPortalPriceList>>, TError = ErrorResponse>(
+ params?: DownloadPortalPriceListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalPriceList>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof downloadPortalPriceList>>,
+          TError,
+          Awaited<ReturnType<typeof downloadPortalPriceList>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useDownloadPortalPriceList<TData = Awaited<ReturnType<typeof downloadPortalPriceList>>, TError = ErrorResponse>(
+ params?: DownloadPortalPriceListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalPriceList>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Прайс-лист файлом
+ */
+
+export function useDownloadPortalPriceList<TData = Awaited<ReturnType<typeof downloadPortalPriceList>>, TError = ErrorResponse>(
+ params?: DownloadPortalPriceListParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof downloadPortalPriceList>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getDownloadPortalPriceListQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getPortalCatalogFiltersResponse200 = {
   data: ShowcaseFacetDto[]
   status: 200
@@ -68459,13 +83233,14 @@ export const getGetPortalCatalogFiltersUrl = (params?: GetPortalCatalogFiltersPa
 }
 
 /**
- * Поля рубрики, по которым продавец разрешил отбирать (признак «по нему отбирают») и которые видит клиент, — списки, «несколько из списка» и «да/нет». Только варианты, которые встречаются у товаров на витрине этой рубрики, с числом моделей. Без рубрики — поля всего каталога. Выбранное передают в `getPortalCatalog` параметром `field=КОД:вариант`.
+ * Поля рубрики, по которым продавец разрешил отбирать (признак «по нему отбирают») и которые видит клиент, — списки, «несколько из списка» и «да/нет». Только варианты, которые встречаются у товаров на витрине этой рубрики, с числом моделей. Без рубрики — поля всего каталога и «Размер» (`SIZE`) с ростовкой (`SIZE_RUN`) из рубрик одежды. Числа — с тем же отбором наличия, что у страницы. Выбранное передают в `getPortalCatalog` параметром `field=КОД:вариант`.
  *
  * **Как проверить вручную**
  *
  * 1. В рубрике поле «Цвет» (список, «по нему отбирают») и две куртки — красная и синяя: приходит `COLOR` с вариантами `red` и `blue` по одной модели.
  * 2. Снять с поля признак «по нему отбирают» — поля в ответе нет.
- * 3. Негативный 403: заголовок чужого поставщика.
+ * 3. Третья куртка, зелёная, с нулевым остатком: при `presence=IN_STOCK` варианта `green` нет, при `presence=ALL` — есть.
+ * 4. Негативный 403: заголовок чужого поставщика.
  * @summary Отборы витрины по полям рубрики
  */
 export const getPortalCatalogFilters = async (params?: GetPortalCatalogFiltersParams, options?: Parameters<typeof apiRequest>[1]): Promise<getPortalCatalogFiltersResponse> => {
@@ -68608,7 +83383,7 @@ export const getGetPortalCatalogCountsUrl = (params?: GetPortalCatalogCountsPara
 }
 
 /**
- * Сколько товаров попадает под каждый чип каталога: все, со скидкой, новинки и каждая рубрика — с тем же поиском, что у страницы. Число у чипа обещает, сколько человек увидит, нажав его. Товаров «со скидкой» нет, пока распродажа не идёт; рубрики без товаров в словаре нет. `retail` и `wholesale` — сколько товаров продаётся штуками и сколько оптом, без фильтра `channel`: ноль — переключатель «Розница / Опт» не нужен.
+ * Сколько товаров попадает под каждый чип каталога: все, со скидкой, новинки и каждая рубрика — с тем же поиском, что у страницы. Число у чипа обещает, сколько человек увидит, нажав его. Товаров «со скидкой» нет, пока распродажа не идёт; рубрики без товаров в словаре нет. `retail`, `wholesale` и `both` — сколько товаров только штуками, только оптом и так, и так, без фильтра `channel`: переключатель нужен, когда непусты хотя бы два из трёх.
  *
  * **Как проверить вручную**
  *
@@ -70260,6 +85035,141 @@ export function useListOrderReturnMarks<TData = Awaited<ReturnType<typeof listOr
 
 
 
+export type listPaymentBanksResponse200 = {
+  data: PaymentBankDto[]
+  status: 200
+}
+
+export type listPaymentBanksResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPaymentBanksResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPaymentBanksResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPaymentBanksResponseSuccess = (listPaymentBanksResponse200) & {
+  headers: Headers;
+};
+export type listPaymentBanksResponseError = (listPaymentBanksResponse400 | listPaymentBanksResponse404 | listPaymentBanksResponse500) & {
+  headers: Headers;
+};
+
+export type listPaymentBanksResponse = (listPaymentBanksResponseSuccess | listPaymentBanksResponseError)
+
+export const getListPaymentBanksUrl = () => {
+
+
+
+
+  return `/api/orders/payment-banks`
+}
+
+/**
+ * Для сотрудника продавца: банки страны продавца (по валюте продаж), со скрытыми — выбирать из видимых, называть прошлые оплаты по всем.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Продавец с валютой KZT — 8 банков Казахстана.
+ * @summary Банки моей страны
+ */
+export const listPaymentBanks = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listPaymentBanksResponse> => {
+
+  return apiRequest<listPaymentBanksResponse>(getListPaymentBanksUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPaymentBanksQueryKey = () => {
+    return [
+    `/api/orders/payment-banks`
+    ] as const;
+    }
+
+
+export const getListPaymentBanksQueryOptions = <TData = Awaited<ReturnType<typeof listPaymentBanks>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentBanks>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPaymentBanksQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPaymentBanks>>> = ({ signal }) => listPaymentBanks({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPaymentBanks>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPaymentBanksQueryResult = NonNullable<Awaited<ReturnType<typeof listPaymentBanks>>>
+export type ListPaymentBanksQueryError = ErrorResponse
+
+
+export function useListPaymentBanks<TData = Awaited<ReturnType<typeof listPaymentBanks>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentBanks>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPaymentBanks>>,
+          TError,
+          Awaited<ReturnType<typeof listPaymentBanks>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPaymentBanks<TData = Awaited<ReturnType<typeof listPaymentBanks>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentBanks>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPaymentBanks>>,
+          TError,
+          Awaited<ReturnType<typeof listPaymentBanks>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPaymentBanks<TData = Awaited<ReturnType<typeof listPaymentBanks>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentBanks>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Банки моей страны
+ */
+
+export function useListPaymentBanks<TData = Awaited<ReturnType<typeof listPaymentBanks>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPaymentBanks>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPaymentBanksQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type listOrderDebtsResponse200 = {
   data: OrderDebtRowDto[]
   status: 200
@@ -70305,7 +85215,7 @@ export const getListOrderDebtsUrl = (params?: ListOrderDebtsParams,) => {
 }
 
 /**
- * Заказы под реализацию с остатком, первыми самые старые; `customerId` — отбор по клиенту.
+ * Заказы под реализацию с остатком, первыми самые старые; `customerId` — отбор по клиенту; `closed=true` — и рассчитанные заказы, после открытых, свежие первыми.
  *
  * **Как проверить вручную**
  *
@@ -70391,6 +85301,142 @@ export function useListOrderDebts<TData = Awaited<ReturnType<typeof listOrderDeb
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListOrderDebtsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type listPendingDebtClaimsResponse200 = {
+  data: DebtClaimDto[]
+  status: 200
+}
+
+export type listPendingDebtClaimsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listPendingDebtClaimsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listPendingDebtClaimsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listPendingDebtClaimsResponseSuccess = (listPendingDebtClaimsResponse200) & {
+  headers: Headers;
+};
+export type listPendingDebtClaimsResponseError = (listPendingDebtClaimsResponse400 | listPendingDebtClaimsResponse404 | listPendingDebtClaimsResponse500) & {
+  headers: Headers;
+};
+
+export type listPendingDebtClaimsResponse = (listPendingDebtClaimsResponseSuccess | listPendingDebtClaimsResponseError)
+
+export const getListPendingDebtClaimsUrl = () => {
+
+
+
+
+  return `/api/orders/debt-claims`
+}
+
+/**
+ * Клиент в кабинете сообщил «я оплатил» за товары, взятые под реализацию; долг не изменится, пока продавец не подтвердит. Старые сверху.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Клиент сообщил об оплате (`POST /api/portal/debt/claims`) — сообщение здесь со статусом `PENDING` и товарами.
+ * 2. Подтвердить или отклонить — из списка оно уходит.
+ * @summary Сообщения клиентов об оплате долга
+ */
+export const listPendingDebtClaims = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listPendingDebtClaimsResponse> => {
+
+  return apiRequest<listPendingDebtClaimsResponse>(getListPendingDebtClaimsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPendingDebtClaimsQueryKey = () => {
+    return [
+    `/api/orders/debt-claims`
+    ] as const;
+    }
+
+
+export const getListPendingDebtClaimsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingDebtClaims>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPendingDebtClaims>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPendingDebtClaimsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingDebtClaims>>> = ({ signal }) => listPendingDebtClaims({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPendingDebtClaims>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPendingDebtClaimsQueryResult = NonNullable<Awaited<ReturnType<typeof listPendingDebtClaims>>>
+export type ListPendingDebtClaimsQueryError = ErrorResponse
+
+
+export function useListPendingDebtClaims<TData = Awaited<ReturnType<typeof listPendingDebtClaims>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPendingDebtClaims>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPendingDebtClaims>>,
+          TError,
+          Awaited<ReturnType<typeof listPendingDebtClaims>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPendingDebtClaims<TData = Awaited<ReturnType<typeof listPendingDebtClaims>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPendingDebtClaims>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPendingDebtClaims>>,
+          TError,
+          Awaited<ReturnType<typeof listPendingDebtClaims>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPendingDebtClaims<TData = Awaited<ReturnType<typeof listPendingDebtClaims>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPendingDebtClaims>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Сообщения клиентов об оплате долга
+ */
+
+export function useListPendingDebtClaims<TData = Awaited<ReturnType<typeof listPendingDebtClaims>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPendingDebtClaims>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPendingDebtClaimsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -70687,6 +85733,149 @@ export function useGetOrderRatingSummary<TData = Awaited<ReturnType<typeof getOr
 
 
 
+export type getOnboardingFactsResponse200 = {
+  data: OnboardingFactsDto
+  status: 200
+}
+
+export type getOnboardingFactsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getOnboardingFactsResponse403 = {
+  data: ErrorResponse
+  status: 403
+}
+
+export type getOnboardingFactsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getOnboardingFactsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getOnboardingFactsResponseSuccess = (getOnboardingFactsResponse200) & {
+  headers: Headers;
+};
+export type getOnboardingFactsResponseError = (getOnboardingFactsResponse400 | getOnboardingFactsResponse403 | getOnboardingFactsResponse404 | getOnboardingFactsResponse500) & {
+  headers: Headers;
+};
+
+export type getOnboardingFactsResponse = (getOnboardingFactsResponseSuccess | getOnboardingFactsResponseError)
+
+export const getGetOnboardingFactsUrl = () => {
+
+
+
+
+  return `/api/onboarding/facts`
+}
+
+/**
+ * Сколько позиций видно на витрине кабинета (видимые, с ценой), сколько клиентов вошли в кабинет и была ли заявка из кабинета.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Новый магазин — все нули и `portalOrder = false`.
+ * 2. Загрузить прайс на 10 позиций с ценой — `shownItems = 10`; скрыть одну — 9.
+ * 3. Клиент активирует приглашение — `activeCustomers = 1`.
+ * 4. Клиент отправляет заявку из кабинета — `portalOrder = true`.
+ * @summary Данные шагов «Начала работы»
+ */
+export const getOnboardingFacts = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getOnboardingFactsResponse> => {
+
+  return apiRequest<getOnboardingFactsResponse>(getGetOnboardingFactsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOnboardingFactsQueryKey = () => {
+    return [
+    `/api/onboarding/facts`
+    ] as const;
+    }
+
+
+export const getGetOnboardingFactsQueryOptions = <TData = Awaited<ReturnType<typeof getOnboardingFacts>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingFacts>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOnboardingFactsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOnboardingFacts>>> = ({ signal }) => getOnboardingFacts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOnboardingFacts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetOnboardingFactsQueryResult = NonNullable<Awaited<ReturnType<typeof getOnboardingFacts>>>
+export type GetOnboardingFactsQueryError = ErrorResponse
+
+
+export function useGetOnboardingFacts<TData = Awaited<ReturnType<typeof getOnboardingFacts>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingFacts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOnboardingFacts>>,
+          TError,
+          Awaited<ReturnType<typeof getOnboardingFacts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOnboardingFacts<TData = Awaited<ReturnType<typeof getOnboardingFacts>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingFacts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getOnboardingFacts>>,
+          TError,
+          Awaited<ReturnType<typeof getOnboardingFacts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetOnboardingFacts<TData = Awaited<ReturnType<typeof getOnboardingFacts>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingFacts>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Данные шагов «Начала работы»
+ */
+
+export function useGetOnboardingFacts<TData = Awaited<ReturnType<typeof getOnboardingFacts>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getOnboardingFacts>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetOnboardingFactsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type unreadNotificationsResponse200 = {
   data: NotificationDto[]
   status: 200
@@ -70821,6 +86010,150 @@ export function useUnreadNotifications<TData = Awaited<ReturnType<typeof unreadN
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getUnreadNotificationsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getMyInviteResponse200 = {
+  data: StaffInviteDto
+  status: 200
+}
+
+export type getMyInviteResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getMyInviteResponse403 = {
+  data: StaffInviteDto
+  status: 403
+}
+
+export type getMyInviteResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getMyInviteResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getMyInviteResponseSuccess = (getMyInviteResponse200) & {
+  headers: Headers;
+};
+export type getMyInviteResponseError = (getMyInviteResponse400 | getMyInviteResponse403 | getMyInviteResponse404 | getMyInviteResponse500) & {
+  headers: Headers;
+};
+
+export type getMyInviteResponse = (getMyInviteResponseSuccess | getMyInviteResponseError)
+
+export const getGetMyInviteUrl = () => {
+
+
+
+
+  return `/api/my/invite`
+}
+
+/**
+ * Личная ссылка сотрудника (`/join-shop/{code}` кабинета) — заводится при первом обращении.
+ * Гость по ней подтверждает номер кодом в WhatsApp, и кабинет открывается сразу, без одобрения
+ * магазина; клиент закрепляется за сотрудником, сотруднику — уведомление `CUSTOMER_JOINED`.
+ * Ссылка магазина в «Клиентах» от неё не зависит.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти продавцом (полный доступ к заявкам) — 200 с кодом; повторный запрос — тот же код.
+ * 2. Негативный 403: у сотрудника нет полного доступа к заявкам (например, кладовщик).
+ * @summary Моя ссылка для клиентов
+ */
+export const getMyInvite = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getMyInviteResponse> => {
+
+  return apiRequest<getMyInviteResponse>(getGetMyInviteUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyInviteQueryKey = () => {
+    return [
+    `/api/my/invite`
+    ] as const;
+    }
+
+
+export const getGetMyInviteQueryOptions = <TData = Awaited<ReturnType<typeof getMyInvite>>, TError = ErrorResponse | StaffInviteDto>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyInvite>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyInviteQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyInvite>>> = ({ signal }) => getMyInvite({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyInvite>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyInviteQueryResult = NonNullable<Awaited<ReturnType<typeof getMyInvite>>>
+export type GetMyInviteQueryError = ErrorResponse | StaffInviteDto
+
+
+export function useGetMyInvite<TData = Awaited<ReturnType<typeof getMyInvite>>, TError = ErrorResponse | StaffInviteDto>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyInvite>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyInvite>>,
+          TError,
+          Awaited<ReturnType<typeof getMyInvite>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyInvite<TData = Awaited<ReturnType<typeof getMyInvite>>, TError = ErrorResponse | StaffInviteDto>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyInvite>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyInvite>>,
+          TError,
+          Awaited<ReturnType<typeof getMyInvite>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyInvite<TData = Awaited<ReturnType<typeof getMyInvite>>, TError = ErrorResponse | StaffInviteDto>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyInvite>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Моя ссылка для клиентов
+ */
+
+export function useGetMyInvite<TData = Awaited<ReturnType<typeof getMyInvite>>, TError = ErrorResponse | StaffInviteDto>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyInvite>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyInviteQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -71111,6 +86444,142 @@ export function useReverseMapPlace<TData = Awaited<ReturnType<typeof reverseMapP
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getReverseMapPlaceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type previewHandoverResponse200 = {
+  data: HandoverDto
+  status: 200
+}
+
+export type previewHandoverResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type previewHandoverResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type previewHandoverResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type previewHandoverResponseSuccess = (previewHandoverResponse200) & {
+  headers: Headers;
+};
+export type previewHandoverResponseError = (previewHandoverResponse400 | previewHandoverResponse404 | previewHandoverResponse500) & {
+  headers: Headers;
+};
+
+export type previewHandoverResponse = (previewHandoverResponseSuccess | previewHandoverResponseError)
+
+export const getPreviewHandoverUrl = (staffId: string,) => {
+
+
+
+
+  return `/api/handovers/${staffId}`
+}
+
+/**
+ * Сколько у сотрудника закреплённых клиентов и открытых заявок (не выданы и не закрыты).
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Войти администратором (`77010000101`), запросить для менеджера — его клиенты и заявки.
+ * 2. Негативный 403: тот же запрос под менеджером (`77010000102`).
+ * @summary Что уйдёт при передаче
+ */
+export const previewHandover = async (staffId: string, options?: Parameters<typeof apiRequest>[1]): Promise<previewHandoverResponse> => {
+
+  return apiRequest<previewHandoverResponse>(getPreviewHandoverUrl(staffId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPreviewHandoverQueryKey = (staffId: string,) => {
+    return [
+    `/api/handovers/${staffId}`
+    ] as const;
+    }
+
+
+export const getPreviewHandoverQueryOptions = <TData = Awaited<ReturnType<typeof previewHandover>>, TError = ErrorResponse>(staffId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewHandover>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPreviewHandoverQueryKey(staffId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof previewHandover>>> = ({ signal }) => previewHandover(staffId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: staffId !== null && staffId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof previewHandover>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PreviewHandoverQueryResult = NonNullable<Awaited<ReturnType<typeof previewHandover>>>
+export type PreviewHandoverQueryError = ErrorResponse
+
+
+export function usePreviewHandover<TData = Awaited<ReturnType<typeof previewHandover>>, TError = ErrorResponse>(
+ staffId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewHandover>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewHandover>>,
+          TError,
+          Awaited<ReturnType<typeof previewHandover>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewHandover<TData = Awaited<ReturnType<typeof previewHandover>>, TError = ErrorResponse>(
+ staffId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewHandover>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewHandover>>,
+          TError,
+          Awaited<ReturnType<typeof previewHandover>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewHandover<TData = Awaited<ReturnType<typeof previewHandover>>, TError = ErrorResponse>(
+ staffId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewHandover>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Что уйдёт при передаче
+ */
+
+export function usePreviewHandover<TData = Awaited<ReturnType<typeof previewHandover>>, TError = ErrorResponse>(
+ staffId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewHandover>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPreviewHandoverQueryOptions(staffId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -71559,6 +87028,280 @@ export function useExchangeStatus<TData = Awaited<ReturnType<typeof exchangeStat
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getExchangeStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type listExchangeOrdersResponse200 = {
+  data: ExchangeQueueOrderDto[]
+  status: 200
+}
+
+export type listExchangeOrdersResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type listExchangeOrdersResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type listExchangeOrdersResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type listExchangeOrdersResponseSuccess = (listExchangeOrdersResponse200) & {
+  headers: Headers;
+};
+export type listExchangeOrdersResponseError = (listExchangeOrdersResponse400 | listExchangeOrdersResponse404 | listExchangeOrdersResponse500) & {
+  headers: Headers;
+};
+
+export type listExchangeOrdersResponse = (listExchangeOrdersResponseSuccess | listExchangeOrdersResponseError)
+
+export const getListExchangeOrdersUrl = () => {
+
+
+
+
+  return `/api/exchange/orders`
+}
+
+/**
+ * Последние 200 заказов по их последней ревизии, свежие сверху: ждёт 1С, 1С забрала,
+ * заведён документом (номер документа), 1С не примет (причина). Счётчики оплат — по последним
+ * ревизиям оплат.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Выдать ключ, принять заказ — в списке `PENDING`; после `/api/1c/orders/ack` — `ACKED`
+ *    с `documentNumber`.
+ * @summary Заказы в очереди 1С
+ */
+export const listExchangeOrders = async ( options?: Parameters<typeof apiRequest>[1]): Promise<listExchangeOrdersResponse> => {
+
+  return apiRequest<listExchangeOrdersResponse>(getListExchangeOrdersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExchangeOrdersQueryKey = () => {
+    return [
+    `/api/exchange/orders`
+    ] as const;
+    }
+
+
+export const getListExchangeOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listExchangeOrders>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeOrders>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExchangeOrdersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExchangeOrders>>> = ({ signal }) => listExchangeOrders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExchangeOrders>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListExchangeOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listExchangeOrders>>>
+export type ListExchangeOrdersQueryError = ErrorResponse
+
+
+export function useListExchangeOrders<TData = Awaited<ReturnType<typeof listExchangeOrders>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeOrders>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listExchangeOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listExchangeOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListExchangeOrders<TData = Awaited<ReturnType<typeof listExchangeOrders>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeOrders>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listExchangeOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listExchangeOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListExchangeOrders<TData = Awaited<ReturnType<typeof listExchangeOrders>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeOrders>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Заказы в очереди 1С
+ */
+
+export function useListExchangeOrders<TData = Awaited<ReturnType<typeof listExchangeOrders>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExchangeOrders>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListExchangeOrdersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type traceExchangeOrderResponse200 = {
+  data: ExchangeOrderTraceDto
+  status: 200
+}
+
+export type traceExchangeOrderResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type traceExchangeOrderResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type traceExchangeOrderResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type traceExchangeOrderResponseSuccess = (traceExchangeOrderResponse200) & {
+  headers: Headers;
+};
+export type traceExchangeOrderResponseError = (traceExchangeOrderResponse400 | traceExchangeOrderResponse404 | traceExchangeOrderResponse500) & {
+  headers: Headers;
+};
+
+export type traceExchangeOrderResponse = (traceExchangeOrderResponseSuccess | traceExchangeOrderResponseError)
+
+export const getTraceExchangeOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/exchange/orders/${orderId}`
+}
+
+/**
+ * Все ревизии заказа в очереди, его оплаты и строки без кода 1С (из-за них 1С заказ не примет).
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Заказ с товаром без кода 1С — последняя ревизия `REJECTED`, строка в `missingLines`.
+ * 2. Негативный 404 `EXCHANGE_ORDER_NOT_FOUND`: заказ, которого в очереди нет.
+ * @summary Путь заказа в 1С
+ */
+export const traceExchangeOrder = async (orderId: string, options?: Parameters<typeof apiRequest>[1]): Promise<traceExchangeOrderResponse> => {
+
+  return apiRequest<traceExchangeOrderResponse>(getTraceExchangeOrderUrl(orderId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getTraceExchangeOrderQueryKey = (orderId: string,) => {
+    return [
+    `/api/exchange/orders/${orderId}`
+    ] as const;
+    }
+
+
+export const getTraceExchangeOrderQueryOptions = <TData = Awaited<ReturnType<typeof traceExchangeOrder>>, TError = ErrorResponse>(orderId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof traceExchangeOrder>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getTraceExchangeOrderQueryKey(orderId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof traceExchangeOrder>>> = ({ signal }) => traceExchangeOrder(orderId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orderId !== null && orderId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof traceExchangeOrder>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type TraceExchangeOrderQueryResult = NonNullable<Awaited<ReturnType<typeof traceExchangeOrder>>>
+export type TraceExchangeOrderQueryError = ErrorResponse
+
+
+export function useTraceExchangeOrder<TData = Awaited<ReturnType<typeof traceExchangeOrder>>, TError = ErrorResponse>(
+ orderId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof traceExchangeOrder>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof traceExchangeOrder>>,
+          TError,
+          Awaited<ReturnType<typeof traceExchangeOrder>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useTraceExchangeOrder<TData = Awaited<ReturnType<typeof traceExchangeOrder>>, TError = ErrorResponse>(
+ orderId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof traceExchangeOrder>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof traceExchangeOrder>>,
+          TError,
+          Awaited<ReturnType<typeof traceExchangeOrder>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useTraceExchangeOrder<TData = Awaited<ReturnType<typeof traceExchangeOrder>>, TError = ErrorResponse>(
+ orderId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof traceExchangeOrder>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Путь заказа в 1С
+ */
+
+export function useTraceExchangeOrder<TData = Awaited<ReturnType<typeof traceExchangeOrder>>, TError = ErrorResponse>(
+ orderId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof traceExchangeOrder>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getTraceExchangeOrderQueryOptions(orderId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -73657,6 +89400,141 @@ export function useGetSameBinCustomers<TData = Awaited<ReturnType<typeof getSame
 
 
 
+export type getCustomerDebtByItemsResponse200 = {
+  data: CustomerDebtDto
+  status: 200
+}
+
+export type getCustomerDebtByItemsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getCustomerDebtByItemsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getCustomerDebtByItemsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getCustomerDebtByItemsResponseSuccess = (getCustomerDebtByItemsResponse200) & {
+  headers: Headers;
+};
+export type getCustomerDebtByItemsResponseError = (getCustomerDebtByItemsResponse400 | getCustomerDebtByItemsResponse404 | getCustomerDebtByItemsResponse500) & {
+  headers: Headers;
+};
+
+export type getCustomerDebtByItemsResponse = (getCustomerDebtByItemsResponseSuccess | getCustomerDebtByItemsResponseError)
+
+export const getGetCustomerDebtByItemsUrl = (customerId: string,) => {
+
+
+
+
+  return `/api/customers/${customerId}/debt`
+}
+
+/**
+ * Тот же расчёт, что видит клиент в разделе «Долг»: по каждому товару — взял, вернул, оплачено, остаток и сообщённое клиентом на подтверждении.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Клиент с заказом под реализацию — в `orders` его заказ и строки с остатками.
+ * @summary Долг клиента по товарам
+ */
+export const getCustomerDebtByItems = async (customerId: string, options?: Parameters<typeof apiRequest>[1]): Promise<getCustomerDebtByItemsResponse> => {
+
+  return apiRequest<getCustomerDebtByItemsResponse>(getGetCustomerDebtByItemsUrl(customerId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerDebtByItemsQueryKey = (customerId: string,) => {
+    return [
+    `/api/customers/${customerId}/debt`
+    ] as const;
+    }
+
+
+export const getGetCustomerDebtByItemsQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError = ErrorResponse>(customerId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerDebtByItemsQueryKey(customerId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerDebtByItems>>> = ({ signal }) => getCustomerDebtByItems(customerId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: customerId !== null && customerId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCustomerDebtByItemsQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerDebtByItems>>>
+export type GetCustomerDebtByItemsQueryError = ErrorResponse
+
+
+export function useGetCustomerDebtByItems<TData = Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError = ErrorResponse>(
+ customerId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCustomerDebtByItems>>,
+          TError,
+          Awaited<ReturnType<typeof getCustomerDebtByItems>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCustomerDebtByItems<TData = Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError = ErrorResponse>(
+ customerId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCustomerDebtByItems>>,
+          TError,
+          Awaited<ReturnType<typeof getCustomerDebtByItems>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCustomerDebtByItems<TData = Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError = ErrorResponse>(
+ customerId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Долг клиента по товарам
+ */
+
+export function useGetCustomerDebtByItems<TData = Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError = ErrorResponse>(
+ customerId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomerDebtByItems>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCustomerDebtByItemsQueryOptions(customerId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type getTenantReferralsResponse200 = {
   data: TenantReferralDto[]
   status: 200
@@ -73782,6 +89660,142 @@ export function useGetTenantReferrals<TData = Awaited<ReturnType<typeof getTenan
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetTenantReferralsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export type getReferralSellersResponse200 = {
+  data: ReferralSellerDto[]
+  status: 200
+}
+
+export type getReferralSellersResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type getReferralSellersResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type getReferralSellersResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type getReferralSellersResponseSuccess = (getReferralSellersResponse200) & {
+  headers: Headers;
+};
+export type getReferralSellersResponseError = (getReferralSellersResponse400 | getReferralSellersResponse404 | getReferralSellersResponse500) & {
+  headers: Headers;
+};
+
+export type getReferralSellersResponse = (getReferralSellersResponseSuccess | getReferralSellersResponseError)
+
+export const getGetReferralSellersUrl = () => {
+
+
+
+
+  return `/api/customers/referral-sellers`
+}
+
+/**
+ * Кто из продавцов передал владельцу приглашения клиентов и ещё не заведён сотрудником. Завести его с этим номером — клиенты станут его клиентами. Нужно право «Сотрудники: правка».
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Подключиться по ссылке владельцу от продавца — в списке продавец и его клиенты.
+ * 2. Завести сотрудника с номером продавца — список пуст.
+ * @summary Продавцы, передавшие приглашения клиентов
+ */
+export const getReferralSellers = async ( options?: Parameters<typeof apiRequest>[1]): Promise<getReferralSellersResponse> => {
+
+  return apiRequest<getReferralSellersResponse>(getGetReferralSellersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReferralSellersQueryKey = () => {
+    return [
+    `/api/customers/referral-sellers`
+    ] as const;
+    }
+
+
+export const getGetReferralSellersQueryOptions = <TData = Awaited<ReturnType<typeof getReferralSellers>>, TError = ErrorResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSellers>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReferralSellersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferralSellers>>> = ({ signal }) => getReferralSellers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReferralSellers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetReferralSellersQueryResult = NonNullable<Awaited<ReturnType<typeof getReferralSellers>>>
+export type GetReferralSellersQueryError = ErrorResponse
+
+
+export function useGetReferralSellers<TData = Awaited<ReturnType<typeof getReferralSellers>>, TError = ErrorResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSellers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getReferralSellers>>,
+          TError,
+          Awaited<ReturnType<typeof getReferralSellers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetReferralSellers<TData = Awaited<ReturnType<typeof getReferralSellers>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSellers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getReferralSellers>>,
+          TError,
+          Awaited<ReturnType<typeof getReferralSellers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetReferralSellers<TData = Awaited<ReturnType<typeof getReferralSellers>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSellers>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Продавцы, передавшие приглашения клиентов
+ */
+
+export function useGetReferralSellers<TData = Awaited<ReturnType<typeof getReferralSellers>>, TError = ErrorResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReferralSellers>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetReferralSellersQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -81137,6 +97151,159 @@ export function useGetAnalyticsCalendar<TData = Awaited<ReturnType<typeof getAna
 
 
 
+export type pullExchangePaymentsResponse200 = {
+  data: ExchangePaymentDto[]
+  status: 200
+}
+
+export type pullExchangePaymentsResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type pullExchangePaymentsResponse401 = {
+  data: ExchangePaymentDto[]
+  status: 401
+}
+
+export type pullExchangePaymentsResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type pullExchangePaymentsResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type pullExchangePaymentsResponseSuccess = (pullExchangePaymentsResponse200) & {
+  headers: Headers;
+};
+export type pullExchangePaymentsResponseError = (pullExchangePaymentsResponse400 | pullExchangePaymentsResponse401 | pullExchangePaymentsResponse404 | pullExchangePaymentsResponse500) & {
+  headers: Headers;
+};
+
+export type pullExchangePaymentsResponse = (pullExchangePaymentsResponseSuccess | pullExchangePaymentsResponseError)
+
+export const getPullExchangePaymentsUrl = () => {
+
+
+
+
+  return `/api/1c/payments`
+}
+
+/**
+ * Оплаты заказов, которые 1С уже подтвердила (`orderDocumentNumber` — номер её документа по
+ * заказу), и отданные без подтверждения дольше 15 минут — до 100 за раз, только последняя
+ * ревизия оплаты. У обычного заказа оплата одна — на всю сумму, `paymentId` равен `orderId`;
+ * у заказа под реализацию — каждая выплата по долгу. Отменённая выплата, о которой 1С уже
+ * знала, приходит новой ревизией с `cancelled = true`: поступление снять. Повторный запрос
+ * сразу отданное не вернёт.
+ *
+ * В режиме «только оплаченные» (`PUT /api/exchange/settings`, `paidOrdersOnly = true`) заказ
+ * сам встаёт в очередь заказов, когда отмечена оплата или он выдан под реализацию.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Выдать ключ обмена, принять заказ, 1С забрала и подтвердила его (`/api/1c/orders/ack`).
+ * 2. Отметить оплату заказа (`POST /api/orders/{id}/payment`).
+ * 3. `GET /api/1c/payments` с заголовком `X-Exchange-Key` — оплата на сумму заказа с
+ *    `orderDocumentNumber`. Повтор сразу — пусто.
+ * 4. Негативный: оплата заказа, который 1С ещё не подтвердила, не отдаётся.
+ * 5. Негативный 401: чужой ключ.
+ * @summary Оплаты для 1С
+ */
+export const pullExchangePayments = async ( options?: Parameters<typeof apiRequest>[1]): Promise<pullExchangePaymentsResponse> => {
+
+  return apiRequest<pullExchangePaymentsResponse>(getPullExchangePaymentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPullExchangePaymentsQueryKey = () => {
+    return [
+    `/api/1c/payments`
+    ] as const;
+    }
+
+
+export const getPullExchangePaymentsQueryOptions = <TData = Awaited<ReturnType<typeof pullExchangePayments>>, TError = ErrorResponse | ExchangePaymentDto[]>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof pullExchangePayments>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPullExchangePaymentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof pullExchangePayments>>> = ({ signal }) => pullExchangePayments({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof pullExchangePayments>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PullExchangePaymentsQueryResult = NonNullable<Awaited<ReturnType<typeof pullExchangePayments>>>
+export type PullExchangePaymentsQueryError = ErrorResponse | ExchangePaymentDto[]
+
+
+export function usePullExchangePayments<TData = Awaited<ReturnType<typeof pullExchangePayments>>, TError = ErrorResponse | ExchangePaymentDto[]>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof pullExchangePayments>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof pullExchangePayments>>,
+          TError,
+          Awaited<ReturnType<typeof pullExchangePayments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePullExchangePayments<TData = Awaited<ReturnType<typeof pullExchangePayments>>, TError = ErrorResponse | ExchangePaymentDto[]>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof pullExchangePayments>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof pullExchangePayments>>,
+          TError,
+          Awaited<ReturnType<typeof pullExchangePayments>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePullExchangePayments<TData = Awaited<ReturnType<typeof pullExchangePayments>>, TError = ErrorResponse | ExchangePaymentDto[]>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof pullExchangePayments>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Оплаты для 1С
+ */
+
+export function usePullExchangePayments<TData = Awaited<ReturnType<typeof pullExchangePayments>>, TError = ErrorResponse | ExchangePaymentDto[]>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof pullExchangePayments>>, TError, TData>>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPullExchangePaymentsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export type pullExchangeOrdersResponse200 = {
   data: ExchangeOrderDto[]
   status: 200
@@ -81515,6 +97682,116 @@ export const useDeleteStaffMember = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getDeleteStaffMemberMutationOptions(options), queryClient);
+    }
+
+export type endPlatformTenantTrialResponse200 = {
+  data: PlatformTenantDto
+  status: 200
+}
+
+export type endPlatformTenantTrialResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type endPlatformTenantTrialResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type endPlatformTenantTrialResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type endPlatformTenantTrialResponseSuccess = (endPlatformTenantTrialResponse200) & {
+  headers: Headers;
+};
+export type endPlatformTenantTrialResponseError = (endPlatformTenantTrialResponse400 | endPlatformTenantTrialResponse404 | endPlatformTenantTrialResponse500) & {
+  headers: Headers;
+};
+
+export type endPlatformTenantTrialResponse = (endPlatformTenantTrialResponseSuccess | endPlatformTenantTrialResponseError)
+
+export const getEndPlatformTenantTrialUrl = (id: string,) => {
+
+
+
+
+  return `/api/tenant/platform/tenants/${id}/trial`
+}
+
+/**
+ * После оплаты счёта арендатором самоподключения: срок пробного периода очищается, состояние — `ACTIVE`, заявки снова принимаются. Тариф не меняется — его назначают отдельно.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Арендатор самоподключения с истёкшим сроком (`SUSPENDED`) — `DELETE` — `ACTIVE`, `trialEndsAt` пуст.
+ * 2. Негативный 404: любой другой идентификатор.
+ * 3. Негативный 403: тот же запрос администратором арендатора.
+ * @summary Снять пробный период
+ */
+export const endPlatformTenantTrial = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<endPlatformTenantTrialResponse> => {
+
+  return apiRequest<endPlatformTenantTrialResponse>(getEndPlatformTenantTrialUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndPlatformTenantTrialMutationKey = () => ['endPlatformTenantTrial'] as const;
+
+export const getEndPlatformTenantTrialMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endPlatformTenantTrial>>, TError,EndPlatformTenantTrialMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof endPlatformTenantTrial>>, TError,EndPlatformTenantTrialMutationVariables, TContext> => {
+
+const mutationKey = getEndPlatformTenantTrialMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endPlatformTenantTrial>>, EndPlatformTenantTrialMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  endPlatformTenantTrial(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndPlatformTenantTrialMutationResult = NonNullable<Awaited<ReturnType<typeof endPlatformTenantTrial>>>
+
+    export type EndPlatformTenantTrialMutationError = ErrorResponse
+    export type EndPlatformTenantTrialMutationVariables = {id: string}
+
+    /**
+ * @summary Снять пробный период
+ */
+export const useEndPlatformTenantTrial = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endPlatformTenantTrial>>, TError,EndPlatformTenantTrialMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endPlatformTenantTrial>>,
+        TError,
+        EndPlatformTenantTrialMutationVariables,
+        TContext
+      > => {
+      return useMutation(getEndPlatformTenantTrialMutationOptions(options), queryClient);
     }
 
 export type deletePlatformTenantAccountResponse204 = {
@@ -81981,6 +98258,224 @@ export const useDeleteStockPhoto = <TError = ErrorResponse,
       return useMutation(getDeleteStockPhotoMutationOptions(options), queryClient);
     }
 
+export type deletePurchaseReceiptResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type deletePurchaseReceiptResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePurchaseReceiptResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePurchaseReceiptResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePurchaseReceiptResponseSuccess = (deletePurchaseReceiptResponse200) & {
+  headers: Headers;
+};
+export type deletePurchaseReceiptResponseError = (deletePurchaseReceiptResponse400 | deletePurchaseReceiptResponse404 | deletePurchaseReceiptResponse500) & {
+  headers: Headers;
+};
+
+export type deletePurchaseReceiptResponse = (deletePurchaseReceiptResponseSuccess | deletePurchaseReceiptResponseError)
+
+export const getDeletePurchaseReceiptUrl = (id: string,
+    receiptId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/receipts/${receiptId}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `DELETE` черновика — 200.
+ * 2. Негативный 409 `PURCHASE_RECEIPT_POSTED`: проведённый.
+ * @summary Удалить черновик прихода
+ */
+export const deletePurchaseReceipt = async (id: string,
+    receiptId: string, options?: Parameters<typeof apiRequest>[1]): Promise<deletePurchaseReceiptResponse> => {
+
+  return apiRequest<deletePurchaseReceiptResponse>(getDeletePurchaseReceiptUrl(id,receiptId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePurchaseReceiptMutationKey = () => ['deletePurchaseReceipt'] as const;
+
+export const getDeletePurchaseReceiptMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseReceipt>>, TError,DeletePurchaseReceiptMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseReceipt>>, TError,DeletePurchaseReceiptMutationVariables, TContext> => {
+
+const mutationKey = getDeletePurchaseReceiptMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePurchaseReceipt>>, DeletePurchaseReceiptMutationVariables> = (props) => {
+          const {id,receiptId} = props ?? {};
+
+          return  deletePurchaseReceipt(id,receiptId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePurchaseReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof deletePurchaseReceipt>>>
+
+    export type DeletePurchaseReceiptMutationError = ErrorResponse
+    export type DeletePurchaseReceiptMutationVariables = {id: string;receiptId: string}
+
+    /**
+ * @summary Удалить черновик прихода
+ */
+export const useDeletePurchaseReceipt = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchaseReceipt>>, TError,DeletePurchaseReceiptMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePurchaseReceipt>>,
+        TError,
+        DeletePurchaseReceiptMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePurchaseReceiptMutationOptions(options), queryClient);
+    }
+
+export type deletePurchasePaymentResponse200 = {
+  data: PurchaseDto
+  status: 200
+}
+
+export type deletePurchasePaymentResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePurchasePaymentResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePurchasePaymentResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePurchasePaymentResponseSuccess = (deletePurchasePaymentResponse200) & {
+  headers: Headers;
+};
+export type deletePurchasePaymentResponseError = (deletePurchasePaymentResponse400 | deletePurchasePaymentResponse404 | deletePurchasePaymentResponse500) & {
+  headers: Headers;
+};
+
+export type deletePurchasePaymentResponse = (deletePurchasePaymentResponseSuccess | deletePurchasePaymentResponseError)
+
+export const getDeletePurchasePaymentUrl = (id: string,
+    paymentId: string,) => {
+
+
+
+
+  return `/api/purchase/purchases/${id}/payments/${paymentId}`
+}
+
+/**
+ * **Как проверить вручную**
+ *
+ * 1. `DELETE` — 200, долг вернулся.
+ * 2. Негативный 404 `PURCHASE_PAYMENT_NOT_FOUND`.
+ * @summary Удалить оплату поставщику
+ */
+export const deletePurchasePayment = async (id: string,
+    paymentId: string, options?: Parameters<typeof apiRequest>[1]): Promise<deletePurchasePaymentResponse> => {
+
+  return apiRequest<deletePurchasePaymentResponse>(getDeletePurchasePaymentUrl(id,paymentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePurchasePaymentMutationKey = () => ['deletePurchasePayment'] as const;
+
+export const getDeletePurchasePaymentMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchasePayment>>, TError,DeletePurchasePaymentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePurchasePayment>>, TError,DeletePurchasePaymentMutationVariables, TContext> => {
+
+const mutationKey = getDeletePurchasePaymentMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePurchasePayment>>, DeletePurchasePaymentMutationVariables> = (props) => {
+          const {id,paymentId} = props ?? {};
+
+          return  deletePurchasePayment(id,paymentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePurchasePaymentMutationResult = NonNullable<Awaited<ReturnType<typeof deletePurchasePayment>>>
+
+    export type DeletePurchasePaymentMutationError = ErrorResponse
+    export type DeletePurchasePaymentMutationVariables = {id: string;paymentId: string}
+
+    /**
+ * @summary Удалить оплату поставщику
+ */
+export const useDeletePurchasePayment = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePurchasePayment>>, TError,DeletePurchasePaymentMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePurchasePayment>>,
+        TError,
+        DeletePurchasePaymentMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePurchasePaymentMutationOptions(options), queryClient);
+    }
+
 export type deletePromoArrivalItemResponse204 = {
   data: void
   status: 204
@@ -82091,61 +98586,75 @@ export const useDeletePromoArrivalItem = <TError = ErrorResponse,
       return useMutation(getDeletePromoArrivalItemMutationOptions(options), queryClient);
     }
 
-export type deletePortalTemplateResponse204 = {
+export type breakUpWithPortalSupplierResponse204 = {
   data: void
   status: 204
 }
 
-export type deletePortalTemplateResponse400 = {
+export type breakUpWithPortalSupplierResponse400 = {
   data: ErrorResponse
   status: 400
 }
 
-export type deletePortalTemplateResponse403 = {
+export type breakUpWithPortalSupplierResponse403 = {
   data: ErrorResponse
   status: 403
 }
 
-export type deletePortalTemplateResponse404 = {
+export type breakUpWithPortalSupplierResponse404 = {
   data: ErrorResponse
   status: 404
 }
 
-export type deletePortalTemplateResponse500 = {
+export type breakUpWithPortalSupplierResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type breakUpWithPortalSupplierResponse500 = {
   data: ErrorResponse
   status: 500
 }
 
-export type deletePortalTemplateResponseSuccess = (deletePortalTemplateResponse204) & {
+export type breakUpWithPortalSupplierResponseSuccess = (breakUpWithPortalSupplierResponse204) & {
   headers: Headers;
 };
-export type deletePortalTemplateResponseError = (deletePortalTemplateResponse400 | deletePortalTemplateResponse403 | deletePortalTemplateResponse404 | deletePortalTemplateResponse500) & {
+export type breakUpWithPortalSupplierResponseError = (breakUpWithPortalSupplierResponse400 | breakUpWithPortalSupplierResponse403 | breakUpWithPortalSupplierResponse404 | breakUpWithPortalSupplierResponse409 | breakUpWithPortalSupplierResponse500) & {
   headers: Headers;
 };
 
-export type deletePortalTemplateResponse = (deletePortalTemplateResponseSuccess | deletePortalTemplateResponseError)
+export type breakUpWithPortalSupplierResponse = (breakUpWithPortalSupplierResponseSuccess | breakUpWithPortalSupplierResponseError)
 
-export const getDeletePortalTemplateUrl = (id: string,) => {
+export const getBreakUpWithPortalSupplierUrl = (supplierId: string,
+    params?: BreakUpWithPortalSupplierParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/portal/templates/${id}`
+  return stringifiedParams.length > 0 ? `/api/portal/suppliers/${supplierId}?${stringifiedParams}` : `/api/portal/suppliers/${supplierId}`
 }
 
 /**
- * Повторное удаление ошибкой не считается — экран мог отправить повтор. Чужой шаблон отвечает тем же, чем несуществующий: ничем, потому что удалять нечего.
+ * Клиент больше не работает с продавцом: переписка, вопросы, уведомления, кабинет у этого продавца, корзина, шаблоны, избранное и отзывы стираются навсегда; заказы и накладные остаются у продавца без имени, телефона и адреса. Без `confirm=true` — 400; при долге или заявке в работе — 409. Последний магазин уносит и учётную запись входа.
  *
  * **Как проверить вручную**
  *
- * 1. Удалить свой шаблон — 204, из списка он исчез.
- * 2. Повторить — снова 204.
- * 3. Негативный 403: заголовок чужого поставщика.
- * @summary Убрать шаблон
+ * 1. Без `confirm` — 400.
+ * 2. Есть долг — 409.
+ * 3. Всё закрыто — 204, магазина нет в `/suppliers`.
+ * @summary Удалить магазин полностью
  */
-export const deletePortalTemplate = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<deletePortalTemplateResponse> => {
+export const breakUpWithPortalSupplier = async (supplierId: string,
+    params?: BreakUpWithPortalSupplierParams, options?: Parameters<typeof apiRequest>[1]): Promise<breakUpWithPortalSupplierResponse> => {
 
-  return apiRequest<deletePortalTemplateResponse>(getDeletePortalTemplateUrl(id),
+  return apiRequest<breakUpWithPortalSupplierResponse>(getBreakUpWithPortalSupplierUrl(supplierId,params),
   {
     ...options,
     method: 'DELETE'
@@ -82158,13 +98667,13 @@ export const deletePortalTemplate = async (id: string, options?: Parameters<type
 
 
 
-export const getDeletePortalTemplateMutationKey = () => ['deletePortalTemplate'] as const;
+export const getBreakUpWithPortalSupplierMutationKey = () => ['breakUpWithPortalSupplier'] as const;
 
-export const getDeletePortalTemplateMutationOptions = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalTemplate>>, TError,DeletePortalTemplateMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
-): UseMutationOptions<Awaited<ReturnType<typeof deletePortalTemplate>>, TError,DeletePortalTemplateMutationVariables, TContext> => {
+export const getBreakUpWithPortalSupplierMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof breakUpWithPortalSupplier>>, TError,BreakUpWithPortalSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof breakUpWithPortalSupplier>>, TError,BreakUpWithPortalSupplierMutationVariables, TContext> => {
 
-const mutationKey = getDeletePortalTemplateMutationKey();
+const mutationKey = getBreakUpWithPortalSupplierMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -82174,10 +98683,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePortalTemplate>>, DeletePortalTemplateMutationVariables> = (props) => {
-          const {id} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof breakUpWithPortalSupplier>>, BreakUpWithPortalSupplierMutationVariables> = (props) => {
+          const {supplierId,params} = props ?? {};
 
-          return  deletePortalTemplate(id,requestOptions)
+          return  breakUpWithPortalSupplier(supplierId,params,requestOptions)
         }
 
 
@@ -82187,23 +98696,23 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DeletePortalTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof deletePortalTemplate>>>
+    export type BreakUpWithPortalSupplierMutationResult = NonNullable<Awaited<ReturnType<typeof breakUpWithPortalSupplier>>>
 
-    export type DeletePortalTemplateMutationError = ErrorResponse
-    export type DeletePortalTemplateMutationVariables = {id: string}
+    export type BreakUpWithPortalSupplierMutationError = ErrorResponse
+    export type BreakUpWithPortalSupplierMutationVariables = {supplierId: string;params?: BreakUpWithPortalSupplierParams}
 
     /**
- * @summary Убрать шаблон
+ * @summary Удалить магазин полностью
  */
-export const useDeletePortalTemplate = <TError = ErrorResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalTemplate>>, TError,DeletePortalTemplateMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+export const useBreakUpWithPortalSupplier = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof breakUpWithPortalSupplier>>, TError,BreakUpWithPortalSupplierMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deletePortalTemplate>>,
+        Awaited<ReturnType<typeof breakUpWithPortalSupplier>>,
         TError,
-        DeletePortalTemplateMutationVariables,
+        BreakUpWithPortalSupplierMutationVariables,
         TContext
       > => {
-      return useMutation(getDeletePortalTemplateMutationOptions(options), queryClient);
+      return useMutation(getBreakUpWithPortalSupplierMutationOptions(options), queryClient);
     }
 
 export type deletePortalReviewPhotoResponse204 = {
@@ -82670,6 +99179,246 @@ export const useDeleteDeliveryTimeSlot = <TError = ErrorResponse,
         TContext
       > => {
       return useMutation(getDeleteDeliveryTimeSlotMutationOptions(options), queryClient);
+    }
+
+export type breakUpWithCustomerResponse200 = {
+  data: ErasureReport
+  status: 200
+}
+
+export type breakUpWithCustomerResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type breakUpWithCustomerResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type breakUpWithCustomerResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type breakUpWithCustomerResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type breakUpWithCustomerResponseSuccess = (breakUpWithCustomerResponse200) & {
+  headers: Headers;
+};
+export type breakUpWithCustomerResponseError = (breakUpWithCustomerResponse400 | breakUpWithCustomerResponse404 | breakUpWithCustomerResponse409 | breakUpWithCustomerResponse500) & {
+  headers: Headers;
+};
+
+export type breakUpWithCustomerResponse = (breakUpWithCustomerResponseSuccess | breakUpWithCustomerResponseError)
+
+export const getBreakUpWithCustomerUrl = (id: string,
+    params?: BreakUpWithCustomerParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/customers/${id}?${stringifiedParams}` : `/api/customers/${id}`
+}
+
+/**
+ * Продавец больше не работает с клиентом: стираются переписка, вопросы, уведомления, кабинет клиента у этого продавца, корзина, шаблоны, избранное и отзывы; заказы и накладные остаются без имени, телефона и адреса, а карточка получает отметки для архива (`retain_until` — срок хранения учётных документов). Необратимо: без `confirm=true` — 400. Нельзя при долге и при заявке или заказе в работе — 409.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Вызвать без `confirm` — 400.
+ * 2. У клиента непогашенный долг — 409; заявка в работе — 409.
+ * 3. Закрытые заказы, долга нет — 200; клиента нет в списке, в заказах нет его имени.
+ * @summary Удалить клиента полностью
+ */
+export const breakUpWithCustomer = async (id: string,
+    params?: BreakUpWithCustomerParams, options?: Parameters<typeof apiRequest>[1]): Promise<breakUpWithCustomerResponse> => {
+
+  return apiRequest<breakUpWithCustomerResponse>(getBreakUpWithCustomerUrl(id,params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getBreakUpWithCustomerMutationKey = () => ['breakUpWithCustomer'] as const;
+
+export const getBreakUpWithCustomerMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof breakUpWithCustomer>>, TError,BreakUpWithCustomerMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof breakUpWithCustomer>>, TError,BreakUpWithCustomerMutationVariables, TContext> => {
+
+const mutationKey = getBreakUpWithCustomerMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof breakUpWithCustomer>>, BreakUpWithCustomerMutationVariables> = (props) => {
+          const {id,params} = props ?? {};
+
+          return  breakUpWithCustomer(id,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BreakUpWithCustomerMutationResult = NonNullable<Awaited<ReturnType<typeof breakUpWithCustomer>>>
+
+    export type BreakUpWithCustomerMutationError = ErrorResponse
+    export type BreakUpWithCustomerMutationVariables = {id: string;params?: BreakUpWithCustomerParams}
+
+    /**
+ * @summary Удалить клиента полностью
+ */
+export const useBreakUpWithCustomer = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof breakUpWithCustomer>>, TError,BreakUpWithCustomerMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof breakUpWithCustomer>>,
+        TError,
+        BreakUpWithCustomerMutationVariables,
+        TContext
+      > => {
+      return useMutation(getBreakUpWithCustomerMutationOptions(options), queryClient);
+    }
+
+export type deletePortalAccountResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deletePortalAccountResponse400 = {
+  data: ErrorResponse
+  status: 400
+}
+
+export type deletePortalAccountResponse404 = {
+  data: ErrorResponse
+  status: 404
+}
+
+export type deletePortalAccountResponse409 = {
+  data: ErrorResponse
+  status: 409
+}
+
+export type deletePortalAccountResponse500 = {
+  data: ErrorResponse
+  status: 500
+}
+
+export type deletePortalAccountResponseSuccess = (deletePortalAccountResponse204) & {
+  headers: Headers;
+};
+export type deletePortalAccountResponseError = (deletePortalAccountResponse400 | deletePortalAccountResponse404 | deletePortalAccountResponse409 | deletePortalAccountResponse500) & {
+  headers: Headers;
+};
+
+export type deletePortalAccountResponse = (deletePortalAccountResponseSuccess | deletePortalAccountResponseError)
+
+export const getDeletePortalAccountUrl = (id: string,) => {
+
+
+
+
+  return `/api/customers/accounts/${id}`
+}
+
+/**
+ * Запись клиента и все её приглашения стираются: приглашение пропадает у клиента из «Моих магазинов», а номер можно пригласить заново. Принявшего приглашение удалить нельзя — у него заказы и история; ему доступ отзывают.
+ *
+ * **Как проверить вручную**
+ *
+ * 1. Выписать приглашение и удалить запись — 204, клиента нет в списке.
+ * 2. Открыть ссылку из приглашения — «Приглашение недействительно».
+ * 3. Негативный 409 `PORTAL_ACCOUNT_IN_USE`: клиент уже принял приглашение.
+ * 4. Негативный 404: случайный идентификатор.
+ * @summary Удалить клиента, не принявшего приглашение
+ */
+export const deletePortalAccount = async (id: string, options?: Parameters<typeof apiRequest>[1]): Promise<deletePortalAccountResponse> => {
+
+  return apiRequest<deletePortalAccountResponse>(getDeletePortalAccountUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeletePortalAccountMutationKey = () => ['deletePortalAccount'] as const;
+
+export const getDeletePortalAccountMutationOptions = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalAccount>>, TError,DeletePortalAccountMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+): UseMutationOptions<Awaited<ReturnType<typeof deletePortalAccount>>, TError,DeletePortalAccountMutationVariables, TContext> => {
+
+const mutationKey = getDeletePortalAccountMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deletePortalAccount>>, DeletePortalAccountMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  deletePortalAccount(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeletePortalAccountMutationResult = NonNullable<Awaited<ReturnType<typeof deletePortalAccount>>>
+
+    export type DeletePortalAccountMutationError = ErrorResponse
+    export type DeletePortalAccountMutationVariables = {id: string}
+
+    /**
+ * @summary Удалить клиента, не принявшего приглашение
+ */
+export const useDeletePortalAccount = <TError = ErrorResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePortalAccount>>, TError,DeletePortalAccountMutationVariables, TContext>, request?: SecondParameter<typeof apiRequest>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deletePortalAccount>>,
+        TError,
+        DeletePortalAccountMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeletePortalAccountMutationOptions(options), queryClient);
     }
 
 export type deleteItemMediaResponse204 = {

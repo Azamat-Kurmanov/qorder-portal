@@ -127,8 +127,8 @@ export function BannerSlide({ slide: given, brand, compact, onAction, hidden, sk
         className={cn(
           'font-extrabold [text-wrap:balance]',
           big
-            ? compact ? 'text-[1.875rem] leading-[1.02] tracking-[-0.03em]' : 'text-[3.5rem] leading-[0.98] tracking-[-0.035em]'
-            : compact ? 'text-title leading-[1.1] tracking-[-0.025em]' : 'text-[2rem] leading-[1.04] tracking-[-0.025em]',
+            ? compact ? 'text-display leading-[1.02] tracking-[-0.03em]' : 'text-[3.5rem] leading-[0.98] tracking-[-0.035em]'
+            : compact ? 'text-title leading-[1.1] tracking-[-0.025em]' : 'text-hero leading-[1.04] tracking-[-0.025em]',
         )}
         style={{ color: colors.fg }}
       >
@@ -179,7 +179,7 @@ export function BannerSlide({ slide: given, brand, compact, onAction, hidden, sk
               }}
             >
               <span className={cn('font-bold', compact ? 'text-2xs' : 'text-caption')}>{t('banners.upTo')}</span>
-              <span className={cn('font-extrabold tracking-[-0.03em]', compact ? 'text-title' : 'text-[2.125rem]')} data-discount="">{slide.discount}</span>
+              <span className={cn('font-extrabold tracking-[-0.03em]', compact ? 'text-title' : 'text-hero')} data-discount="">{slide.discount}</span>
             </div>
           ) : null}
           <div className={cn('absolute flex flex-col', compact ? 'inset-y-4 left-4 right-[34%] gap-2' : 'bottom-7 left-8 top-7 w-[360px] gap-3')}>
@@ -237,7 +237,7 @@ export function BannerSlide({ slide: given, brand, compact, onAction, hidden, sk
             )}
             style={{ background: c.circleBg, color: c.circleFg }}
           >
-            <span className={cn('font-extrabold leading-none tracking-[-0.04em]', compact ? 'text-[1.75rem]' : 'text-[2.75rem]')} data-discount="">{slide.discount}</span>
+            <span className={cn('font-extrabold leading-none tracking-[-0.04em]', compact ? 'text-display' : 'text-jumbo')} data-discount="">{slide.discount}</span>
             <span className={cn('font-bold leading-[1.3]', compact ? 'text-2xs' : 'text-sm')}>{slide.discountNote}</span>
           </div>
           <div className={cn('absolute flex flex-col', compact ? 'inset-y-4 left-4 right-[132px] gap-2' : 'bottom-7 left-8 top-7 w-[330px] gap-3')}>

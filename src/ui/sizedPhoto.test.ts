@@ -9,6 +9,10 @@ describe('копия снимка нужной ширины', () => {
     expect(sizedPhoto('https://lh3.googleusercontent.com/d/g1=w1600', 160)).toBe('https://lh3.googleusercontent.com/d/g1=w160');
     expect(sizedPhoto('https://drive.google.com/thumbnail?id=g1&sz=w1600', 960)).toBe('https://drive.google.com/thumbnail?id=g1&sz=w960');
   });
+  it('Wikimedia — ближайшей готовой шириной', () => {
+    expect(sizedPhoto('https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/A.jpg/960px-A.jpg', 88))
+      .toBe('https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/A.jpg/120px-A.jpg');
+  });
   it('чужой адрес — как есть, и превью для него нет', () => {
     expect(sizedPhoto('https://cdn.example.kz/osb.jpg', 480)).toBe('https://cdn.example.kz/osb.jpg');
     expect(resizable('https://cdn.example.kz/osb.jpg')).toBe(false);

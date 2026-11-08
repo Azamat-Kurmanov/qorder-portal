@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { PhoneLine } from '../shell/PhoneLine';
 import type { PortalOrderDelivery } from '../../api/generated';
 import { MapViewButton } from '../maps/MapViewButton';
 import { pointOf } from '../maps/mapProvider';
@@ -31,12 +32,7 @@ export function OrderDelivery({ delivery }: { delivery: PortalOrderDelivery }) {
         <span>
           {t('orders.delivery.carrier', { name: delivery.carrierName })}
           {delivery.carrierPhone ? (
-            <>
-              {' · '}
-              <a href={`tel:${delivery.carrierPhone.replace(/[^\d+]/g, '')}`} className="font-semibold text-accent-ink hover:underline">
-                {delivery.carrierPhone}
-              </a>
-            </>
+            <PhoneLine phone={delivery.carrierPhone} callLabel={t('orders.delivery.callCarrier')} className="ml-2 align-middle" />
           ) : null}
         </span>
       ) : null}

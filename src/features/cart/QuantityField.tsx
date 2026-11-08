@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ItemSaleTerms } from '../../api/generated';
 import { cartOf, useCart, useSetCartLine } from './useCart';
+import { lineOf } from './cartPart';
+import type { SaleMode } from './ModeSwitch';
 import { fitQuantity, lessQuantity, stepOf } from './saleTerms';
 import { cn } from '../../ui/cn';
 import { unitFor } from '../../shared/units';
@@ -18,6 +20,8 @@ interface QuantityFieldProps {
    * а корзина — штуки. Пусто — поле в тех же единицах, что и корзина.
    */
   perPack?: number;
+  /** Заявка строки у товара «оптом и в розницу»: розничное поле не правит оптовую строку. */
+  mode?: SaleMode;
   /** Приписка после единицы — «в корзине» на витрине, как в макете. */
   suffix?: string;
   className?: string;
@@ -36,11 +40,14 @@ interface QuantityFieldProps {
  * Шаг кнопками, а не только вводом: на складе набирают одной рукой, и попасть
  * в «плюс» проще, чем в цифру. Обе кнопки 44px — иначе палец промахивается.
  */
-export function QuantityField({ itemId, unit, variant = 'card', terms, perPack = 1, suffix, className }: QuantityFieldProps) {
+export function QuantityField({ itemId, unit, variant = 'card', terms, perPack = 1, mode, suffix, className }: QuantityFieldProps) {
   const { t } = useTranslation();
   const cart = cartOf(useCart().data);
   const setLine = useSetCartLine();
-  const pieces = cart?.lines.find((line) => line.itemId === itemId)?.quantity;
+  const line = lineOf(cart, itemId, mode);
+  const pieces = line?.quantity;
+  // Режим строки, а без строки — заявки, в которой клиент сейчас.
+  const lineMode = line?.mode ?? mode;
   const stored = pieces === undefined ? undefined : pieces / perPack;
 
   const [value, setValue] = useState<number | string>(stored ?? '');
@@ -66,7 +73,7 @@ export function QuantityField({ itemId, unit, variant = 'card', terms, perPack =
       // а не ждёт отказа сервера.
       const quantity = fitQuantity(Number.isFinite(typed) ? typed : 0, terms);
       if (quantity !== typed) setValue(quantity);
-      setLine.mutate({ itemId, data: { quantity: quantity * perPack } });
+      setLine.mutate({ itemId, data: { quantity: quantity * perPack, mode: lineMode } });
     }, 400);
   };
 
@@ -104,7 +111,8 @@ export function QuantityField({ itemId, unit, variant = 'card', terms, perPack =
         </svg>
       </button>
 
-      <label className={cn('flex min-w-0 items-baseline justify-center gap-1', card ? 'flex-1' : 'min-w-[4.75rem] shrink-0')}>
+      {/* На карточке единица — мелко под числом: в строку с ним на узкой карточке «4 мешка» обрезалось до «4 м…». */}
+      <label className={cn('flex min-w-0 justify-center', card ? 'flex-1 flex-col items-center leading-none' : 'min-w-[4.75rem] shrink-0 items-baseline gap-1')}>
         <input
           type="number"
           inputMode="numeric"
@@ -123,13 +131,13 @@ export function QuantityField({ itemId, unit, variant = 'card', terms, perPack =
             'min-w-0 bg-transparent text-right font-extrabold tabular-nums',
             'rounded-md focus:outline-none focus:ring-2 focus:ring-accent/40',
             '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none',
-            card ? 'text-lead text-accent-ink' : 'w-10 text-body text-ink',
+            card ? 'text-center text-lead leading-none text-accent-ink' : 'w-10 text-body text-ink',
           )}
         />
         {/* Единица рядом с числом: «2 мешка» читается, голое «2» — нет. */}
         <span
           aria-hidden="true"
-          className={cn('font-semibold', card ? 'truncate text-sm text-accent-ink' : 'whitespace-nowrap text-caption text-ink-muted')}
+          className={cn('whitespace-nowrap font-semibold', card ? 'max-w-full overflow-hidden text-2xs text-accent-ink' : 'text-caption text-ink-muted')}
         >
           {unitFor(current, unit)}
           {suffix ? ` ${suffix}` : ''}
@@ -159,7 +167,7 @@ const STEPPER_BASE = cn(
 /** Белая кнопка на мягкой плашке: 44 точки — палец не промахивается. */
 const STEPPER_CARD = cn(
   STEPPER_BASE,
-  'size-11 rounded-[calc(var(--radius-control)*13/14)] bg-surface text-accent-ink shadow-[0_1px_2px_rgb(0_0_0/0.12)] hover:bg-sunk',
+  'size-10 rounded-[calc(var(--radius-control)*13/14)] bg-surface text-accent-ink shadow-[0_1px_2px_rgb(0_0_0/0.12)] hover:bg-sunk',
 );
 
 /** Компактная кнопка строки корзины — с обводкой, как у полей. */

@@ -1,18 +1,18 @@
-import { cartOf, useCart, useSetCartLine } from './useCart';
+import { useSetCartLine } from './useCart';
 import { PackContents, packMembers } from '../catalog/PackContents';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from '../../ui/icons';
+import { Info, X } from '../../ui/icons';
 import type { TFunction } from 'i18next';
 import { Link } from 'react-router-dom';
 import { LineThumb } from './LineThumb';
 import { closeCart } from './cartDrawer';
 import { QuantityField } from './QuantityField';
-import { ModeSwitch } from './ModeSwitch';
+import { lineKey, lineMode, useCartPart } from './cartPart';
 import { money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import type { Currency } from '../../shared/currency';
-import { quantityWithUnit, unitPer } from '../../shared/units';
+import { quantityWithUnit, unitFor, unitPer } from '../../shared/units';
 import { cn } from '../../ui/cn';
 import type { CartLineDto, CartSplitDto, SkippedLineDto } from '../../api/generated';
 
@@ -45,30 +45,29 @@ interface CartLinesProps {
 export function CartLines({ editable = true, withSkipped = true, className }: CartLinesProps) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
-  const cart = cartOf(useCart().data);
+  // Строки открытой заявки — оптовой или розничной («Вариант Б»).
+  // В корзине — все строки с галочками; на сверке перед отправкой — только отмеченные.
+  const { cart, shown, pick } = useCartPart();
   const setLine = useSetCartLine();
-  const lines = cart?.lines ?? [];
+  const lines = (editable ? shown : cart)?.lines ?? [];
+  const pickedCount = lines.filter((line) => !pick.off.has(lineKey(line))).length;
   const skipped = cart?.skipped ?? [];
-  // Подсказка опта по модели одна на модель (сервер кладёт её во все строки) — под последней строкой модели.
-  const modelHintAt = new Set(
-    lines.reduce((last, line) => (line.modelKey ? last.set(line.modelKey, line.itemId) : last), new Map<string, string>()).values(),
-  );
   // Строки, которые уже схлопываются: запрос уходит, когда строка ушла
   // с глаз, — иначе всё, что ниже, прыгало бы вверх одним рывком.
   const [leaving, setLeaving] = useState<string[]>([]);
   // Убранное крестиком можно вернуть: крестик стоит рядом с количеством,
   // и промах пальцем не должен стоить позиции, набранной заново.
-  const [removed, setRemoved] = useState<{ itemId: string; name: string; quantity: number } | null>(null);
+  const [removed, setRemoved] = useState<{ itemId: string; name: string; quantity: number; mode?: CartLineDto['mode'] } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(undoTimer.current), []);
 
   function remove(line: CartLineDto) {
     const key = line.itemId;
     setLeaving((keys) => [...keys, key]);
-    setTimeout(() => setLine.mutate({ itemId: line.itemId, data: { quantity: 0 } }, {
+    setTimeout(() => setLine.mutate({ itemId: line.itemId, data: { quantity: 0, mode: line.mode } }, {
       onSuccess: (response) => {
         if (response.status !== 200) return;
-        setRemoved({ itemId: line.itemId, name: line.name, quantity: line.quantity });
+        setRemoved({ itemId: line.itemId, name: line.name, quantity: line.quantity, mode: line.mode });
         clearTimeout(undoTimer.current);
         undoTimer.current = setTimeout(() => setRemoved(null), 6000);
       },
@@ -78,7 +77,7 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
 
   function undo() {
     if (!removed) return;
-    setLine.mutate({ itemId: removed.itemId, data: { quantity: removed.quantity } });
+    setLine.mutate({ itemId: removed.itemId, data: { quantity: removed.quantity, mode: removed.mode } });
     clearTimeout(undoTimer.current);
     setRemoved(null);
   }
@@ -122,11 +121,25 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
           читалась бы вложенным окном.
         */
         <div className="flex flex-col">
+          {/* Не всё положенное заказывают сейчас: в заявку уходят отмеченные, остальное ждёт в корзине. */}
+          {lines.length > 1 && (
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 border-b border-hairline text-sm font-semibold text-ink">
+              <input
+                type="checkbox"
+                className="size-5 shrink-0 cursor-pointer accent-[var(--color-accent)]"
+                checked={pickedCount === lines.length}
+                ref={(box) => { if (box) box.indeterminate = pickedCount > 0 && pickedCount < lines.length; }}
+                onChange={() => pick.set(pickedCount === lines.length ? lines.map(lineKey) : [])}
+              />
+              <span className="flex-1">{t('cart.pickAll')}</span>
+              <span className="text-caption font-medium text-ink-muted">{t('cart.picked', { picked: pickedCount, total: lines.length })}</span>
+            </label>
+          )}
           {lines.map((line) => {
             const going = leaving.includes(line.itemId);
             return (
             <div
-              key={line.itemId}
+              key={`${line.itemId}:${line.mode ?? ''}`}
               data-testid="cart-line"
               className={cn(
                 'grid border-b border-hairline transition-[grid-template-rows,opacity] duration-200 ease-out last:border-b-0',
@@ -134,7 +147,14 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
               )}
             >
             <div className={cn('min-h-0', going && 'overflow-hidden')}>
-            <div className="flex gap-3.5 py-4">
+            <div className={cn('flex gap-3.5 py-4 transition-opacity duration-150', pick.off.has(lineKey(line)) && 'opacity-55')}>
+              <input
+                type="checkbox"
+                aria-label={t('cart.pickLine', { name: line.name })}
+                className="mt-7 size-5 shrink-0 cursor-pointer accent-[var(--color-accent)]"
+                checked={!pick.off.has(lineKey(line))}
+                onChange={() => pick.toggle(lineKey(line))}
+              />
               {/* Картинка — та же ссылка, что и название: для диктора одна, второй он не услышит. */}
               <Link to={itemHref(line)} onClick={closeCart} tabIndex={-1} aria-hidden="true" className="shrink-0">
                 <LineThumb seed={line.itemId} src={line.imageUrl} className="h-[4.75rem] w-16 rounded-[var(--radius-control)]" />
@@ -165,16 +185,23 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
                     <X aria-hidden="true" className="size-4" />
                   </button>
                 </div>
+                {/* Как строка продаётся — словом у каждой строки: оптом и в розницу — разные заявки (просьба владельца 2026-11-06). */}
+                {/* Экономия — справа от метки вида, без «было бы»: одно число, а не расчёт (просьба владельца 2026-11-07). */}
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  <span data-testid="cart-line-mode" className={cn(
+                    'rounded-full px-2.5 py-0.5 text-caption font-bold',
+                    lineMode(line) === 'WHOLESALE' ? 'bg-wholesale-soft text-wholesale-ink' : 'border border-line bg-sunk text-ink-muted',
+                  )}>
+                    {t(`cart.mode.${lineMode(line)}`)}
+                  </span>
+                  <LineSaving line={line} currency={currency} />
+                </div>
                 <PriceLine line={line} editable currency={currency} />
                 {line.pack ? <PackContents label={t('pack.inPress')} members={packMembers(line.pack)} /> : null}
-                {!line.modelKey || modelHintAt.has(line.itemId) ? <NextTier line={line} currency={currency} /> : null}
-                {/* Выбор есть только у позиции «и розница, и опт»; количество то же, меняется цена. */}
-                {line.mode ? (
-                  <ModeSwitch value={line.mode} disabled={setLine.isPending || going} className="max-w-[16rem]"
-                    onChange={(mode) => setLine.mutate({ itemId: line.itemId, data: { quantity: line.quantity, mode } })} />
-                ) : null}
+                {/* Переключателя «В розницу / Оптом» у строки нет («Вариант Б»): оптовая и розничная — разные
+                    заявки, и строка, сменившая режим, молча уезжала бы в другую. Способ выбирают в каталоге. */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <QuantityField itemId={line.itemId} unit={line.unit} terms={line.terms} variant="line" />
+                  <QuantityField itemId={line.itemId} unit={line.unit} terms={line.terms} mode={line.mode} variant="line" />
                   <p
                     data-testid="line-total"
                     className="shrink-0 text-base font-extrabold tabular-nums text-ink"
@@ -197,7 +224,7 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
         <div className="flex flex-col">
           {lines.map((line) => (
             <div
-              key={line.itemId}
+              key={`${line.itemId}:${line.mode ?? ''}`}
               data-testid="cart-line"
               className="flex items-center gap-3 border-b border-hairline py-3 last:border-b-0"
             >
@@ -281,6 +308,8 @@ function PriceLine({ line, editable, currency }: { line: CartLineDto; editable: 
     </p>
   ) : (
     <>
+      {/* В корзине — разбивкой по строчкам: опт синим, розница обычным, у каждой своя сумма. */}
+      {editable && (line.split || line.mode) ? <ChannelRows line={line} currency={currency} /> : (
       <p className="flex flex-wrap items-center gap-x-2 text-caption text-ink-muted">
         {amountLine(line, editable, currency, t)}
         {/* В сводке оформления — в строку, как в макете: сводка обязана оставаться низкой. */}
@@ -291,6 +320,7 @@ function PriceLine({ line, editable, currency }: { line: CartLineDto; editable: 
           </span>
         ) : null}
       </p>
+      )}
       {editable && line.listPrice !== undefined && line.discountPercent ? (
         // Скидка — своей строкой и с подписью: слитые в одну строку три суммы
         // не говорили, какая из них настоящая, а какая была до скидки.
@@ -305,6 +335,84 @@ function PriceLine({ line, editable, currency }: { line: CartLineDto; editable: 
         </p>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Сколько клиент экономит против обычной розничной цены (решение владельца 2026-10-30): зелёным,
+ * рядом с меткой вида строки. Из чего число — по нажатию, строкой ниже: в корзине всегда
+ * был бы лишний расчёт, а без него «выгода» — число на веру (просьба владельца 2026-11-07).
+ */
+function LineSaving({ line, currency }: { line: CartLineDto; currency: Currency | undefined }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const unitPrice = line.listPrice ?? line.price;
+  const full = unitPrice * line.quantity;
+  const saving = Math.round((full - line.total) * 100) / 100;
+  if (saving <= 0) return null;
+  return (
+    <>
+      <button
+        type="button"
+        data-testid="line-saving"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className={cn(
+          'inline-flex cursor-pointer items-center gap-1 rounded-[4px] text-caption font-semibold text-ok-ink',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        )}
+      >
+        {t('cart.lineSaving', { saving: money(saving, currency) })}
+        <Info aria-hidden="true" className="size-3.5 opacity-70" />
+      </button>
+      {open ? (
+        <span data-testid="line-saving-why" className="basis-full text-caption text-ink-muted">
+          {t('cart.lineSavingWhy', {
+            amount: quantityWithUnit(line.quantity, line.unit),
+            price: money(unitPrice, currency),
+            full: money(full, currency),
+            total: money(line.total, currency),
+            saving: money(saving, currency),
+          })}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Почём одна единица — цена первой: «6 060 ₸ / мешок (25 кг)», «250 ₸ / кг» —
+ * без «Оптом:» и «В розницу:»: вид строки назван меткой над ценой (просьба владельца 2026-11-07).
+ * Количество — в поле рядом, сумма строки — справа: расчёт «3 × 6 060 = 18 180» и подсказка
+ * «добавьте ещё» в корзине лишние (просьба владельца 2026-11-07). Опт — серым, как розница: синий читался тяжело.
+ */
+function ChannelRows({ line, currency }: { line: CartLineDto; currency: Currency | undefined }) {
+  const { t } = useTranslation();
+  const split = line.split;
+  const retailQty = split ? split.rest : line.quantity;
+  // Опт по модели — оптовая цена за штуку; иначе — за упаковку с её вложением.
+  const wholesaleUnit = split && (line.modelKey
+    ? unitFor(1, line.unit)
+    : `${unitFor(1, split.packUnit)} (${quantityWithUnit(split.packQty, line.unit)})`);
+  const row = 'text-caption';
+  return (
+    <div data-testid="channel-rows" className="flex flex-col gap-0.5">
+      {line.variantLabel ? <p className="text-caption text-ink-muted">{line.variantLabel}</p> : null}
+      {split && line.quantity - split.rest > 0 ? (
+        <p className={cn(row, 'text-ink-muted')}>
+          {/* Без «Оптом:» — вид строки уже назван меткой над ценой (просьба владельца 2026-11-07). */}
+          <span className="font-semibold tabular-nums text-ink">{money(split.packPrice, currency)}</span>{' '}
+          / {wholesaleUnit}
+        </p>
+      ) : null}
+      {retailQty > 0 ? (
+        <p className={cn(row, 'text-ink-muted')}>
+          <span className="font-semibold tabular-nums text-ink">{money(line.price, currency)}</span>{' '}
+          / {unitFor(1, line.unit)}
+          {line.yourPrice ? ` · ${t('cart.yourPrice')}` : ''}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -343,31 +451,6 @@ function splitText(line: CartLineDto, split: CartSplitDto, currency: Currency | 
 }
 
 /**
- * Что сделать ради оптовой цены — и сколько это сбережёт: «Добавьте ещё 15 мешков —
- * и будет 3 упаковки по 1 800, выгода 200». Числа считает сервер.
- */
-function NextTier({ line, currency }: { line: CartLineDto; currency: Currency | undefined }) {
-  const { t } = useTranslation();
-  const hint = line.hint;
-  if (!hint) return null;
-  return (
-    <p data-testid="next-tier" className="text-caption font-semibold text-accent-ink">
-      {line.modelKey ? t('cart.wholesale.modelHint', {
-        amount: quantityWithUnit(hint.addPieces, line.unit),
-        price: money(hint.packPrice, currency),
-        unit: unitPer(line.unit),
-        saving: money(hint.saving, currency),
-      }) : t('cart.wholesale.hint', {
-        amount: quantityWithUnit(hint.addPieces, line.unit),
-        packs: quantityWithUnit(hint.packs, line.split?.packUnit ?? t('cart.wholesale.packWord')),
-        price: money(hint.packPrice, currency),
-        saving: money(hint.saving, currency),
-      })}
-    </p>
-  );
-}
-
-/**
  * «Не добавлено» — отдельным блоком и всегда наверху.
  *
  * Молча пропущенная позиция обнаруживается уже при отгрузке: клиент считает,
@@ -384,8 +467,8 @@ export function SkippedNotice({ skipped }: { skipped: SkippedLineDto[] }) {
       className="flex flex-col gap-1 rounded-[var(--radius-card)] border border-unclear/30 bg-unclear/8 p-4"
     >
       <p className="font-medium text-ink">{t('cart.notAdded')}</p>
-      {skipped.map((line) => (
-        <p key={line.itemId} className="text-sm text-ink">
+      {skipped.map((line, index) => (
+        <p key={line.itemId ?? `typed-${index}`} className="text-sm text-ink">
           {line.name} — {line.reason}
         </p>
       ))}

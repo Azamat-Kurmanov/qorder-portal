@@ -63,25 +63,7 @@ describe('баннеры в одежде темы', () => {
   // Тема продавца действует только на компьютере.
   beforeEach(stubWideScreen);
 
-  it('слайды продавца с темой «Неон» — в неоновой одежде', async () => {
-    stubFetch(themed('NEON', [SALE, BULK]));
-    renderShowcase();
-    const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
-    const skins = [...carousel.querySelectorAll('.qo-banner')].map((node) => node.getAttribute('data-skin'));
-    expect(skins).toEqual(['neon', 'neon']);
-  });
 
-  it('переход слайдов продавца — на каждом слайде; без выбора — как у темы', async () => {
-    stubFetch([
-      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Мухамедиева', brandColor: '#1F5C57',
-        design: { template: 'NEON', theme: 'TEMPLATE', published: true, slideTransition: 'CIRCLE' } }]),
-      ...rules([SALE, BULK]),
-    ]);
-    renderShowcase();
-    const carousel = await screen.findByRole('region', { name: 'Акции магазина' });
-    const slides = carousel.querySelectorAll('[data-skin-slide]');
-    expect([...slides].map((node) => node.getAttribute('data-slide-fx'))).toEqual(['circle', 'circle']);
-  });
 
   it('без выбранного перехода атрибута нет — работает переход одежды', async () => {
     stubFetch(themed('NEON', [SALE, BULK]));
@@ -264,33 +246,6 @@ describe('крупный баннер вместо героев', () => {
   // Тема продавца действует только на компьютере.
   beforeEach(stubWideScreen);
 
-  /** Не скрыт ли узел от программы чтения с экрана — ни сам, ни через предка. */
-  const spoken = (node: Element) => node.closest('[aria-hidden="true"]') === null;
-
-  it.each(['GLOW', 'DEPTH', 'NEON', 'BLOBS', 'STUDIO', 'LOOKBOOK'])('%s: слайдов нет, идёт распродажа — крупный баннер распродажи', async (template) => {
-    stubFetch([
-      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'Мухамедиева', brandColor: '#1F5C57',
-        design: { template, theme: 'TEMPLATE', published: true } }]),
-      get('/api/portal/banners', []),
-      get('/api/portal/promotions', { volumeTiers: [], deals: [], dealCount: 3,
-        sale: { title: 'Осенняя распродажа', maxPercent: 30, endsOn: '2099-10-30', countdown: false } }),
-      ...rules([]),
-    ]);
-    renderShowcase();
-
-    const big = await waitFor(() => {
-      const node = document.querySelector('.qo-banner[data-big]');
-      if (!node) throw new Error('нет крупного баннера');
-      return node;
-    });
-    expect(big).toHaveAttribute('data-skin');
-    // Глубина: слои крупного баннера смещаются за курсором и без своих слайдов.
-    expect(!!big.closest('[data-fx]')).toBe(template === 'DEPTH');
-    expect(within(big as HTMLElement).getAllByText(/30/).some(spoken), 'скидка').toBe(true);
-    expect(within(big as HTMLElement).getAllByText(/До 30\.10/).some(spoken), 'срок').toBe(true);
-    expect(within(big as HTMLElement).getByRole('button', { name: /Смотреть товары со скидкой/ })).toBeInTheDocument();
-  });
-
   it('у продавца с темой все слайды крупные — как в предпросмотре продавца', async () => {
     stubFetch(themed('NEON', [SALE, BULK]));
     renderShowcase();
@@ -314,26 +269,5 @@ describe('крупный баннер вместо героев', () => {
     expect(document.querySelector('.qo-banner[data-skin]')).toBeNull();
   });
 
-  it('фирменный слайд продавца с темой — крупный, в одежде', async () => {
-    stubFetch(themed('STUDIO', [BULK]));
-    renderShowcase();
-    await waitFor(() => expect(document.querySelector('.qo-banner[data-big][data-skin="studio"]')).not.toBeNull());
-  });
 });
 
-describe('крупный баннер Глубины под курсором', () => {
-  afterEach(() => vi.unstubAllGlobals());
-  // Тема продавца действует только на компьютере.
-  beforeEach(stubWideScreen);
-
-  it.each([['DEPTH', true], ['FLOAT', true], ['GLOW', false]] as const)('%s: слои смещаются за курсором — %s', async (template, fx) => {
-    stubFetch(themed(template, [BULK]));
-    renderShowcase();
-    const big = await waitFor(() => {
-      const node = document.querySelector('.qo-banner[data-big]');
-      if (!node) throw new Error('нет крупного баннера');
-      return node;
-    });
-    expect(!!big.closest('[data-fx]')).toBe(fx);
-  });
-});

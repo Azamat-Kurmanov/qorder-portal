@@ -1,4 +1,5 @@
-import { SectionHead } from '../shell/SectionHead';
+import { useOrderMode } from '../cart/orderMode';
+import { BackTitle } from '../../ui/BackTitle';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -22,6 +23,7 @@ import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { Reveal } from '../../ui/Reveal';
 import { cn } from '../../ui/cn';
+import { Plus } from '../../ui/icons';
 
 /**
  * Избранное: «понравилось, вернусь посмотреть».
@@ -44,6 +46,8 @@ export function FavoritesPage() {
   const items = favorites.data?.status === 200 ? favorites.data.data : [];
   const [skipped, setSkipped] = useState<SkippedLineDto[]>([]);
 
+  // Товар «оптом и в розницу» ложится в заявку, в которой клиент сейчас (решение владельца 2026-11-06).
+  const [orderMode] = useOrderMode();
   const toCart = useAddPortalFavoritesToCart({
     mutation: {
       onSuccess: (response) => {
@@ -73,53 +77,14 @@ export function FavoritesPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-28">
-      <div className="flex items-start justify-between gap-3">
-        {/*
-          Как в макете: «Избранное · 4», «Назад» в «Ещё» на телефоне. «Отложено
-          вами» — про то, что список личный: он ничего не сообщил продавцу.
-        */}
-        <SectionHead
-          title={<>{t('favorites.title')}{items.length > 0 && <span className="font-bold text-ink-muted"> · {items.length}</span>}</>}
-          subtitle={items.length > 0 ? t('favorites.setAside') : undefined}
-        />
-
-        {items.length > 0 && (
-          <button
-            type="button"
-            aria-label={t('favorites.clearAria')}
-            disabled={toggle.isPending}
-            onClick={() => {
-              // Отказ сети посреди очереди оставляет часть отметок снятыми —
-              // это видно по списку, и повторное нажатие доснимет остальные.
-              void clearAll().catch(() => {});
-            }}
-            className={cn(
-              '-mr-2 inline-flex h-11 shrink-0 items-center rounded-[var(--radius-control)] px-2',
-              'text-caption text-ink-subtle transition-all duration-300',
-              'hover:bg-ink/5 hover:text-ink active:scale-95',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-              'disabled:pointer-events-none disabled:opacity-50',
-            )}
-          >
-            {t('favorites.clear')}
-          </button>
-        )}
-      </div>
-
-      {available.length > 0 && (
-        // Главное действие — сразу под заголовком, как в макете: за ним сюда и приходят.
-        // «Доступное», а не «всё»: снятое с витрины в заявку не уедет, и обещать
-        // обратное значило бы удивить клиента списком пропущенного.
-        // Мягкой кнопкой цвета магазина, а не чёрной плашкой во всю ширину: спокойнее (макеты «Кабинет клиента 2.0»).
-        <Button
-          size="lg"
-          className="w-full bg-accent-soft text-accent-ink shadow-none hover:bg-accent-soft hover:shadow-none"
-          disabled={toCart.isPending}
-          onClick={() => toCart.mutate()}
-        >
-          {t('favorites.addAvailable')}
-        </Button>
-      )}
+      {/*
+        «Вариант Б» (SimplePicFavorites): «Назад», «Избранное · 4» и «отложено вами» — список личный,
+        продавцу он ничего не сообщил.
+      */}
+      <BackTitle
+        title={items.length > 0 ? `${t('favorites.title')} · ${items.length}` : t('favorites.title')}
+        subtitle={items.length > 0 ? t('favorites.setAside') : undefined}
+      />
 
       {skipped.length > 0 && (
         <Card data-testid="skipped-notice" className="flex flex-col gap-1 p-4">
@@ -141,17 +106,44 @@ export function FavoritesPage() {
           {t('favorites.empty')}
         </p>
       ) : (
-        <Card className="overflow-hidden p-0">
-          <ul className="divide-y divide-hairline">
-            {items.map((item, index) => (
-              <li key={item.itemId}>
-                <Reveal delay={Math.min(index, 3) * 0.04}>
-                  <FavoriteRow item={item} />
-                </Reveal>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <ul className="m-0 grid list-none grid-cols-[minmax(0,1fr)] gap-3 p-0 lg:grid-cols-2">
+          {items.map((item, index) => (
+            <li key={item.itemId} className="rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface">
+              <Reveal delay={Math.min(index, 3) * 0.04}>
+                <FavoriteRow item={item} />
+              </Reveal>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {items.length > 0 && (
+        <button
+          type="button"
+          aria-label={t('favorites.clearAria')}
+          disabled={toggle.isPending}
+          onClick={() => {
+            // Отказ сети посреди очереди оставляет часть отметок снятыми —
+            // это видно по списку, и повторное нажатие доснимет остальные.
+            void clearAll().catch(() => {});
+          }}
+          className="self-center cursor-pointer bg-transparent py-2 text-base font-bold text-sale-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+        >
+          {t('favorites.clearAria')}
+        </button>
+      )}
+
+      {available.length > 0 && (
+        // Главное действие — внизу крупной кнопкой, как в макете. «Доступное», а не «всё»: снятое
+        // с витрины в заявку не уедет, и обещать обратное значило бы удивить списком пропущенного.
+        <div className="flex flex-col gap-2 lg:items-start">
+          <Button size="lg" className="h-16 w-full rounded-[1.375rem] text-lead font-extrabold lg:w-auto lg:px-10"
+            disabled={toCart.isPending} onClick={() => toCart.mutate({ params: { mode: orderMode } })}>
+            <Plus aria-hidden="true" className="size-6" />
+            {t('favorites.addAvailable')}
+          </Button>
+          <p className="m-0 text-center text-body text-ink-muted">{t('favorites.byMode')}</p>
+        </div>
       )}
 
       <CartBar />
@@ -163,7 +155,7 @@ function FavoriteRow({ item }: { item: FavoriteItemDto }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   return (
-    <div data-testid="favorite-row" className={cn('flex gap-3 px-4 py-3.5', !item.available && 'opacity-60')}>
+    <div data-testid="favorite-row" className={cn('flex gap-3 p-3', !item.available && 'opacity-70')}>
       {/*
         Снимок — тот же путь к карточке, что и название, поэтому без своей
         подписи. У снятой с продажи позиции карточки нет, и снимок остаётся
@@ -174,13 +166,13 @@ function FavoriteRow({ item }: { item: FavoriteItemDto }) {
         seed={item.itemId}
         src={item.imageUrl}
         linked={item.available}
-        className="size-14"
+        className="size-20"
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1 py-0.5">
         {item.available ? (
           <Link
             to={`/catalog/${item.itemId}`}
-            className="text-body font-medium text-ink transition-all duration-300 hover:text-accent"
+            className="text-lead font-extrabold leading-tight text-ink transition-all duration-300 hover:text-accent"
           >
             {item.name}
           </Link>
@@ -206,7 +198,7 @@ function FavoriteRow({ item }: { item: FavoriteItemDto }) {
         ) : (
           // Не «недоступна», а кто и что сделал: клиенту нужно понять, что ждать
           // возвращения бессмысленно и пора искать замену.
-          <p className="text-[0.75rem] text-gone">{t('favorites.gone')}</p>
+          <p className="text-caption text-gone">{t('favorites.gone')}</p>
         )}
         {/* Количество — под ценой, а не сбоку: сбоку оно сжимало имя в столбик в два слова. */}
         {item.available && item.unit && <QuantityField itemId={item.itemId} unit={item.unit} className="mt-1 w-full max-w-[14rem]" />}

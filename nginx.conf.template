@@ -109,6 +109,24 @@ server {
         proxy_send_timeout    60s;
     }
 
+    # ---------- ссылки «Поделиться» (R-07) ----------
+    # /s/{code}/{kind}/{ref} — короткий адрес для мессенджера. Превью рисует бэкенд
+    # (бот WhatsApp скрипты не выполняет и в SPA увидел бы пустую страницу), он же
+    # сразу уводит человека на /join-shop/{code}?…
+    location ~ ^/s/([A-Za-z0-9_-]+)/([a-z]+)(/[0-9a-fA-F-]+)?/?$ {
+        set $api_upstream ${NGINX_API_UPSTREAM};
+        proxy_pass $api_upstream/api/portal/join-shop/$1/share/$2$3;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection        "";
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    15s;
+    }
+
     # ---------- контракт OpenAPI ----------
     # Им живёт `npm run api:pull`: разработчик забирает контракт со стенда,
     # не поднимая бэкенд у себя. Без этого правила запрос получил бы страницу
@@ -204,8 +222,9 @@ server {
     }
 
     # ---------- подтверждение домена для мобильного приложения ----------
-    # assetlinks.json (Android App Links): по нему Android открывает ссылку
-    # /join-shop/… сразу в приложении. Отдаётся как JSON и только сам файл:
+    # assetlinks.json (Android App Links) и apple-app-site-association (iOS
+    # Universal Links): по ним приглашения (/join-shop/, /activate, /join/)
+    # открываются сразу в приложении. Отдаются как JSON и только сами файлы:
     # с общим правилом ниже отсутствующий файл получил бы страницу приложения
     # с кодом 200, и Android счёл бы домен неподтверждённым молча.
     location /.well-known/ {

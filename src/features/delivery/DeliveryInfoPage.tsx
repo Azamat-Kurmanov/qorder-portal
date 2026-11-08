@@ -1,5 +1,6 @@
-import { SectionHead } from '../shell/SectionHead';
-import { CircleCheck, MapPin, Package } from '../../ui/icons';
+import { BackTitle } from '../../ui/BackTitle';
+import { Box, Check, MapPin, Package, Truck } from '../../ui/icons';
+import { cn } from '../../ui/cn';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Method, PickupPoint } from '../../api/generated';
@@ -9,8 +10,6 @@ import { slotLabel, useDeliveryOptions } from '../cart/DeliveryBlock';
 import { money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import type { Currency } from '../../shared/currency';
-import { Card } from '../../ui/Card';
-import { Reveal } from '../../ui/Reveal';
 import { loadersTerms } from '../cart/loaders';
 
 /**
@@ -45,68 +44,48 @@ export function DeliveryInfoPage() {
   const pickupOnly = delivery.mode === 'PICKUP_ONLY';
 
   return (
-    <div className="flex flex-col gap-4 pb-20">
+    <div className="flex flex-col gap-3 pb-20">
       {/*
         «Условия продавца» — про то, чьё это обещание: тарифы задаёт он
         и меняет когда захочет. Даты, на которую условия верны, в ответе
         сервера нет, и выдумывать её нельзя: она читалась бы как гарантия.
       */}
-      <SectionHead title={t('delivery.title')} subtitle={t('delivery.terms')} />
+      <BackTitle title={t('delivery.title')} subtitle={t('delivery.terms')} />
 
       {/*
         Возит или не возит — первое, что человек ищет на этом экране: от ответа
         зависит, заказывать ли машину. Поэтому он вынесен в полосу над
         условиями, а не спрятан в текст под ними.
       */}
-      <div
-        className={
-          pickupOnly
-            ? 'flex items-center gap-2.5 rounded-[var(--radius-card)] border border-hairline bg-sunk p-3.5'
-            : 'flex items-center gap-2.5 rounded-[var(--radius-card)] border border-in-stock/25 bg-in-stock/10 p-3.5'
-        }
-      >
-        {pickupOnly ? (
-          <Package className="size-5 shrink-0 text-ink-muted" aria-hidden="true" />
-        ) : (
-          <CircleCheck className="size-5 shrink-0 text-in-stock" aria-hidden="true" />
-        )}
-        <p className={pickupOnly ? 'text-body font-medium text-ink' : 'text-body font-medium text-in-stock'}>
-          {pickupOnly ? t('delivery.pickupOnly') : t('delivery.delivers')}
-        </p>
-      </div>
+      <p className={cn('m-0 flex items-center gap-2.5 rounded-[1.125rem] px-3.5 py-3 text-lead font-extrabold',
+        pickupOnly ? 'bg-sunk text-ink' : 'bg-ok-soft text-ok-ink')}>
+        {pickupOnly
+          ? <Package className="size-5 shrink-0" aria-hidden="true" />
+          : <Check className="size-5 shrink-0" aria-hidden="true" />}
+        {pickupOnly ? t('delivery.pickupOnly') : t('delivery.delivers')}
+      </p>
 
+      {/* «Вариант Б» (SimplePicDeliveryInfo): каждый способ — своей карточкой, условия — списком. */}
       {delivery.methods.length > 0 && (
-        <Reveal>
-          <Card className="overflow-hidden p-0">
-            <h2 className="border-b border-hairline px-3.5 py-3 text-caption font-semibold text-ink-muted">
-              {t('delivery.methods')}
-            </h2>
-            <ul className="divide-y divide-hairline">
-              {delivery.methods.map((method) => (
-                <li key={method.id}>
-                  <MethodRow method={method} />
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </Reveal>
+        <section aria-label={t('delivery.methods')} className="flex flex-col gap-2.5 lg:grid lg:grid-cols-2 lg:gap-4">
+          {delivery.methods.map((method) => <MethodCard key={method.id} method={method} />)}
+        </section>
       )}
 
       {delivery.pickupPoints.length > 0 && (
-        <Reveal delay={0.04}>
-          <Card className="overflow-hidden p-0">
-            <h2 className="border-b border-hairline px-3.5 py-3 text-caption font-semibold text-ink-muted">
-              {t('delivery.pickup')}
-            </h2>
-            <ul className="divide-y divide-hairline">
-              {delivery.pickupPoints.map((point) => (
-                <li key={point.id}>
-                  <PickupRow point={point} />
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </Reveal>
+        <section aria-label={t('delivery.pickup')} className={BOX}>
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className={ICON}><MapPin className="size-6" /></span>
+            <h2 className="m-0 text-lead font-extrabold text-ink">{t('delivery.pickup')}</h2>
+          </div>
+          <ul className="m-0 flex list-none flex-col divide-y-2 divide-hairline p-0">
+            {delivery.pickupPoints.map((point) => (
+              <li key={point.id} className="py-2.5 first:pt-0 last:pb-0">
+                <PickupRow point={point} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {pickupOnly && delivery.pickupPoints.length === 0 && (
@@ -115,50 +94,50 @@ export function DeliveryInfoPage() {
         </p>
       )}
 
-      <p className="text-[0.75rem] leading-relaxed text-ink-subtle">
+      <p className="text-caption leading-relaxed text-ink-subtle">
         {t('delivery.note')}
       </p>
     </div>
   );
 }
 
-function MethodRow({ method }: { method: Method }) {
+const BOX = 'flex flex-col gap-2 rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface p-3.5';
+const ICON = 'flex size-12 shrink-0 items-center justify-center rounded-[0.875rem] bg-ok-soft text-shop-ink';
+
+function MethodCard({ method }: { method: Method }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   const terms = termsOf(method, t, currency);
+  const Icon = method.pickup ? MapPin : (method.carriers?.length ?? 0) > 0 ? Box : Truck;
 
   return (
-    <div className="flex flex-col gap-2 p-3.5">
-      <div className="flex items-baseline justify-between gap-4">
-        <span className="text-body font-medium text-ink">{method.name}</span>
-        <span
-          data-testid={`method-price-${method.id}`}
-          className="shrink-0 text-body font-semibold tabular-nums text-ink"
-        >
+    <article className={BOX}>
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className={ICON}><Icon className="size-6" /></span>
+        <h2 className="m-0 min-w-0 flex-1 text-lead font-extrabold text-ink">{method.name}</h2>
+        <span data-testid={`method-price-${method.id}`} className="shrink-0 text-lead font-extrabold tabular-nums text-ink">
           {priceOf(method, t, currency)}
         </span>
       </div>
-
-      {terms && (
-        <p data-testid={`method-terms-${method.id}`} className="text-[0.75rem] leading-[1.45] text-ink-subtle">
-          {terms}
-        </p>
+      {terms.length > 0 && (
+        <ul data-testid={`method-terms-${method.id}`} className="m-0 flex flex-col gap-0.5 pl-6 text-body leading-[1.45] text-ink">
+          {terms.map((part) => <li key={part}>{part}</li>)}
+        </ul>
       )}
-    </div>
+    </article>
   );
 }
 
 function PickupRow({ point }: { point: PickupPoint }) {
   return (
-    <div className="flex gap-3 p-3.5">
-      <MapPin className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden="true" />
+    <div className="flex gap-3">
       <div className="flex min-w-0 grow flex-col gap-1">
-        <span className="text-body font-medium text-ink">{point.name}</span>
+        <b className="text-lead font-extrabold text-ink">{point.name}</b>
         {/*
           Адрес и часы одной строкой: по ним приезжают вместе, и разнесённые
           по разным строкам они читаются как два разных сведения.
         */}
-        <span className="text-[0.75rem] leading-[1.45] text-ink-subtle">
+        <span className="text-body leading-[1.45] text-ink-muted">
           {point.address}
           {point.workingHours ? ` · ${point.workingHours}` : ''}
         </span>
@@ -195,7 +174,7 @@ function priceOf(method: Method, t: TFunction, currency: Currency | undefined): 
  * а не после: они решают, стоит ли добрать до порога и получится ли принять
  * машину. Пустые части выпадают — «бесплатно от —» хуже, чем ничего.
  */
-function termsOf(method: Method, t: TFunction, currency: Currency | undefined): string {
+function termsOf(method: Method, t: TFunction, currency: Currency | undefined): string[] {
   const parts: string[] = [];
 
   if (method.zones.length > 0) {
@@ -237,5 +216,5 @@ function termsOf(method: Method, t: TFunction, currency: Currency | undefined): 
   if (loaders) parts.push(loaders);
   if (method.negotiable) parts.push(t('delivery.priceLater'));
 
-  return parts.join(' · ');
+  return parts;
 }

@@ -24,6 +24,19 @@ const BLACK = '#000000';
 const CANVAS = '#F5F2EC';
 
 /**
+ * Бумага «в тон фирменному»: цвет, почти растворённый в бумаге (`share` — его доля).
+ *
+ * Доля уменьшается, пока самый бледный текст кабинета (`ink-faint`, `faint`) не
+ * читается на ней с контрастом 4,5:1: тёмный или насыщенный цвет на 12 % притемнял
+ * бумагу так, что даты цен и «На странице» опускались до 3,7:1.
+ */
+function brandPaper(brand: string, paper: string, faint: string, share: number): string {
+  let canvas = mix(brand, paper, 1 - share);
+  for (let k = share - 0.01; contrastRatio(faint, canvas) < 4.5 && k > 0; k -= 0.01) canvas = mix(brand, paper, 1 - k);
+  return canvas;
+}
+
+/**
  * Фоны за блоками — те же коды и оттенки, что в палитре кабинета сотрудников
  * (`front/src/design/brandPalette.json`). «В тон фирменному» считается
  * из цвета, нейтральный оставляет бумагу кабинета.
@@ -63,7 +76,7 @@ function luminanceOf(hex: string): number {
 }
 
 /** Надпись, читаемая на цвете: белая или почти чёрная — у какой контраст выше. */
-function readableOn(hex: string): string {
+export function readableOn(hex: string): string {
   const luminance = luminanceOf(hex);
   // Контраст с белым (1.05 / (L + .05)) против контраста с #1A1917 (≈ L 0.01).
   return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / 0.06 ? WHITE : '#1A1917';
@@ -129,7 +142,7 @@ export function supplierTokens(brandColor: string | null | undefined, background
   }
 
   if (background === 'BRAND' && brand) {
-    tokens['--color-canvas'] = mix(brand, CANVAS, 0.88);
+    tokens['--color-canvas'] = brandPaper(brand, CANVAS, '#67625A', 0.12);
   } else if (background && BACKGROUNDS[background]) {
     tokens['--color-canvas'] = BACKGROUNDS[background];
   }
@@ -202,7 +215,7 @@ export function darkTokens(brandColor: string | null | undefined, background: st
     '--shadow-accent': `0 4px 10px -4px rgb(0 0 0 / 0.5), 0 14px 28px -14px rgb(${r} ${g} ${b} / 0.45)`,
   };
   if (background === 'BRAND') {
-    tokens['--color-canvas'] = mix(brand, DARK_CANVAS, 0.87);
+    tokens['--color-canvas'] = brandPaper(brand, DARK_CANVAS, '#9196A0', 0.13);
   } else if (background && DARK_TINTS[background]) {
     tokens['--color-canvas'] = mix(DARK_TINTS[background], DARK_CANVAS, 0.87);
   }
@@ -313,7 +326,20 @@ const ACCENT2_INK_DARK = '#141414';
  * в тёмной теме светилось бы дневное пятно. Узор — готовым значением
  * `background`: слои градиентов не собрать утилитами.
  */
-function styleTokens(style: MotionStyle, brand: string, canvas: string, dark: boolean): Record<string, string> {
+/**
+ * Фирменный цвет для текста: тот же оттенок, уведённый к чёрному (днём) или к белому (ночью),
+ * пока не читается на бумаге с контрастом 4,5:1. Неоновый и жёлтый цвет шаблона как текст
+ * на светлой бумаге давал 1,2–1,7:1.
+ */
+function shopInk(brand: string, papers: string[], dark: boolean): string {
+  const toward = dark ? WHITE : BLACK;
+  const reads = (ink: string) => papers.every((paper) => contrastRatio(ink, paper) >= 4.5);
+  let ink = dark ? mix(brand, WHITE, 0.6) : brand;
+  for (let k = 0.04; !reads(ink) && k <= 1; k += 0.04) ink = mix(brand, toward, dark ? 0.6 + k * 0.4 : k);
+  return ink;
+}
+
+function styleTokens(style: MotionStyle, brand: string, canvas: string, dark: boolean, surface?: string): Record<string, string> {
   const accent2 = HEX.test(style.accent2) ? style.accent2.toUpperCase() : brand;
   const second = dark ? accent2 : mix(accent2, BLACK, 0.08);
   const faint = dark ? FAINT_DARK : FAINT_LIGHT;
@@ -330,6 +356,8 @@ function styleTokens(style: MotionStyle, brand: string, canvas: string, dark: bo
     // «разворота» рисуются им, а не осветлённой кнопочной заливкой ночи.
     '--color-shop': brand,
     '--color-on-shop': readableOn(brand),
+    // И к бумаге, и к карточке: у «Желе» карточка темнее бумаги.
+    '--color-shop-ink': shopInk(brand, surface ? [canvas, surface] : [canvas], dark),
     '--color-accent2': second,
     // По контрасту: у праздников второй цвет бывает тёмным (красный, синий),
     // и прежний «всегда тёмный» текст на нём не читался.
@@ -377,6 +405,9 @@ function block(selector: string, tokens: Record<string, string>): string {
   return entries.length === 0 ? '' : `${selector} { ${entries.map(([name, value]) => `${name}: ${value};`).join(' ')} }`;
 }
 
+const PLATFORM_ONLY = ['--color-accent', '--color-on-accent', '--color-accent-top', '--color-accent-soft',
+  '--color-accent-ink', '--color-accent-hover', '--shadow-accent'];
+
 /**
  * Таблица стилей дизайна поставщика; `null` — остаётся оформление платформы.
  *
@@ -401,8 +432,14 @@ export function designCss(design: ResolvedDesign): string | null {
   const style = design.template?.style;
   if (style) {
     const brand = design.brand ?? PLATFORM_BRAND;
-    Object.assign(lightBlock, styleTokens(style, brand, lightCanvas, false));
-    Object.assign(darkBlock, styleTokens(style, brand, darkCanvas, true));
+    Object.assign(lightBlock, styleTokens(style, brand, lightCanvas, false, inks?.light.surface));
+    Object.assign(darkBlock, styleTokens(style, brand, darkCanvas, true, inks?.dark.surface));
+  }
+  // Кнопки и ссылки — общий цвет платформы из `index.css`, продавец его не меняет
+  // (решение владельца 2026-10-30): его цвет остаётся шапке, баннерам и фону.
+  for (const token of PLATFORM_ONLY) {
+    delete lightBlock[token];
+    delete darkBlock[token];
   }
   return [
     block(':root', lightBlock),

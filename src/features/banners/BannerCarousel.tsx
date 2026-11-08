@@ -83,9 +83,8 @@ export function BannerCarousel({ width, category, onAction, onSale }: {
     : undefined;
   // Цвет — из опубликованного дизайна, если он есть: шаблон приносит свой
   // фирменный цвет, и баннер в чужом цвете выбивался бы из кабинета.
-  // На телефоне тема не действует — ни одежда, ни свой переход слайдов.
   const wide = useWideScreen();
-  const design = designFor(supplier, wide);
+  const design = designFor(supplier);
   const brand = design.brand ?? PLATFORM_BRAND;
   // Одежда баннеров — из темы кабинета; без живой темы слайды как прежде.
   // У живой темы все слайды — в крупном варианте одежды, как в предпросмотре продавца (решение владельца 2026-10-10).

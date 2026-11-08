@@ -17,8 +17,10 @@ describe('доставка заявки', () => {
     expect(block).toHaveTextContent('Межгород');
     expect(block).toHaveTextContent('Астана, Кенесары 1');
     expect(block).toHaveTextContent('СДЭК');
-    expect(screen.getByRole('link', { name: '+7 727 000 00 00' })).toHaveAttribute('href', 'tel:+77270000000');
-    expect(block).toHaveTextContent('Доставку оплачиваете перевозчику');
+    // Номер — текстом, звонит маленькая кнопка рядом (решение владельца 2026-11-04).
+    expect(block).toHaveTextContent('+7 727 000 00 00');
+    expect(screen.getByRole('link', { name: 'Позвонить перевозчику' })).toHaveAttribute('href', 'tel:+77270000000');
+    expect(block).toHaveTextContent('За перевозку платите перевозчику при получении');
     expect(screen.getByRole('link', { name: /AB123/ })).toHaveAttribute('href', 'https://track.example/AB123');
   });
 

@@ -12,6 +12,9 @@ export interface AppConfig {
    * и клиента. Пусто — выход ведёт в корень этого приложения, как раньше.
    */
   ENTRY_URL: string;
+  /** Приложение в Google Play и App Store — «Установить приложение» на страницах приглашений; пусто — кнопки нет. */
+  ANDROID_APP_URL: string;
+  IOS_APP_URL: string;
 }
 
 declare global {
@@ -36,6 +39,8 @@ export function getConfig(): AppConfig {
     KEYCLOAK_STAFF_CLIENT_ID: pick('KEYCLOAK_STAFF_CLIENT_ID', build.VITE_KEYCLOAK_STAFF_CLIENT_ID),
     WEB_URL: pick('WEB_URL', build.VITE_WEB_URL),
     ENTRY_URL: pick('ENTRY_URL', build.VITE_ENTRY_URL),
+    ANDROID_APP_URL: pick('ANDROID_APP_URL', build.VITE_ANDROID_APP_URL),
+    IOS_APP_URL: pick('IOS_APP_URL', build.VITE_IOS_APP_URL),
   };
 
   // Скрипт старта пода переносит сюда любой ключ APP_* из ConfigMap, и опечатка

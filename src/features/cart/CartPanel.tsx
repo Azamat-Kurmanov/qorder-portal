@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useState } from 'react';
 import { AlertCircle, ArrowRight, ChevronDown, Info, Maximize2, Minimize2, ShoppingCart, X } from '../../ui/icons';
-import { cartOf, useCart, useClearCart } from './useCart';
+import { useClearCart } from './useCart';
+import { useCartPart } from './cartPart';
+import { PartSwitch } from './PartSwitch';
 import { CartLines } from './CartLines';
 import { closeCart, openCart, useCartDrawer } from './cartDrawer';
 import { money } from '../../shared/format';
@@ -34,10 +36,14 @@ export function CartPanel({ active = true }: { active?: boolean }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   const { open } = useCartDrawer();
-  const cart = cartOf(useCart(active).data);
+  // Оптовая и розничная — разные заявки: панель показывает открытую, итог — её (как на оформлении).
+  const parts = useCartPart(active);
+  const cart = parts.cart;
   const clear = useClearCart();
   const shop = useCurrentShop();
-  const lines = cart?.lines ?? [];
+  // Все строки заявки — и снятые галочкой: пустой корзина от снятых галочек не становится.
+  const lines = parts.shown?.lines ?? [];
+  const nothingPicked = (cart?.lines.length ?? 0) === 0;
   // Развернуть корзину на всю страницу и вернуть прежний размер — как окно с картой.
   const [expanded, setExpanded] = useState(false);
 
@@ -64,7 +70,7 @@ export function CartPanel({ active = true }: { active?: boolean }) {
           <div data-testid="sheet-handle" aria-hidden="true" className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-hairline sm:hidden" />
           <div className="flex items-center justify-between gap-3 px-4 pb-3 sm:items-start sm:px-6 sm:pb-4 sm:pt-6">
             <div className="flex min-w-0 flex-col gap-1">
-              <Dialog.Title className="text-base font-semibold text-ink sm:text-[1.625rem] sm:font-extrabold sm:tracking-[-0.01em]">
+              <Dialog.Title className="text-base font-semibold text-ink sm:text-display sm:font-extrabold sm:tracking-[-0.01em]">
                 {t('cart.panelTitle')}
               </Dialog.Title>
               <span className="truncate text-caption text-ink-muted sm:text-sm">
@@ -117,37 +123,22 @@ export function CartPanel({ active = true }: { active?: boolean }) {
               <span className="flex size-24 items-center justify-center rounded-full bg-canvas text-ink-faint">
                 <ShoppingCart aria-hidden="true" className="size-10" />
               </span>
-              <p className="text-[1.1875rem] font-bold text-ink">{t('cart.panelEmptyTitle')}</p>
+              <p className="text-lead font-bold text-ink">{t('cart.panelEmptyTitle')}</p>
               <p className="text-body leading-normal text-ink-muted">{t('cart.panelEmpty')}</p>
-              <Dialog.Close
-                className={cn(
-                  'mt-2 h-12 rounded-[var(--radius-control)] border-[1.5px] border-line px-6 text-body font-semibold text-ink',
-                  'hover:bg-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                )}
-              >
-                {t('cart.toCatalog')}
-              </Dialog.Close>
             </div>
           ) : (
             <>
               {/*
                 Прокручивается всё, кроме подсказки до скидки, итога и главной
-                кнопки: «Продолжить покупки» и пометка об оплате идут после товаров.
+                кнопки: пометка об оплате идёт после товаров.
                 Раньше они стояли внизу намертво и на ноутбуке съедали больше
                 половины панели — на сам список оставалась полоска.
               */}
               <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6">
+                <div className="pb-2 empty:hidden"><PartSwitch parts={parts} /></div>
                 <CartLines />
                 <div className="flex flex-col gap-3.5 pb-5 pt-1">
                   <AdultNotice cart={cart} />
-                  <Dialog.Close
-                    className={cn(
-                      'h-12 w-full rounded-[var(--radius-control)] border-[1.5px] border-line text-body font-semibold text-ink',
-                      'hover:bg-sunk focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                    )}
-                  >
-                    {t('cart.continue')}
-                  </Dialog.Close>
                   <p className="flex gap-2.5 text-caption leading-[1.45] text-ink-muted">
                     <Info aria-hidden="true" className="mt-px size-4 shrink-0" />
                     {t('cart.payLater')}
@@ -179,7 +170,7 @@ export function CartPanel({ active = true }: { active?: boolean }) {
                         <ChevronDown aria-hidden="true" className="size-4 transition-transform duration-200 group-open:rotate-180" />
                       </span>
                     </span>
-                    <Bump value={cart?.total ?? 0} className="whitespace-nowrap text-[1.375rem] font-extrabold tracking-[-0.02em] tabular-nums text-ink sm:text-[1.75rem]">
+                    <Bump value={cart?.total ?? 0} className="whitespace-nowrap text-title font-extrabold tracking-[-0.02em] tabular-nums text-ink sm:text-display">
                       {money(cart?.total ?? 0, currency)}
                     </Bump>
                   </summary>
@@ -192,8 +183,10 @@ export function CartPanel({ active = true }: { active?: boolean }) {
                 {/* Единственное главное действие панели — крупное и цветом магазина. */}
                 <Link
                   to="/checkout"
-                  onClick={closeCart}
+                  aria-disabled={nothingPicked}
+                  onClick={(event) => { if (nothingPicked) event.preventDefault(); else closeCart(); }}
                   className={cn(
+                    nothingPicked && 'pointer-events-none opacity-40',
                     'flex h-13 w-full items-center justify-center gap-2.5 rounded-[var(--radius-tile)] bg-accent',
                     'text-lead font-bold text-on-accent transition-colors duration-200 hover:bg-accent-hover',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
@@ -262,7 +255,7 @@ function AddedBadge({ added }: { added: string }) {
       <button
         type="button"
         onClick={openCart}
-        className="h-10 shrink-0 rounded-[calc(var(--radius-control)*11/14)] bg-white px-3.5 font-bold text-[#1A1917] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        className="qo-hit h-10 shrink-0 rounded-[calc(var(--radius-control)*11/14)] bg-white px-3.5 font-bold text-on-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       >
         {t('cart.open')}
       </button>

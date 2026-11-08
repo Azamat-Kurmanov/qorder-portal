@@ -15,8 +15,8 @@ export function isPieceUnit(unit: string): boolean {
 }
 
 /**
- * Как продаётся товар: «Продаётся поштучно», «Продаётся по 6 бутылок»,
- * «Продаётся в единицах «кг»». Выводится из того, что продавец уже указал
+ * Как продаётся товар: «Продаётся поштучно», «Продаётся по 6 бутылок».
+ * Выводится из того, что продавец уже указал
  * (единица и кратность), — отдельного поля для этого нет, и придумывать
  * его экран не вправе.
  *
@@ -29,13 +29,12 @@ export function soldByOf(unit: string, terms: ItemSaleTerms | undefined, t: TFun
   const step = terms?.quantityStep ?? 1;
   const least = terms?.minQuantity ?? 1;
   const piece = isPieceUnit(unit);
+  // «в единицах «упаковка»» не выводится — единица видна у цены и счётчика (просьба владельца 2026-11-06).
   const value = step > 1
     ? t('item.soldBy.stepValue', { amount: quantityWithUnit(step, unit) })
-    : piece
-      ? t('item.soldBy.pieceValue')
-      : t('item.soldBy.unitValue', { unit });
-  const pill = step <= 1 && least <= 1
-    ? (piece ? t('item.soldBy.piece') : t('item.soldBy.unit', { unit }))
-    : undefined;
+    : piece ? t('item.soldBy.pieceValue') : undefined;
+  // Пилюля только «поштучно»: «Продаётся в единицах «упаковка»» убрана — единица и так видна
+  // у цены и счётчика (просьба владельца 2026-11-06).
+  const pill = step <= 1 && least <= 1 && piece ? t('item.soldBy.piece') : undefined;
   return { value, pill };
 }

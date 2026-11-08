@@ -51,6 +51,7 @@ export function ItemThumb({
   width = 480,
   second,
   flight = false,
+  photos,
 }: {
   itemId: string;
   src?: string;
@@ -62,6 +63,8 @@ export function ItemThumb({
   second?: string;
   /** Плитка витрины: фото перелетает в карточку товара при переходе к ней и обратно. */
   flight?: boolean;
+  /** Все снимки позиции: больше одного — плитка листает их свайпом, точки слева сверху. */
+  photos?: string[];
 }) {
   const { t } = useTranslation();
   const [from, to] = placeholderOf(itemId);
@@ -96,6 +99,67 @@ export function ItemThumb({
     tile.addEventListener('pointerenter', warmUp);
     return () => tile.removeEventListener('pointerenter', warmUp);
   }, [second]);
+
+  // Листание прямо в плитке (решение владельца 2026-10-30): лента с прилипанием к кадру —
+  // свайп на телефоне и прокрутка тачпадом листают с анимацией браузера, точки показывают, какой кадр открыт.
+  const slides = photos && photos.length > 1 ? photos : undefined;
+  const strip = useRef<HTMLDivElement>(null);
+  const [current, setCurrent] = useState(0);
+  if (slides && src) {
+    return (
+      <div ref={slot} data-testid="item-thumb" className={cn('relative shrink-0 overflow-hidden bg-sunk', className)}>
+        <div
+          ref={strip}
+          data-testid="photo-strip"
+          onScroll={(event) => {
+            const box = event.currentTarget;
+            setCurrent(Math.round(box.scrollLeft / Math.max(box.clientWidth, 1)));
+          }}
+          className="flex size-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {slides.map((photo, index) => (
+            <img
+              key={photo}
+              src={sizedPhoto(photo, width)}
+              srcSet={resizable(photo) ? `${sizedPhoto(photo, width)} 1x, ${sizedPhoto(photo, width * 2)} 2x` : undefined}
+              alt=""
+              loading={index === 0 ? 'eager' : 'lazy'}
+              decoding="async"
+              draggable={false}
+              data-photo={index === 0 ? '' : undefined}
+              style={index === 0 && flying ? { viewTransitionName: 'qo-item-photo' } : undefined}
+              className="size-full shrink-0 snap-start snap-always object-cover"
+            />
+          ))}
+        </div>
+        {/* Точка на каждый снимок; нажатие листает к нему и не открывает карточку. */}
+        <div
+          role="group"
+          aria-label={t('catalog.photos', { count: slides.length })}
+          className="absolute left-2 top-2 flex items-center gap-1 rounded-[var(--radius-pill)] bg-black/35 px-1.5 py-1 backdrop-blur-sm"
+        >
+          {slides.map((photo, index) => (
+            <button
+              key={photo}
+              type="button"
+              aria-label={t('catalog.photoOf', { number: index + 1, count: slides.length })}
+              aria-current={index === current ? 'true' : undefined}
+              onClick={(event) => {
+                event.stopPropagation();
+                const box = strip.current;
+                box?.scrollTo({ left: index * box.clientWidth, behavior: 'smooth' });
+              }}
+              className={cn(
+                'h-1.5 cursor-pointer rounded-full transition-all duration-300',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                index === current ? 'w-3.5 bg-white' : 'w-1.5 bg-white/55',
+              )}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -164,7 +228,7 @@ export function ItemThumb({
         <span
           className={cn(
             'absolute bottom-2 left-2 inline-flex h-6 items-center gap-1.5 rounded-[var(--radius-pill)]',
-            'bg-black/60 px-2 text-[0.6875rem] text-white backdrop-blur-sm',
+            'bg-black/60 px-2 text-2xs text-white backdrop-blur-sm',
           )}
         >
           <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className="size-[0.6875rem]">

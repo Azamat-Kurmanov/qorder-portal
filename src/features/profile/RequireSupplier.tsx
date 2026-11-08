@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useGetPortalSuppliers } from '../../api/generated';
 import { useSupplier } from '../../supplier/useSupplier';
-import { ProfilePage } from './ProfilePage';
+import { Logo } from '../../ui/Logo';
+import { SupplierPicker } from './SupplierPicker';
 
 interface RequireSupplierProps {
   children: ReactNode;
@@ -85,16 +86,14 @@ export function RequireSupplier({ children }: RequireSupplierProps) {
   if (suppliers.isPending || refused) {
     return (
       <div className="flex flex-col items-center gap-3 py-12">
-        <span
-          aria-hidden="true"
-          className="size-6 animate-spin rounded-full border-2 border-hairline border-t-accent"
-        />
+        {/* Ожидание — анимированным знаком Q-Order, а не безликим колесом (просьба владельца 2026-11-05). */}
+        <Logo height={56} animated decorative />
         <p className="text-ink-subtle">{t('profile.looking')}</p>
       </div>
     );
   }
 
-  if (supplierId === null || stale || (answered && list.length === 0)) return <ProfilePage />;
+  if (supplierId === null || stale || (answered && list.length === 0)) return <SupplierPicker />;
 
   return <>{children}</>;
 }

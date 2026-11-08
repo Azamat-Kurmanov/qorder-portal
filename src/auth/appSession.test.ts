@@ -62,7 +62,7 @@ describe('сессия в приложении', () => {
     vi.resetModules();
     const fresh = await import('./appSession');
     fresh.persistSession(named);
-    expect(b.storeSecret).toHaveBeenCalledWith('qo.lastLogin', '77786226523');
+    expect(b.storeSecret).toHaveBeenCalledWith('qo.lastLogin.client', '77786226523');
     expect(await fresh.lastLogin()).toBe('77786226523');
   });
 

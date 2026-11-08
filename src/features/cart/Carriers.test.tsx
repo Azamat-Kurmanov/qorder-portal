@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { stubWideScreen } from '../../test/wideScreen';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CheckoutPage } from './CheckoutPage';
@@ -31,6 +32,8 @@ const options = (patch: Record<string, unknown>) => ({
 
 describe('перевозчик при оформлении', () => {
   afterEach(() => vi.unstubAllGlobals());
+  // Монитор: оформление одним экраном. Шаги телефона — в CheckoutSteps.test.tsx.
+  beforeEach(() => stubWideScreen());
 
   it('выбор перевозчика и «до терминала» уходят в заявке', async () => {
     const { calls } = stubFetch([
@@ -44,6 +47,7 @@ describe('перевозчик при оформлении', () => {
     expect(screen.getByTestId('carrier')).toHaveTextContent('+7 727 000 00 00');
     expect(screen.getByTestId('carrier')).toHaveTextContent('Звонят за час');
     await userEvent.click(screen.getByRole('radio', { name: /До терминала/ }));
+
 
     await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
     await waitFor(() => {
@@ -87,6 +91,7 @@ describe('перевозчик при оформлении', () => {
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /способ доставки/i }), 'method-1');
     await userEvent.selectOptions(screen.getByLabelText('Перевозчик'), 'c1');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /способ доставки/i }), 'method-2');
+
 
     await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
     await waitFor(() => {

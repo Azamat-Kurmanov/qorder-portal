@@ -8,7 +8,9 @@
     "positions_one": "item",
     "positions_other": "items",
     "loadFailed": "Couldn't load. Check your internet connection.",
-    "appTitle": "Customer account"
+    "noConnection": "No connection",
+    "appTitle": "Customer account",
+    "back": "Back"
   },
   "language": {
     "label": "Interface language",
@@ -29,11 +31,9 @@
     "label": "Text size",
     "normal": "Normal",
     "large": "Large",
-    "huge": "Extra large",
     "button": {
       "normal": "Normal text",
-      "large": "Large text",
-      "huge": "Extra large text"
+      "large": "Large text"
     }
   },
   "theme": {
@@ -63,13 +63,14 @@
       "favorites": "Favourites",
       "checkout": "Basket",
       "orders": "My requests",
-      "templates": "Purchase templates",
+      "templates": "Order templates",
       "questions": "Questions to seller",
       "reviews": "My reviews",
       "delivery": "Delivery and pickup",
       "profile": "Suppliers",
       "promotions": "Offers",
-      "newArrivals": "New arrivals"
+      "newArrivals": "New arrivals",
+      "debt": "Debt"
     },
     "sectionsTitle": "Sections",
     "menu": "Menu",
@@ -107,18 +108,21 @@
       "checkout": "Basket",
       "orders": "Requests",
       "favorites": "Favourites",
-      "more": "More"
+      "more": "All sections",
+      "messages": "Messages",
+      "delivery": "Delivery"
     },
     "inCart_one": "{{count}} item in basket",
     "inCart_other": "{{count}} items in basket",
     "help": {
       "title": "Need help?",
       "note": "Write to the seller — they will reply right here in your account.",
-      "noteCall": "Call us — we'll help you choose and place the request.",
+      "noteCall": "Have a question? Message the seller on WhatsApp or call.",
       "action": "Ask a question"
     },
     "deals_one": "{{count}} discounted item",
     "deals_other": "{{count}} discounted items",
+    "changeShop": "change shop",
     "switchShop": "Switch shop · {{count}}",
     "youAreIn": "You are in",
     "closedNote": "Closed today — orders are accepted and will be processed on the next working day",
@@ -132,7 +136,17 @@
       "firstOrder": "−{{percent}}% on your first order"
     },
     "arrivals_one": "{{count}} new product",
-    "arrivals_other": "{{count}} new products"
+    "arrivals_other": "{{count}} new products",
+    "inDebt": "Outstanding debt",
+    "tips": {
+      "home": "Home page",
+      "catalog": "Shop products",
+      "messages": "Questions to the seller, reviews and notifications",
+      "checkout": "Your cart",
+      "delivery": "Delivery and pickup",
+      "more": "All sections",
+      "profile": "Your profile and settings"
+    }
   },
   "auth": {
     "appName": "Customer account",
@@ -170,7 +184,7 @@
     },
     "company": {
       "title": "Company details",
-      "lead": "If you buy on behalf of a company, fill in its details — the supplier will issue the VAT invoice to them.",
+      "lead": "If you order on behalf of a company, fill in its details — the supplier will issue the VAT invoice to them.",
       "fill": "Fill in details",
       "save": "Save",
       "saving": "Saving…",
@@ -196,8 +210,8 @@
         "kbe": "17"
       }
     },
-    "count_one": "{{count}} shop you buy from",
-    "count_other": "{{count}} shops you buy from",
+    "count_one": "{{count}} shop you order from",
+    "count_other": "{{count}} shops you order from",
     "filters": {
       "label": "Which suppliers to show",
       "all": "All",
@@ -224,7 +238,15 @@
       "noQuiet": "Remove quiet hours",
       "quietBoth": "Set both start and end",
       "failed": "Could not save. Please try again."
-    }
+    },
+    "logoutAsk": {
+      "title": "Sign out?",
+      "note": "You'll need your phone number and password to sign back in.",
+      "stay": "Stay"
+    },
+    "pageTitle": "Profile",
+    "shops_one": "{{count}} shop",
+    "shops_other": "{{count}} shops"
   },
   "notifications": {
     "title": "Notifications",
@@ -254,7 +276,16 @@
       "BACK_IN_STOCK": "An item you were waiting for is back in stock",
       "BACK_IN_STOCK_named": "Back in stock: {{name}}",
       "REORDER_DUE": "Time to reorder?",
-      "REORDER_DUE_every": "Time to reorder? You usually order every {{days}} days."
+      "REORDER_DUE_every": "Time to reorder? You usually order every {{days}} days.",
+      "DEBT_PAYMENT_CONFIRMED": "The seller confirmed your debt payment",
+      "DEBT_PAYMENT_REJECTED": "The seller did not confirm your debt payment — see the reason in Debt",
+      "DEBT_PAYMENT_RECEIVED": "The seller received a debt payment — see the balance in Debt",
+      "REVIEW_ANSWERED": "The seller replied to your review",
+      "DEBT_PAYMENT_DUE": "A debt payment is due soon — details in Debt",
+      "PORTAL_INVITATION": "A shop invites you to its account",
+      "MANAGER_CHANGED": "Your manager has changed",
+      "MANAGER_CHANGED_named": "Your new manager is {{name}}",
+      "PRICE_NAMED": "The seller named the cost — confirm the amount"
     }
   },
   "activation": {
@@ -279,7 +310,12 @@
     "passwordRequired": "Choose a password — without it there is no way to sign in.",
     "tooManyAttempts": "Too many attempts. Please wait and try again later.",
     "unavailable": "The service is unavailable right now. The link is still valid — try again later.",
-    "existingCustomerHint": "Already use Q-Order with another supplier? Sign in with your password — no need to create a new one."
+    "signInToAccept": "You already have a Q-Order account. Sign in with your password and the shop will be added to yours.",
+    "existingCustomerHint": "Already use Q-Order with another supplier? Sign in with your password — no need to create a new one.",
+    "yourNumber": "Your number",
+    "showPassword": "Show what you typed",
+    "hidePassword": "Hide what you typed",
+    "invitedBy": "You were invited by"
   },
   "cart": {
     "sheetTitle": "Basket",
@@ -322,13 +358,14 @@
     "saved": "You save",
     "adult": "The order has 21+ items. Show an ID at pickup.",
     "close": "Close the basket",
-    "continue": "Continue shopping",
-    "toCatalog": "Go to the catalogue",
     "added": "Added: {{name}}",
     "open": "Open the basket",
     "failed": "The cart didn't change. Check your connection and try again",
     "removed": "Removed: {{name}}",
     "undo": "Undo",
+    "pickAll": "Select all",
+    "picked": "To order: {{picked}} of {{total}}",
+    "pickLine": "Include in order: {{name}}",
     "wholesale": {
       "pack": "{{amount}} each",
       "hint": "Add {{amount}} more — {{packs}} at {{price}}, you save {{saving}}",
@@ -346,11 +383,19 @@
     "vatInside": "incl. VAT {{rate}}%",
     "vatInsideAny": "incl. VAT",
     "mode": {
-      "label": "How you buy",
+      "label": "How you order",
       "RETAIL": "Retail",
-      "WHOLESALE": "Wholesale"
+      "WHOLESALE": "Wholesale",
+      "only": {
+        "RETAIL": "This item is sold at retail only",
+        "WHOLESALE": "This item is sold wholesale only"
+      }
     },
-    "creditLimit": "This total is above your credit limit with the seller — they will confirm shipping separately. You can still send the order"
+    "creditLimit": "This total is above your credit limit with the seller — they will confirm shipping separately. You can still send the order",
+    "clearAll": "Clear cart",
+    "clearSure": "Clear for sure?",
+    "lineSaving": "you save {{saving}}",
+    "lineSavingWhy": "At the regular price: {{amount}} × {{price}} = {{full}}. You pay {{total}} — {{saving}} less."
   },
   "checkout": {
     "title": "Place your request",
@@ -386,7 +431,8 @@
       "deliveryVatOnTop": "VAT on delivery {{rate}}%",
       "loadersVatOnTop": "VAT on loaders {{rate}}%",
       "vatInside": "incl. VAT {{amount}}",
-      "vatIncluded": "incl. VAT"
+      "vatIncluded": "incl. VAT",
+      "yours": "Your order"
     },
     "sending": "Sending…",
     "send": "Send the request to the seller",
@@ -399,16 +445,14 @@
       "pickupMethod": "Pickup method",
       "deliveryMethod": "Delivery method",
       "chooseMethod": "Choose a method",
-      "zone": "Delivery zone",
-      "chooseZone": "Choose a zone",
+      "zone": "Where to deliver",
       "pickupPoint": "Where to collect",
       "address": "Delivery address",
       "addressPlaceholder": "Street, building, site",
-      "addressHint": "You have given this address to another supplier",
+      "addressHint": "Used before:",
       "floor": "Floor",
-      "date": "Delivery date",
-      "window": "Delivery window",
-      "chooseWindow": "Choose a window",
+      "date": "When",
+      "window": "What time",
       "cost": "Delivery cost",
       "costLater": "The supplier will name the delivery cost when checking the request.",
       "costByZone": "The cost depends on the direction: choose a zone.",
@@ -427,7 +471,8 @@
           "OWN": "loaded by the seller's staff",
           "CARRIER": "loaded by the carrier's loaders",
           "CREW": "loaded by a separate crew"
-        }
+        },
+        "required": "Loaders are required for this delivery"
       },
       "carrier": "Carrier",
       "chooseCarrier": "Choose a carrier",
@@ -435,7 +480,14 @@
       "toDoor": "To the door — at your address",
       "toTerminal": "To the terminal: {{address}}",
       "carrierTariff": "at carrier rates",
-      "directNote": "You pay the carrier for delivery — not in the total"
+      "directNote": "You pay the carrier for delivery — not in the total",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "otherDay": "Another day",
+      "ownCarrier": "Other — I will suggest my own",
+      "ownCarrierName": "Your carrier",
+      "ownCarrierPlaceholder": "E.g. Yandex Taxi, inDriver",
+      "ownCarrierPays": "You pay your carrier for transport yourself — it is not part of the order total."
     },
     "error": {
       "title": "Request not sent",
@@ -449,12 +501,31 @@
       "title": "The supplier is temporarily not accepting orders",
       "note": "Your cart is saved — send it once the supplier resumes taking orders."
     },
-    "back": "Back to shopping",
+    "back": "Back to the catalogue",
     "steps": {
       "label": "Checkout steps",
       "chosen": "Products chosen",
-      "receive": "How to receive",
-      "send": "Send to seller"
+      "receive": "How you receive",
+      "send": "Send to seller",
+      "title1": "Cart",
+      "title2": "How to receive?",
+      "title3": "Check your order",
+      "short1": "Goods",
+      "short2": "Receiving",
+      "short3": "Send",
+      "wide1": "Goods chosen",
+      "wide2": "Receiving",
+      "wide3": "Send to the seller",
+      "next": "Next",
+      "back": "Back",
+      "receiveChosen": "Method chosen — you can change it",
+      "receiveLater": "Not chosen — the seller will clarify",
+      "change": "Change",
+      "titleExtras": "Loaders and carrier",
+      "nextReceive": "Next: how to receive",
+      "deliveryFoot": "Delivery {{cost}}",
+      "freeFoot": "free from {{from}}, {{missing}} to go",
+      "free": "free"
     },
     "optional": "Optional",
     "contact": "The seller will call you on",
@@ -464,22 +535,62 @@
       "title": "What happens next",
       "check": "The seller checks that everything is in stock.",
       "change": "If anything changes, you will see it and decide yourself whether to agree.",
-      "pickup": "When the request is ready, the seller hands over the goods the way you chose."
+      "pickup": "When the request is ready, the seller hands over the goods the way you chose.",
+      "decide": "If anything changes, you decide whether to agree.",
+      "deliver": "When it's ready, pick it up or get it delivered at the chosen time."
     },
-    "payLater": "No payment now — the seller will check stock and confirm the order"
+    "payLater": "No payment now — the seller will check stock and confirm the order",
+    "part": {
+      "label": "Which order to place",
+      "WHOLESALE": "Wholesale order",
+      "RETAIL": "Retail order",
+      "lines": "lines: {{count}}",
+      "next": {
+        "WHOLESALE": "Place the wholesale order · lines: {{count}}",
+        "RETAIL": "Place the retail order · lines: {{count}}"
+      }
+    },
+    "addGoods": "Add more goods",
+    "optionalShort": "optional",
+    "payLaterShort": "No need to pay now",
+    "payment": {
+      "title": "How will you pay?",
+      "pay": "I will pay",
+      "payHint": "With money, as usual",
+      "credit": "Take on credit",
+      "creditHint": "Consignment — the seller decides whether to give credit",
+      "required": "Choose above how you will pay"
+    },
+    "pay": {
+      "toSeller": "To the seller",
+      "later": {
+        "delivery": "Plus delivery — the seller will name its cost when checking the order.",
+        "loaders": "Plus loaders — the seller will name their cost when checking the order.",
+        "delivery_loaders": "Plus delivery and loaders — the seller will name their cost when checking the order."
+      },
+      "separately": "Paid separately, directly — not to the seller:",
+      "carrier": "To the carrier",
+      "carrierNamed": "To the carrier \"{{name}}\"",
+      "loaders": "To the loaders",
+      "byCarrierTariff": "at their rate",
+      "grand": "Total for the order",
+      "from": "from {{amount}}",
+      "grandHint": "You will learn the exact amount from the carrier or the seller — the total will be no less."
+    }
   },
   "favorites": {
     "title": "Favourites",
     "clear": "Clear",
     "clearAria": "Clear favourites",
-    "empty": "Empty so far. Mark items with a heart in the catalogue — they will gather here, and a repeat purchase will not have to be searched for again.",
+    "empty": "Empty so far. Mark items with a heart in the catalogue — they will gather here, and a repeat order will not have to be searched for again.",
     "notAll": "Not everything was added to the request",
     "addAvailable": "Add what is available to the request",
     "gone": "The seller has withdrawn it",
     "add": "Add to favourites",
     "remove": "Remove from favourites",
     "setAside": "set aside by you",
-    "cannotOrder": "Cannot be ordered right now: {{names}}"
+    "cannotOrder": "Cannot be ordered right now: {{names}}",
+    "byMode": "Wholesale items go to the wholesale order, retail ones to the retail order"
   },
   "catalog": {
     "search": "Search the catalogue",
@@ -525,7 +636,6 @@
     "priceNote": {
       "perUnit": "per {{unit}}",
       "vat": "excl. VAT, +{{rate}}%",
-      "asOf": "price as of {{date}}",
       "vatIncluded": "incl. {{rate}}% VAT",
       "perUnitRetail": "retail, per {{unit}}"
     },
@@ -534,7 +644,6 @@
     "frameNumbered": "Frame {{number}}",
     "mediaTitle": "Photos and videos: {{name}}",
     "vat": "excl. VAT, {{rate}}% VAT added on top",
-    "asOf": "price as of {{date}}",
     "field": {
       "yes": "Yes",
       "no": "No"
@@ -552,7 +661,8 @@
       "CHEAPEST": "Cheapest first",
       "DEAREST": "Most expensive first",
       "NAME": "By name",
-      "DISCOUNT": "Discounts first"
+      "DISCOUNT": "Discounts first",
+      "button": "Order: {{value}}"
     },
     "novelty": "New",
     "badge": {
@@ -577,9 +687,17 @@
       "title": "Are you 21 or older?",
       "text": "“{{name}}” is sold only to people aged 21 and over. The seller will ask for an ID when you pick up the order.",
       "yes": "Yes, I am 21 or older",
-      "no": "No, back to shopping"
+      "no": "No, back to the catalogue"
     },
     "quickOrder": "Quick order",
+    "priceList": {
+      "title": "Price list with your prices",
+      "preparing": "Preparing…",
+      "failed": "Could not download the price list. Try again.",
+      "button": "Price list",
+      "pdf": "Download PDF",
+      "excel": "Download Excel"
+    },
     "quickOrderHint": "Know what you need? Add it without searching",
     "emptyRubrics": "Empty sections · {{count}}",
     "shown_one": "{{count}} item",
@@ -615,11 +733,24 @@
       "NAME": "By name",
       "DISCOUNT": "On sale"
     },
+    "presence": {
+      "label": "Availability",
+      "IN_STOCK": "In stock",
+      "ALL": "All",
+      "OUT_OF_STOCK": "Out of stock",
+      "hiddenHint": "Found among sold out: {{count}}",
+      "showHidden": "Show"
+    },
     "channel": {
       "label": "How it is sold",
       "ALL": "All",
       "RETAIL": "Retail",
-      "WHOLESALE": "Wholesale"
+      "WHOLESALE": "Wholesale",
+      "BOTH": "Retail & wholesale",
+      "only": {
+        "RETAIL": "Retail only",
+        "WHOLESALE": "Wholesale only"
+      }
     },
     "vatIncluded": "incl. {{rate}}% VAT, tax is already in the price",
     "leadVatIncluded": "prices include {{rate}}% VAT; next to each one — per piece, sack or box",
@@ -628,7 +759,23 @@
       "waiting": "We'll let you know"
     },
     "filters": {
-      "reset": "Clear filters"
+      "reset": "Clear filters",
+      "more": "More filters · {{count}}",
+      "less": "Collapse filters",
+      "chosen": "{{count}} selected",
+      "sizeMatch": "Letter and number sizes are matched by a common chart: 48 also finds M and L",
+      "label": "Filters",
+      "title": "All filters",
+      "all": "All filters, chosen: {{count}}",
+      "clear": "Reset",
+      "apply": "Apply",
+      "sizes": {
+        "digits": "Numeric",
+        "letters": "Letter"
+      },
+      "rubric": "Section: {{name}}",
+      "remove": "Remove filter “{{name}}”",
+      "chosenLabel": "Chosen filters"
     },
     "marks": {
       "label": "Quick filters",
@@ -636,7 +783,26 @@
       "novelty": "New",
       "promo": "Sale",
       "wholesaleDeal": "Discount"
-    }
+    },
+    "dealWholesale": "wholesale per {{unit}}",
+    "photos": "Photos: {{count}}",
+    "orderMode": {
+      "label": "How you order: wholesale or retail",
+      "WHOLESALE": "Wholesale",
+      "RETAIL": "Retail",
+      "models": "items: {{count}}"
+    },
+    "sortPhone": {
+      "POPULAR": "Popular",
+      "NEWEST": "New arrivals",
+      "CHEAPEST": "Cheapest first",
+      "DEAREST": "Most expensive first",
+      "RATING": "Top rated",
+      "DISCOUNT": "Discounted",
+      "NAME": "By name"
+    },
+    "searchShort": "Find a product",
+    "rubricAll": "All of “{{name}}”"
   },
   "orders": {
     "expectedOn": "arrives {{date}}",
@@ -644,7 +810,8 @@
       "title": "Delivery",
       "terminal": "To the carrier terminal — you pick it up",
       "carrier": "Delivered by {{name}}",
-      "direct": "You pay the carrier for delivery — not in the total",
+      "callCarrier": "Call the carrier",
+      "direct": "Pay the carrier for transport when you collect it",
       "tracking": "Tracking number:",
       "when": "Arrives {{when}}"
     },
@@ -708,23 +875,12 @@
       "readyDelivery": "Packed"
     },
     "help": {
-      "title": "What the status means",
-      "checking": {
-        "title": "Seller is checking",
-        "text": "The request has arrived. The seller is checking everything is available. Nothing to do."
-      },
-      "answer": {
-        "title": "Your answer is needed",
-        "text": "The seller changed something. Take a look and press “Agree” or “Cancel”."
-      },
-      "accepted": {
-        "title": "Accepted",
-        "text": "The seller has confirmed the request and is preparing the goods."
-      },
-      "ready": {
-        "title": "Ready for pickup",
-        "text": "The goods are packed and waiting for you at the shop."
-      }
+      "title": "Have a question?",
+      "seller": "Seller",
+      "write": "Message the seller",
+      "writeHint": "The answer comes here, in the order chat",
+      "lines_one": "{{count}} item · {{sum}}",
+      "lines_other": "{{count}} items · {{sum}}"
     },
     "callSeller": "Call the seller",
     "again": "Order the same again",
@@ -779,7 +935,7 @@
         "readyDelivery": "Your order is packed and on its way",
         "review": "Order received, checking stock",
         "accepted": "Everything is in stock, packing your order",
-        "done": "Thank you for your purchase! We'd love a review",
+        "done": "Thank you for your order! We'd love a review",
         "CUSTOMER": "You cancelled the order",
         "SELLER": "The seller cancelled the order",
         "TIMEOUT": "Order closed: no reply in time",
@@ -791,7 +947,7 @@
       "goods_other": "{{count}} products",
       "new": "New",
       "you": "You:",
-      "payOnPickup": "to pay on pickup",
+      "payOnPickup": "payment on pickup",
       "details": "Details of order #{{number}}",
       "where": "Where the order is",
       "todoTitle": "What you need to do",
@@ -812,7 +968,8 @@
         "review": "Nothing — the seller will check stock and reply",
         "accepted": "Nothing — we'll let you know when it's packed",
         "done": "Nothing. We'd love your review",
-        "cancelled": "Nothing. You can build a new order in the catalog"
+        "cancelled": "Nothing. You can build a new order in the catalog",
+        "priceNamed": "Check the amount below and press \"Agree\" or \"Cancel\""
       },
       "ordered": "What you ordered",
       "changed": "What the seller changed",
@@ -837,31 +994,21 @@
       "rateItem": "Rate: {{name}}",
       "groups": {
         "waiting": "Waiting for you",
-        "rest": "Others"
-      }
-    },
-    "payment": {
-      "title": "Transport payment",
-      "status": {
-        "AWAITING_RECEIPT": "The seller will send a transport payment receipt",
-        "AWAITING_PAYMENT": "Pay for transport using the receipt",
-        "REPORTED": "You reported the payment — the seller will check it",
-        "CONFIRMED": "Transport payment confirmed",
-        "REJECTED": "Payment not confirmed"
+        "rest": "Others",
+        "new": "New messages"
       },
-      "rejected": "Payment not confirmed: {{reason}}",
-      "number": "Receipt No. {{number}}",
-      "due": "Pay by {{date}}",
-      "payOnline": "Pay online",
-      "paid": "I've paid",
-      "paymentRef": "Transaction number",
-      "paidAt": "Payment date",
-      "comment": "Comment",
-      "send": "Send",
-      "failed": "Couldn't send — try again",
-      "files": "Receipt from the seller:",
-      "file": "download file {{index}}",
-      "fileFailed": "Could not download the receipt. Please try again."
+      "reply": "Reply",
+      "replyAria": "Reply to the seller about “{{quote}}”",
+      "replyLabel": "Your reply to the seller",
+      "replyPlaceholder": "For example: can it be replaced with another colour?",
+      "replyPrefix": "In reply to “{{quote}}”",
+      "replyDrop": "Remove quote",
+      "viewAnswer": "View and reply",
+      "priceNamed": {
+        "delivery": "The seller named the delivery cost",
+        "loaders": "The seller named the loaders cost",
+        "both": "The seller named the delivery and loaders cost"
+      }
     },
     "returns": {
       "title": "Return {{no}}",
@@ -880,6 +1027,8 @@
     },
     "realization1c": "1C sales document No. {{number}} of {{day}}",
     "realization1cNoNumber": "1C sales document of {{day}}",
+    "order1c": "1C order No. {{number}} of {{day}}",
+    "order1cNoNumber": "Order accepted in 1C on {{day}}",
     "answerBy": "The seller will reply {{day}} by {{time}}",
     "problem": {
       "open": "Report a problem",
@@ -927,7 +1076,71 @@
       "preparing": "Preparing…",
       "failed": "Couldn't download — please try again",
       "note": "For reference: orders and payments recorded by the seller. This is not a reconciliation statement — the seller prepares that in their accounting"
-    }
+    },
+    "lines": {
+      "remove": "Remove item",
+      "wait": "I will wait",
+      "waitAll": "Wait for all {{count}}",
+      "ask": "Ask",
+      "takeReplacement": "Take the replacement",
+      "take": "Take {{count}}",
+      "ok": "OK",
+      "accept": "Agree",
+      "partial": "{{name}} — {{now}} of {{was}} available",
+      "price": "{{name}} — price {{was}} → {{now}}",
+      "added": "Added: {{name}}",
+      "removed": "Removed: {{name}}",
+      "instead": "The seller offers instead: {{name}}",
+      "never": "sold out, will not be restocked",
+      "tomorrow": "back tomorrow",
+      "until": "back by {{date}}",
+      "total": "Total with your answer: {{total}}",
+      "send": "Send answer",
+      "agreeAll": "Agree to everything",
+      "declineAll": "Decline the order…",
+      "failed": "The answer was not sent. Please try again.",
+      "answer": "Answer item by item",
+      "answerAria": "Answer item by item in the order of {{day}}",
+      "viewItem": "View the item: photos and description",
+      "replacementBadge": "Suggested replacement",
+      "youChose": "You chose: {{what}}"
+    },
+    "declineDialog": {
+      "title": "Decline the order?",
+      "warning": "The whole order will be closed. If only one item does not suit you, choose “Remove item” on it.",
+      "reason": "Why are you declining",
+      "reasons": {
+        "REPLACEMENT": "The replacement does not suit me",
+        "PRICE": "Too expensive",
+        "WAIT": "Too long to wait",
+        "BOUGHT_ELSEWHERE": "Ordered elsewhere",
+        "OTHER": "Other"
+      },
+      "comment": "Tell us what is wrong",
+      "stay": "Keep the order",
+      "confirm": "Decline",
+      "failed": "Could not decline. Please try again."
+    },
+    "offeredInstead": "Instead of “{{name}}”",
+    "offeredAdded": "Added by the seller",
+    "credit": {
+      "REQUESTED": "You asked for credit — the seller is still deciding",
+      "APPROVED": "The seller agreed to give credit (consignment)",
+      "DECLINED": "The seller declined credit — payment only. If that does not suit you, cancel the order"
+    },
+    "saleMode": {
+      "RETAIL": "Retail order",
+      "WHOLESALE": "Wholesale order"
+    },
+    "priceNamedTitle": "The seller named the cost — confirm the amount",
+    "saveTemplate": {
+      "button": "Save as template",
+      "defaultName": "Like order No. {{number}}",
+      "done": "Saved to templates.",
+      "open": "Open templates",
+      "failed": "Could not save — try again"
+    },
+    "nothingToRepeat": "Nothing to add to the cart: this order has no products that can be ordered now."
   },
   "templates": {
     "title": "Templates",
@@ -941,7 +1154,7 @@
     "toCart": "To the basket",
     "lineCount": "items: {{count}}",
     "deleteAria": "Delete the template {{name}}",
-    "subtitle": "Repeat a purchase in one tap",
+    "subtitle": "Repeat an order in one tap",
     "auto": {
       "off": "Auto-order is off",
       "on": "Auto-order: {{text}}",
@@ -976,7 +1189,37 @@
       "dayName5": "Friday",
       "dayName6": "Saturday",
       "dayName7": "Sunday"
-    }
+    },
+    "past": {
+      "title": "From past orders",
+      "hint": "Any of your orders, including cancelled ones, goes to the cart in one tap. Prices and stock will be today's.",
+      "search": "Order number or product name",
+      "nothing": "Nothing found",
+      "more": "Show {{count}} more"
+    },
+    "delete": "Delete",
+    "deleteQuestion": "Delete the template \"{{name}}\"? Orders made from it stay.",
+    "deleteYes": "Yes, delete",
+    "edit": {
+      "button": "Edit template",
+      "loading": "Loading items…",
+      "gone": "No longer sold",
+      "quantity": "Quantity: {{name}}",
+      "remove": "Remove",
+      "removeAria": "Remove from template: {{name}}",
+      "lastLine": "The last item cannot be removed — delete the template if you no longer need it.",
+      "failed": "Could not save — try again",
+      "addTitle": "Add a product",
+      "addPlaceholder": "Product name, e.g. \"potatoes\"",
+      "notFound": "Nothing found",
+      "add": "Add",
+      "addAria": "Add to template: {{name}}",
+      "inTemplate": "Already in template",
+      "min": "At least {{amount}}",
+      "step": "In steps of {{step}}",
+      "minStep": "At least {{min}}, in steps of {{step}}"
+    },
+    "deleteTemplate": "Delete template"
   },
   "questions": {
     "tabQuestions": "Questions to the seller",
@@ -984,7 +1227,17 @@
       "title": "WhatsApp archive",
       "note": "Your whole WhatsApp chat with the shop is kept here — even if it was deleted on your phone. This is an archive: you cannot reply here; write in “Questions to the seller” or on WhatsApp.",
       "you": "You",
-      "shop": "Shop"
+      "shop": "Shop",
+      "tabNote_one": "Read only · {{count}} message",
+      "tabNote_other": "Read only · {{count}} messages",
+      "search": "Search the chat",
+      "nothing": "Nothing found",
+      "toLatest": "Latest",
+      "expand": "Show in full",
+      "collapse": "Collapse",
+      "position": "{{at}} of {{total}}",
+      "prev": "Previous match",
+      "next": "Next match"
     },
     "title": "Questions to seller",
     "subtitle": "Correspondence about goods, dates and delivery",
@@ -1015,7 +1268,32 @@
     "unread_one": "{{count}} new answer",
     "unread_other": "{{count}} new answers",
     "notFound": "No such conversation.",
-    "newQuestion": "New question to the seller"
+    "newQuestion": "New question to the seller",
+    "askTitle": "New question",
+    "askHint": "About an item, stock, prices or delivery. The answer comes as a notification and here.",
+    "topicsLabel": "Ready-made topics",
+    "topics": {
+      "stock": "Is it in stock?",
+      "when": "When can you deliver?",
+      "wholesale": "What is the wholesale price?",
+      "pickup": "Can I pick it up myself?"
+    },
+    "enterHint": "Enter — send, Shift+Enter — new line",
+    "listTitle": "Your questions",
+    "aboutItemList": "Conversations about this item",
+    "allThreads": "All questions",
+    "aboutItemNew": "About “{{name}}”",
+    "filterLabel": "Which questions to show",
+    "filter": {
+      "all": "All",
+      "waiting": "Awaiting answer",
+      "answered": "Answered"
+    },
+    "filterEmpty": "No such questions",
+    "emptyTitle": "No questions yet",
+    "tabQuestionsNote_one": "{{count}} question",
+    "tabQuestionsNote_other": "{{count}} questions",
+    "discussedItem": "You asked about"
   },
   "reviews": {
     "rejectReasons": {
@@ -1027,7 +1305,7 @@
     },
     "title": "My reviews",
     "subtitle": "What you have written about the supplier's goods",
-    "empty": "You have not rated this supplier’s goods yet. You can rate any of their items from the item card; what you bought through requests is gathered here.",
+    "empty": "You have not rated this supplier’s goods yet. You can rate any of their items from the item card; what you received through requests is gathered here.",
     "awaiting": "Waiting for your rating",
     "rate": "Rate",
     "gone": "The item has been withdrawn from sale",
@@ -1050,12 +1328,12 @@
     "review": "Review",
     "sendFailed": "The review was not sent. Try again.",
     "blockTitle": "Reviews",
-    "canReview": "Any customer of the shop can rate an item, even one bought without a request.",
+    "canReview": "Any customer of the shop can rate an item, even one received without a request.",
     "staffNoReviews": "Store staff don’t leave reviews",
     "noneYet": "No reviews yet. Yours will be the first.",
     "client": "Client",
     "stars": "Rating {{value}} out of 5",
-    "purchasedAt": "bought {{date}}",
+    "purchasedAt": "received {{date}}",
     "tagsLabel": "Review tags",
     "reviewOptional": "Tell us more — optional",
     "pickStar": "Tap a star",
@@ -1103,10 +1381,10 @@
       "thanksPending": "Everyone will see it after the seller checks it. You can change it at any time.",
       "thanksPublished": "It is already in the list. You can change it at any time.",
       "editMine": "Change the review",
-      "rateTitle": "Rate your purchase",
+      "rateTitle": "Rate the item you ordered",
       "rateItemTitle": "Rate the item",
-      "purchased": "You bought this item · order №{{number}} of {{date}}",
-      "purchasedNoDate": "You bought this item · order №{{number}}",
+      "purchased": "You ordered this item · order №{{number}} of {{date}}",
+      "purchasedNoDate": "You ordered this item · order №{{number}}",
       "send": "Send the review",
       "filter": "Filter by rating",
       "all": "All · {{count}}",
@@ -1114,13 +1392,16 @@
       "emptyTitle": "No reviews yet",
       "emptyText": "Yours will be the first — it will help others choose.",
       "mine": "Your review",
-      "bought": "✓ Bought in the shop",
+      "bought": "✓ Ordered in the shop",
       "shopReply": "Shop’s reply",
       "helpful": "Helpful · {{count}}",
       "dateWithSize": "{{date}} · size {{size}}"
     },
     "rateItem": "Rate {{name}}",
-    "rateWith": "Give {{rating}} out of 5"
+    "rateWith": "Give {{rating}} out of 5",
+    "yours": "Your reviews",
+    "shopSubtitle": "About products of «{{shop}}»",
+    "tagsTitle": "What can you say about the product"
   },
   "delivery": {
     "title": "Delivery and pickup",
@@ -1160,14 +1441,16 @@
     "maxLength": "No longer than {{max}} characters",
     "minLength": "No shorter than {{min}} characters",
     "pattern": {
-      "default": "The value is written in a different form"
+      "default": "The value is written in a different form",
+      "phone": "10 digits starting with 7, e.g. 701 000 00 01 — +7 or 8 in front is fine",
+      "binIin": "BIN or IIN — 12 digits"
     }
   },
   "shops": {
     "page": {
       "title": "Suppliers",
-      "note_one": "{{count}} shop you buy from",
-      "note_other": "{{count}} shops you buy from",
+      "note_one": "{{count}} shop you order from",
+      "note_other": "{{count}} shops you order from",
       "search": "Find a supplier",
       "filters": "Filter",
       "openNow": "Open now",
@@ -1184,8 +1467,8 @@
     "inCart_one": "{{count}} in basket",
     "inCart_other": "{{count}} in basket",
     "all": "All my shops · {{count}}",
-    "note_one": "{{count}} shop has invited you. Each has its own catalogue, prices and basket.",
-    "note_other": "{{count}} shops have invited you. Each has its own catalogue, prices and basket.",
+    "note_one": "{{count}} shop you order from. Each has its own catalogue, prices and basket.",
+    "note_other": "{{count}} shops you order from. Each has its own catalogue, prices and basket.",
     "close": "Close",
     "search": "Find a shop",
     "searchPlaceholder": "Find a shop by name",
@@ -1195,27 +1478,52 @@
     "everything": "All shops",
     "found": "Found",
     "nothing": "There is no such shop in your list. Check the name or ask the seller to send you an invitation.",
-    "pinHint": "Tap the star to pin a shop — it will always stay on top and in the left menu.",
+    "none": "You have no shops yet. Ask a seller to send you an invitation.",
+    "pinHint": "Tap «⋯» next to a shop to pin it to the top, hide it or delete it.",
     "pin": "Pin {{name}}",
     "unpin": "Unpin {{name}}",
     "switched": "You switched to {{name}}",
     "kinds": "Kind of goods",
     "allKind": "All",
     "invites": {
-      "title": "New invitations",
       "badge": "New invitation",
       "invites_one": "{{count}} new invitation",
       "invites_other": "{{count}} new invitations",
-      "accept": "Accept",
+      "accept": "Accept invitation",
       "decline": "Decline",
       "acceptAria": "Accept the invitation from {{name}}",
       "declineAria": "Decline the invitation from {{name}}",
-      "consent": "By accepting, you agree that this shop processes your data.",
+      "consent": "By accepting, you agree to this shop processing your data.",
       "consentLink": "Read the notice",
       "accepted": "You accepted the invitation from {{name}}",
       "declined": "Invitation from {{name}} declined",
-      "failed": "Could not answer the invitation. Please try again."
-    }
+      "failed": "Could not answer the invitation. Please try again.",
+      "label": "Shop invitations",
+      "cardTitle": "{{name}} invites you to become a customer",
+      "until": "valid until {{date}}",
+      "benefit": "You will get the shop catalogue and can send orders any time.",
+      "consentHide": "Hide the notice"
+    },
+    "busy": "With news or cart",
+    "hidden_one": "Hidden · {{count}}",
+    "hidden_other": "Hidden · {{count}}",
+    "actions": {
+      "open": "Actions for {{name}}",
+      "pin": "Pin to top",
+      "unpin": "Unpin",
+      "hide": "Hide shop",
+      "show": "Unhide shop",
+      "hideNote": "Notifications from this shop stop arriving but are kept — unhide it and they reappear. The seller is not told.",
+      "showNote": "The shop returns to the list, and notifications received while hidden become visible.",
+      "delete": "Delete shop",
+      "warningTitle": "Delete forever?",
+      "warning": "This cannot be undone. Messages, questions, notifications, cart, templates, favourites and reviews at this shop will be erased forever and your access will be closed. Orders stay with the seller without your name, phone or address. You can only come back with a new invitation.",
+      "cancel": "Cancel",
+      "deleteForever": "Delete forever",
+      "failed": "Could not delete. Please try again."
+    },
+    "rest": "Others, A–Z",
+    "pinnedMark": "Pinned"
   },
   "banners": {
     "carousel": "carousel",
@@ -1239,6 +1547,7 @@
       "closedToday": "Closed today",
       "now": {
         "always": "Open 24 hours — orders are processed right away",
+        "alwaysShort": "Open 24 hours",
         "open": "Open until {{to}} — orders are processed today",
         "openShort": "Open until {{to}}",
         "later": "Opens today at {{from}} — orders are already accepted",
@@ -1287,11 +1596,11 @@
     },
     "first": {
       "title": "−{{percent}}% on your first order",
-      "text": "For new buyers of the shop. The discount appears in the basket by itself. It doesn't add up with the volume discount — the larger one applies.",
+      "text": "For new customers of the shop. The discount appears in the basket by itself. It doesn't add up with the volume discount — the larger one applies.",
       "status": {
         "ELIGIBLE": "Applies to your first order",
         "USED": "You've already got it",
-        "NOT_NEW": "For new buyers"
+        "NOT_NEW": "For new customers"
       }
     },
     "subscription": {
@@ -1306,17 +1615,13 @@
     },
     "v2": {
       "lead": "Discounts are calculated in the basket automatically — nothing to enter",
-      "active_one": "{{count}} offer is active now",
-      "active_other": "{{count}} offers are active now",
-      "activeShort_one": "{{count}} active",
-      "activeShort_other": "{{count}} active",
       "back": "Back",
       "mine": "My savings",
       "byCart": "for your basket",
       "progress": "Progress towards the volume discount",
       "inCart": "In basket",
       "addMore": "Add more from the catalogue",
-      "keepShopping": "Continue shopping",
+      "keepShopping": "Back to the catalogue",
       "noStack": "Discounts do not stack — the basket applies the larger one.",
       "volume": {
         "done": "The −{{percent}}% discount is yours",
@@ -1349,38 +1654,19 @@
         "noStackShort": "Does not stack with wholesale — the larger one applies."
       },
       "now": "In the shop now",
-      "seeDeals_one": "See {{count}} item",
-      "seeDeals_other": "See {{count}} items",
-      "allDeals_one": "All {{count}} item",
-      "allDeals_other": "All {{count}} items",
-      "allShort": "All",
       "allChip": "All · {{count}}",
       "saving": "You save {{amount}}",
       "inCartShort": "In basket",
       "removeAria": "Remove from basket: {{name}}",
-      "how": {
-        "title": "How discounts work",
-        "auto": {
-          "title": "They appear in the basket by themselves",
-          "text": "No promo codes — the total is recalculated automatically."
-        },
-        "together": {
-          "title": "All items count together",
-          "text": "Pieces, sacks, boxes — only the order total matters."
-        },
-        "one": {
-          "title": "One discount per order",
-          "text": "If two apply, the larger one is used."
-        }
-      },
       "sub": {
         "where": "A notification in the cabinet and the app — when the shop brings something new or starts a sale"
       },
-      "fromEditor": "Banners from the shop editor",
       "slides": "Slides",
       "slide": "Slide {{n}}",
-      "leftShort": "{{days}} d {{hours}} h left",
-      "untilShort": "until {{date}}"
+      "untilShort": "until {{date}}",
+      "seeSale_one": "See {{count}} discounted item",
+      "seeSale_other": "See {{count}} discounted items",
+      "dh": "{{days}} d {{hours}} h"
     }
   },
   "item": {
@@ -1432,9 +1718,7 @@
     "soldBy": {
       "label": "Sold",
       "piece": "Sold by the piece",
-      "unit": "Sold in units of “{{unit}}”",
       "pieceValue": "by the piece",
-      "unitValue": "in units of “{{unit}}”",
       "stepValue": "by {{amount}}"
     },
     "sizeGuide": {
@@ -1465,13 +1749,15 @@
       "tiers": "Wholesale prices",
       "tierFrom": "{{amount}} or more",
       "noSale": "Sale discount applies to single pieces only",
-      "title": "How to get the wholesale price",
+      "title": "Wholesale prices",
       "split": "{{pieces}} = {{packs}} × {{price}}",
-      "perPiece": "· {{price}} per {{unit}}",
       "belowMin": "Smaller quantities — retail price {{price}} per {{unit}}",
       "onlyPacks": "Sold in packs only, minimum {{amount}}",
-      "minimum": "Wholesale to cart: {{amount}}",
-      "minimumSizes": "Split evenly across the sizes of this colour; you can change it in the cart"
+      "minimum": "Spread the minimum across sizes: {{amount}}",
+      "minimumSizes": "Split evenly across the sizes of this colour; you can change it in the cart",
+      "pickHint": "Tap a row to set that quantity",
+      "packPrice": "{{price}} per {{unit}}",
+      "next": "{{amount}} more — and the price is {{price}} per {{unit}}"
     },
     "deal": {
       "delivery": "Delivery",
@@ -1543,7 +1829,7 @@
     "compact": "{{page}} / {{count}}"
   },
   "pack": {
-    "inPress": "What is in the press",
+    "inPress": "What is inside",
     "inPack": "What is in the pack",
     "total": "Total",
     "size": "press · {{amount}}"
@@ -1606,7 +1892,7 @@
       "e2": "“Cement M500” says “Sold in 10 kg”? Then the button adds 10 kg at once. Why: the seller sells in such portions, less can’t be ordered.",
       "d2": "Next: add the rest. Chosen everything — step 4.",
       "r3": "A field opens: type the name — the product is found and added without browsing the catalogue.",
-      "e3": "You always buy the same cement — type “cement M500” and the quantity. Why: faster than scrolling the catalogue.",
+      "e3": "You always take the same cement — type “cement M500” and the quantity. Why: faster than scrolling the catalogue.",
       "d3": "Next: chosen everything — open the basket (step 4).",
       "r4": "The checkout page opens.",
       "e4": "The basket has 20 bags of cement and 5 buckets of paint — click “Check out the request”. Why: the seller gets the whole list at once.",
@@ -1681,7 +1967,7 @@
       "e3": "Want delivery on Friday instead of tomorrow? Click “Ask a question” and write. Why: the seller sees the question right in this request.",
       "d3": "Next: the seller’s answer appears right there in the request.",
       "r4": "All products of that request are back in the basket.",
-      "e4": "You buy the same every week — click “Order the same again”. Why: no searching for each product again.",
+      "e4": "You take the same every week — click “Order the same again”. Why: no searching for each product again.",
       "d4": "Next: check the basket and check out.",
       "next": "Click a request and “Open order” — details and the reply to the seller are there."
     },
@@ -1715,8 +2001,8 @@
       "s2": "Click “Add what is available to the request” — everything in stock goes to the basket.",
       "f1": "Favourites",
       "f2": "Basket",
-      "r1": "You see the products you buy often.",
-      "e1": "You hearted the cement and paint you buy every month. Why: no searching for them each time.",
+      "r1": "You see the products you order often.",
+      "e1": "You hearted the cement and paint you order every month. Why: no searching for them each time.",
       "d1": "Next: put them in the basket with one button — step 2.",
       "r2": "Everything in stock goes to the basket. What isn’t is listed.",
       "e2": "Of 5 favourites 4 are in stock, 1 ran out — 4 go to the basket. Why: fast, and nothing extra.",
@@ -1805,9 +2091,9 @@
       "e2": "You wrote a review in the evening — in the morning the seller published it. Why: reviews have no ads or rudeness.",
       "d2": "Next: if needed — edit the review (step 3).",
       "r3": "An edited review goes back for checking.",
-      "e3": "You first gave 3 stars, then the seller fixed everything — change it to 5. Why: the review honestly reflects the purchase.",
-      "d3": "Next: rate your other purchases.",
-      "next": "Rate other products you bought — it helps other customers."
+      "e3": "You first gave 3 stars, then the seller fixed everything — change it to 5. Why: the review honestly reflects the order.",
+      "d3": "Next: rate your other items.",
+      "next": "Rate other items you received — it helps other customers."
     },
     "delivery": {
       "title": "Delivery and pickup",
@@ -1830,22 +2116,22 @@
     },
     "profile": {
       "title": "Suppliers",
-      "s1": "The shops you buy from.",
-      "s2": "Buying for a company? Click “Fill in details”, enter the data and click “Save”. The seller issues the VAT invoice to it.",
+      "s1": "The shops you order from.",
+      "s2": "Ordering for a company? Click “Fill in details”, enter the data and click “Save”. The seller issues the VAT invoice to it.",
       "s3": "Your consents are in “Personal data consents”.",
       "f1": "Shops",
       "f2": "Details",
       "f3": "Consents",
-      "r1": "You see the shops you buy from.",
+      "r1": "You see the shops you order from.",
       "e1": "“Roza LLP — selected”. Why: you can switch to another shop.",
-      "d1": "Next: buying for a company? Step 2.",
+      "d1": "Next: ordering for a company? Step 2.",
       "r2": "“Details saved” appears. The VAT invoice is issued to the company.",
       "e2": "Bereke LLP, BIN 123456789012, address. Why: accounting will accept the documents.",
       "d2": "Next: see the consents — step 3.",
       "r3": "You can download the consent document.",
       "e3": "Need a copy of the consent — click “Download PDF”. Why: you have the document.",
       "d3": "Next: back to the catalogue.",
-      "next": "Back to the catalogue for shopping."
+      "next": "Back to the catalogue to choose items."
     },
     "tour": {
       "start": "Walk me through",
@@ -1882,10 +2168,10 @@
       "s2": "At the shop give the pickup code — it is in the request.",
       "r2": "The seller hands over the order and the request moves to “Received”.",
       "e2": "You gave code 4821 — you got 20 bags. Why: the code protects your order from others.",
-      "d2": "Next: rate the purchase in “Received”.",
+      "d2": "Next: rate the item in “Received”.",
       "f1": "Ready",
       "f2": "Code",
-      "next": "Collected the order? Rate the purchase — it helps other customers."
+      "next": "Collected the order? Rate the items — it helps other customers."
     },
     "ordersSeller": {
       "title": "My requests: with the seller",
@@ -1904,12 +2190,12 @@
     "ordersDone": {
       "title": "My requests: received",
       "s1": "Requests you have already received.",
-      "r1": "You can rate the purchase or order the same again.",
+      "r1": "You can rate the items or order the same again.",
       "e1": "The cement was good — rate it. Why: other customers learn about quality.",
       "d1": "Next: need more — step 2.",
       "s2": "Click the request and “Order the same again”.",
       "r2": "All products go to the basket.",
-      "e2": "You buy the same every month — one button. Why: no searching again.",
+      "e2": "You take the same every month — one button. Why: no searching again.",
       "d2": "Next: open the basket and check out.",
       "f1": "Received",
       "f2": "Repeat",
@@ -1947,7 +2233,7 @@
     "todo": "— not done"
   },
   "referral": {
-    "promo": "Ordering from someone else too? Suggest your supplier work through Q-Order — all your purchasing in one account",
+    "promo": "Ordering from someone else too? Suggest your supplier work through Q-Order — all your orders in one account",
     "invite": "Invite a supplier",
     "shopsItem": "Invite your supplier",
     "title": "Invite a supplier",
@@ -1959,6 +2245,9 @@
     "send": "Send via WhatsApp",
     "copy": "Copy link",
     "copied": "Link copied",
+    "showQr": "Show QR",
+    "qrAlt": "Invitation QR code",
+    "qrHint": "Let the supplier point their phone camera here — the sign-up page will open",
     "sending": "Preparing the link…",
     "ready": "The invitation is ready. If WhatsApp didn’t open, copy the link and send it yourself.",
     "dailyLimit": "You’ve sent many invitations today. Continue tomorrow.",
@@ -1983,16 +2272,12 @@
     "cardClose": "Close",
     "poweredBy": "Powered by Q-Order",
     "subtitle": "We'll send them a link on WhatsApp",
-    "shopsItemNote": "All your purchasing in one account"
+    "shopsItemNote": "All your orders in one account",
+    "remind": "Remind",
+    "reminder": "A reminder about the Q-Order invitation: catalog, prices and stock in one place, an order in two taps. Join: {{link}}"
   },
   "join": {
-    "titleBy": "{{name}} invites you to take orders through Q-Order",
-    "titleHidden": "One of your customers invites you to take orders through Q-Order",
-    "titleGeneric": "Take orders through Q-Order",
     "expired": "This invitation is no longer valid. Leave a request — we’ll connect you anyway.",
-    "benefit1": "Orders arrive without back-and-forth messages",
-    "benefit2": "Customers see the catalogue, prices and stock themselves",
-    "benefit3": "Request, order and invoice in one place",
     "name": "Company name",
     "bin": "BIN or IIN",
     "phone": "Phone",
@@ -2004,7 +2289,42 @@
     "thanks": "Thank you! We’ll contact you within one business day.",
     "tooOften": "Too many requests. Please try later.",
     "consentOutdated": "The consent text has been updated. Reload the page and tick the consent again.",
-    "failed": "Couldn’t send the request. Please try again."
+    "failed": "Couldn’t send the request. Please try again.",
+    "why": {
+      "fields": "Missing or invalid: {{list}}",
+      "consent": "Tick the consent to data processing",
+      "notice": "The consent text did not load"
+    },
+    "consentFailed": "Could not load the consent text.",
+    "optional": "(optional)",
+    "consentLoading": "Loading the consent text…",
+    "back": "Back",
+    "who": {
+      "title": "What is your role in the company?",
+      "owner": "I am the owner or manager",
+      "ownerHint": "Connect the company yourself — 14 days of Business free",
+      "seller": "I am an employee, a salesperson",
+      "sellerHint": "Pass the invitation to the owner — the client becomes yours",
+      "lead": "Not working out? Leave a request — we will help"
+    },
+    "seller": {
+      "title": "Pass it to the owner",
+      "text": "Only the owner can connect the company. Send them the link. Once they connect and add you as an employee with this number, the client becomes yours.",
+      "name": "Your name",
+      "phone": "Your phone",
+      "make": "Get a link for the owner",
+      "whatsapp": "Send on WhatsApp",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "message": "Hello! Our clients want to order from us through Q-Order. Connect the company with this link — 14 days free: {{link}}",
+      "already": "Is the company already on Q-Order? Ask the owner to add you to Employees with this number — the client becomes yours.",
+      "failed": "Could not get the link. Check the name and number and try again."
+    },
+    "headline": "Receive your customers' orders in the app",
+    "invitedBy": "You are invited by",
+    "oneOfClients": "One of your customers",
+    "yourClient": "your customer",
+    "lead": "Your customer sees your catalogue and prices and sends an order — no chats or calls."
   },
   "arrivals": {
     "title": "New arrivals",
@@ -2038,21 +2358,76 @@
     "shop": "Shop",
     "call": "Call",
     "badge_one": "{{count}} new",
-    "badge_other": "{{count}} new"
+    "badge_other": "{{count}} new",
+    "settings": "Profile & settings",
+    "hello": "Hello, {{name}}! What shall we do?",
+    "helloAnon": "Hello! What shall we do?",
+    "order": "Order",
+    "myOrders": "My orders",
+    "likeLastTime": "Repeat order",
+    "askSeller": "Ask the seller",
+    "allSections": "All sections",
+    "allSectionsHint": "Favourites, templates, reviews, shops…",
+    "inProgress": "Orders in progress: {{count}}",
+    "yourOrder": "Your order",
+    "look": "View",
+    "status": {
+      "answer": "The seller changed your order",
+      "ready": "Ready for pickup",
+      "onWay": "Your order is packed and on its way",
+      "accepted": "Your order is being packed",
+      "review": "The seller is checking your order"
+    },
+    "debtDue": "Next payment {{date}}",
+    "debtOpen": "See what for and how to pay",
+    "otherShops": "Other shops",
+    "attention": "Needs your attention",
+    "card": {
+      "order": "Order No. {{number}} · {{sum}}",
+      "debt": "Your debt to the shop",
+      "answerHint": "Open it and reply to the seller",
+      "code": "Pickup code: {{code}}"
+    },
+    "allShops": "All shops",
+    "allShopsTasks_one": "Tasks in all shops: {{count}}",
+    "allShopsTasks_few": "Tasks in all shops: {{count}}",
+    "allShopsTasks_many": "Tasks in all shops: {{count}}",
+    "allShopsTasks_other": "Tasks in all shops: {{count}}"
   },
   "more": {
-    "buysFrom": "Buys from {{shop}}",
+    "buysFrom": "Orders from {{shop}}",
     "invite": "Invite",
     "language": "Language",
     "fontSize": "Text size",
     "theme": "Theme",
     "groups": {
-      "buy": "Purchases",
+      "buy": "Orders",
       "talk": "Messages",
       "suppliers": "Suppliers",
-      "settings": "Settings"
+      "settings": "Settings",
+      "shops": "Shops",
+      "me": "My details"
     },
-    "inviteSupplier": "Invite a supplier"
+    "inviteSupplier": "Invite a supplier",
+    "shop": "Shop “{{name}}”",
+    "rows": {
+      "orders": "all your orders",
+      "templates": "repeat a purchase",
+      "favorites": "what you liked",
+      "promotions": "discounts and sale",
+      "arrivals": "new items: {{count}}",
+      "messages": "everything you discuss with the seller",
+      "questions": "ask about an item",
+      "reviews": "item ratings",
+      "shops": "you are in “{{name}}”",
+      "invite": "all purchases in one place",
+      "delivery": "shop terms",
+      "profile": "company details, consents, notifications",
+      "notifications": "news about orders and items"
+    },
+    "myOrders": "My orders",
+    "myShops": "My shops",
+    "profile": "Profile and details"
   },
   "joinShop": {
     "expand": "Expand to full screen",
@@ -2070,10 +2445,9 @@
     "sending": "Sending…",
     "confirmTitle": "Confirm the number is yours",
     "confirmStep1": "Tap the green button — WhatsApp opens with a ready message to the shop.",
-    "confirmStep2": "Send the message «Код {{code}}» as is, without changes.",
+    "confirmStep2": "Send the message “Код {{code}}” as is, without changes. The number you send it from becomes your sign-in number.",
     "confirmStep3": "Come back here — the page moves on by itself.",
     "openWhatsApp": "Open WhatsApp",
-    "codeIs": "Code {{code}} is valid until {{time}}",
     "waiting": "Waiting for your message…",
     "needNewCode": "To confirm the number, get a code and send it to the shop in WhatsApp.",
     "getCode": "Get a code",
@@ -2103,16 +2477,286 @@
       "empty": "Nothing found",
       "prev": "Back",
       "next": "Next",
-      "page": "{{page}} of {{pages}}"
+      "page": "{{page}} of {{pages}}",
+      "noPricesPersonal": "Prices and stock open in your account as soon as you confirm your number"
     },
     "who": "Who are you?",
     "whoCompany": "Company or sole proprietor",
     "whoPerson": "Private person",
     "personName": "Your name",
-    "bin": "BIN (or IIN for a sole proprietor)"
+    "bin": "BIN (or IIN for a sole proprietor)",
+    "share": {
+      "title": "Sent to you by the shop",
+      "sku": "Art. {{sku}}",
+      "sizes": "Sizes: {{sizes}}",
+      "priceAfterLogin": "Prices are in the cabinet: the shop's clients see their own prices after signing in.",
+      "login": "I'm a client — sign in",
+      "guest": "Not a client yet? Leave a request below — the shop will open access."
+    },
+    "offline": "Check your connection and try again.",
+    "offlineTitle": "Could not open the page",
+    "serverDown": "The server is not responding right now. Please try again later.",
+    "tooManyTries": "Too many attempts. Wait a minute and try again.",
+    "pollLost": "No connection — we will refresh automatically.",
+    "pollServer": "The server is not responding — we will refresh automatically.",
+    "pollTooOften": "Too many requests — we will refresh in a minute.",
+    "refused": "Could not open the page. Try later or ask the shop for a new link.",
+    "pollRefused": "Could not update the status — we will try again.",
+    "whyKind": "Choose who you are: a company or a private person",
+    "personalTitle": "Order from {{shop}} by phone",
+    "yourManager": "Your manager is",
+    "personalLead": "Leave your number and confirm it — the account with prices opens right away, no approval to wait for. There is nothing to pay.",
+    "yourCode": "Your code",
+    "codeUntil": "valid until {{time}}",
+    "confirmStep2From": "Send the message “Код {{code}}” as is, without changes, from the WhatsApp of {{phone}}. A code from another number will not count."
   },
   "phoneGate": {
     "title": "Confirm your phone number",
     "lead": "The shop asks you to confirm the number is yours. It is a one-time step: tap «Get a code» and send the code to the shop in WhatsApp."
+  },
+  "debt": {
+    "title": "Debt",
+    "empty": "No debt: you have not taken goods on credit or consignment.",
+    "taken": "Goods taken",
+    "returned": "Returned as goods",
+    "paid": "Paid",
+    "pending": "Awaiting seller confirmation",
+    "left": "Left to pay",
+    "iPaid": "I have paid",
+    "order": "Order No. {{number}}",
+    "issued": "issued {{date}}",
+    "orderLeft": "Left {{amount}}",
+    "closed": "Closed",
+    "overdue_one": "Overdue by {{count}} day",
+    "overdue_other": "Overdue by {{count}} days",
+    "linePaid": "Paid",
+    "took": "Took {{qty}} {{unit}} × {{price}} = {{amount}}",
+    "lineReturned": "returned {{qty}}",
+    "linePaidSum": "paid {{amount}}",
+    "linePending": "{{amount}} awaiting seller confirmation",
+    "history": "Payment history",
+    "status": {
+      "PENDING": "Awaiting seller",
+      "CONFIRMED": "Confirmed",
+      "REJECTED": "Rejected"
+    },
+    "method": {
+      "KASPI": "Card payment",
+      "CASH": "Cash",
+      "TRANSFER": "Transfer"
+    },
+    "rejected": "The seller did not confirm: {{reason}}",
+    "payTitle": "What you paid for",
+    "payHint": "Tick the goods and the amount for each. The debt goes down once the seller confirms receiving the money.",
+    "upTo": "up to {{amount}}",
+    "amountFor": "Amount for \"{{name}}\"",
+    "targetLabel": "Where to",
+    "target": {
+      "CARD": "To a card",
+      "DEPOSIT": "To a deposit account"
+    },
+    "targetShort": {
+      "CARD": "to a card",
+      "DEPOSIT": "to a deposit account"
+    },
+    "comment": "Comment to the seller",
+    "failed": "Could not send — please try again",
+    "sending": "Sending…",
+    "send": "Report payment of {{amount}}",
+    "cancel": "Cancel",
+    "bankLabel": "To which bank",
+    "claimFull": "Clears the whole debt",
+    "claimPartial": "Partial payment · {{amount}} will remain after confirmation",
+    "lineFull": "in full",
+    "linePartial": "partly, {{amount}} remaining",
+    "payFull": "This is your whole debt",
+    "payPartial": "Partial payment: {{amount}} will remain",
+    "settled": "All paid, no debts",
+    "claimsTitle": "Payment notices",
+    "acceptedBy": "received by {{name}}",
+    "youReported": "you reported it in the cabinet",
+    "paidFor": "Paid for:",
+    "byOrder": "(no goods chosen — in order)",
+    "ofTotal": "of {{amount}}",
+    "planTitle": "Payment schedule",
+    "planPaid": "Paid",
+    "planLate": "Overdue",
+    "planLeft": "left",
+    "planWaiting": "Awaiting payment",
+    "planHint": "You will get a reminder before each payment.",
+    "was": "Was {{amount}}",
+    "paidSum": "Paid {{amount}}",
+    "next": "Next payment: {{date}}, {{amount}}",
+    "waiting": "You reported paying {{amount}} — waiting for the seller to confirm",
+    "howMuch": "How much?",
+    "wholeDebt": "Whole debt",
+    "part": "Part",
+    "partAmount": "Amount",
+    "leftAfter": "{{amount}} will remain after this",
+    "byItems": "I paid for specific goods",
+    "byAmount": "Enter a total amount",
+    "howPaid": "How did you pay?",
+    "methodTile": {
+      "CASH": "Cash",
+      "KASPI": "By card",
+      "TRANSFER": "By transfer"
+    },
+    "cardBank": "Which bank's card?",
+    "bankGroup": "Bank",
+    "afterConfirm": "The debt goes down once the seller confirms"
+  },
+  "messages": {
+    "subtitle": "Everything where you talk to the seller"
+  },
+  "joinOwner": {
+    "title_one": "{{count}} client is waiting for you on Q-Order",
+    "title_other": "{{count}} clients are waiting for you on Q-Order",
+    "by": "{{name}} passed their invitations to you",
+    "text": "Connect the company — clients can start ordering right away. 14 days of Business free.",
+    "connect": "Connect the company",
+    "goneTitle": "The link does not work",
+    "gone": "It may contain a typo. Leave a request — we will help you connect.",
+    "lead": "Leave a request",
+    "loading": "Loading…"
+  },
+  "about": {
+    "title": "About Q-Order",
+    "lead": "Q-Order is a service through which shops and suppliers receive orders from their customers. Your shop opened this cabinet for you.",
+    "points": {
+      "order": "Order from the catalogue with prices and stock — no chats or calls",
+      "track": "Track your order: accepted, packed, on the way",
+      "chat": "Ask the seller right in the order or about a product",
+      "shops": "All your shops in one cabinet"
+    },
+    "shopNote": "Prices, stock and delivery are set by the shop. Contact the shop about orders and payment.",
+    "close": "Got it",
+    "sellerLink": "Do you sell yourself? Connect your shop"
+  },
+  "openInApp": {
+    "title": "The Q-Order app is more convenient",
+    "text": "Order notifications and quick sign-in with a PIN.",
+    "open": "Open in the app",
+    "install": "Install the app",
+    "browser": "Continue in the browser",
+    "installHint": "No app yet? Install it: the invitation is kept and the app opens it by itself.",
+    "phoneTitle": "Open on your phone",
+    "phoneQrAlt": "QR code of this page",
+    "phoneHint": "Point your phone camera at the code — the app or its install page will open",
+    "getOn": "Get it on",
+    "downloadOn": "Download on the"
+  },
+  "scanQr": {
+    "button": "Scan QR",
+    "foreign": "Not a Q-Order code. Point at a shop or seller QR"
+  },
+  "sheet": {
+    "close": "Close"
+  },
+  "allShops": {
+    "title": "All shops",
+    "shops_one": "{{count}} shop",
+    "shops_few": "{{count}} shops",
+    "shops_many": "{{count}} shops",
+    "shops_other": "{{count}} shops",
+    "tabs": {
+      "tasks": "To do",
+      "messages": "Messages",
+      "shops": "Shops",
+      "profile": "Profile",
+      "debts": "Debts"
+    },
+    "left_one": "task left",
+    "left_few": "tasks left",
+    "left_many": "tasks left",
+    "left_other": "tasks left",
+    "oneByOne": "Go through one by one",
+    "debtLine_one": "Total debt: {{sum}} at {{count}} shop",
+    "debtLine_few": "Total debt: {{sum}} at {{count}} shops",
+    "debtLine_many": "Total debt: {{sum}} at {{count}} shops",
+    "debtLine_other": "Total debt: {{sum}} at {{count}} shops",
+    "open": "Open",
+    "done": {
+      "title": "All done",
+      "note_one": "No shop is waiting for you. New tasks will appear here.",
+      "note_few": "None of your {{count}} shops is waiting for you. New tasks will appear here.",
+      "note_many": "None of your {{count}} shops is waiting for you. New tasks will appear here.",
+      "note_other": "None of your {{count}} shops is waiting for you. New tasks will appear here."
+    },
+    "groups": {
+      "overdue_one": "Overdue payment",
+      "overdue_few": "{{count}} overdue payments",
+      "overdue_many": "{{count}} overdue payments",
+      "overdue_other": "{{count}} overdue payments",
+      "dueSoon_one": "Payment due today or tomorrow",
+      "dueSoon_few": "{{count}} payments due today and tomorrow",
+      "dueSoon_many": "{{count}} payments due today and tomorrow",
+      "dueSoon_other": "{{count}} payments due today and tomorrow",
+      "dueToday_one": "Payment due today",
+      "dueToday_few": "{{count}} payments due today",
+      "dueToday_many": "{{count}} payments due today",
+      "dueToday_other": "{{count}} payments due today",
+      "dueTomorrow_one": "Payment due tomorrow",
+      "dueTomorrow_few": "{{count}} payments due tomorrow",
+      "dueTomorrow_many": "{{count}} payments due tomorrow",
+      "dueTomorrow_other": "{{count}} payments due tomorrow",
+      "invoices_one": "Invoice to pay",
+      "invoices_few": "{{count}} invoices to pay",
+      "invoices_many": "{{count}} invoices to pay",
+      "invoices_other": "{{count}} invoices to pay",
+      "decisions_one": "Request needs your decision",
+      "decisions_few": "{{count}} requests need your decision",
+      "decisions_many": "{{count}} requests need your decision",
+      "decisions_other": "{{count}} requests need your decision",
+      "answers_one": "The seller answered your question",
+      "answers_few": "{{count}} answers to your questions",
+      "answers_many": "{{count}} answers to your questions",
+      "answers_other": "{{count}} answers to your questions"
+    },
+    "payBy": "Due {{date}}",
+    "overdueLine": "Overdue debt payment",
+    "sent": "Sent",
+    "pay": "Pay",
+    "look": "Open",
+    "eachSeller": "Each seller separately",
+    "paidOf": "Paid {{done}} of {{count}}",
+    "payNote": "You cannot pay everyone with one button: each seller has their own details and confirms their own payment.",
+    "stepTitle": "Task {{n}} of {{count}}",
+    "later": "Later",
+    "next": "Next: {{name}}",
+    "stepEnd": "You have seen every task. Postponed ones stay in the list.",
+    "toTasks": "Back to tasks",
+    "messagesNote": "For your information — nothing to do. Anything that needs you is under “To do”.",
+    "allSeen": "Mark all as seen",
+    "noMessages": "No new messages.",
+    "seen": "Seen",
+    "toShop": "Open shop",
+    "myShops_one": "My shops · {{count}}",
+    "myShops_few": "My shops · {{count}}",
+    "myShops_many": "My shops · {{count}}",
+    "myShops_other": "My shops · {{count}}",
+    "debts": {
+      "title": "Debts",
+      "in_one": "At {{count}} shop",
+      "in_few": "At {{count}} shops",
+      "in_many": "At {{count}} shops",
+      "in_other": "At {{count}} shops",
+      "total": "You owe in total",
+      "overdue": "Overdue: {{sum}}",
+      "overdueLine": "Overdue {{sum}}",
+      "noDate": "No due date",
+      "note": "You pay inside the shop: tapping opens its “Debt” section with the “I have paid” button."
+    },
+    "sentNote": "Waiting for the seller to confirm",
+    "payTask": "Debt payment · due {{date}}",
+    "nav": "All shops — menu",
+    "backToShop": "Back to {{name}}",
+    "messagesTitle_one": "Messages · {{count}} shop",
+    "messagesTitle_few": "Messages · {{count}} shops",
+    "messagesTitle_many": "Messages · {{count}} shops",
+    "messagesTitle_other": "Messages · {{count}} shops",
+    "messagesLine_one": "New messages from {{count}} shop",
+    "messagesLine_few": "New messages from {{count}} shops",
+    "messagesLine_many": "New messages from {{count}} shops",
+    "messagesLine_other": "New messages from {{count}} shops"
   }
 }

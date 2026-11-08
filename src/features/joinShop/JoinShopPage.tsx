@@ -1,13 +1,14 @@
 import { intlLocale } from '../../i18n';
-import { useId, useState } from 'react';
+import { isGone, statusOf } from '../../api/client';
+import { useId, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { cn } from '../../ui/cn';
 import { sizedPhoto } from '../../ui/sizedPhoto';
-import { Maximize2, Minimize2 } from '../../ui/icons';
+import { Clock, Eye, Maximize2, MessageCircle, Minimize2 } from '../../ui/icons';
 import { FieldFaultText } from '../../ui/Field';
 import { useFormRules } from '../../ui/forms/useFormRules';
 import { rules } from '../../api/rules.generated';
@@ -18,27 +19,31 @@ import {
   useGetPortalConsentNotice,
   useResendAccessRequestCode,
   useSetAccessRequestPassword,
-  type ConsentNoticeDto,
   type JoinRequestCreatedDto,
   type JoinRequestStatusDto,
   type PhoneCodeDto,
 } from '../../api/generated';
-import { ConsentNotice } from '../activation/ConsentNotice';
+import { ConsentBlock, useConsent } from '../activation/Consent';
 import { LanguageAsk } from '../language/LanguageAsk';
 import { PublicShowcase } from './PublicShowcase';
+import { SharedIntro, shareOf } from './SharedIntro';
 import { LanguagePicker } from '../shell/LanguagePicker';
+import { OpenInApp } from '../openInApp/OpenInApp';
+import { formatPhone } from '../../shared/phone';
 
 const INPUT = cn(
-  'h-11 rounded-[var(--radius-control)] border border-hairline bg-surface px-3',
-  'text-sm text-ink outline-none focus:border-[var(--color-brand)]',
+  'h-14 rounded-[var(--radius-control)] border-2 border-field-line bg-surface px-4',
+  'text-base text-ink outline-none focus:border-shop focus:ring-1 focus:ring-shop',
 );
 
-type Key = 'phone' | 'companyName' | 'bin' | 'city';
+type Key = 'companyName' | 'bin' | 'city';
 type Kind = 'company' | 'person';
-/** Поля по ответу «кто вы»: БИН/ИИН — только у компании и ИП; ИИН частного лица собирать нельзя. */
+/**
+ * Поля по ответу «кто вы»: БИН/ИИН — только у компании и ИП; ИИН частного лица собирать нельзя.
+ * Номера нет: им станет номер, с которого в WhatsApp придёт код, — ошибиться в цифрах негде.
+ */
 function fieldsOf(kind: Kind): { key: Key; label: string; inputMode?: 'numeric' | 'tel'; autoComplete?: string }[] {
   return [
-    { key: 'phone', label: 'joinShop.phone', inputMode: 'tel', autoComplete: 'tel' },
     kind === 'company'
       ? { key: 'companyName', label: 'joinShop.company', autoComplete: 'organization' }
       : { key: 'companyName', label: 'joinShop.personName', autoComplete: 'name' },
@@ -47,7 +52,15 @@ function fieldsOf(kind: Kind): { key: Key; label: string; inputMode?: 'numeric' 
   ];
 }
 /** У компании БИН/ИИН обязателен; у частного лица поля нет, и правило пустому значению не мешает. */
-const COMPANY_RULES = { ...rules.AccessRequestRequest, bin: { ...rules.AccessRequestRequest.bin, required: true } };
+const { phone: _phone, ...PERSON_RULES } = rules.AccessRequestRequest;
+const COMPANY_RULES = { ...PERSON_RULES, bin: { ...rules.AccessRequestRequest.bin, required: true } };
+
+/** Последнее непустое значение: перезагрузка после смены языка не должна стирать форму на экране. */
+function useLast<T>(value: T | undefined): T | undefined {
+  const last = useRef(value);
+  if (value !== undefined) last.current = value;
+  return last.current;
+}
 
 /**
  * Токен заявки сервер отдаёт один раз — страница помнит его сама: гость закрывает вкладку,
@@ -106,52 +119,83 @@ function failureKey(error: unknown): string {
 export function JoinShopPage() {
   const { t } = useTranslation();
   const { code = '' } = useParams();
+  const [params] = useSearchParams();
+  const share = shareOf(params);
   const shop = useGetJoinShop(code, { query: { enabled: !!code, retry: false } });
-  const info = shop.data?.status === 200 ? shop.data.data : undefined;
+  const info = useLast(shop.data?.status === 200 ? shop.data.data : undefined);
   const [token, setTokenState] = useState<string | null>(() => (code ? readToken(code) : null));
   const [phoneCode, setPhoneCodeState] = useState<PhoneCodeDto | null>(() => (code ? readPhoneCode(code) : null));
   const setPhoneCode = (next: PhoneCodeDto | null) => { writePhoneCode(code, next); setPhoneCodeState(next); };
   const setToken = (next: string | null) => { writeToken(code, next); setTokenState(next); };
 
   return (
-    <Screen behind={info?.showcase && !token ? <PublicShowcase code={code} /> : null}>
-      {info?.logoUrl ? <img src={sizedPhoto(info.logoUrl, 112)} alt="" className="h-14 w-14 shrink-0 rounded-[var(--radius-control)] object-contain" /> : null}
-      {shop.isError || !code ? (
+    <Screen behind={info?.showcase && !token ? (
+      <PublicShowcase code={code} categoryId={share?.kind === 'c' ? share.categoryId : undefined} novelty={share?.kind === 'new'}
+        personal={Boolean(info?.managerName)} />
+    ) : null}>
+      {info ? (
+        // «Вариант Б»: знак магазина и его имя — гость сразу видит, куда подаёт заявку.
+        <div className="flex items-center gap-3.5">
+          {info.logoUrl
+            ? <img src={sizedPhoto(info.logoUrl, 112)} alt="" className="size-14 shrink-0 rounded-2xl object-contain" />
+            : <span aria-hidden="true" className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-shop text-title font-extrabold text-on-shop">{info.shopName.trim().charAt(0).toUpperCase()}</span>}
+          <b className="min-w-0 text-lead font-extrabold leading-tight text-ink">{info.shopName}</b>
+        </div>
+      ) : null}
+      {shop.isError && !isGone(shop.error) ? (
+        // Сеть или сервер, а не ссылка: «ссылка не работает» отправило бы человека к магазину зря.
         <>
-          <h1 className="text-xl font-semibold tracking-tight text-ink">{t('joinShop.linkGoneTitle')}</h1>
-          <p className="text-sm text-ink-muted">{t('joinShop.linkGone')}</p>
+          <h1 className="text-display font-extrabold leading-tight text-ink">{t('joinShop.offlineTitle')}</h1>
+          <p role="alert" className="text-base text-ink-muted">
+            {t(failedLoadKey(shop.error))}
+          </p>
+          <Button size="lg" onClick={() => void shop.refetch()}>{t('common.retry')}</Button>
+        </>
+      ) : shop.isError || !code ? (
+        <>
+          <h1 className="text-display font-extrabold leading-tight text-ink">{t('joinShop.linkGoneTitle')}</h1>
+          <p className="text-base text-ink-muted">{t('joinShop.linkGone')}</p>
+          {/* Не тупик: уже подключённый клиент входит в кабинет отсюда. */}
+          <Button size="lg" onClick={() => window.location.assign('/catalog')}>{t('joinShop.signIn')}</Button>
         </>
       ) : !info ? (
-        <p className="text-sm text-ink-muted">{t('joinShop.loading')}</p>
+        <p className="text-base text-ink-muted">{t('joinShop.loading')}</p>
       ) : token ? (
         <RequestState
           code={code} token={token} shopName={info.shopName} phoneCode={phoneCode} onPhoneCode={setPhoneCode}
           onForget={() => { setToken(null); setPhoneCode(null); }}
         />
       ) : (
+        <>
+        {share ? <SharedIntro code={code} share={share} supplierId={info.supplierId} showcase={info.showcase} /> : null}
         <RequestForm
-          code={code} shopName={info.shopName}
+          code={code} shopName={info.shopName} managerName={info.managerName}
           onCreated={(created) => { setPhoneCode(created.phoneCode); setToken(created.token); }}
         />
+        </>
       )}
     </Screen>
   );
 }
 
-function RequestForm({ code, shopName, onCreated }: { code: string; shopName: string; onCreated: (created: JoinRequestCreatedDto) => void }) {
+function RequestForm({ code, shopName, managerName, onCreated }: {
+  code: string; shopName: string; managerName?: string; onCreated: (created: JoinRequestCreatedDto) => void;
+}) {
   const { t } = useTranslation();
   const id = useId();
-  const noticeQuery = useGetPortalConsentNotice();
-  const notice: ConsentNoticeDto | undefined = noticeQuery.data?.status === 200 ? noticeQuery.data.data : undefined;
+  const consent = useConsent(useGetPortalConsentNotice({ query: { retry: 1 } }));
+  const { notice } = consent;
   const [kind, setKind] = useState<Kind | null>(null);
   const form = useFormRules({
-    schema: kind === 'company' ? COMPANY_RULES : rules.AccessRequestRequest,
+    schema: kind === 'company' ? COMPANY_RULES : PERSON_RULES,
     // Редакцию согласия форма не спрашивает — её подставляет отправка из прочитанного уведомления.
-    initial: { phone: '', companyName: '', bin: '', city: '', consentVersion: 'notice' },
+    initial: { companyName: '', bin: '', city: '', consentVersion: 'notice' },
   });
-  const [accepted, setAccepted] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const create = useCreateAccessRequest();
+
+  // Почему кнопка погашена — словами под ней.
+  const whyKey = !kind ? 'joinShop.whyKind' : consent.why;
 
   async function send() {
     if (!notice || !form.validate()) return;
@@ -160,7 +204,6 @@ function RequestForm({ code, shopName, onCreated }: { code: string; shopName: st
       const response = await create.mutateAsync({
         code,
         data: {
-          phone: form.values.phone,
           companyName: form.values.companyName.trim(),
           bin: kind === 'company' ? form.values.bin.trim() : undefined,
           city: form.values.city.trim(),
@@ -176,18 +219,27 @@ function RequestForm({ code, shopName, onCreated }: { code: string; shopName: st
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">{t('joinShop.title', { shop: shopName })}</h1>
-      <p className="text-sm text-ink-muted">{t('joinShop.lead')}</p>
+      {/* Личная ссылка продавца (этап 6): одобрения нет — кабинет откроется, как только номер подтверждён. */}
+      <h1 className="text-display font-extrabold leading-tight text-ink">
+        {t(managerName ? 'joinShop.personalTitle' : 'joinShop.title', { shop: shopName })}
+      </h1>
+      {managerName ? (
+        <p className="m-0 rounded-[var(--radius-control)] bg-accent-soft px-3 py-2 text-base text-ink">
+          {t('joinShop.yourManager')} <b>{managerName}</b>
+        </p>
+      ) : null}
+      <p className="text-base text-ink-muted">{t(managerName ? 'joinShop.personalLead' : 'joinShop.lead')}</p>
       <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
-        <legend className="mb-1.5 p-0 text-sm font-medium text-ink">{t('joinShop.who')}</legend>
+        <legend className="mb-1.5 p-0 text-body font-extrabold text-ink">{t('joinShop.who')}</legend>
         <div className="grid grid-cols-2 gap-2">
           {(['company', 'person'] as const).map((option) => (
             <label key={option} className={cn(
-              'flex min-h-11 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm text-ink',
-              kind === option ? 'border-[var(--color-brand)] bg-accent-soft' : 'border-hairline bg-surface',
+              'flex min-h-14 cursor-pointer items-center justify-center rounded-[1.25rem] border-[3px] border-solid px-3 py-2 text-center text-body font-extrabold leading-tight',
+              'focus-within:ring-2 focus-within:ring-accent',
+              kind === option ? 'border-shop bg-ok-soft text-ok-ink' : 'border-line bg-surface text-ink',
             )}>
               <input type="radio" name={`${id}-kind`} checked={kind === option} onChange={() => setKind(option)}
-                className="size-4 shrink-0 accent-[var(--color-brand)]" />
+                className="sr-only" />
               {t(option === 'company' ? 'joinShop.whoCompany' : 'joinShop.whoPerson')}
             </label>
           ))}
@@ -195,18 +247,14 @@ function RequestForm({ code, shopName, onCreated }: { code: string; shopName: st
       </fieldset>
       {kind && fieldsOf(kind).map((field) => (
         <div key={field.key} className="flex flex-col gap-1.5">
-          <label htmlFor={`${id}-${field.key}`} className="text-sm font-medium text-ink">{t(field.label)}</label>
+          <label htmlFor={`${id}-${field.key}`} className="text-body font-extrabold text-ink">{t(field.label)}</label>
           <input
             id={`${id}-${field.key}`}
             value={form.values[field.key]}
             inputMode={field.inputMode}
             autoComplete={field.autoComplete}
-            placeholder={field.key === 'phone' ? '+7 701 123 45 67' : undefined}
             aria-invalid={form.faults[field.key] ? 'true' : 'false'}
-            // Номер — только цифры и «+»: пробелы и скобки, которые люди набирают по привычке, сервер не примет.
-            onChange={(event) => form.field(field.key).onChange(
-              field.key === 'phone' ? event.currentTarget.value.replace(/[^\d+]/g, '') : event.currentTarget.value,
-            )}
+            onChange={(event) => form.field(field.key).onChange(event.currentTarget.value)}
             onBlur={form.field(field.key).onBlur}
             className={INPUT}
           />
@@ -214,31 +262,14 @@ function RequestForm({ code, shopName, onCreated }: { code: string; shopName: st
         </div>
       ))}
 
-      {notice && (
-        <div className="flex flex-col gap-2">
-          <details className="rounded-[var(--radius-control)] border border-hairline bg-surface p-3">
-            <summary className="cursor-pointer text-sm font-medium text-ink">{t('join.consentTitle')}</summary>
-            <div className="mt-3 max-h-[26rem] overflow-y-auto pr-1">
-              <ConsentNotice text={notice.text} />
-            </div>
-          </details>
-          <label className="flex items-start gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={accepted}
-              onChange={(event) => setAccepted(event.currentTarget.checked)}
-              className="mt-0.5 size-5 accent-[var(--color-brand)]"
-            />
-            <span>{t('join.consentAccept')}</span>
-          </label>
-        </div>
-      )}
+      <ConsentBlock consent={consent} />
 
       {failure && <Alert>{t(failure)}</Alert>}
 
-      <Button size="lg" disabled={!kind || !accepted || !notice || create.isPending} onClick={() => void send()}>
+      <Button size="lg" className="h-16 w-full rounded-[1.375rem] text-lead" disabled={!!whyKey || create.isPending} aria-describedby={whyKey ? `${id}-why` : undefined} onClick={() => void send()}>
         {create.isPending ? t('joinShop.sending') : t('joinShop.send')}
       </Button>
+      {whyKey && <p id={`${id}-why`} className="text-base text-ink-muted">{t(whyKey)}</p>}
     </>
   );
 }
@@ -257,15 +288,18 @@ function RequestState({ code, token, shopName, phoneCode, onPhoneCode, onForget 
     query: {
       retry: false,
       refetchInterval: (q) => {
+        // «Слишком часто» — не стучаться каждые две секунды.
+        if (statusOf(q.state.error) === 429) return 60_000;
         const status = (q.state.data as { data?: JoinRequestStatusDto } | undefined)?.data?.status;
         return status === 'UNVERIFIED' ? 2_000 : status === 'PENDING' ? 15_000 : false;
       },
     },
   });
-  const state = query.data?.status === 200 ? (query.data.data as JoinRequestStatusDto) : undefined;
+  const state = useLast(query.data?.status === 200 ? (query.data.data as JoinRequestStatusDto) : undefined);
 
   // Заявки по токену больше нет (или ссылку перевыпустили) — начинаем заново, а не висим на ошибке.
-  if (query.isError) {
+  // Только на 404/410: один оборванный опрос не повод предлагать стереть свою заявку.
+  if (query.isError && isGone(query.error)) {
     return (
       <>
         <Alert>{t('joinShop.lost')}</Alert>
@@ -273,24 +307,49 @@ function RequestState({ code, token, shopName, phoneCode, onPhoneCode, onForget 
       </>
     );
   }
-  if (!state) return <p className="text-sm text-ink-muted">{t('joinShop.loading')}</p>;
+  if (!state) {
+    return query.isError ? (
+      <>
+        <Alert>{t(failedLoadKey(query.error))}</Alert>
+        <Button size="lg" disabled={query.isFetching} onClick={() => void query.refetch()}>{t('common.retry')}</Button>
+      </>
+    ) : <p className="text-base text-ink-muted">{t('joinShop.loading')}</p>;
+  }
 
+  return (
+    <>
+      {/* Опрос сорвался — последний ответ на месте, следующий опрос попробует снова. */}
+      <StateView
+        state={state} code={code} token={token} shopName={shopName} phoneCode={phoneCode} onPhoneCode={onPhoneCode}
+        note={query.isError ? <p role="status" className="text-base text-ink-muted">{t(pollLostKey(query.error))}</p> : null}
+      />
+    </>
+  );
+}
+
+/** `note` — строка о сорвавшемся опросе: сразу под заголовком, а не под кнопками. Опрашиваются только «ждём» и «на рассмотрении». */
+function StateView({ state, code, token, shopName, phoneCode, onPhoneCode, note }: {
+  state: JoinRequestStatusDto; code: string; token: string; shopName: string;
+  phoneCode: PhoneCodeDto | null; onPhoneCode: (next: PhoneCodeDto) => void; note: React.ReactNode;
+}) {
+  const { t } = useTranslation();
   switch (state.status) {
     case 'UNVERIFIED':
-      return <ConfirmPhone code={code} token={token} phoneCode={phoneCode} onPhoneCode={onPhoneCode} />;
+      return <ConfirmPhone code={code} token={token} phoneCode={phoneCode} onPhoneCode={onPhoneCode} note={note} />;
     case 'PENDING':
       return (
         <>
-          <h1 className="text-xl font-semibold tracking-tight text-ink">{t('joinShop.pendingTitle')}</h1>
-          <p className="text-sm text-ink-muted">{t('joinShop.pending', { shop: shopName })}</p>
+          <h1 className="text-display font-extrabold leading-tight text-ink">{t('joinShop.pendingTitle')}</h1>
+          {note}
+          <p className="text-base text-ink-muted">{t('joinShop.pending', { shop: shopName })}</p>
         </>
       );
     case 'DECLINED':
       return (
         <>
-          <h1 className="text-xl font-semibold tracking-tight text-ink">{t('joinShop.declinedTitle', { shop: shopName })}</h1>
+          <h1 className="text-display font-extrabold leading-tight text-ink">{t('joinShop.declinedTitle', { shop: shopName })}</h1>
           {state.reason ? <p className="rounded-[var(--radius-control)] bg-sunk px-3 py-2 text-sm text-ink">{state.reason}</p> : null}
-          <p className="text-sm text-ink-muted">{t('joinShop.declined')}</p>
+          <p className="text-base text-ink-muted">{t('joinShop.declined')}</p>
         </>
       );
     case 'APPROVED':
@@ -302,8 +361,8 @@ function RequestState({ code, token, shopName, phoneCode, onPhoneCode, onForget 
   }
 }
 
-function ConfirmPhone({ code, token, phoneCode, onPhoneCode }: {
-  code: string; token: string; phoneCode: PhoneCodeDto | null; onPhoneCode: (next: PhoneCodeDto) => void;
+function ConfirmPhone({ code, token, phoneCode, onPhoneCode, note }: {
+  code: string; token: string; phoneCode: PhoneCodeDto | null; onPhoneCode: (next: PhoneCodeDto) => void; note?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   const [failure, setFailure] = useState<string | null>(null);
@@ -323,33 +382,50 @@ function ConfirmPhone({ code, token, phoneCode, onPhoneCode }: {
 
   return (
     <>
-      <h1 className="text-xl font-semibold tracking-tight text-ink">{t('joinShop.confirmTitle')}</h1>
+      <h1 className="text-display font-extrabold leading-tight text-ink">{t('joinShop.confirmTitle')}</h1>
+      {note}
       {fresh ? (
         <>
-          <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm text-ink">
-            <li>{t('joinShop.confirmStep1')}</li>
-            <li>{t('joinShop.confirmStep2', { code: fresh.code })}</li>
-            <li>{t('joinShop.confirmStep3')}</li>
+          {/* «Вариант Б» (SimplePicJoinConfirm): шаги кружками, код крупно на тёмной плашке, большая зелёная кнопка. */}
+          <ol className="m-0 flex list-none flex-col gap-3.5 p-0">
+            {[t('joinShop.confirmStep1'), t(fresh.fromPhone ? 'joinShop.confirmStep2From' : 'joinShop.confirmStep2', { code: fresh.code, phone: formatPhone(fresh.fromPhone ?? '') }), t('joinShop.confirmStep3')].map((step, index) => (
+              <li key={index} className="flex items-start gap-3.5">
+                <span aria-hidden="true" className={cn('flex size-11 shrink-0 items-center justify-center rounded-full text-lead font-extrabold',
+                  index === 0 ? 'bg-shop text-on-shop' : 'bg-sunk text-ink-muted')}>{index + 1}</span>
+                <span className="pt-2 text-lead leading-snug text-ink">{step}</span>
+              </li>
+            ))}
           </ol>
+          <div className="flex flex-col items-center gap-1 rounded-[1.375rem] bg-night px-5 py-4 text-white">
+            <span className="text-caption opacity-80">{t('joinShop.yourCode')}</span>
+            <b className="text-hero font-extrabold tracking-[0.3em] tabular-nums">{fresh.code}</b>
+            <span className="text-caption opacity-80">
+              {t('joinShop.codeUntil', { time: new Date(fresh.expiresAt).toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' }) })}
+            </span>
+          </div>
+          {/* Опрос сорвался — «ждём» противоречил бы строке под заголовком. */}
+          {note ? null : (
+            <p role="status" className="m-0 flex items-center justify-center gap-2 text-body font-bold text-ink-muted">
+              <Clock aria-hidden="true" className="size-5" />
+              {t('joinShop.waiting')}
+            </p>
+          )}
           <a
             href={fresh.waLink} target="_blank" rel="noreferrer" data-testid="join-shop-wa"
-            className="flex h-12 items-center justify-center rounded-[var(--radius-control)] bg-[#25D366] px-4 text-base font-semibold text-white"
+            className="flex h-16 items-center justify-center gap-2.5 rounded-[1.375rem] bg-whatsapp px-4 text-lead font-extrabold text-white no-underline"
           >
+            <MessageCircle aria-hidden="true" className="size-6" />
             {t('joinShop.openWhatsApp')}
           </a>
-          <p className="text-center text-xs text-ink-muted">
-            {t('joinShop.codeIs', { code: fresh.code, time: new Date(fresh.expiresAt).toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' }) })}
-          </p>
-          <p role="status" className="text-center text-xs text-ink-faint">{t('joinShop.waiting')}</p>
         </>
       ) : (
-        <p className="text-sm text-ink-muted">{t('joinShop.needNewCode')}</p>
+        <p className="text-base text-ink-muted">{t('joinShop.needNewCode')}</p>
       )}
       {failure && <Alert>{t(failure)}</Alert>}
       {/* Новый код — тихой ссылкой с переносом: кнопкой во всю ширину длинная подпись не помещалась на телефоне. */}
       {fresh ? (
         <button type="button" disabled={resend.isPending} onClick={() => void again()}
-          className="min-h-11 text-center text-sm font-semibold text-accent-ink underline underline-offset-2 disabled:opacity-50">
+          className="min-h-11 cursor-pointer border-0 bg-transparent text-center text-body font-bold text-shop-ink underline-offset-2 hover:underline disabled:opacity-50">
           {t('joinShop.newCode')}
         </button>
       ) : (
@@ -365,6 +441,8 @@ function SetPassword({ code, token, shopName }: { code: string; token: string; s
   const [done, setDone] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const save = useSetAccessRequestPassword();
+  // Глазок — как на активации: придумывая пароль, человек должен видеть, что набирает.
+  const [shown, setShown] = useState(false);
 
   async function send() {
     if (!form.validate()) return;
@@ -382,18 +460,25 @@ function SetPassword({ code, token, shopName }: { code: string; token: string; s
   if (done) return <Approved shopName={shopName} hint={t('joinShop.passwordSaved')} />;
   return (
     <>
-      <h1 className="text-xl font-semibold tracking-tight text-ink">{t('joinShop.approvedTitle', { shop: shopName })}</h1>
-      <p className="text-sm text-ink-muted">{t('joinShop.setPassword')}</p>
+      <h1 className="text-display font-extrabold leading-tight text-ink">{t('joinShop.approvedTitle', { shop: shopName })}</h1>
+      <p className="text-base text-ink-muted">{t('joinShop.setPassword')}</p>
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="join-shop-password" className="text-sm font-medium text-ink">{t('activation.passwordLabel')}</label>
-        <input
-          id="join-shop-password" type="password" autoComplete="new-password"
-          value={form.values.password}
-          aria-invalid={form.faults.password ? 'true' : 'false'}
-          onChange={(event) => form.field('password').onChange(event.currentTarget.value)}
-          onBlur={form.field('password').onBlur}
-          className={INPUT}
-        />
+        <label htmlFor="join-shop-password" className="text-body font-extrabold text-ink">{t('activation.passwordLabel')}</label>
+        <span className="relative flex">
+          <input
+            id="join-shop-password" type={shown ? 'text' : 'password'} autoComplete="new-password"
+            value={form.values.password}
+            aria-invalid={form.faults.password ? 'true' : 'false'}
+            onChange={(event) => form.field('password').onChange(event.currentTarget.value)}
+            onBlur={form.field('password').onBlur}
+            className={cn(INPUT, 'w-full pr-14')}
+          />
+          <button type="button" aria-pressed={shown} aria-label={t(shown ? 'activation.hidePassword' : 'activation.showPassword')}
+            onClick={() => setShown((was) => !was)}
+            className="absolute inset-y-0 right-1 flex w-12 cursor-pointer items-center justify-center border-0 bg-transparent text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            <Eye aria-hidden="true" className="size-6" />
+          </button>
+        </span>
         <FieldFaultText fault={form.faults.password} name="password" />
         <p className="text-xs text-ink-muted">{t('activation.passwordNote')}</p>
       </div>
@@ -404,12 +489,30 @@ function SetPassword({ code, token, shopName }: { code: string; token: string; s
 }
 
 /** Доступ открыт — дальше обычный вход: логин — номер из заявки. */
+
+/** Опрос статуса сорвался: сеть, сервер или «слишком часто» — следующий опрос попробует снова. */
+function pollLostKey(error: unknown): string {
+  const status = statusOf(error);
+  if (status === undefined) return 'joinShop.pollLost';
+  if (status === 429) return 'joinShop.pollTooOften';
+  return status >= 500 ? 'joinShop.pollServer' : 'joinShop.pollRefused';
+}
+
+/** Чем объяснить, что страница не открылась: сеть, «слишком часто» или сервер. */
+function failedLoadKey(error: unknown): string {
+  const status = statusOf(error);
+  if (status === undefined) return 'joinShop.offline';
+  if (status === 429) return 'joinShop.tooManyTries';
+  // 403 и прочие отказы — не «сервер лежит»: он ответил, но не пустил.
+  return status >= 500 ? 'joinShop.serverDown' : 'joinShop.refused';
+}
+
 function Approved({ shopName, hint }: { shopName: string; hint: string }) {
   const { t } = useTranslation();
   return (
     <>
-      <h1 className="text-xl font-semibold tracking-tight text-ink">{t('joinShop.approvedTitle', { shop: shopName })}</h1>
-      <p className="text-sm text-ink-muted">{hint}</p>
+      <h1 className="text-display font-extrabold leading-tight text-ink">{t('joinShop.approvedTitle', { shop: shopName })}</h1>
+      <p className="text-base text-ink-muted">{hint}</p>
       {/* Полный переход: вход начинает защищённая часть кабинета и вернёт гостя в каталог. */}
       <Button size="lg" onClick={() => window.location.assign('/catalog')}>{t('joinShop.signIn')}</Button>
     </>
@@ -418,7 +521,7 @@ function Approved({ shopName, hint }: { shopName: string; hint: string }) {
 
 function Alert({ children }: { children: React.ReactNode }) {
   return (
-    <p role="alert" className="rounded-[var(--radius-control)] border border-gone/30 bg-gone/8 px-3 py-2 text-sm text-ink">{children}</p>
+    <p role="alert" className="m-0 rounded-[var(--radius-control)] bg-sale-soft px-3.5 py-3 text-base font-semibold text-sale-ink">{children}</p>
   );
 }
 
@@ -429,9 +532,13 @@ function Alert({ children }: { children: React.ReactNode }) {
  */
 function Screen({ children, behind }: { children: React.ReactNode; behind?: React.ReactNode }) {
   const { t } = useTranslation();
-  const [full, setFull] = useState(false);
+  // На телефоне окно заявки сразу на весь экран: внизу на 60% экрана поля и согласие тесно.
+  // «Свернуть» открывает витрину за окном, «Развернуть» возвращает. С планшета — обычное окно.
+  const [full, setFull] = useState(() => !window.matchMedia('(min-width: 640px)').matches);
   const card = (extra?: string, resize?: boolean) => (
-    <Card className={cn('flex w-full max-w-[460px] flex-col gap-4 p-6', extra)}>
+    // [&>*]:shrink-0 — окно ограничено по высоте и прокручивается, а не сжимает содержимое:
+    // иначе кнопка (у неё overflow: hidden под блик) схлопывалась до нулевой высоты и не нажималась.
+    <Card className={cn('flex w-full max-w-[30rem] flex-col gap-4 p-5 sm:p-7 [&>*]:shrink-0', extra)}>
       <div className="flex items-center gap-2">
         <span className="text-2xs leading-4 text-ink-faint">{t('joinShop.via')}</span>
         <div className="ml-auto"><LanguagePicker /></div>
@@ -443,6 +550,7 @@ function Screen({ children, behind }: { children: React.ReactNode; behind?: Reac
           </button>
         )}
       </div>
+      <OpenInApp />
       {children}
     </Card>
   );

@@ -131,6 +131,19 @@ describe('счёт в карточке заявки', () => {
     expect(screen.queryByTestId('order-vat-invoice')).not.toBeInTheDocument();
   });
 
+  it('«Обмен с сайтом» заводит в 1С заказ клиента — так и подписано, без слова «реализация»', async () => {
+    stubFetch([get('/api/portal/orders/order-7', {
+      ...accepted,
+      realization1c: { status: 'EXPORTED', documentNumber: 'ЗК-00031', at: '2026-09-02T10:00:00Z', documentKind: 'ORDER' },
+    })]);
+
+    openOrder();
+
+    const line = await screen.findByTestId('order-realization');
+    expect(line).toHaveTextContent('Заказ в 1С № ЗК-00031 от 2 сентября');
+    expect(line).not.toHaveTextContent('Реализация');
+  });
+
   it('счёт-фактура кабинета — кнопка есть, реализации ещё нет', async () => {
     stubFetch([get('/api/portal/orders/order-7', { ...accepted, vatInvoiceAvailable: true })]);
 

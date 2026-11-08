@@ -10,10 +10,10 @@ import { cn } from '../../ui/cn';
  * действовать, — и рассказывать ему про склад значит сообщать о возможной
  * нехватке раньше, чем поставщик решил, что с ней делать.
  *
- * Цвет здесь говорит не о важности, а о том, за кем ход: тёплый — за
- * клиентом, синий — за продавцом, зелёный и серый — вопрос решён. Оттенков
- * поэтому три, а не пять: два состояния ожидания у продавца отличаются
- * словом, а не краской — клиенту они означают одно и то же.
+ * Цвет — этап (решение владельца 2026-10-30): продавец проверяет — жёлтый,
+ * принята — синий, выдана — зелёный; тёплый цвет магазина — ход за клиентом,
+ * серый — закрыта. Два состояния ожидания у продавца отличаются словом,
+ * а не краской — клиенту они означают одно и то же.
  *
  * Точка перед словом — не украшение: она даёт пилюле форму, узнаваемую
  * раньше, чем прочитан текст, и не остаётся единственным носителем смысла,
@@ -23,21 +23,22 @@ import { cn } from '../../ui/cn';
  * под кодами, которые присылает сервер.
  */
 const STATES: Record<PortalOrderDtoState, { tone: string; dot: string }> = {
+  // Продавец проверяет — жёлтым, принята — синим, выдана — зелёным (решение владельца 2026-10-30).
   SUBMITTED: {
-    tone: 'bg-brand/8 text-brand border-brand/20',
-    dot: 'bg-brand',
+    tone: 'bg-hit-soft text-hit-ink border-hit-ink/25',
+    dot: 'bg-hit-ink',
   },
   IN_REVIEW: {
-    tone: 'bg-brand/8 text-brand border-brand/20',
-    dot: 'bg-brand',
+    tone: 'bg-hit-soft text-hit-ink border-hit-ink/25',
+    dot: 'bg-hit-ink',
   },
   AWAITING_CONFIRMATION: {
     tone: 'bg-accent-soft text-accent border-accent/30',
     dot: 'bg-accent',
   },
   ACCEPTED: {
-    tone: 'bg-in-stock/10 text-in-stock border-in-stock/25',
-    dot: 'bg-in-stock',
+    tone: 'bg-wholesale-soft text-wholesale-ink border-wholesale-ink/25',
+    dot: 'bg-wholesale-ink',
   },
   // «Можно забирать» — ход за клиентом, как у ответа на изменения: цвет
   // магазина, а не спокойный зелёный, иначе собранная заявка не отличается
@@ -47,8 +48,8 @@ const STATES: Record<PortalOrderDtoState, { tone: string; dot: string }> = {
     dot: 'bg-accent',
   },
   ISSUED: {
-    tone: 'bg-sunk text-ink-muted border-hairline',
-    dot: 'bg-in-stock',
+    tone: 'bg-ok-soft text-ok-ink border-ok-ink/25',
+    dot: 'bg-ok-ink',
   },
   CLOSED: {
     tone: 'bg-sunk text-ink-subtle border-hairline',

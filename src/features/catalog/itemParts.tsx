@@ -1,5 +1,7 @@
+import { useOrderMode } from '../cart/orderMode';
+import type { SaleMode } from '../cart/ModeSwitch';
 import { useTranslation } from 'react-i18next';
-import { Package, Plus, Sparkles, Star, Tag, type IconComponent } from '../../ui/icons';
+import { Package, ShoppingCart, Sparkles, Star, Tag, type IconComponent } from '../../ui/icons';
 import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import type { ShowcaseItemDto } from '../../api/generated';
@@ -9,16 +11,16 @@ import { packsOnly } from '../cart/wholesale';
 import { firstQuantity, stepOf } from '../cart/saleTerms';
 import { quantityWithUnit, unitPer } from '../../shared/units';
 import { soldByOf } from './soldBy';
-import { decimal, shortDate } from '../../shared/format';
+import { decimal, money } from '../../shared/format';
+import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import { Button } from '../../ui/Button';
 import { flyToCart } from '../../ui/flyToCart';
 import { cn } from '../../ui/cn';
 import { intlLocale } from '../../i18n';
 
 /*
- * Части карточки товара, общие у прежней плитки, строки таблицы и плиток
- * шаблонов (`tiles/TemplateTile.tsx`): открыть карточку нажатием, положить
- * в корзину, метки на снимке и условия продажи.
+ * Части карточки товара, общие у плитки каталога и других витрин: открыть карточку
+ * нажатием, положить в корзину, метки на снимке и условия продажи.
  */
 
 /**
@@ -79,6 +81,9 @@ export function CartAction({
 }) {
   const { t } = useTranslation();
   const { add: addToCart, isPending } = useAddToCart();
+  // У товара «оптом и в розницу» — строка той заявки, в которой клиент сейчас.
+  const [orderMode] = useOrderMode();
+  const mode = item.wholesale?.retail ? orderMode : undefined;
   const step = stepOf(item.terms);
   const first = firstQuantity(item.terms);
 
@@ -90,6 +95,7 @@ export function CartAction({
           unit={item.unit}
           terms={item.terms}
           perPack={packsOnly(item) ? item.wholesale!.packQty : undefined}
+          mode={mode}
           // Круглая кнопка — на узкой карточке: «в корзине» не влезает рядом с числом.
           suffix={look === 'round' ? undefined : t('catalog.inCartNote')}
           className={look ? 'h-11' : roomy ? 'h-13' : 'h-12'}
@@ -148,7 +154,8 @@ export function CartAction({
         )}
       >
         {look === 'link' || look === 'outline' ? null : (
-          <Plus aria-hidden="true" className={round ? 'size-[1.125rem]' : 'size-[0.9375rem]'} strokeWidth={2.4} />
+          // Корзина, а не плюс (решение владельца 2026-10-30): сразу понятно, что кнопка кладёт в корзину.
+          <ShoppingCart aria-hidden="true" className={round ? 'size-[1.125rem]' : 'size-[0.9375rem]'} />
         )}
         {round ? null : short}
       </button>
@@ -168,7 +175,7 @@ export function CartAction({
       disabled={isPending}
       className={cn('w-full rounded-[var(--radius-tile)]', roomy ? 'h-13 text-lead' : 'h-12 text-base')}
     >
-      <Plus aria-hidden="true" className="size-5" strokeWidth={2.4} />
+      <ShoppingCart aria-hidden="true" className="size-5" />
       {/* Минимум больше одной — кнопка говорит, сколько положит: «В корзину — 10 мешков». */}
       {label}
     </Button>
@@ -185,7 +192,7 @@ export type CartLook = 'round' | 'roundLight' | 'outline' | 'solid' | 'drawing' 
 
 const CART_LOOKS: Record<CartLook, string> = {
   round: 'size-9 rounded-[var(--radius-chip)] bg-accent text-on-accent hover:bg-accent-hover',
-  roundLight: 'size-10 rounded-[var(--radius-chip)] bg-white text-[#16171A] hover:bg-white/90',
+  roundLight: 'size-10 rounded-[var(--radius-chip)] bg-white text-on-white hover:bg-white/90',
   outline: 'h-[2.375rem] w-full rounded-[var(--radius-small)] border border-ink text-xs font-semibold uppercase tracking-[0.08em] text-ink hover:bg-ink hover:text-surface',
   solid: 'h-[2.375rem] w-full rounded-[var(--radius-small)] bg-accent text-sm font-extrabold text-on-accent [text-transform:var(--heading-case)] hover:bg-accent-hover',
   drawing: 'h-[2.375rem] w-full rounded-[var(--radius-small)] border border-ink font-mono text-caption font-bold uppercase tracking-[0.06em] text-ink hover:bg-shop hover:text-on-shop hover:border-shop',
@@ -201,20 +208,11 @@ const CART_LOOKS: Record<CartLook, string> = {
   ghost: 'h-11 rounded-[min(var(--radius-small),4px)] bg-ink px-4 text-2xs font-medium uppercase tracking-[0.06em] text-surface hover:opacity-90',
 };
 
-/**
- * Налог и дата — мелкой строкой под ценой.
- *
- * Дата актуальности остаётся, хотя в макете её нет: требование о полноте
- * торговой информации действует на витрине раньше, чем на оформлении, и цена
- * без даты превращается в бессрочное обещание.
- */
+/** Налог — мелкой строкой под ценой. «Цена на <дата>» убрана и из каталога (просьба владельца 2026-11-06). */
 export function priceNote(item: ShowcaseItemDto, t: TFunction): string {
   const parts: string[] = [];
   if (item.vatRate !== undefined) {
     parts.push(t(item.vatIncluded ? 'catalog.priceNote.vatIncluded' : 'catalog.priceNote.vat', { rate: decimal(item.vatRate) }));
-  }
-  if (item.priceAsOf) {
-    parts.push(t('catalog.priceNote.asOf', { date: shortDate(item.priceAsOf) }));
   }
   return parts.join(' · ');
 }
@@ -235,10 +233,6 @@ export const MARK_LOOK: Record<Mark, { icon: IconComponent; tone: string; hover:
   wholesaleDeal: { icon: Package, tone: 'border-wholesale-ink/25 bg-wholesale-soft text-wholesale-ink', hover: 'hover:border-wholesale-ink', on: 'border-wholesale-ink bg-wholesale-ink text-surface' },
 };
 
-/** Цвета чипа фильтра: светлый, пока не выбран, залитый — выбранный. */
-export function markChip(mark: Mark): { idle: string; on: string } {
-  return { idle: cn(MARK_LOOK[mark].tone, MARK_LOOK[mark].hover), on: MARK_LOOK[mark].on };
-}
 
 export function MarkIcon({ mark, className }: { mark: Mark; className?: string }) {
   const Icon = MARK_LOOK[mark].icon;
@@ -264,6 +258,30 @@ export function isWholesaleDeal(item: Pick<ShowcaseItemDto, 'price'> & Partial<P
   if (!wholesale || !wholesale.retail || !(wholesale.packQty > 0) || wholesale.tiers.length === 0) return false;
   const best = Math.min(...wholesale.tiers.map((tier) => tier.price));
   return best / wholesale.packQty < (item.oldPrice ?? item.price);
+}
+
+/**
+ * Товар глазами выбранной заявки (решение владельца 2026-11-06). У позиции «оптом и в розницу»
+ * в «Оптом» — только опт, тем же видом, каким витрина отдаёт товар «только опт»
+ * (`ShowcaseServiceImpl.toShowcaseItem`): цена первой ступени за оптовую единицу, минимум — первая
+ * ступень, шаг — одна единица; в «В розницу» — только розница, без строки опта и «Скидки» на опт.
+ * Только для показа: в корзину кладётся сама позиция, со своей заявкой.
+ */
+export function inMode<T extends ShowcaseItemDto>(item: T, mode: SaleMode | undefined): T {
+  const wholesale = item.wholesale;
+  if (!mode || !wholesale?.retail || item.yourPrice) return item;
+  if (mode === 'RETAIL') return { ...item, wholesale: undefined };
+  const first = wholesale.tiers[0];
+  if (!first) return item;
+  return {
+    ...item,
+    unit: wholesale.unit,
+    price: first.price,
+    oldPrice: first.oldPrice,
+    discountPercent: first.oldPrice ? Math.round((1 - first.price / first.oldPrice) * 100) : undefined,
+    terms: { ...item.terms, minQuantity: first.from, quantityStep: 1 },
+    wholesale: { ...wholesale, retail: false },
+  };
 }
 
 /**
@@ -301,6 +319,9 @@ export function perUnitNote(item: Pick<ShowcaseItemDto, 'unit'> & Partial<Pick<S
   return t(saleChannel(item) === 'both' ? 'catalog.priceNote.perUnitRetail' : 'catalog.priceNote.perUnit', { unit: unitPer(item.unit) });
 }
 
+/** Мелкая метка на снимке — плитка и карточка товара: сам товар должен быть виден (2026-10-30). */
+export const TINY_BADGE = 'flex items-center rounded-[0.375rem] px-1.5 py-0.5 text-2xs font-bold leading-none';
+
 /**
  * Метки на снимке: 21+, скидка, «Хит продаж», «Новинка».
  *
@@ -317,17 +338,17 @@ export function ItemBadges({
   item,
   className,
   words = false,
-  hideDiscount = false,
+  belowDots = false,
 }: {
   item: Pick<ShowcaseItemDto, 'discountPercent' | 'terms'> & Partial<Pick<ShowcaseItemDto, 'wholesale' | 'price' | 'oldPrice'>>;
   className?: string;
   words?: boolean;
-  /** Без метки скидки: плитка шаблона рисует скидку своей наклейкой. */
-  hideDiscount?: boolean;
+  /** В плитке листаются снимки: точки слева сверху, наклейки — под ними. */
+  belowDots?: boolean;
 }) {
   const { t } = useTranslation();
   const terms = item.terms;
-  const discount = hideDiscount ? undefined : item.discountPercent;
+  const discount = item.discountPercent;
   const pill = 'flex h-[30px] items-center rounded-[var(--radius-pill)] px-3 text-caption font-extrabold';
   if (words) {
     if (!terms?.ageRestricted && !discount && !terms?.hit && !terms?.novelty) return null;
@@ -354,19 +375,116 @@ export function ItemBadges({
       </div>
     );
   }
+  // Мелко и по краям снимка (решение владельца 2026-10-30): сам товар должен быть виден.
+  // Сверху слева — условие 21+ и наклейка «−N%»; снизу слева — признаки, под ними — как продаётся.
+  const tiny = TINY_BADGE;
+  const deal = 'price' in item && isWholesaleDeal(item as Pick<ShowcaseItemDto, 'price'>);
   return (
-    <div className={cn('flex flex-wrap gap-1.5', className)}>
-      {terms?.ageRestricted && (
-        <span className={cn(pill, 'bg-adult text-white')}>{t('catalog.badge.adult')}</span>
+    <div className={cn('pointer-events-none absolute inset-0', className)}>
+      {(terms?.ageRestricted || discount) && (
+        // Под точками снимков, когда они есть: угол слева сверху — их.
+        <div className={cn('absolute left-2 flex gap-1', belowDots ? 'top-8' : 'top-2')}>
+          {terms?.ageRestricted && <span className={cn(tiny, 'bg-adult text-white')}>{t('catalog.badge.adult')}</span>}
+          {discount ? <span data-testid="discount-sticker" className={cn(tiny, 'bg-sale text-on-sale')}>−{discount}%</span> : null}
+        </div>
       )}
-      {discount ? <MarkBadge mark="promo" className={pill}>−{discount}%</MarkBadge> : null}
-      {terms?.hit && <MarkBadge mark="hit" className={pill}>{t('catalog.badge.hit')}</MarkBadge>}
-      {terms?.novelty && <MarkBadge mark="novelty" className={pill}>{t('catalog.badge.new')}</MarkBadge>}
-      {'price' in item && isWholesaleDeal(item as Pick<ShowcaseItemDto, 'price'>) && (
-        <MarkBadge mark="wholesaleDeal" className={pill}>{t('catalog.marks.wholesaleDeal')}</MarkBadge>
-      )}
-      <SaleChannelBadge item={item} className={pill} />
+      <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-col items-start gap-0.5">
+        {terms?.hit && <MarkBadge mark="hit" className={tiny}>{t('catalog.badge.hit')}</MarkBadge>}
+        {deal && <WholesaleDealBadge item={item as Pick<ShowcaseItemDto, 'price'> & Partial<Pick<ShowcaseItemDto, 'oldPrice' | 'wholesale'>>} />}
+        {terms?.novelty && <MarkBadge mark="novelty" className={tiny}>{t('catalog.badge.new')}</MarkBadge>}
+        {discount ? <MarkBadge mark="promo" className={tiny}>{t('catalog.badge.sale')}</MarkBadge> : null}
+        <SaleChannelBadge item={item} className={tiny} />
+      </div>
     </div>
+  );
+}
+
+/**
+ * «Скидка» на снимке и рядом её размер — «−3%» красным, чуть крупнее метки (решение владельца 2026-10-30):
+ * насколько опт за единицу дешевле розницы, считается сам из цен. Меньше процента — числа нет.
+ */
+export function WholesaleDealBadge({ item }: { item: Pick<ShowcaseItemDto, 'price'> & Partial<Pick<ShowcaseItemDto, 'oldPrice' | 'wholesale'>> }) {
+  const { t } = useTranslation();
+  // Тем же правилом, что сама метка (isWholesaleDeal): лучшая ступень опта за единицу против обычной розницы.
+  const wholesale = item.wholesale;
+  const retail = item.oldPrice ?? item.price;
+  const best = wholesale && wholesale.packQty > 0 && wholesale.tiers.length > 0
+    ? Math.min(...wholesale.tiers.map((tier) => tier.price)) / wholesale.packQty : retail;
+  const percent = retail > 0 ? Math.round((1 - best / retail) * 100) : 0;
+  return (
+    <span className="flex items-center gap-1">
+      <MarkBadge mark="wholesaleDeal" className={TINY_BADGE}>{t('catalog.marks.wholesaleDeal')}</MarkBadge>
+      {percent >= 1 && (
+        <span data-testid="deal-percent" className="rounded-[0.375rem] bg-surface/90 px-1 text-caption font-extrabold leading-tight text-sale">
+          −{percent}%
+        </span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Скидка в цене: старая — зачёркнута красной линией, под ней новая — зелёным (решение владельца
+ * 2026-10-30). Распродажа — цена до и после; «Скидка» (опт дешевле розницы) — розница и цена
+ * за единицу оптом. Пусто — скидки нет.
+ */
+export function dealOf(item: Pick<ShowcaseItemDto, 'price'> & Partial<Pick<ShowcaseItemDto, 'oldPrice' | 'wholesale'>>):
+  { old: number; now: number; wholesale: boolean } | undefined {
+  if (item.oldPrice !== undefined) return { old: item.oldPrice, now: item.price, wholesale: false };
+  if (!isWholesaleDeal(item)) return undefined;
+  const wholesale = item.wholesale!;
+  const best = Math.min(...wholesale.tiers.map((tier) => tier.price)) / wholesale.packQty;
+  return { old: item.price, now: Math.round(best * 100) / 100, wholesale: true };
+}
+
+export function DealPrice({ item, className, size = 'text-xl', oldSize = 'text-sm' }: {
+  item: Pick<ShowcaseItemDto, 'price' | 'unit'> & Partial<Pick<ShowcaseItemDto, 'oldPrice' | 'wholesale'>>;
+  className?: string;
+  /** Кегль новой цены. */
+  size?: string;
+  /** Кегль старой, зачёркнутой. */
+  oldSize?: string;
+}) {
+  const { t } = useTranslation();
+  const currency = useSupplierCurrency();
+  const deal = dealOf(item);
+  if (!deal) return null;
+  // Опт дешевле розницы — сначала цена оптом, под ней розница с подписью при ней самой
+  // (просьба владельца 2026-11-06): прежде «в розницу за кг» стояла последней, отдельно от своей цены.
+  if (deal.wholesale) {
+    return (
+      <span data-testid="deal-price" className={cn('flex flex-col', className)}>
+        <span className={cn('whitespace-nowrap font-extrabold tracking-[-0.02em] tabular-nums text-ok-ink', size)}>
+          {money(deal.now, currency)}
+        </span>
+        <span className="text-xs font-semibold text-ok-ink">
+          {t('catalog.dealWholesale', { unit: unitPer(item.wholesale!.pieceUnit ?? item.unit) })}
+        </span>
+        <span className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5">
+          <s className={cn('whitespace-nowrap font-semibold tabular-nums text-ink-muted decoration-sale decoration-2', oldSize)}>
+            {money(deal.old, currency)}
+          </s>
+          <span className="text-xs font-semibold text-ink-muted">
+            {t('catalog.priceNote.perUnitRetail', { unit: unitPer(item.unit) })}
+          </span>
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span data-testid="deal-price" className={cn('flex flex-col', className)}>
+      <s className={cn('whitespace-nowrap font-semibold tabular-nums text-ink-muted decoration-sale decoration-2', oldSize)}>
+        {money(deal.old, currency)}
+      </s>
+      <span className={cn('whitespace-nowrap font-extrabold tracking-[-0.02em] tabular-nums text-ok-ink', size)}>
+        {money(deal.now, currency)}
+      </span>
+      {deal.wholesale && (
+        <span className="text-xs font-semibold text-ok-ink">
+          {t('catalog.dealWholesale', { unit: unitPer(item.wholesale!.pieceUnit ?? item.unit) })}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -378,10 +496,13 @@ export function ItemBadges({
 export function ItemFacts({
   item,
   pills = false,
+  inline = false,
 }: {
   item: Pick<ShowcaseItemDto, 'unit' | 'terms'>;
   /** Пилюлями в строку — рядом с наличием в карточке товара. */
   pills?: boolean;
+  /** Одной строкой через «·» — в плитке витрины: факты не растят карточку выше соседей. */
+  inline?: boolean;
 }) {
   const { t } = useTranslation();
   const terms = item.terms;
@@ -414,6 +535,18 @@ export function ItemFacts({
           </span>
         ))}
       </>
+    );
+  }
+  if (inline) {
+    return (
+      <p className="m-0 truncate text-caption leading-snug text-ink-muted" title={facts.map((fact) => fact.text).join(' · ')}>
+        {facts.map((fact, index) => (
+          <span key={fact.key} className={cn(fact.warn && 'font-semibold text-adult')}>
+            {index > 0 ? ' · ' : null}
+            {fact.text}
+          </span>
+        ))}
+      </p>
     );
   }
   return (
@@ -463,7 +596,7 @@ export function RatingBadge({
       data-testid="rating-badge"
       className={cn('inline-flex items-center gap-1 text-caption leading-none text-ink-muted tabular-nums', className)}
     >
-      <Star aria-hidden="true" className="size-3.5 shrink-0 fill-[#D97706] text-[#D97706]" />
+      <Star aria-hidden="true" className="size-3.5 shrink-0 fill-star text-star" />
       <span className="font-semibold">{value}</span>
       {reviewCount != null && <span>({reviewCount.toLocaleString(intlLocale())})</span>}
     </span>

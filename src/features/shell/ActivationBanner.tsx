@@ -29,7 +29,7 @@ export function ActivationBanner() {
     <div
       role="alert"
       className={cn(
-        'sticky top-[68px] z-10 border-b border-gone/25 bg-gone/10 px-4 py-3 lg:px-7',
+        'z-10 border-b lg:sticky lg:top-[68px] border-gone/25 bg-gone/10 px-4 py-3 lg:px-7',
         // По центру: полоса тянется во всю ширину монитора, и строка,
         // прижатая к левому краю, теряется в пустоте рядом с разделами —
         // читают её взглядом посередине экрана, где стоит и сам кабинет.

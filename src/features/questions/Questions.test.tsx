@@ -143,11 +143,51 @@ describe('вопросы продавцу', () => {
     ]);
     renderScreen(<QuestionsPage />);
 
-    await userEvent.click(await screen.findByRole('tab', { name: 'Архив WhatsApp' }));
+    await userEvent.click(await screen.findByRole('tab', { name: /^Архив WhatsApp/ }));
     expect(screen.getByText('Есть цемент?')).toBeInTheDocument();
     expect(screen.getByText('Есть, 2 500 ₸')).toBeInTheDocument();
     expect(screen.getByText(/это архив: отвечать здесь нельзя/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /написать сообщение/i })).not.toBeInTheDocument();
+  });
+
+  it('поиск по архиву: переписка целиком, найденное подсвечено, стрелки ходят по совпадениям', async () => {
+    stubFetch([
+      get('/api/portal/questions/whatsapp-archive', [
+        { at: '2026-09-30T09:00:00Z', text: 'Есть цемент? Нужен цемент М400', fromShop: false },
+        { at: '2026-09-30T09:05:00Z', text: 'Есть, 2 500 ₸', fromShop: true },
+      ]),
+      get('/api/portal/questions', []),
+    ]);
+    renderScreen(<QuestionsPage />);
+
+    await userEvent.click(await screen.findByRole('tab', { name: /^Архив WhatsApp/ }));
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Найти в переписке' }), 'цемент');
+    // Переписка не сужается: сообщение магазина без совпадения на месте.
+    expect(screen.getByText('Есть, 2 500 ₸')).toBeInTheDocument();
+    const marks = document.querySelectorAll('mark');
+    expect(marks).toHaveLength(2);
+    expect(screen.getByRole('status')).toHaveTextContent('1 из 2');
+    expect(marks[0]).toHaveAttribute('aria-current', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Следующее совпадение' }));
+    expect(screen.getByRole('status')).toHaveTextContent('2 из 2');
+    expect(marks[1]).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('над группой сообщений — кто писал', async () => {
+    stubFetch([
+      get('/api/portal/questions/whatsapp-archive', [
+        { at: '2026-09-30T09:00:00Z', text: 'Есть цемент?', fromShop: false },
+        { at: '2026-09-30T09:01:00Z', text: 'И песок?', fromShop: false },
+        { at: '2026-09-30T09:05:00Z', text: 'Есть, 2 500 ₸', fromShop: true },
+      ]),
+      get('/api/portal/questions', []),
+    ]);
+    renderScreen(<QuestionsPage />);
+
+    await userEvent.click(await screen.findByRole('tab', { name: /^Архив WhatsApp/ }));
+    // Два своих подряд — одна подпись «Вы»; ответ магазина — своя подпись.
+    expect(screen.getAllByText('Вы')).toHaveLength(1);
+    expect(screen.getByText('Магазин')).toBeInTheDocument();
   });
 
   it('без переписки в WhatsApp вкладки архива нет', async () => {
@@ -186,7 +226,7 @@ describe('вопросы продавцу', () => {
     ]);
     openThread();
 
-    await screen.findByText(/2 500 ₸/);
+    await screen.findByText(/^2 500 ₸/);
     expect(screen.getByTestId('item-thumb').querySelector('img')).toHaveAttribute('src', 'https://cdn.example.kz/cement.jpg');
   });
 
@@ -198,7 +238,7 @@ describe('вопросы продавцу', () => {
     ]);
     openThread();
 
-    expect(await screen.findByText(/2 500 ₸/)).toBeInTheDocument();
+    expect(await screen.findByText(/^2 500 ₸/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Добавить в заявку' }));
     await waitFor(() => {
       const sent = calls.find((call) => call.init?.method === 'PUT');
@@ -212,7 +252,7 @@ describe('вопросы продавцу', () => {
       get('/api/portal/questions/q1', ANSWERED),
     ]);
     openThread('q1', { currency: 'RUB' });
-    expect(await screen.findByText(/2 500 ₽/)).toBeInTheDocument();
+    expect(await screen.findByText(/^2 500 ₽/)).toBeInTheDocument();
   });
 
   it('поле в ветке пишет в неё же, а не заводит новую', async () => {
@@ -258,6 +298,50 @@ describe('вопросы продавцу', () => {
     expect(await screen.findByText('ОБР-20')).toBeInTheDocument();
   });
 
+  it('пришли из карточки товара — новый вопрос уходит с этой позицией', async () => {
+    const { calls } = stubFetch([
+      method('POST', '/api/portal/questions', { ...WAITING, id: 'q9', itemId: 'item-1' }, 201),
+      get('/api/portal/questions/q9', { ...WAITING, id: 'q9' }),
+      get('/api/portal/questions/whatsapp-archive', []),
+      get('/api/portal/questions', []),
+    ]);
+    renderScreen(
+      <Routes>
+        <Route path="/questions/:threadId" element={<QuestionsPage />} />
+        <Route path="/questions" element={<QuestionsPage />} />
+      </Routes>,
+      { route: '/questions?item=item-1' },
+    );
+
+    await userEvent.type(await screen.findByPlaceholderText('Новый вопрос продавцу'), 'Есть в наличии?{Enter}');
+    await waitFor(() => {
+      const sent = calls.find((call) => call.init?.method === 'POST');
+      expect(JSON.parse(String(sent?.init?.body))).toEqual({ itemId: 'item-1', text: 'Есть в наличии?' });
+    });
+  });
+
+  it('из карточки товара — прежние переписки о нём и новый вопрос о нём', async () => {
+    const about = { ...WAITING, id: 'q1', number: 'ОБР-1', itemId: 'item-1', itemName: 'Цемент М500' };
+    const other = { ...WAITING, id: 'q2', number: 'ОБР-2', itemId: 'item-2', itemName: 'Песок' };
+    stubFetch([
+      get('/api/portal/catalog/item-1', { id: 'item-1', name: 'Цемент М500' }),
+      get('/api/portal/questions/whatsapp-archive', []),
+      get('/api/portal/questions', [about, other]),
+    ]);
+    renderScreen(
+      <Routes>
+        <Route path="/questions" element={<QuestionsPage />} />
+      </Routes>,
+      { route: '/questions?item=item-1' },
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Переписка об этом товаре' })).toBeInTheDocument();
+    expect(screen.getByTestId('thread-q1')).toBeInTheDocument();
+    expect(screen.queryByTestId('thread-q2')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Все вопросы' })).toHaveAttribute('href', '/questions');
+    expect(await screen.findByText('О товаре «Цемент М500»')).toBeInTheDocument();
+  });
+
   it('Enter в вопросе о товаре отправляет его продавцу', async () => {
     const { calls } = stubFetch([
       method('POST', '/api/portal/questions', { ...WAITING, itemId: 'item-1' }, 201),
@@ -274,6 +358,14 @@ describe('вопросы продавцу', () => {
       const sent = calls.find((call) => call.init?.method === 'POST');
       expect(JSON.parse(String(sent?.init?.body))).toEqual({ itemId: 'item-1', text: 'Сколько сохнет?' });
     });
+  });
+
+  it('готовая тема одним нажатием ставит вопрос в поле', async () => {
+    stubFetch([get('/api/portal/questions/whatsapp-archive', []), get('/api/portal/questions', [])]);
+    renderScreen(<QuestionsPage />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Есть ли в наличии?' }));
+    expect(screen.getByPlaceholderText('Новый вопрос продавцу')).toHaveValue('Есть ли в наличии?');
   });
 
   it('пустой список объясняет, зачем сюда приходят', async () => {

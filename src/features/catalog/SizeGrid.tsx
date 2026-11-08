@@ -1,3 +1,4 @@
+import { lineOf } from '../cart/cartPart';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ShowcaseCardDto, ShowcaseVariantDto } from '../../api/generated';
@@ -46,7 +47,8 @@ export function SizeGrid({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMod
   const only = item.wholesale !== undefined && !item.wholesale.retail;
   const perPack = only ? item.wholesale!.packQty : 1;
   const unit = only ? item.wholesale!.unit : item.unit;
-  const inCart = (itemId: string) => (cart?.lines.find((line) => line.itemId === itemId)?.quantity ?? 0) / perPack;
+  // Только строки своей заявки: размер, взятый в розницу, не считается лежащим в опте.
+  const inCart = (itemId: string) => (lineOf(cart, itemId, mode)?.quantity ?? 0) / perPack;
   const [typed, setTyped] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [fault, setFault] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export function SizeGrid({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMod
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-body font-bold text-ink">{t('item.sizes.title')}</h2>
         <button type="button" onClick={oneEach}
-          className="h-9 rounded-[var(--radius-control)] border-[1.5px] border-line bg-surface px-3 text-sm font-semibold text-ink hover:border-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          className="qo-hit h-9 rounded-[var(--radius-control)] border-[1.5px] border-line bg-surface px-3 text-sm font-semibold text-ink hover:border-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
           {t('item.sizes.oneEach')}
         </button>
       </div>
@@ -122,14 +124,14 @@ export function SizeGrid({ item, mode }: { item: ShowcaseCardDto; mode?: SaleMod
                 <input inputMode="decimal" aria-label={t('item.sizes.quantityOf', { size })} value={valueOf(variant.itemId)}
                   disabled={soldOut(variant) && inCart(variant.itemId) === 0}
                   onChange={(event) => { setDone(false); setTyped((now) => ({ ...now, [variant.itemId]: event.target.value })); }}
-                  className="h-10 w-20 rounded-[var(--radius-control)] border-[1.5px] border-line bg-surface px-2 text-body tabular-nums text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50" />
+                  className="h-10 w-20 rounded-[var(--radius-control)] border-[1.5px] border-field-line bg-surface px-2 text-body tabular-nums text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50" />
               </td>
             </tr>
           ))}
         </tbody>
       </table>
       <button type="button" disabled={busy || changed.length === 0} onClick={() => void put()}
-        className="h-12 rounded-[1rem] bg-accent px-5 text-[0.9375rem] font-bold text-on-accent transition-opacity duration-200 hover:opacity-90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
+        className="h-12 rounded-[1rem] bg-accent px-5 text-body font-bold text-on-accent transition-opacity duration-200 hover:opacity-90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2">
         {total > 0
           ? t('item.sizes.put', { amount: quantityWithUnit(total, unit), sum: money(sum, currency) })
           : t('item.sizes.putEmpty')}

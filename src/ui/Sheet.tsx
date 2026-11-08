@@ -1,6 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
+import { X } from './icons';
 
 /**
  * Выдвижной лист: снизу или слева.
@@ -24,7 +26,7 @@ import { cn } from './cn';
  * Положение покоя обязано задаваться разметкой, а сдвиг — жить только внутри
  * анимации: тогда несработавшее движение стоит зрелища, а не работы.
  */
-type Side = 'bottom' | 'left';
+type Side = 'bottom' | 'left' | 'right';
 
 /** Геометрия по стороне. Само движение подхватывается по `data-side`. */
 const SIDES: Record<Side, string> = {
@@ -41,9 +43,17 @@ const SIDES: Record<Side, string> = {
     // Ширина потолком, а не заданным размером: на 320px колонка в 288
     // не оставила бы видимой страницы под собой, и лист читался бы
     // полноэкранным окном, из которого не выйти касанием мимо.
-    'inset-y-0 left-0 w-72 max-w-[85vw]',
+    // Колонкой: содержимое может занять остаток высоты под заголовком и прокручиваться само,
+    // а кнопки внизу — остаться на месте (панель «Все фильтры» каталога).
+    'inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col',
     'rounded-r-[var(--radius-gallery)] border-r',
     'px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))]',
+  ),
+  // Справа — «Фильтры» каталога на мониторе (вариант В, решение владельца 2026-11-05).
+  right: cn(
+    'inset-y-0 right-0 flex w-[26rem] max-w-[90vw] flex-col',
+    'rounded-l-[var(--radius-gallery)] border-l',
+    'px-6 pb-6 pt-5',
   ),
 };
 
@@ -52,6 +62,7 @@ export function Sheet({
   onOpenChange,
   title,
   side = 'bottom',
+  returnFocus,
   children,
 }: {
   open: boolean;
@@ -59,8 +70,11 @@ export function Sheet({
   title: string;
   /** Откуда выезжает. По умолчанию снизу — так открыты корзина и уведомления. */
   side?: Side;
+  /** Куда вернуть фокус после закрытия, когда кнопки-триггера у листа нет. */
+  returnFocus?: () => void;
   children: ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -68,6 +82,7 @@ export function Sheet({
 
         <Dialog.Content
           aria-describedby={undefined}
+          onCloseAutoFocus={returnFocus ? (event) => { event.preventDefault(); returnFocus(); } : undefined}
           data-side={side}
           className={cn(
             'qo-sheet fixed z-50 overflow-y-auto border-hairline bg-surface',
@@ -82,7 +97,16 @@ export function Sheet({
           {side === 'bottom' ? (
             <div aria-hidden="true" className="mx-auto mb-3 h-1 w-10 rounded-full bg-hairline lg:hidden" />
           ) : null}
-          <Dialog.Title className="mb-3 text-base font-semibold text-ink">{title}</Dialog.Title>
+          {/* Крестик — на мониторе: там закрывают мышью, а у листа телефона есть ручка и касание мимо. */}
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <Dialog.Title className="text-base font-semibold text-ink">{title}</Dialog.Title>
+            <Dialog.Close
+              aria-label={t('sheet.close')}
+              className="-mr-2 -mt-2 hidden size-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-ink-muted hover:bg-sunk hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent lg:flex"
+            >
+              <X aria-hidden="true" className="size-5" />
+            </Dialog.Close>
+          </div>
           {children}
         </Dialog.Content>
       </Dialog.Portal>

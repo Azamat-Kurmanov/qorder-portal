@@ -9,15 +9,16 @@ import { cn } from '../../ui/cn';
  * Цифры разнесены и читаются по одной — так их диктуют продавцу, и так
  * же их прочтёт экранный диктор, а не как «четыре тысячи восемьсот…».
  */
-export function PickupCode({ code, className }: { code: string; className?: string }) {
+/** `big` — на экране заявки (макет SimplePicOrderReady): код крупно по центру. */
+export function PickupCode({ code, big = false, className }: { code: string; big?: boolean; className?: string }) {
   const { t } = useTranslation();
   return (
-    <div data-testid="pickup-code" className={cn('flex flex-col gap-1 rounded-[var(--radius-control)] bg-night px-4 py-3 text-white', className)}>
-      <span className="text-2xs font-bold uppercase tracking-[0.06em] text-white/70">{t('orders.v2.pickupCode')}</span>
-      <b className="text-[1.625rem] font-extrabold leading-tight tracking-[0.14em] tabular-nums" aria-label={code.split('').join(' ')}>
+    <div data-testid="pickup-code" className={cn('flex flex-col gap-1 bg-night text-white', big ? 'items-center rounded-[1.375rem] p-5 text-center' : 'rounded-[var(--radius-control)] px-4 py-3', className)}>
+      <span className={cn('font-bold text-white/75', big ? 'text-sm' : 'text-2xs uppercase tracking-[0.06em]')}>{t('orders.v2.pickupCode')}</span>
+      <b className={cn('font-extrabold leading-tight tabular-nums', big ? 'text-jumbo tracking-[0.22em]' : 'text-display tracking-[0.14em]')} aria-label={code.split('').join(' ')}>
         {code}
       </b>
-      <span className="text-[0.7812rem] text-white/75">{t('orders.v2.pickupCodeHint')}</span>
+      <span className={cn('text-white/80', big ? 'text-sm' : 'text-caption')}>{t('orders.v2.pickupCodeHint')}</span>
     </div>
   );
 }

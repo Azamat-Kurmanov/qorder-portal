@@ -61,6 +61,7 @@ export function MediaGallery({
   itemName,
   topLeft,
   topRight,
+  bottomLeft,
 }: {
   media: ItemMediaDto[];
   itemName: string;
@@ -68,6 +69,8 @@ export function MediaGallery({
   topLeft?: ReactNode;
   /** Что стоит в правом верхнем углу снимка. Обычно — избранное. */
   topRight?: ReactNode;
+  /** Что стоит в левом нижнем углу снимка: мелкие метки товара. */
+  bottomLeft?: ReactNode;
 }) {
   const { t } = useTranslation();
   const photos = media.filter((entry) => entry.kind === 'PHOTO');
@@ -243,6 +246,8 @@ export function MediaGallery({
         */}
         {topLeft && <div className="absolute left-4 top-4">{topLeft}</div>}
         {topRight && <div className="absolute right-4 top-4">{topRight}</div>}
+        {/* Над полосой роликов, если она есть: метки не закрывают кнопки кадров. */}
+        {bottomLeft && <div className={cn('pointer-events-none absolute left-4', videos.length > 0 ? 'bottom-12' : 'bottom-4')}>{bottomLeft}</div>}
 
         {videos.length > 0 && (
           <div className="absolute bottom-1 left-2 flex items-center gap-1">

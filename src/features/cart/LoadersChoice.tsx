@@ -30,9 +30,10 @@ export function LoadersChoice({ loaders, value, lines, askFloor, onChange }: {
       </p>
     );
   }
-  if (loaders.mode !== 'ON_REQUEST') return null;
+  if (loaders.mode !== 'ON_REQUEST' && loaders.mode !== 'REQUIRED') return null;
 
-  const wanted = value.loaders === true;
+  const required = loaders.mode === 'REQUIRED';
+  const wanted = required || value.loaders === true;
   const quote = wanted ? loadersPrice(loaders, lines, value.floor, value.hasLift === true) : undefined;
 
   return (
@@ -41,6 +42,7 @@ export function LoadersChoice({ loaders, value, lines, askFloor, onChange }: {
         <input
           type="checkbox"
           checked={wanted}
+          disabled={required}
           onChange={(event) => onChange({
             ...value,
             loaders: event.currentTarget.checked || undefined,
@@ -48,7 +50,7 @@ export function LoadersChoice({ loaders, value, lines, askFloor, onChange }: {
           })}
           className="size-4 accent-[var(--color-accent)]"
         />
-        {t('checkout.delivery.loaders.need')}
+        {required ? t('checkout.delivery.loaders.required') : t('checkout.delivery.loaders.need')}
       </label>
       <p className="text-xs text-ink-subtle">{loadersTerms(loaders, t, currency)} · {provider}</p>
 
@@ -86,7 +88,7 @@ export function LoadersChoice({ loaders, value, lines, askFloor, onChange }: {
       )}
 
       {wanted && (
-        <div data-testid="loaders-row" className="flex items-center justify-between text-[13px]">
+        <div data-testid="loaders-row" className="flex items-center justify-between text-caption">
           <span className="text-ink-muted">{t('checkout.delivery.loaders.cost')}</span>
           <span className="font-semibold tabular-nums text-ink">
             {quote?.amount === undefined ? t('checkout.delivery.loaders.later') : money(quote.amount, currency)}

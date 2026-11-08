@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { ProfilePage } from './ProfilePage';
 import { renderScreen } from '../../test/render';
 import { get, method, stubFetch } from '../../test/http';
@@ -29,41 +29,50 @@ function profileRules(summary: unknown) {
   ];
 }
 
-describe('список поставщиков', () => {
-  it('называет число непрочитанного у каждого поставщика', async () => {
-    stubFetch(profileRules([
-      { supplierId: 'supplier-1', unread: 2 },
-      { supplierId: 'supplier-2', unread: 5 },
-    ]));
-
+describe('профиль по «Варианту Б»', () => {
+  // Список магазинов — на /shops; здесь одна строка с их числом и текущим.
+  it('ведёт «Мои магазины» на /shops и называет их число', async () => {
+    stubFetch(profileRules([]));
     renderScreen(<ProfilePage />, { supplierId: 'supplier-1' });
 
-    const rows = await screen.findAllByTestId('supplier-row');
-    expect(rows[0]).toHaveTextContent('2');
-    expect(rows[1]).toHaveTextContent('5');
+    const link = await screen.findByRole('link', { name: /Мои магазины/ });
+    expect(link).toHaveAttribute('href', '/shops');
+    expect(await screen.findByText(/2 магазина/)).toBeInTheDocument();
   });
 
-  // Пустая пилюля читается как неполадка, а не как «новостей нет».
-  it('ноль не рисует вовсе', async () => {
-    stubFetch(profileRules([
-      { supplierId: 'supplier-1', unread: 0 },
-      { supplierId: 'supplier-2', unread: 3 },
-    ]));
+  // «Назад» ведёт туда, откуда пришли: из «Все магазины» — в «Дела», из магазина — на «Главную».
+  it('«Назад» из «Все магазины» — в «Дела», иначе — на «Главную»', async () => {
+    stubFetch(profileRules([]));
+    const { unmount } = renderScreen(<ProfilePage />, { supplierId: 'supplier-1', route: { pathname: '/profile', state: { from: 'all-shops' } } });
+    expect(await screen.findByRole('link', { name: 'Назад' })).toHaveAttribute('href', '/all-shops');
+    unmount();
 
+    renderScreen(<ProfilePage />, { supplierId: 'supplier-1', route: '/profile' });
+    expect(await screen.findByRole('link', { name: 'Назад' })).toHaveAttribute('href', '/home');
+  });
+
+  // Приглашение другого магазина видно у входа в «Мои магазины», не открывая окно.
+  it('новое приглашение — плашкой у «Мои магазины»', async () => {
+    stubFetch([
+      get('/api/portal/pending-invitations', [
+        { invitationId: 'inv-1', supplier: { supplierId: 'supplier-9', name: 'ТОО «Роза»' }, expiresAt: '2026-12-01T00:00:00Z' },
+      ]),
+      ...profileRules([]),
+    ]);
     renderScreen(<ProfilePage />, { supplierId: 'supplier-1' });
 
-    expect(await screen.findByLabelText('Непрочитанных: 3')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Непрочитанных: 0')).not.toBeInTheDocument();
+    const link = await screen.findByRole('link', { name: /Мои магазины/ });
+    expect(await within(link).findByText('1 новое приглашение')).toBeInTheDocument();
   });
 
-  // Экран открыт и до выбора: сюда принудительно попадает тот, у кого доступ
-  // отозвали, и счётчики обязаны работать без выбранного поставщика.
-  it('работает без выбранного поставщика', async () => {
-    stubFetch(profileRules([{ supplierId: 'supplier-2', unread: 1 }]));
+  it('размер текста — кнопками на виду', async () => {
+    stubFetch(profileRules([]));
+    renderScreen(<ProfilePage />, { supplierId: 'supplier-1' });
 
-    renderScreen(<ProfilePage />, { supplierId: null });
-
-    expect(await screen.findByLabelText('Непрочитанных: 1')).toBeInTheDocument();
+    const large = await screen.findByRole('button', { name: 'Крупный' });
+    await userEvent.click(large);
+    expect(large).toHaveAttribute('aria-pressed', 'true');
+    expect(document.documentElement.dataset.fontScale).toBe('large');
   });
 });
 
@@ -80,5 +89,26 @@ describe('уведомления о новинках и акциях в проф
     await userEvent.click(toggle);
     expect(await screen.findByRole('switch', { name: 'Сообщать о новинках и акциях' })).toHaveAttribute('aria-checked', 'false');
     expect(calls.some((call) => call.url.includes('/promotions/subscription') && call.init?.body === '{"subscribed":false}')).toBe(true);
+  });
+});
+
+describe('выход из профиля', () => {
+  /** Как значок в шапке телефона: сначала вопрос, «Остаться» ничего не делает. */
+  it('спрашивает «Выйти из аккаунта?», «Остаться» не выводит', async () => {
+    stubFetch(profileRules([]));
+    const logout = vi.fn();
+    renderScreen(<ProfilePage />, { supplierId: 'supplier-1', auth: { logout } });
+
+    const button = await screen.findByRole('button', { name: 'Выйти' });
+    await userEvent.click(button);
+    const ask = await screen.findByRole('dialog', { name: 'Выйти из аккаунта?' });
+    await userEvent.click(within(ask).getByRole('button', { name: 'Остаться' }));
+    expect(logout).not.toHaveBeenCalled();
+    // Фокус — обратно на кнопку, с которой открыли вопрос.
+    expect(button).toHaveFocus();
+
+    await userEvent.click(button);
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Выйти' }));
+    expect(logout).toHaveBeenCalled();
   });
 });

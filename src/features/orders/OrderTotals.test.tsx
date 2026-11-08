@@ -14,9 +14,27 @@ describe('итог заявки с грузчиками', () => {
   it('грузчики напрямую — под итогом, не в нём', () => {
     render(<OrderTotals currency="KZT" total={14000} breakdown={{ goodsTotal: 12500, deliveryPrice: 1500, loadersPrice: 3000, loadersPayee: 'DIRECT' }} />);
 
-    expect(screen.getByTestId('order-loaders-direct')).toHaveTextContent(/Грузчики — оплата напрямую: 3\s000\s₸/);
+    expect(screen.getByTestId('order-loaders-direct')).toHaveTextContent(/Грузчикам\s*3\s000\s₸/);
     expect(screen.queryByTestId('order-loaders')).not.toBeInTheDocument();
-    expect(screen.getByTestId('order-total')).toHaveTextContent(/14\s000/);
+    expect(screen.getByTestId('order-total')).toHaveTextContent(/Продавцу\s*14\s000/);
+    expect(screen.getByTestId('order-grand-total')).toHaveTextContent(/^17\s000\s₸$/);
+  });
+
+  it('свой перевозчик клиента — отдельно, по его тарифу; всего — «от»', () => {
+    render(<OrderTotals currency="KZT" total={14000}
+      breakdown={{ goodsTotal: 14000, delivery: { carrierName: 'inDriver', transportPayee: 'DIRECT' } }} />);
+
+    expect(screen.queryByTestId('order-delivery')).not.toBeInTheDocument();
+    expect(screen.getByTestId('order-delivery-direct')).toHaveTextContent('Перевозчику «inDriver»по его тарифу');
+    expect(screen.getByTestId('order-grand-total')).toHaveTextContent(/от 14\s000/);
+  });
+
+  it('доставка перевозчику напрямую с суммой — не в «Продавцу», но во «всего»', () => {
+    render(<OrderTotals currency="KZT" total={12500}
+      breakdown={{ goodsTotal: 12500, deliveryPrice: 1500, delivery: { carrierName: 'СДЭК', transportPayee: 'DIRECT' } }} />);
+
+    expect(screen.queryByTestId('order-delivery')).not.toBeInTheDocument();
+    expect(screen.getByTestId('order-grand-total')).toHaveTextContent(/^14\s000\s₸$/);
   });
 
   it('без грузчиков строки нет', () => {

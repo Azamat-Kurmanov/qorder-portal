@@ -3,6 +3,8 @@ import full from '../assets/logo.svg';
 import mark from '../assets/logo-mark.svg';
 import fullWait from '../assets/logo-wait.svg';
 import markWait from '../assets/logo-mark-wait.svg';
+import links from '../assets/logo-links.svg';
+import linksWait from '../assets/logo-links-wait.svg';
 
 /** Имя системы — оно же подпись знака для экранного читателя; не переводится. */
 export const PRODUCT_NAME = 'Q-Order';
@@ -16,10 +18,13 @@ export const PRODUCT_NAME = 'Q-Order';
  * `mark` — одно звено с хвостом, то есть «Q», без слова. Нужна там, где имя системы уже написано рядом
  * словами: в шапке, в рельсе разделов, в выдвижном меню и на экране активации.
  * Полный знак дал бы «Q-Order» дважды подряд — картинкой и подписью.
+ *
+ * `links` — оба звена, Q и O, сцепленные цепочкой, без слова: подпись «Работает на Q-Order»
+ * внизу кабинета (решение владельца 2026-10-30) — там знак системы узнают по цепочке.
  */
-export type LogoVariant = 'full' | 'mark';
+export type LogoVariant = 'full' | 'mark' | 'links';
 
-const MARKS: Record<LogoVariant, string> = { full, mark };
+const MARKS: Record<LogoVariant, string> = { full, mark, links };
 
 /**
  * Те же знаки с анимацией ожидания: звенья «дышат», по ним пробегает волна.
@@ -28,7 +33,7 @@ const MARKS: Record<LogoVariant, string> = { full, mark };
  * систему не двигать интерфейс. Файлы выгружены из знака web-кабинета
  * (primitives/Logo.tsx), чтобы движение было одинаковым во всех системах.
  */
-const WAITING: Record<LogoVariant, string> = { full: fullWait, mark: markWait };
+const WAITING: Record<LogoVariant, string> = { full: fullWait, mark: markWait, links: linksWait };
 
 /**
  * Знак продукта: отвечает на вопрос «чья это система» в углу каждого экрана.

@@ -11,7 +11,7 @@ import {
 import { cn } from '../../ui/cn';
 
 /**
- * Размер интерфейса — три ступени.
+ * Размер интерфейса — две ступени.
  *
  * Стоит рядом с языком и по той же причине: это две настройки того, как
  * кабинет ЧИТАЕТСЯ, и человек, который ищет одну, находит вторую. На мониторе
@@ -168,10 +168,10 @@ export function FontScalePicker({
             >
               {/*
                 Ступень показана своим же размером — она и есть образец того,
-                что получится. Читать «Очень крупный» мелкими буквами и гадать,
+                что получится. Читать «Крупный» мелкими буквами и гадать,
                 насколько крупный, не приходится.
               */}
-              <span className={cn(step === 'normal' && 'text-sm', step === 'large' && 'text-base', step === 'huge' && 'text-lg')}>
+              <span className={cn(step === 'normal' && 'text-sm', step === 'large' && 'text-base')}>
                 {t(`fontScale.${step}`)}
               </span>
               {step === scale && <Check className="ml-auto size-4 shrink-0" aria-hidden="true" />}

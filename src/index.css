@@ -30,25 +30,37 @@
   --color-canvas: #F5F2EC;
   --color-surface: #FFFFFF;
   --color-sunk: #FAF8F4;
-  --color-hairline: #ECE6DC;
-  --color-line: #E2DBD0;
+  --color-hairline: #E6E0D4;
+  --color-line: #D9D2C5;
+  /* Рамка поля ввода: не ниже 3:1 к бумаге и карточке (WCAG 1.4.11) — `line` даёт 1,5:1, поле терялось. */
+  --color-field-line: #8E887D;
   --color-ink: #1A1917;
-  --color-ink-muted: #5C5A55;
-  --color-ink-subtle: #6F6B64;
+  --color-ink-muted: #57534C;
+  /* #67625A — с запасом к 4,5:1 и на бумаге «в тон фирменному» (src/supplier/supplierTheme.ts, `brandPaper`). */
+  --color-ink-subtle: #67625A;
   /* Не светлее 4,5:1 на бумаге: этим цветом набраны подсказки полей и даты. */
-  --color-ink-faint: #736E65;
+  --color-ink-faint: #67625A;
   /*
    * Акцент — фирменный цвет поставщика. Здесь стоит цвет платформы; выбравший
    * свой поставщик перекрывает всю семью (src/supplier/supplierTheme.ts).
    * `ink` — тот же цвет, притемнённый для текста на мягкой подложке,
    * `hover` — заливка кнопки под курсором.
    */
-  --color-accent: #015640;
+  /*
+   * Значки плиток «Главной» и нижнего меню — цвет платформы, а не поставщика: в
+   * src/supplier/supplierTheme.ts его нет, и своим цветом продавец его не
+   * перекрашивает (решение владельца 2026-10-30).
+   */
+  /* Тот же цвет, что `accent`: им набрана и подпись активного пункта нижнего меню (#2E8B6E давал 4,2:1). */
+  --color-home-icon: #26725A;
+  /* Кнопки и ссылки — тот же общий цвет; продавец их не перекрашивает (решение владельца 2026-10-30). */
+  /* #26725A — 5,8:1 с белой надписью (прежний #2E8B6E давал 4,2:1 и не проходил AA). */
+  --color-accent: #26725A;
   /* Верх заливки главной кнопки: тот же акцент, чуть светлее. */
-  --color-accent-top: #1F6A57;
-  --color-accent-soft: #DBE7E4;
-  --color-accent-ink: #014332;
-  --color-accent-hover: #014734;
+  --color-accent-top: #3A8069;
+  --color-accent-soft: #E2EFEB;
+  --color-accent-ink: #246C56;
+  --color-accent-hover: #1F5E4A;
   /*
    * Надпись на заливке акцентом и чернилами. Своими токенами, а не `white`:
    * в тёмной теме акцент и чернила светлые, и белая надпись на них пропала бы.
@@ -61,6 +73,8 @@
    * (жёлтый, мятный) src/supplier/supplierTheme.ts ставит тёмную.
    */
   --color-on-brand: #FFFFFF;
+  /* Цвет платформы (логотип Q-Order), а не магазина: «Все магазины» — над всеми магазинами сразу. */
+  --color-platform: #015640;
   --color-on-shop: #FFFFFF;
   /*
    * Фирменная полоса шапки. В светлой теме это сам акцент, в тёмной — цвет,
@@ -82,10 +96,19 @@
    * без опубликованного дизайна.
    */
   --color-shop: #015640;
+  /*
+   * Текст и ссылки цветом магазина. Сам `shop` — заливка и он бывает любым (жёлтый, неон);
+   * `shop-ink` — тот же оттенок, притемнённый (ночью — осветлённый) до 4,5:1 к бумаге
+   * (src/supplier/supplierTheme.ts, `styleTokens`).
+   */
+  --color-shop-ink: #015640;
+  /* Надпись на белой плашке, которая остаётся белой и ночью (кнопки поверх фото и фирменного цвета). */
+  --color-on-white: #1A1917;
   --color-accent2: #D5963A;
   --color-accent2-ink: #16171A;
   --color-brand-deep: #013C2D;
-  --color-in-stock: #2E7D4F;
+  /* #256B44: «В наличии» лежит на подложке своего же цвета (10%), и прежний #2E7D4F давал там 3,9:1. */
+  --color-in-stock: #256B44;
   --color-unclear: #C2820A;
   /* Текст «уточняется» — тот же янтарь, притемнённый до 4,5:1: сам `unclear` годится только для заливок и значков. */
   --color-unclear-ink: #8A5A00;
@@ -100,6 +123,11 @@
   --color-sale-soft: #FCEBDD;
   --color-sale-line: #F4DCC8;
   --color-sale-text: #5C3A22;
+  /*
+   * Надпись на заливке скидкой (счётчики, бейджи, кнопки). Днём белая, ночью
+   * тёмная: оранжевый тёмной темы светлее, и белые цифры на нём давали 3,2:1.
+   */
+  --color-on-sale: #FFFFFF;
   /*
    * Цена не за штуку — упаковки, коробки, линейки (решение владельца 2026-10-28): своим цветом,
    * чтобы её не приняли за розничную. Синий — не чёрный розницы, не оранжевый скидки и не
@@ -116,6 +144,19 @@
    * а не выгода и не поломка. Тёмный, чтобы белое «21+» читалось.
    */
   --color-adult: #8A2433;
+  /* Звёзды рейтинга и полосы оценок — один янтарь на весь кабинет. */
+  --color-star: #D97706;
+  --color-star-soft: #E0A04A;
+  /*
+   * Подсветка найденного в поиске: подложка и текущее совпадение. Текст на них
+   * всегда тёмный (`on-mark`) — и ночью: светлые чернила тёмной темы на жёлтом
+   * не читаются (1:1), а белый на янтаре давал 2:1.
+   */
+  --color-mark: #FDE68A;
+  --color-mark-current: #F59E0B;
+  --color-on-mark: #1A1917;
+  /* Кнопка WhatsApp: фирменный #25D366 с белой надписью даёт 2:1 — взят тот же зелёный, притемнённый до 5,4:1. */
+  --color-whatsapp: #177A43;
   /* Главная распродажа — тёмная плита с тёплым светлым текстом, как в макете. */
   --color-night: #1A1917;
   --color-night-sub: #D9D2C6;
@@ -140,17 +181,28 @@
   --color-bar-line: #C7DAD5;
 
   /*
-   * Шкала текста — пять ступеней, которыми набрано почти всё в кабинете.
+   * Шкала текста — шесть ступеней, которыми набрано почти всё в кабинете.
    * В rem, а не в точках: переключатель «Aa» меняет размер корня, и текст,
    * набранный точками, оставался мелким у того, кто просил крупный.
    * `2xs` — метки и счётчики, `caption` — подписи и даты, `body` — основной
-   * текст строк и карточек, `lead` — крупный текст, `title` — заголовок блока.
+   * текст строк и карточек, `lead` — крупный текст, `title` — заголовок блока,
+   * `display` — заголовок экрана и раздела на мониторе и крупный итог суммы
+   * (на телефоне те же заголовки набраны `title`).
    */
   --text-2xs: 0.6875rem;
   --text-caption: 0.8125rem;
   --text-body: 0.9375rem;
   --text-lead: 1.0625rem;
   --text-title: 1.375rem;
+  --text-display: 1.75rem;
+  /*
+   * Крупные цифры — не текст, а витрина: `hero` — название и цена товара на мониторе,
+   * остаток долга, код вступления, скидка баннера; `jumbo` — цена товара и код выдачи
+   * крупным планом. Витринный заголовок баннера (3,5rem) и цифра рейтинга (4,25rem) —
+   * единичные, своей ступени не заводят.
+   */
+  --text-hero: 2.25rem;
+  --text-jumbo: 2.875rem;
 
   --font-sans: 'Onest Variable', 'Inter Variable', system-ui, sans-serif;
   /*
@@ -167,10 +219,10 @@
    */
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --radius-control: 14px;
-  --radius-tile: 16px;
-  --radius-card: 22px;
-  --radius-gallery: 24px;
+  --radius-control: 18px;
+  --radius-tile: 22px;
+  --radius-card: 24px;
+  --radius-gallery: 28px;
   /*
    * Малое скругление шаблона (знак магазина, поле поиска и кнопки шапки
    * в макете) и скругление «пилюль» — чипов, бейджей, счётчиков.
@@ -200,7 +252,7 @@
   --shadow-float: 0 6px 16px -6px rgb(74 58 36 / 0.16), 0 28px 56px -28px rgb(74 58 36 / 0.5);
   /* Отдельно — свечение под акцентной кнопкой: тень у неё своего цвета,
      иначе терракотовая заливка стоит на сером пятне. */
-  --shadow-accent: 0 4px 10px -4px rgb(1 86 64 / 0.4), 0 14px 28px -14px rgb(1 86 64 / 0.55);
+  --shadow-accent: 0 4px 10px -4px rgb(38 114 90 / 0.4), 0 14px 28px -14px rgb(38 114 90 / 0.55);
 
   /*
    * Кривые движения.
@@ -251,13 +303,13 @@
   --ui-scale: 1;
   /*
    * Край и тень карточек. Шаблон выбирает одно из трёх — линия, тень или
-   * ничего (src/supplier/supplierTheme.ts); без шаблона карточка, как
-   * и раньше, лежит на бумаге с линией и мягкой тенью.
+   * ничего (src/supplier/supplierTheme.ts). «Вариант Б»: плоская карточка с линией в 2 точки,
+   * без тени — край видно и при слабом зрении, тень на бумаге читалась грязью.
    */
   --card-border: var(--color-hairline);
   --card-border-hover: var(--color-line);
-  --card-shadow: var(--shadow-soft);
-  --card-shadow-hover: var(--shadow-lift);
+  --card-shadow: none;
+  --card-shadow-hover: none;
 }
 
 /*
@@ -280,14 +332,16 @@ html[data-theme='dark'] {
   --color-sunk: #16171A;
   --color-hairline: #2C2E33;
   --color-line: #3A3C42;
+  --color-field-line: #6B6F77;
   --color-ink: #ECEAE4;
   --color-ink-muted: #A3A7AE;
-  --color-ink-subtle: #8F949B;
-  --color-ink-faint: #8A8F96;
+  --color-ink-subtle: #9196A0;
+  --color-ink-faint: #9196A0;
   --color-accent: #80ABA0;
   --color-accent-top: #8FB5AB;
   --color-accent-soft: #11322C;
   --color-accent-ink: #B3CCC6;
+  --color-home-icon: #B3CCC6;
   --color-accent-hover: #97BAB1;
   --color-on-accent: #141414;
   --color-on-ink: #141414;
@@ -307,6 +361,7 @@ html[data-theme='dark'] {
   --color-sale-soft: #3A2217;
   --color-sale-line: #5A3321;
   --color-sale-text: #F2CBAE;
+  --color-on-sale: #141414;
   --color-adult: #A8364A;
   --color-night: #26272C;
   --color-night-sub: #D9D2C6;
@@ -327,9 +382,11 @@ html[data-theme='dark'] {
 }
 
 html, body, #root { height: 100%; }
+/* Место под полосу прокрутки занято всегда: короткая страница без полосы не сдвигает шапку вбок. */
+html { scrollbar-gutter: stable; }
 
 /*
- * Размер интерфейса — три ступени на корне страницы.
+ * Размер интерфейса — две ступени на корне страницы.
  *
  * Меняется размер шрифта КОРНЯ, а не текста: высоты кнопок, поля ввода
  * и промежутки заданы в `rem`, и вместе с буквами растут цели под палец.
@@ -341,12 +398,25 @@ html, body, #root { height: 100%; }
  * ступень, применённая после отрисовки, мигнула бы мелким шрифтом тому
  * самому человеку, который выбрал крупный.
  *
- * Шаги не круглые проценты, а точки: 16 → 18 → 20,5. Круглые давали дробные
+ * Шаги не круглые проценты, а точки: 19 → 21,5 → 24. Круглые давали дробные
  * высоты у всего разом, и волосяные линии разъезжались на полпикселя.
+ *
+ * «Обычный» — 16px, как у сайтов (просьба владельца 2026-11-06: при «Обычном» всё было слишком
+ * крупным). Прежняя база «Варианта Б» — 19px для людей, далёких от интернета, — теперь
+ * ступень «Крупный»: кому нужно крупнее, включает её в «Aa». Всё в rem — меняется разом всё.
  */
 html { font-size: calc(16px * var(--ui-scale)); }
-html[data-font-scale='large'] { font-size: calc(18px * var(--ui-scale)); }
-html[data-font-scale='huge'] { font-size: calc(20.5px * var(--ui-scale)); }
+html[data-font-scale='large'] { font-size: calc(19px * var(--ui-scale)); }
+
+/*
+ * Телефон — на ступень мельче монитора (просьба владельца 2026-11-05): на узком экране 19px
+ * раздували строки фильтров и подписи. Всё в rem, поэтому мельче становится всё разом;
+ * ступени «Aa» сохраняют соотношение. Поля ввода всё равно не мельче 16 точек — правило ниже.
+ */
+@media (max-width: 1023.98px) {
+  html { font-size: calc(16px * var(--ui-scale)); }
+  html[data-font-scale='large'] { font-size: calc(18px * var(--ui-scale)); }
+}
 
 /*
  * Поле на телефоне — не мельче 16 точек: iOS Safari увеличивает страницу,
@@ -388,7 +458,7 @@ html[data-font-scale='huge'] { font-size: calc(20.5px * var(--ui-scale)); }
  */
 @layer components {
   .qo-card {
-    border: 1px solid var(--card-border);
+    border: 2px solid var(--card-border);
     box-shadow: var(--card-shadow);
   }
   .qo-card-hover:hover {
@@ -444,17 +514,19 @@ html[data-font-scale='huge'] { font-size: calc(20.5px * var(--ui-scale)); }
    */
   /* Заголовок экрана — один на все разделы, а не копия классов в каждом. */
   .qo-page-title {
-    font-size: 1.625rem;
+    /* Ступени шкалы, как у остальных заголовков экранов: на телефоне `title`, на мониторе `display`. */
+    font-size: var(--text-title);
     font-weight: 800;
     letter-spacing: -0.02em;
     color: var(--color-ink);
   }
   @media (min-width: 64rem) {
-    .qo-page-title { font-size: 2.125rem; }
+    .qo-page-title { font-size: var(--text-display); }
   }
 
   .qo-hit { position: relative; }
-  .qo-hit::after {
+  /* ::before, а не ::after: у залитых кнопок ::after занят бликом (`qo-shine`). */
+  .qo-hit::before {
     content: '';
     position: absolute;
     left: 50%;
@@ -530,6 +602,9 @@ html[data-theme='dark'] body::before {
 @keyframes qo-sheet-out-bottom { from { transform: none; } to { transform: translateY(100%); } }
 @keyframes qo-sheet-in-left    { from { transform: translateX(-100%); } to { transform: none; } }
 @keyframes qo-sheet-out-left   { from { transform: none; } to { transform: translateX(-100%); } }
+@keyframes qo-sheet-in-right   { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes qo-sheet-out-right  { from { transform: none; } to { transform: translateX(100%); } }
+@keyframes qo-menu-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
 @keyframes qo-scrim-in  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes qo-scrim-out { from { opacity: 1; } to { opacity: 0; } }
 
@@ -564,6 +639,8 @@ html[data-theme='dark'] body::before {
 }
 .qo-sheet[data-side='left'][data-state='open']     { animation: qo-sheet-in-left    300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
 .qo-sheet[data-side='left'][data-state='closed']   { animation: qo-sheet-out-left   300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.qo-sheet[data-side='right'][data-state='open']    { animation: qo-sheet-in-right   300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+.qo-sheet[data-side='right'][data-state='closed']  { animation: qo-sheet-out-right  300ms cubic-bezier(0.22, 0.61, 0.36, 1); }
 .qo-scrim[data-state='open']   { animation: qo-scrim-in  200ms ease-out; }
 .qo-scrim[data-state='closed'] { animation: qo-scrim-out 200ms ease-out; }
 .qo-dialog[data-state='open']  { animation: qo-dialog-in 200ms cubic-bezier(0.22, 0.61, 0.36, 1); }
@@ -748,7 +825,7 @@ html[data-theme='dark'] body::before {
    * уменьшенная и бледная подложка. Поэтому им не короткая длительность,
    * а отсутствие анимации: пусть стоят там, где нарисованы.
    */
-  .animate-shimmer, .animate-sheen, body::before, .qo-backdrop::before, .qo-backdrop::after,
+  .animate-shimmer, .animate-sheen, body::before,
   .qo-tile-float, .qo-tile-glow, .qo-tile-glass, .qo-announce-track, .qo-badges > *, .qo-display {
     animation: none !important;
   }
@@ -855,3 +932,33 @@ html[data-theme='dark'] body::before {
 @media (prefers-reduced-motion: reduce) {
   .qo-arrivals-hot { animation: none; }
 }
+
+/* Живой значок части дня у приветствия «Главной» — тот же, что в кабинете менеджера. */
+@keyframes qo-sky-rise { from { transform: translateY(9px); } to { transform: translateY(0); } }
+@keyframes qo-sky-rays { 0%, 40% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes qo-sky-turn { from { transform: rotate(-30deg); } to { transform: rotate(0); } }
+@keyframes qo-sky-set { from { transform: translateY(-3px); } to { transform: translateY(5px); } }
+@keyframes qo-sky-moon { from { opacity: 0; transform: translate(10px, -6px) rotate(-20deg); } to { opacity: 1; transform: translate(0, 0) rotate(0); } }
+@keyframes qo-sky-twinkle { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+@keyframes qo-sky-spin { to { transform: rotate(360deg); } }
+@keyframes qo-sky-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
+@keyframes qo-sky-sway { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+.qo-sky * { transform-box: fill-box; transform-origin: center; }
+.qo-sky .rise { animation: qo-sky-rise 1.4s ease-out .3s both; }
+.qo-sky .rays { animation: qo-sky-rays 1.6s ease-out .3s both; }
+.qo-sky .turn { animation: qo-sky-turn 1.6s ease-out .3s both; }
+.qo-sky .set { animation: qo-sky-set 1.6s ease-in-out .3s both; }
+.qo-sky .moon { animation: qo-sky-moon 1.2s ease-out .3s both; }
+.qo-sky .star { animation: qo-sky-twinkle 1.8s ease-in-out .9s infinite both; }
+.qo-sky .star + .star { animation-delay: 1.5s; }
+.qo-sky .live-spin { animation: qo-sky-spin 12s linear 1.9s infinite; }
+.qo-sky .live-bob { animation: qo-sky-bob 4s ease-in-out 1.9s infinite; }
+.qo-sky .live-sway { animation: qo-sky-sway 6s ease-in-out 1.5s infinite; }
+@media (prefers-reduced-motion: reduce) { .qo-sky * { animation: none !important; } }
+
+/*
+ * Текст цветом магазина (`shop-ink`) в тёмной теме — светлее: сам цвет магазина рассчитан на светлый фон,
+ * и ссылки «Изменить товары», «Подробнее» на тёмной бумаге почти пропадали. Оттенок магазина
+ * сохраняется, фоны и рамки цветом магазина не трогаются.
+ */
+html[data-theme='dark'] { --color-shop-ink: color-mix(in srgb, var(--color-shop) 40%, white); }

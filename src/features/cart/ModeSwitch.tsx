@@ -5,16 +5,19 @@ import type { CartLineDtoMode } from '../../api/generated';
 
 export type SaleMode = CartLineDtoMode;
 
-const MODES: SaleMode[] = ['RETAIL', 'WHOLESALE'];
+// Порядок как у «Оптом / В розницу» в верхней панели каталога (просьба владельца 2026-11-06).
+const MODES: SaleMode[] = ['WHOLESALE', 'RETAIL'];
 
 /**
- * «В розницу / Оптом» — у позиции, которая продаётся и так, и так (backend.md §18.32).
+ * «Оптом / В розницу» — у позиции, которая продаётся и так, и так (backend.md §18.32).
  * Две кнопки с `aria-pressed`, как отбор «канала» в каталоге: вариантов два, меню ради них — лишнее нажатие.
  * `notes` — вторая строка под словом (цена в карточке); в корзине её нет.
  */
-export function ModeSwitch({ value, onChange, disabled, notes, className }: {
+export function ModeSwitch({ value, onChange, onPick, disabled, notes, className }: {
   value: SaleMode;
   onChange: (mode: SaleMode) => void;
+  /** Нажата любая из двух — и выбранная тоже (карточка листает к её блоку). */
+  onPick?: (mode: SaleMode) => void;
   disabled?: boolean;
   notes?: Record<SaleMode, ReactNode>;
   className?: string;
@@ -25,7 +28,7 @@ export function ModeSwitch({ value, onChange, disabled, notes, className }: {
       className={cn('grid grid-cols-2 rounded-[var(--radius-control)] border-[1.5px] border-line bg-surface p-0.5', className)}>
       {MODES.map((mode) => (
         <button key={mode} type="button" aria-pressed={value === mode} disabled={disabled}
-          onClick={() => { if (value !== mode) onChange(mode); }}
+          onClick={() => { onPick?.(mode); if (value !== mode) onChange(mode); }}
           className={cn(
             'flex min-h-10 flex-col items-center justify-center rounded-[calc(var(--radius-control)-2px)] px-2 py-1 text-sm font-semibold',
             'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60',

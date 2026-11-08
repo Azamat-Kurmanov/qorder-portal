@@ -49,6 +49,18 @@ describe('Выбор варианта товара', () => {
     expect(screen.getByTestId('opened')).toHaveTextContent('b');
   });
 
+  it('цвет кружком по цвету продавца — и для названия, которого нет в таблице («Изумрудный»)', () => {
+    const coloured = (itemId: string, name: string, hex?: string) => ({
+      itemId, price: 7200,
+      fields: [{ code: 'COLOUR', name: 'Цвет', type: 'OPTION', value: name, ...(hex ? { hex } : {}) }],
+    }) as ShowcaseVariantDto;
+    renderPicker('a', [coloured('a', 'Бежевый'), coloured('b', 'Изумрудный', '#2E8B6E')]);
+
+    expect(screen.getByRole('button', { name: 'Цвет: Изумрудный' })).toHaveStyle({ background: '#2E8B6E' });
+    // Без цвета продавца — по названию, как раньше.
+    expect(screen.getByRole('button', { name: 'Цвет: Бежевый' })).toHaveStyle({ background: '#D8CFC2' });
+  });
+
   it('цвет кружками и смена цвета сохраняет размер', async () => {
     renderPicker('a', [
       variant('a', 'M', 'Чёрный'), variant('b', 'L', 'Чёрный'),

@@ -218,20 +218,20 @@ function Tour({ screen, steps, onEnd }: { screen: GuideScreen; steps: { key: str
       }}
     >
       <span className="text-xs font-semibold text-ink-muted">{t('guide.tour.step', { n: index + 1, total: steps.length })}</span>
-      <p className="text-[15px] leading-relaxed text-ink">{t(`guide.${screen}.${step.key}`)}</p>
+      <p className="text-body leading-relaxed text-ink">{t(`guide.${screen}.${step.key}`)}</p>
       <div className="flex items-center gap-2">
-        <button type="button" onClick={onEnd} className="text-[13px] text-ink-muted hover:text-ink">
+        <button type="button" onClick={onEnd} className="text-caption text-ink-muted hover:text-ink">
           {t('guide.tour.close')}
         </button>
         <span className="ml-auto" />
         {index > 0 ? (
           <button type="button" onClick={() => setIndex(index - 1)}
-            className="h-10 rounded-[var(--radius-control)] border border-hairline px-3 text-[13px] font-semibold text-ink">
+            className="h-10 rounded-[var(--radius-control)] border border-hairline px-3 text-caption font-semibold text-ink">
             {t('guide.tour.back')}
           </button>
         ) : null}
         <button ref={next} type="button" onClick={() => (last ? onEnd() : setIndex(index + 1))}
-          className="h-10 rounded-[var(--radius-control)] bg-accent px-4 text-[13px] font-semibold text-on-accent">
+          className="h-10 rounded-[var(--radius-control)] bg-accent px-4 text-caption font-semibold text-on-accent">
           {t(last ? 'guide.tour.done' : 'guide.tour.next')}
         </button>
       </div>
@@ -302,7 +302,7 @@ export function HelpGuide({ className }: { className?: string }) {
                 const list = tourSteps.map(({ key, target }) => ({ key, target }));
                 window.setTimeout(() => setTouring(list), 250);
               }}
-              className="inline-flex h-11 items-center gap-2 self-start rounded-[var(--radius-control)] bg-accent px-4 text-[15px] font-semibold text-on-accent"
+              className="inline-flex h-11 items-center gap-2 self-start rounded-[var(--radius-control)] bg-accent px-4 text-body font-semibold text-on-accent"
             >
               <ArrowRight className="size-4" aria-hidden="true" />
               {t('guide.tour.start')}
@@ -339,7 +339,7 @@ export function HelpGuide({ className }: { className?: string }) {
                   )}>
                     <step.icon className="size-5" aria-hidden="true" />
                   </span>
-                  <span className={cn('text-[11px] leading-tight', index === active ? 'font-bold text-ink' : 'text-ink-muted')}>
+                  <span className={cn('text-2xs leading-tight', index === active ? 'font-bold text-ink' : 'text-ink-muted')}>
                     {index + 1}. {t(`guide.${screen}.${step.flow}`)}
                   </span>
                 </button>
@@ -353,7 +353,7 @@ export function HelpGuide({ className }: { className?: string }) {
             return (
               <div role="tabpanel" id="guide-step" aria-labelledby={`guide-tab-${active}`} className="flex flex-col gap-3">
                 <span className="text-xs font-semibold text-ink-muted">{t('guide.tour.step', { n, total: steps.length })}</span>
-                <p className="text-[15px] font-semibold leading-relaxed text-ink">{t(`guide.${screen}.s${n}`)}</p>
+                <p className="text-body font-semibold leading-relaxed text-ink">{t(`guide.${screen}.s${n}`)}</p>
                 {has('r') ? (
                   <p className="flex items-start gap-2 text-sm leading-relaxed text-ink">
                     <Check aria-hidden="true" className="mt-1 size-4 shrink-0 text-accent" />
@@ -377,7 +377,7 @@ export function HelpGuide({ className }: { className?: string }) {
                   <button
                     type="button"
                     onClick={() => show(step.target!)}
-                    className="inline-flex h-9 items-center gap-1.5 self-start rounded-full border border-hairline px-3 text-[13px] font-semibold text-accent hover:border-accent"
+                    className="qo-hit inline-flex h-9 items-center gap-1.5 self-start rounded-full border border-hairline px-3 text-caption font-semibold text-accent hover:border-accent"
                   >
                     <Eye className="size-4" aria-hidden="true" />
                     {t('guide.show')}
@@ -417,5 +417,16 @@ export function HelpGuide({ className }: { className?: string }) {
       </Sheet>
       {touring ? <Tour screen={screen} steps={touring} onEnd={() => setTouring(null)} /> : null}
     </>
+  );
+}
+
+/**
+ * «Как пользоваться» в строке заголовка страницы — на телефоне: шапки оболочки там нет.
+ * На мониторе та же кнопка стоит в шапке (ClientBar), поэтому здесь она скрыта.
+ */
+export function PageHelp({ className }: { className?: string }) {
+  return (
+    // На телефоне — компактно (просьба владельца 2026-11-06): значок справки не теснит заголовок и переключатели.
+    <HelpGuide className={cn('size-9 rounded-[0.75rem] border-2 border-line bg-surface lg:hidden [&_svg]:size-[1.125rem]', className)} />
   );
 }

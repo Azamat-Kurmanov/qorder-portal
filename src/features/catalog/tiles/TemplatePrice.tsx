@@ -13,7 +13,7 @@ const SIZES = {
   sm: 'text-base',
   md: 'text-lg',
   lg: 'text-xl',
-  xl: 'text-[1.375rem]',
+  xl: 'text-title',
 } as const;
 
 /**
@@ -45,11 +45,13 @@ export function TemplatePrice({
     <span className={cn('flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5', className)}>
       <b className={cn('whitespace-nowrap font-extrabold tabular-nums', SIZES[size], priceClass(look, sale, onImage),
         // Цена упаковки у товара «только опт» — цветом опта, чтобы её не приняли за розничную.
-        !sale && !onImage && saleChannel(item) === 'wholesale' && 'text-wholesale')}>
+        !sale && !onImage && saleChannel(item) === 'wholesale' && 'text-wholesale',
+        // Скидка: новая цена — зелёным, старая — зачёркнута красной линией (решение владельца 2026-10-30).
+        sale && !onImage && 'text-ok-ink')}>
         {money(item.price, currency)}
       </b>
       {sale && (
-        <s className={cn('whitespace-nowrap text-xs font-medium tabular-nums', onImage ? 'text-white/70' : 'text-ink-muted')}>
+        <s className={cn('whitespace-nowrap text-xs font-medium tabular-nums decoration-sale decoration-2', onImage ? 'text-white/70' : 'text-ink-muted')}>
           {money(item.oldPrice!, currency)}
         </s>
       )}

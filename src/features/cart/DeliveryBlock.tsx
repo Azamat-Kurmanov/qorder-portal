@@ -19,11 +19,12 @@ import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import type { Currency } from '../../shared/currency';
 import { money } from '../../shared/format';
 import { CarrierChoice } from './CarrierChoice';
-import { paysCarrierDirectly } from './carrier';
+import { ownCarrierChosen, paysCarrierDirectly } from './carrier';
 import { LoadersChoice } from './LoadersChoice';
 import { MapPointField } from '../maps/MapPointField';
 import { MapViewButton } from '../maps/MapViewButton';
 import { pointOf } from '../maps/mapProvider';
+import { CHIP_ROW } from '../../ui/chipRow';
 import type { LoadersLine } from './loaders';
 
 interface DeliveryBlockProps {
@@ -33,6 +34,16 @@ interface DeliveryBlockProps {
   onChange: (next: SubmitOrderDelivery) => void;
   /** Строки корзины — для предварительного расчёта грузчиков «за количество» и «за вес». */
   lines?: LoadersLine[];
+  /**
+   * Какая часть блока: всё сразу (монитор), «где и когда» или «грузчики и перевозчик» —
+   * на телефоне это два экрана шага «Как получить» (макеты SimplePicCheckoutDelivery / …Loaders).
+   */
+  part?: 'all' | 'where' | 'extras';
+}
+
+/** Есть ли у способа второй экран — грузчики или перевозчик. */
+export function hasDeliveryExtras(method: DeliveryOptionsDto['methods'][number] | undefined): boolean {
+  return !!method && !method.pickup && (!!method.loaders || (method.carriers ?? []).length > 0);
 }
 
 /** Привезут или заберёт сам — первое решение, а не один из способов в списке. */
@@ -66,7 +77,9 @@ export function useDeliveryOptions(): DeliveryOptionsDto | undefined {
  * до менеджера с неразрешённой доставкой, и он назовёт условия сам. Поэтому
  * блок ничего не блокирует и ни на что не жалуется.
  */
-export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: DeliveryBlockProps) {
+export function DeliveryBlock({ goodsTotal, value, onChange, lines = [], part = 'all' }: DeliveryBlockProps) {
+  const where = part !== 'extras';
+  const extras = part !== 'where';
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
   const options = useDeliveryOptions();
@@ -126,8 +139,10 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
 
   const zones = method?.zones ?? [];
   const zone = zones.find((candidate) => candidate.id === value.zoneId);
-  const shipping = deliveryPrice(method, goodsTotal, value.zoneId);
-  const missing = method && missingToFree(method, goodsTotal);
+  // Свой перевозчик клиента: тариф продавца не действует — цену называет перевозчик.
+  const own = ownCarrierChosen(method, value);
+  const shipping = own ? undefined : deliveryPrice(method, goodsTotal, value.zoneId);
+  const missing = own ? undefined : method && missingToFree(method, goodsTotal);
   const list = way === 'PICKUP' ? collected : shipped;
 
   /**
@@ -143,6 +158,18 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
     const branch = next === 'PICKUP' ? collected : shipped;
     onChange(branch.length === 1 ? { methodId: branch[0].id } : {});
   };
+
+  if (!where) {
+    if (way !== 'DELIVERY' || !hasDeliveryExtras(method)) return null;
+    return (
+      <Card className="flex flex-col gap-4 p-5" data-testid="delivery-extras">
+        {method && <CarrierChoice method={method} value={value} onChange={onChange} fieldClass={FIELD} />}
+        {method?.loaders && (
+          <LoadersChoice loaders={method.loaders} value={value} lines={lines} askFloor={!method.requiresFloor} onChange={onChange} />
+        )}
+      </Card>
+    );
+  }
 
   return (
     <Card className="flex flex-col gap-4 p-5 lg:p-6" data-testid="delivery">
@@ -195,24 +222,16 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
           )}
 
           {zones.length > 0 && (
-            <Field label={t('checkout.delivery.zone')}>
-              <select
-                value={value.zoneId ?? ''}
-                onChange={(event) =>
-                  onChange({ ...value, zoneId: event.currentTarget.value || undefined })}
-                className={FIELD}
-              >
-                <option value="">{t('checkout.delivery.chooseZone')}</option>
-                {zones.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name} · {money(candidate.price, currency)}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <ChipChoice
+              legend={t('checkout.delivery.zone')}
+              name="delivery-zone"
+              value={value.zoneId}
+              options={zones.map((candidate) => ({ value: candidate.id, label: `${candidate.name} · ${money(candidate.price, currency)}` }))}
+              onChange={(zoneId) => onChange({ ...value, zoneId })}
+            />
           )}
 
-          {way === 'DELIVERY' && method && (
+          {extras && way === 'DELIVERY' && method && (
             <CarrierChoice method={method} value={value} onChange={onChange} fieldClass={FIELD} />
           )}
 
@@ -255,43 +274,6 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
                 заполненным адресом предлагала бы заменить то, что человек
                 сам набрал, а не сэкономить ему набор с нуля.
               */}
-              {!value.address && suggestions.length > 0 && (
-                <div className="flex flex-col gap-1.5" data-testid="known-address-suggestions">
-                  <p className="text-xs text-ink-subtle">{t('checkout.delivery.addressHint')}</p>
-                  {suggestions.map((known) => (
-                    <button
-                      key={known.supplierId}
-                      type="button"
-                      onClick={() =>
-                        // Переносится только свободный текст — адрес, город,
-                        // этаж. Способ доставки, зона и точка самовывоза —
-                        // идентификаторы справочника соседнего поставщика,
-                        // у нового они указывают в никуда; окно и дата
-                        // принадлежат тому заказу, а не человеку.
-                        onChange({
-                          ...value,
-                          address: known.address,
-                          city: known.city,
-                          floor: known.floor,
-                          // Точка прежнего адреса не хранится — отметят заново.
-                          latitude: undefined,
-                          longitude: undefined,
-                        })}
-                      className={cn(
-                        'flex flex-col items-start gap-0.5 rounded-[var(--radius-tile)] border border-hairline',
-                        'px-3 py-2 text-left text-caption transition-all duration-300 hover:bg-sunk',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-                      )}
-                    >
-                      <span className="text-ink-subtle">{nameOf(known.supplierId)}</span>
-                      <span className="font-medium text-ink">
-                        {known.address}
-                        {known.city ? `, ${known.city}` : ''}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
               <Field label={t('checkout.delivery.address')}>
                 <input
                   type="text"
@@ -301,6 +283,36 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
                   className={FIELD}
                 />
               </Field>
+              {/*
+                «Уже называли» — адреса, которые клиент давал другим магазинам, кнопкой под полем (макет).
+                Переносится только свободный текст — адрес, город, этаж: способ, зона и точка соседнего
+                поставщика у нового указывают в никуда, а окно и дата принадлежат тому заказу.
+              */}
+              {/* Только над пустым полем: над набранным адресом подсказка предлагала бы заменить написанное. */}
+              {!value.address && suggestions.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2" data-testid="known-address-suggestions">
+                  <span className="text-sm text-ink-muted">{t('checkout.delivery.addressHint')}</span>
+                  {suggestions.map((known) => (
+                    <button
+                      key={known.supplierId}
+                      type="button"
+                      onClick={() => onChange({
+                        ...value,
+                        address: known.address,
+                        city: known.city,
+                        floor: known.floor,
+                        // Точка прежнего адреса не хранится — отметят заново.
+                        latitude: undefined,
+                        longitude: undefined,
+                      })}
+                      className="min-h-10 cursor-pointer rounded-2xl border-[3px] border-solid border-line bg-surface px-3 text-sm font-extrabold text-ink hover:border-shop focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      {known.address}{known.city ? `, ${known.city}` : ''}
+                      <span className="sr-only"> — {nameOf(known.supplierId)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {/*
                 Точка необязательна: адрес словами остаётся главным, а точка
                 помогает курьеру найти вход. Найденный картой адрес заменяет
@@ -334,49 +346,26 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
           )}
 
           {method && !method.pickup && (
-            // Дата и окно — один вопрос «когда»: разнесённые по разным строкам
-            // они читаются как два, и второй легко пропустить.
-            <div
-              data-testid="delivery-when"
-              className={cn(
-                'grid gap-2',
-                method.requiresTimeSlot && method.slots.length > 0 ? 'grid-cols-2' : 'grid-cols-1',
-              )}
-            >
-              <Field label={t('checkout.delivery.date')}>
-                <input
-                  type="date"
-                  value={value.date ?? ''}
-                  onChange={(event) =>
-                    onChange({ ...value, date: event.currentTarget.value || undefined })}
-                  className={FIELD}
-                />
-              </Field>
-
+            // Дата и окно — один вопрос «когда»: кнопками, как в макете SimplePicCheckoutDelivery.
+            <div data-testid="delivery-when" className="flex flex-col gap-3">
+              <DayChoice value={value.date} onChange={(date) => onChange({ ...value, date })} />
               {method.requiresTimeSlot && method.slots.length > 0 && (
-                <Field label={t('checkout.delivery.window')}>
-                  <select
-                    value={value.slot ?? ''}
-                    onChange={(event) =>
-                      onChange({ ...value, slot: event.currentTarget.value || undefined })}
-                    className={FIELD}
-                  >
-                    <option value="">{t('checkout.delivery.chooseWindow')}</option>
-                    {method.slots.map((slot) => (
-                      <option
-                        key={slotLabel(slot.fromTime, slot.toTime)}
-                        value={slotLabel(slot.fromTime, slot.toTime)}
-                      >
-                        {slotLabel(slot.fromTime, slot.toTime)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                <ChipChoice
+                  legend={t('checkout.delivery.window')}
+                  name="delivery-window"
+                  value={value.slot}
+                  options={method.slots.map((slot) => {
+                    const label = slotLabel(slot.fromTime, slot.toTime);
+                    return { value: label, label };
+                  })}
+                  onChange={(slot) => onChange({ ...value, slot })}
+                />
               )}
             </div>
           )}
 
-          {way === 'DELIVERY' && method && (
+          {/* На телефоне стоимость и «не хватает до бесплатной» стоят над «Дальше» (part='where'). */}
+          {part === 'all' && way === 'DELIVERY' && method && (
             <div
               data-testid="shipping-row"
               className="flex items-center justify-between text-caption"
@@ -384,17 +373,17 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
               <span className="text-ink-muted">{t('checkout.delivery.cost')}</span>
               <span className="font-semibold tabular-nums text-ink">
                 {shipping === undefined
-                  ? (paysCarrierDirectly(method) ? t('checkout.delivery.carrierTariff') : t('checkout.summary.negotiable'))
+                  ? (paysCarrierDirectly(method, value) ? t('checkout.delivery.carrierTariff') : t('checkout.summary.negotiable'))
                   : money(shipping, currency)}
               </span>
             </div>
           )}
 
-          {way === 'DELIVERY' && paysCarrierDirectly(method) && (
+          {way === 'DELIVERY' && paysCarrierDirectly(method, value) && (
             <p className="text-xs text-ink-subtle">{t('checkout.delivery.directNote')}</p>
           )}
 
-          {way === 'DELIVERY' && method?.loaders && (
+          {extras && way === 'DELIVERY' && method?.loaders && (
             <LoadersChoice
               loaders={method.loaders}
               value={value}
@@ -404,7 +393,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
             />
           )}
 
-          {missing !== undefined && (
+          {part === 'all' && missing !== undefined && (
             <p
               data-testid="missing-to-free"
               className="flex items-start gap-2 rounded-[var(--radius-tile)] bg-accent-soft px-3 py-2.5 text-xs text-accent"
@@ -422,7 +411,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [] }: Deliv
             </p>
           )}
 
-          {method?.negotiable && !paysCarrierDirectly(method) && (
+          {method?.negotiable && !paysCarrierDirectly(method, value) && (
             <p className="text-xs text-ink-subtle">
               {t('checkout.delivery.costLater')}
             </p>
@@ -521,6 +510,82 @@ function Choice({
   );
 }
 
+/** Выбор одного из нескольких — кнопками в ряд (листается вбок), как чипы макета «Вариант Б». */
+function ChipChoice({ legend, name, value, options, onChange }: {
+  legend: string;
+  name: string;
+  value: string | undefined;
+  options: { value: string; label: string }[];
+  onChange: (next: string) => void;
+}) {
+  return (
+    <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+      <legend className="mb-2 p-0 text-lead font-extrabold text-ink">{legend}</legend>
+      <div className={cn(CHIP_ROW, 'gap-2')}>
+        {options.map((option) => (
+          <Chip key={option.value} name={name} checked={value === option.value} onSelect={() => onChange(option.value)}>
+            {option.label}
+          </Chip>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function Chip({ name, checked, onSelect, children }: {
+  name: string; checked: boolean; onSelect: () => void; children: React.ReactNode;
+}) {
+  return (
+    <label className={cn(
+      'flex min-h-14 min-w-[4.5rem] cursor-pointer items-center justify-center rounded-2xl border-[3px] border-solid px-3.5 text-center text-body font-extrabold leading-tight',
+      'focus-within:ring-2 focus-within:ring-accent',
+      checked ? 'border-shop bg-shop text-on-shop' : 'border-line bg-surface text-ink',
+    )}>
+      <input type="radio" name={name} checked={checked} onChange={onSelect} className="sr-only" />
+      {children}
+    </label>
+  );
+}
+
+/** Дата «2026-11-07» по местному времени — не через toISOString, иначе ночью уезжает на день. */
+function isoDay(offset: number): string {
+  const day = new Date();
+  day.setDate(day.getDate() + offset);
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+}
+
+/** «Когда»: сегодня, завтра, послезавтра кнопками; другой день — календарём. */
+function DayChoice({ value, onChange }: { value: string | undefined; onChange: (date: string | undefined) => void }) {
+  const { t, i18n } = useTranslation();
+  const days = [0, 1, 2].map((offset) => {
+    const iso = isoDay(offset);
+    const label = offset === 0 ? t('checkout.delivery.today') : offset === 1 ? t('checkout.delivery.tomorrow')
+      : new Date(`${iso}T00:00:00`).toLocaleDateString(i18n.language, { weekday: 'short', day: 'numeric', month: 'long' });
+    return { value: iso, label: label.charAt(0).toUpperCase() + label.slice(1) };
+  });
+  const [other, setOther] = useState(() => !!value && !days.some((day) => day.value === value));
+  return (
+    <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+      <legend className="mb-2 p-0 text-lead font-extrabold text-ink">{t('checkout.delivery.date')}</legend>
+      <div className={cn(CHIP_ROW, 'gap-2')}>
+        {days.map((day) => (
+          <Chip key={day.value} name="delivery-day" checked={!other && value === day.value}
+            onSelect={() => { setOther(false); onChange(day.value); }}>
+            {day.label}
+          </Chip>
+        ))}
+        <Chip name="delivery-day" checked={other} onSelect={() => { setOther(true); onChange(undefined); }}>
+          {t('checkout.delivery.otherDay')}
+        </Chip>
+      </div>
+      {other && (
+        <input type="date" aria-label={t('checkout.delivery.otherDay')} value={value ?? ''} min={isoDay(0)}
+          onChange={(event) => onChange(event.currentTarget.value || undefined)} className={FIELD} />
+      )}
+    </fieldset>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex min-w-0 flex-col gap-1">
@@ -567,7 +632,7 @@ function priceOf(method: Method, t: TFunction, currency: Currency | undefined): 
  * Пусто, когда порога нет или он уже пройден: «не хватает 0 тенге» человек читает
  * как поломку, а не как хорошую новость.
  */
-function missingToFree(method: Method, goodsTotal: number): number | undefined {
+export function missingToFree(method: Method, goodsTotal: number): number | undefined {
   if (method.freeFromAmount === undefined) return undefined;
   const missing = method.freeFromAmount - goodsTotal;
   return missing > 0 ? missing : undefined;

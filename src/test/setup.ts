@@ -59,6 +59,8 @@ beforeEach(async () => {
   // звёздочка, поставленная одной проверкой, досталась бы следующей.
   resetCartDrawer();
   resetShopMemory();
+  // «Оптом / В розницу» помнится по магазину в хранилище — выбор одной проверки не достаётся соседям.
+  Object.keys(window.localStorage).filter((key) => key.startsWith('qo.orderMode.') || key.startsWith('qo.cartUnpicked.')).forEach((key) => window.localStorage.removeItem(key));
   // Тема живёт признаком на корне страницы и в хранилище, а корень в jsdom
   // переживает границу проверки: тёмная тема одной не должна достаться другой.
   window.localStorage.removeItem('q-order.portal.theme');

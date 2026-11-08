@@ -166,7 +166,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * ответа на вопрос «что сейчас в поле». Правило при этом обязано быть одно,
  * поэтому проверку зовут оба.
  */
-function faultOf(rule: FieldRule | undefined, value: string): FieldFault | undefined {
+export function faultOf(rule: FieldRule | undefined, value: string): FieldFault | undefined {
   if (!rule) return undefined;
   const trimmed = value.trim();
   if (rule.required && trimmed === '') return { rule: 'required' };

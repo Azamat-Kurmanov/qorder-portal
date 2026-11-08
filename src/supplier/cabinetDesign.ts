@@ -3,7 +3,6 @@ import registry from './cabinetTemplates.json';
 import { todaysLook } from '../ui/motion/seasonalLook';
 import festive from './cabinetOccasions.json';
 import { useSupplier } from './useSupplier';
-import { useWideScreen } from '../ui/useWideScreen';
 import type { MotionChoice } from '../ui/motion/motionLevel';
 
 /**
@@ -92,23 +91,16 @@ export const CABINET_TEMPLATES: Record<string, CabinetTemplate> = Object.fromEnt
     .map(([code, target]) => [code, OWN_TEMPLATES.find(([id]) => id === target)![1]] as const),
 ]);
 
-/** Код живого фона — как в перечислении сервера (`CabinetBackdrop`). */
-export type CabinetBackdropCode = 'GLOW' | 'SHIMMER' | 'HORIZON' | 'PARTICLES' | 'BLOBS' | 'SPOTLIGHT' | 'SCROLLTINT'
-  | 'AURORA' | 'WAVES' | 'RAYS' | 'BUBBLES' | 'STARS' | 'MESH' | 'STRIPES' | 'RIPPLE'
-  | 'SNOW' | 'PETALS' | 'SUNSHINE' | 'LEAVES' | 'GARLAND' | 'FIREWORKS' | 'CONFETTI' | 'BALLOONS' | 'HEARTS' | 'SALE_TAGS'
-  | 'SEASON' | 'NONE';
-
 /**
  * Характер живой темы (этап 1 — только данные; экраны переходят на них в этапах 3–4).
- * `bannerSkin` — одежда баннеров, `display` — крупный заголовок, `backdrop` и
- * `motion` — значения по умолчанию, если продавец не выбрал своё.
+ * `bannerSkin` — одежда баннеров, `display` — крупный заголовок, `motion` —
+ * значение по умолчанию, если продавец не выбрал своё.
  */
 export interface MotionStyle extends Omit<TemplateStyle, 'hero' | 'tile'> {
   hero: string;
   tile: 'glass' | 'tilt' | 'float' | 'glow' | 'jelly' | 'outline' | 'swap' | 'plain';
   cta: 'pill' | 'solid' | 'glow' | 'jelly' | 'ghost';
   display: { weight: number; tracking: number };
-  backdrop: CabinetBackdropCode;
   motion: 'CALM' | 'LIVELY' | 'VIVID';
   announce: boolean;
   bannerSkin: 'glass' | 'depth' | 'neon' | 'soft' | 'studio' | 'lookbook';
@@ -149,8 +141,6 @@ export interface ResolvedDesign {
   style: MotionStyle | null;
   /** Повод праздничного оформления, если сегодня его дни; `null` — без праздника. */
   occasion: string | null;
-  /** Живой фон за содержимым: выбор продавца, иначе тема; `NONE` — без фона. */
-  backdrop: CabinetBackdropCode;
   /** Сколько движения выбрал продавец (итог считает `useMotionLevel`). */
   motion: MotionChoice;
   /** Узор фона по отрасли; `null` — без узора. */
@@ -180,7 +170,6 @@ export const LEGACY_DESIGN: ResolvedDesign = {
   dark: false,
   style: null,
   occasion: null,
-  backdrop: 'NONE',
   motion: 'LIVELY',
   pattern: null,
   photo: null,
@@ -196,9 +185,8 @@ export function resolveDesign(
   // Старые коды ведут на живую тему (`motionAliases`), неизвестный — на «Сияние».
   const template = design?.published ? motionTemplateOf(design.template) : undefined;
   const motionParts = {
-    backdrop: (design?.published && design.backdrop) || template?.style.backdrop || 'NONE',
     motion: (design?.published && design.motion) || template?.style.motion || 'LIVELY',
-  } satisfies Pick<ResolvedDesign, 'backdrop' | 'motion'>;
+  } satisfies Pick<ResolvedDesign, 'motion'>;
   if (!design || !template) {
     return {
       ...LEGACY_DESIGN,
@@ -224,30 +212,29 @@ export function resolveDesign(
     style: overlay ? { ...template.style, ...overlay } : template.style,
     occasion: overlay ? design.occasion! : null,
     ...motionParts,
-    // «По сезону» и праздник на свои даты — узор и живой фон на сегодня.
+    // «По сезону» и праздник на свои даты — узор на сегодня.
     ...todaysLook({
-      pattern: design.pattern, backdrop: motionParts.backdrop, photo: !!design.photo?.url,
+      pattern: design.pattern, photo: !!design.photo?.url,
       occasion: design.occasion, occasionFrom: design.occasionFrom, occasionUntil: design.occasionUntil,
       occasionBackground: design.occasionBackground,
-    }, today) as { pattern: string | null; backdrop: CabinetBackdropCode },
+    }, today),
     photo: design.photo?.url ? design.photo : null,
   };
 }
 
 /**
- * Дизайн для этой ширины экрана.
+ * Дизайн кабинета у клиента.
  *
- * На телефоне тема продавца не действует (решение владельца 2026-10-22):
- * кабинет такой же, как у продавца без опубликованного дизайна, — без живого
- * фона, узора, фото и особенностей темы. Цвет продавца остаётся: по нему
- * покупатель узнаёт свой магазин.
+ * Кабинет один для всех — «Вариант Б» канвы (решение владельца 2026-11-04;
+ * до этого так было только на телефоне): шаблон продавца не меняет ни раскладку,
+ * ни шрифты, ни фон — кабинет такой же, как у продавца без опубликованного
+ * дизайна. Цвет продавца остаётся: по нему клиент узнаёт свой магазин.
  */
 export function designFor(
   supplier: Pick<PortalSupplierDto, 'brandColor' | 'background' | 'design'> | null | undefined,
-  wide: boolean,
 ): ResolvedDesign {
   const full = resolveDesign(supplier);
-  if (wide || !supplier || !full.template) return full;
+  if (!supplier || !full.template) return full;
   return { ...resolveDesign({ ...supplier, design: undefined }), brand: full.brand };
 }
 
@@ -262,5 +249,5 @@ export function useCabinetDesign(): ResolvedDesign {
   const { supplierId } = useSupplier();
   const suppliers = useGetPortalSuppliers({ query: { refetchOnMount: false, retryOnMount: false } });
   const list = suppliers.data?.status === 200 ? suppliers.data.data : [];
-  return designFor(list.find((supplier) => supplier.supplierId === supplierId), useWideScreen());
+  return designFor(list.find((supplier) => supplier.supplierId === supplierId));
 }

@@ -54,24 +54,22 @@ describe('строки корзины', () => {
     expect(await screen.findByText(/ваша цена/)).toBeInTheDocument();
   });
 
-  it('«В розницу / Оптом» — только у строки с выбором; смена шлёт то же количество с режимом', async () => {
-    const both = { ...line('item-1', 'Брюки Elegance', 'шт'), mode: 'RETAIL' };
-    const { calls } = stubFetch([
-      get('/api/portal/cart', { ...cart, lines: [both, cart.lines[1]] }),
-      method('PUT', '/api/portal/cart/lines/item-1', { ...cart, lines: [{ ...both, mode: 'WHOLESALE' }, cart.lines[1]] }),
-    ]);
+  it('у строки нет «В розницу / Оптом»: в корзине — строки открытой заявки, способ выбирают в каталоге', async () => {
+    const both = { ...line('item-1', 'Брюки Elegance', 'шт'), mode: 'WHOLESALE' };
+    stubFetch([get('/api/portal/cart', { ...cart, lines: [both, cart.lines[1]] })]);
     renderScreen(<CartLines />);
 
-    const [first, second] = await screen.findAllByTestId('cart-line');
-    expect(within(second).queryByRole('button', { name: 'Оптом' })).not.toBeInTheDocument();
-    expect(within(first).getByRole('button', { name: 'В розницу' })).toHaveAttribute('aria-pressed', 'true');
+    // В корзине и оптовая строка, и штучная: открыта розничная — оптовой строки на экране нет.
+    const shown = await screen.findAllByTestId('cart-line');
+    expect(shown).toHaveLength(1);
+    expect(within(shown[0]).queryByRole('button', { name: 'Оптом' })).not.toBeInTheDocument();
+  });
 
-    await userEvent.click(within(first).getByRole('button', { name: 'Оптом' }));
-
-    const put = calls.find((call) => call.init?.method === 'PUT');
-    expect(JSON.parse(String(put?.init?.body))).toEqual({ quantity: 2, mode: 'WHOLESALE' });
-    await waitFor(() => expect(within(screen.getAllByTestId('cart-line')[0]).getByRole('button', { name: 'Оптом' }))
-      .toHaveAttribute('aria-pressed', 'true'));
+  it('у каждой строки написано, как она продаётся: оптом или в розницу', async () => {
+    const packs = { ...line('item-1', 'Брюки Elegance', 'шт'), split: { packs: 1, packUnit: 'пачка', packQty: 5, packPrice: 9000, rest: 0 } };
+    stubFetch([get('/api/portal/cart', { ...cart, lines: [packs] })]);
+    renderScreen(<CartLines />);
+    expect(await screen.findByTestId('cart-line-mode')).toHaveTextContent('Оптом');
   });
 
   it('название товара ведёт на его карточку', async () => {
@@ -129,7 +127,7 @@ describe('строки корзины', () => {
     stubFetch([get('/api/portal/cart', { ...cart, lines: [press] })]);
     renderScreen(<CartLines />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Что в прессе' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Что внутри' }));
     const list = screen.getByTestId('pack-contents');
     expect(list).toBeVisible();
     expect(list).toHaveTextContent(/Худи · M\s*2 шт\./);
@@ -144,14 +142,23 @@ describe('строки корзины', () => {
       hint: { addPieces: 15, packs: 3, packPrice: 1800, saving: 200 },
     };
 
-    it('в корзине — разбиение и что сделать ради следующей упаковки', async () => {
+    it('в корзине — цена одной упаковки и одной штуки, без расчёта и подсказки «добавьте ещё»', async () => {
       stubFetch([get('/api/portal/cart', { ...cart, lines: [packs] })]);
       renderScreen(<CartLines />);
 
       const [row] = await screen.findAllByTestId('cart-line');
-      expect(row).toHaveTextContent(/2 упаковки \(по 20 мешков\) × 1\s800 ₸ \+ 5 мешков × 100 ₸/);
-      expect(within(row).getByTestId('next-tier'))
-        .toHaveTextContent(/Добавьте ещё 15 мешков — и будет 3 упаковки по 1\s800 ₸, выгода 200 ₸/);
+      const rows = within(row).getByTestId('channel-rows');
+      expect(rows).not.toHaveTextContent('Оптом:');
+      expect(rows).toHaveTextContent(/1\s800 ₸ \/ упаковка \(20 мешков\)/);
+      expect(rows).toHaveTextContent(/^1\s800 ₸ \/ упаковка \(20 мешков\)100 ₸ \/ мешок$/);
+      expect(rows).not.toHaveTextContent('×');
+      expect(within(row).getByTestId('line-saving')).toHaveTextContent(/^выгода 400 ₸$/);
+      expect(within(row).queryByTestId('line-saving-why')).not.toBeInTheDocument();
+      // Из чего выгода — по нажатию.
+      await userEvent.click(within(row).getByTestId('line-saving'));
+      expect(within(row).getByTestId('line-saving-why'))
+        .toHaveTextContent(/По обычной цене: 45 мешков × 100 ₸ = 4\s500 ₸\. У вас 4\s100 ₸ — на 400 ₸ меньше\./);
+      expect(within(row).queryByText(/Добавьте ещё/)).not.toBeInTheDocument();
     });
 
     it('в сверке при оформлении — «45 мешков = 2 упаковки … + 5 мешков × 100 ₸»', async () => {
@@ -268,17 +275,15 @@ describe('строки корзины', () => {
       ...(wholesale ? { split: { packs: quantity, packUnit: 'шт', packQty: 1, packPrice: 22000, rest: 0 } } : {}),
     });
 
-    it('не добрали порог — одна подсказка на модель, «любого размера»', async () => {
+    it('не добрали порог — подсказки «добавьте ещё» в корзине нет', async () => {
       const hint = { addPieces: 1, packs: 10, packPrice: 22000, saving: 71910 };
       stubFetch([get('/api/portal/cart', { ...cart, lines: [
         { ...size('s44', '44', 5, false), hint }, { ...size('s46', '46', 4, false), hint },
       ] })]);
       renderScreen(<CartLines />);
 
-      const rows = await screen.findAllByTestId('cart-line');
-      expect(screen.getAllByTestId('next-tier')).toHaveLength(1);
-      expect(within(rows[1]).getByTestId('next-tier'))
-        .toHaveTextContent(/Добавьте ещё 1 шт\. этой модели \(любого размера\) — и все будут по 22\s000 ₸ за шт\./);
+      await screen.findAllByTestId('cart-line');
+      expect(screen.queryByText(/Добавьте ещё/)).not.toBeInTheDocument();
     });
 
     it('набрали порог — у размера оптовая цена без «упаковок по 1 шт»', async () => {
@@ -286,7 +291,7 @@ describe('строки корзины', () => {
       renderScreen(<CartLines />);
 
       const [row] = await screen.findAllByTestId('cart-line');
-      expect(row).toHaveTextContent(/22\s000 ₸ за шт\. — оптовая цена/);
+      expect(row).toHaveTextContent(/22\s000 ₸ \/ шт\./);
       expect(row).not.toHaveTextContent(/по 1 шт\./);
     });
   });
