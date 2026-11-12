@@ -343,9 +343,13 @@ function Decision({ item, categoryName }: { item: ShowcaseCardDto; categoryName?
               : t('item.noReviews')}
           </a>
         </div>
-        <h1 className="text-title font-extrabold leading-tight tracking-[-0.02em] text-ink md:text-display lg:text-hero lg:font-black lg:leading-[1.05] lg:tracking-[-0.03em]">
-          {item.name}
-        </h1>
+        {/* «Как пользоваться» на мониторе — у названия товара; на телефоне она на фото (выше). */}
+        <div className="flex items-start gap-3">
+          <h1 className="min-w-0 flex-1 text-title font-extrabold leading-tight tracking-[-0.02em] text-ink md:text-display lg:text-hero lg:font-black lg:leading-[1.05] lg:tracking-[-0.03em]">
+            {item.name}
+          </h1>
+          <PageHelp className="shrink-0 max-md:hidden" />
+        </div>
         {/* Артикул цвета — как «Арт.» у магазинов одежды: другой цвет — другая карточка и другой артикул. */}
         {item.article ? <span className="text-sm text-ink-subtle">{t('item.article', { article: item.article })}</span> : null}
       </div>

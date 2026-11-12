@@ -88,9 +88,9 @@ describe('перевозчик при оформлении', () => {
 
     renderScreen(<CheckoutPage />);
     await userEvent.click(await screen.findByRole('button', { name: 'Доставка' }));
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /способ доставки/i }), 'method-1');
+    await userEvent.click(screen.getByRole('radio', { name: /Межгород/ }));
     await userEvent.selectOptions(screen.getByLabelText('Перевозчик'), 'c1');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /способ доставки/i }), 'method-2');
+    await userEvent.click(screen.getByRole('radio', { name: /По городу/ }));
 
 
     await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));

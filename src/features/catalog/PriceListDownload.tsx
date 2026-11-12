@@ -12,8 +12,9 @@ import { useDismiss } from '../../ui/useDismiss';
  *
  * На мониторе — выпадающим меню «Прайс-лист ▾» (просьба владельца 2026-11-05): в нём пояснение,
  * за что указана цена (`note`), и две ссылки для скачивания со значками.
+ * На телефоне (`compact`) — только значок рядом с кнопкой порядка, меню то же.
  */
-export function PriceListDownload({ categoryId, note }: { categoryId?: string; note?: string }) {
+export function PriceListDownload({ categoryId, note, compact = false }: { categoryId?: string; note?: string; compact?: boolean }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<DownloadPortalPriceListFormat | null>(null);
@@ -52,6 +53,12 @@ export function PriceListDownload({ categoryId, note }: { categoryId?: string; n
 
   return (
     <div ref={box} className="relative shrink-0">
+      {compact ? (
+        <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label={t('catalog.priceList.button')} onClick={() => setOpen((was) => !was)}
+          className="flex size-12 shrink-0 cursor-pointer items-center justify-center rounded-[0.875rem] border-2 border-solid border-line bg-surface text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+          <FileText aria-hidden="true" className="size-5" />
+        </button>
+      ) : (
       <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((was) => !was)}
         className={cn('flex h-10 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border-[1.5px] bg-surface pl-3 pr-2.5 text-sm font-bold text-ink',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', open ? 'border-ink-muted' : 'border-line hover:border-ink-muted')}>
@@ -59,8 +66,9 @@ export function PriceListDownload({ categoryId, note }: { categoryId?: string; n
         {t('catalog.priceList.button')}
         <ChevronDown aria-hidden="true" className={cn('size-4 transition-transform duration-200', open && 'rotate-180')} />
       </button>
+      )}
       <div role="menu" aria-label={t('catalog.priceList.title')} hidden={!open}
-        className={cn('absolute right-0 top-[calc(100%+0.5rem)] z-30 w-80 origin-top-right rounded-2xl border border-hairline bg-surface p-3',
+        className={cn('absolute right-0 top-[calc(100%+0.5rem)] z-30 w-80 max-w-[calc(100vw-2rem)] origin-top-right rounded-2xl border border-hairline bg-surface p-3',
           'shadow-[0_18px_40px_-14px_rgba(26,25,23,.35)] animate-[qo-menu-in_160ms_cubic-bezier(0.22,0.61,0.36,1)]')}>
         <p className="m-0 px-1 text-body font-extrabold text-ink">{t('catalog.priceList.title')}</p>
         {note ? <p className="m-0 mt-1 px-1 text-caption leading-snug text-ink-muted">{note}</p> : null}

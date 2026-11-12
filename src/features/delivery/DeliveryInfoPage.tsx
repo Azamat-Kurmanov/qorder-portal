@@ -11,6 +11,7 @@ import { money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
 import type { Currency } from '../../shared/currency';
 import { loadersTerms } from '../cart/loaders';
+import { CITY_CHIP, HeaderCity } from '../city/HeaderCity';
 
 /**
  * Условия доставки поставщика — отдельным разделом, а не сноской в оформлении.
@@ -51,6 +52,8 @@ export function DeliveryInfoPage() {
         сервера нет, и выдумывать её нельзя: она читалась бы как гарантия.
       */}
       <BackTitle title={t('delivery.title')} subtitle={t('delivery.terms')} />
+      {/* Телефон: город клиента — для него считается доставка; на мониторе он в шапке. Нажатие — в профиль. */}
+      <HeaderCity className={cn(CITY_CHIP, 'self-start lg:hidden')} />
 
       {/*
         Возит или не возит — первое, что человек ищет на этом экране: от ответа

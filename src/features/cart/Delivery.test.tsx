@@ -112,6 +112,27 @@ describe('доставка при оформлении', () => {
     expect(screen.queryByLabelText(/адрес доставки/i)).not.toBeInTheDocument();
   });
 
+  it('адрес сначала ищут на карте, «Ввести вручную» в окне карты открывает поле для набора', async () => {
+    stubFetch([
+      get('/api/portal/cart', cart),
+      get('/api/portal/delivery', { mode: 'ENABLED', methods: [fixedMethod], pickupPoints: [] }),
+    ]);
+
+    renderScreen(<CheckoutPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Доставка' }));
+    const field = await screen.findByLabelText(/адрес доставки/i);
+    expect(field).toHaveAttribute('readonly');
+
+    await userEvent.click(field);
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Ввести вручную' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(field).not.toHaveAttribute('readonly');
+    await userEvent.type(field, 'ул. Абая, 1');
+    expect(field).toHaveValue('ул. Абая, 1');
+  });
+
   it('стоимость способа входит в итог и уходит в заявку', async () => {
     const { calls } = stubFetch([
       get('/api/portal/cart', cart),
@@ -124,7 +145,8 @@ describe('доставка при оформлении', () => {
     // Единственный способ доставки выбирается вместе с самой доставкой:
     // спрашивать «какой из одного» незачем.
     await userEvent.click(await screen.findByRole('button', { name: 'Доставка' }));
-    await userEvent.type(await screen.findByLabelText(/адрес доставки/i), 'ул. Абая, 1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Ввести вручную' }));
+    await userEvent.type(screen.getByLabelText(/адрес доставки/i), 'ул. Абая, 1');
 
     await waitFor(() => expect(screen.getByTestId('delivery-total')).toHaveTextContent('1 500'));
     expect(screen.getByTestId('total')).toHaveTextContent('14 000');
@@ -190,7 +212,7 @@ describe('доставка при оформлении', () => {
     renderScreen(<CheckoutPage />);
     await userEvent.click(await screen.findByRole('button', { name: 'Доставка' }));
 
-    await userEvent.selectOptions(await screen.findByLabelText(/способ доставки/i), 'method-3');
+    await userEvent.click(await screen.findByRole('radio', { name: /Доставка за город/ }));
 
     await waitFor(() => expect(screen.getByTestId('delivery-total')).toHaveTextContent('5 000'));
   });

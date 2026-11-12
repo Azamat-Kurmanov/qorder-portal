@@ -22,6 +22,8 @@ import { CarrierChoice } from './CarrierChoice';
 import { ownCarrierChosen, paysCarrierDirectly } from './carrier';
 import { LoadersChoice } from './LoadersChoice';
 import { MapPointField } from '../maps/MapPointField';
+import { MapPickerDialog } from '../maps/MapPickerDialog';
+import { useMapHome } from '../maps/useMapHome';
 import { MapViewButton } from '../maps/MapViewButton';
 import { pointOf } from '../maps/mapProvider';
 import { CHIP_ROW } from '../../ui/chipRow';
@@ -86,6 +88,10 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [], part = 
   // Ветка живёт отдельно от выбора: пока способ не назван, из полей заявки
   // не видно, чего клиент ждёт — а показать ему нужно уже нужную половину.
   const [opened, setOpened] = useState<Way | null>(null);
+  // Адрес сначала ищут картой (просьба владельца 2026-11-09); «Ввести вручную» — отказ от карты.
+  const [manualAddress, setManualAddress] = useState(false);
+  const [addressMap, setAddressMap] = useState(false);
+  const mapHome = useMapHome();
   const { supplierId } = useSupplier();
   const knownAddresses = useGetPortalKnownAddresses();
   const suppliers = useGetPortalSuppliers();
@@ -130,6 +136,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [], part = 
   const shipped = options.methods.filter((candidate) => !candidate.pickup);
   const collected = options.methods.filter((candidate) => candidate.pickup);
   const method = options.methods.find((candidate) => candidate.id === value.methodId);
+  const mapFirst = !manualAddress && !value.address && value.latitude == null;
   // Самовывоз — это либо режим поставщика целиком, либо способ, отмеченный
   // самовывозом: точку в обоих случаях выбирают одинаково.
   const pickupOnly = options.mode === 'PICKUP_ONLY';
@@ -201,24 +208,37 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [], part = 
       {way && (
         <div className="flex flex-col gap-2">
           {list.length > 1 && (
-            <Field label={way === 'PICKUP'
-              ? t('checkout.delivery.pickupMethod')
-              : t('checkout.delivery.deliveryMethod')}
-            >
-              <select
-                value={value.methodId ?? ''}
-                onChange={(event) => onChange({ methodId: event.currentTarget.value || undefined })}
-                className={FIELD}
-              >
-                <option value="">{t('checkout.delivery.chooseMethod')}</option>
-                {list.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                    {priceOf(candidate, t, currency)}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            // Карточками, а не системным списком (просьба владельца 2026-11-09): выпадающее меню
+            // рисует браузер, и оформить его под кабинет нельзя.
+            <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+              <legend className="mb-2 p-0 text-lead font-extrabold text-ink">
+                {way === 'PICKUP' ? t('checkout.delivery.pickupMethod') : t('checkout.delivery.deliveryMethod')}
+              </legend>
+              {list.map((candidate) => {
+                const checked = value.methodId === candidate.id;
+                const price = priceOf(candidate, t, currency).replace(/^ — /, '');
+                return (
+                  <label key={candidate.id} className={cn(
+                    'flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl border-[3px] border-solid px-4 py-2',
+                    'transition-colors duration-150 focus-within:ring-2 focus-within:ring-accent',
+                    checked ? 'border-shop bg-shop text-on-shop' : 'border-line bg-surface text-ink hover:border-ink',
+                  )}>
+                    <input type="radio" name="delivery-method" checked={checked} className="sr-only"
+                      onChange={() => onChange({ methodId: candidate.id })} />
+                    <span aria-hidden="true" className={cn(
+                      'flex size-5 shrink-0 items-center justify-center rounded-full border-2',
+                      checked ? 'border-current' : 'border-line',
+                    )}>
+                      {checked && <span className="size-2.5 rounded-full bg-current" />}
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="text-body font-extrabold leading-tight">{candidate.name}</span>
+                      {price && <span className={cn('text-sm font-semibold', checked ? 'opacity-85' : 'text-ink-muted')}>{price}</span>}
+                    </span>
+                  </label>
+                );
+              })}
+            </fieldset>
           )}
 
           {zones.length > 0 && (
@@ -275,14 +295,43 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [], part = 
                 сам набрал, а не сэкономить ему набор с нуля.
               */}
               <Field label={t('checkout.delivery.address')}>
+                {/*
+                  Пока адреса нет, поле — вход в карту: нажатие открывает поиск по карте.
+                  Набирать руками можно после «Ввести вручную» — здесь или в окне карты.
+                */}
                 <input
                   type="text"
-                  placeholder={t('checkout.delivery.addressPlaceholder')}
+                  readOnly={mapFirst}
+                  placeholder={mapFirst ? t('checkout.delivery.addressMapPlaceholder') : t('checkout.delivery.addressPlaceholder')}
                   value={value.address ?? ''}
+                  onClick={() => { if (mapFirst) setAddressMap(true); }}
+                  onKeyDown={(event) => {
+                    if (mapFirst && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setAddressMap(true); }
+                  }}
                   onChange={(event) => onChange({ ...value, address: event.currentTarget.value })}
-                  className={FIELD}
+                  className={cn(FIELD, mapFirst && 'cursor-pointer')}
                 />
               </Field>
+              {mapFirst && (
+                <button type="button" onClick={() => setManualAddress(true)}
+                  className="self-start cursor-pointer border-0 bg-transparent p-0 text-sm font-bold text-accent-ink underline underline-offset-2">
+                  {t('checkout.delivery.addressManual')}
+                </button>
+              )}
+              {addressMap && (
+                <MapPickerDialog
+                  title={t('maps.deliveryTitle')}
+                  address=""
+                  initial={null}
+                  home={mapHome}
+                  cancelLabel={t('checkout.delivery.addressManual')}
+                  onClose={() => { setAddressMap(false); setManualAddress(true); }}
+                  onPick={(point, found) => {
+                    setAddressMap(false);
+                    onChange({ ...value, address: found ?? value.address, latitude: point.latitude, longitude: point.longitude });
+                  }}
+                />
+              )}
               {/*
                 «Уже называли» — адреса, которые клиент давал другим магазинам, кнопкой под полем (макет).
                 Переносится только свободный текст — адрес, город, этаж: способ, зона и точка соседнего
@@ -318,7 +367,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [], part = 
                 помогает курьеру найти вход. Найденный картой адрес заменяет
                 набранный — человек видит, что отметил.
               */}
-              <MapPointField
+              {!mapFirst && <MapPointField
                 title={t('maps.deliveryTitle')}
                 address={value.address ?? ''}
                 point={pointOf(value.latitude, value.longitude)}
@@ -328,7 +377,7 @@ export function DeliveryBlock({ goodsTotal, value, onChange, lines = [], part = 
                   latitude: point?.latitude,
                   longitude: point?.longitude,
                 })}
-              />
+              />}
             </>
           )}
 

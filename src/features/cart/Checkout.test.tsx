@@ -113,6 +113,7 @@ describe('оформление заявки', () => {
 
   it('оптом без выбора оплаты не отправить; «Возьму в долг» уходит продавцу просьбой', async () => {
     const { calls } = stubFetch([
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза', credit: true }]),
       get('/api/portal/cart', cartWith({ lines: [{ ...cartWith().lines[0], mode: 'WHOLESALE' }] })),
       get('/api/portal/delivery', pickupOnly),
       method('POST', '/api/portal/orders', { draftId: 'draft-1', revision: 1, total: 12500 }),
@@ -129,6 +130,26 @@ describe('оформление заявки', () => {
     await waitFor(() => {
       const submit = calls.find((call) => call.init?.method === 'POST');
       expect(JSON.parse(String(submit?.init?.body))).toEqual({ credit: true });
+    });
+  });
+
+  it('магазин не даёт в долг — оптом нет ни выбора «в долг», ни слова о нём', async () => {
+    const { calls } = stubFetch([
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза' }]),
+      get('/api/portal/cart', cartWith({ lines: [{ ...cartWith().lines[0], mode: 'WHOLESALE' }], creditLimitExceeded: true })),
+      get('/api/portal/delivery', pickupOnly),
+      method('POST', '/api/portal/orders', { draftId: 'draft-1', revision: 1, total: 12500 }),
+    ]);
+
+    renderScreen(<CheckoutPage />);
+    await waitFor(() => expect(screen.getByTestId('total')).toHaveTextContent('12 500'));
+
+    expect(screen.queryByRole('radio', { name: /в долг/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('credit-notice')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /отправить заявку/i }));
+    await waitFor(() => {
+      const submit = calls.find((call) => call.init?.method === 'POST');
+      expect(JSON.parse(String(submit?.init?.body))).toEqual({ credit: false });
     });
   });
 

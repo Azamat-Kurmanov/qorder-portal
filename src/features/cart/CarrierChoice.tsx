@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { DeliveryOptionsDto, SubmitOrderDelivery } from '../../api/generated';
+import { rules } from '../../api/rules.generated';
 import { chosenCarrier, ownCarrierChosen, terminalAllowed } from './carrier';
 
 /** Значение списка «Другой перевозчик». */
@@ -48,7 +49,7 @@ export function CarrierChoice({ method, value, onChange, fieldClass }: {
         <div data-testid="own-carrier" className="flex flex-col gap-1">
           <label className="flex min-w-0 flex-col gap-1">
             <span className="text-xs text-ink-subtle">{t('checkout.delivery.ownCarrierName')}</span>
-            <input value={value.ownCarrier ?? ''} maxLength={255} className={fieldClass}
+            <input value={value.ownCarrier ?? ''} maxLength={rules.SubmitOrderDelivery.ownCarrier.maxLength} className={fieldClass}
               placeholder={t('checkout.delivery.ownCarrierPlaceholder')}
               onChange={(event) => onChange({ ...value, ownCarrier: event.currentTarget.value })} />
           </label>

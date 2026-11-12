@@ -265,24 +265,27 @@ export function BannerCarousel({ width, category, onAction, onSale }: {
 /** Крупный слайд в шаблонах на экране продавца: 748×360, масштабом во всю ширину. */
 const SLIDE_WIDTH = 748;
 const SLIDE_HEIGHT = 360;
+/** Масштаб не выше этого: шире слайд растягивается вбок, а не в высоту (иначе на мониторе ~600 px). */
+const MAX_SCALE = 1.05;
 
 /**
  * Рамка слайда. На компьютере — как герой в шаблонах на экране продавца
  * (решение владельца 2026-10-10): слайд 748×360 масштабом во всю ширину,
  * пропорции и крупность те же, что в предпросмотре. На телефоне — высота
- * 260 своей раскладкой: в масштабе текст стал бы мелким.
- * ponytail: масштаб без потолка — на очень широком экране баннер растёт вместе с колонкой.
+ * 232 своей раскладкой: в масштабе текст стал бы мелким.
+ * Шире 748 × MAX_SCALE слайд не растёт в высоту: раскладки привязаны к краям,
+ * лишняя ширина уходит в промежуток между текстом и картинкой.
  */
 function SlideFrame({ compact, depth, children }: { compact: boolean; depth: boolean; children: ReactNode }) {
   const [box, width] = useColumnWidth<HTMLDivElement>();
-  const scale = width > 0 ? width / SLIDE_WIDTH : 1;
+  const scale = width > 0 ? Math.min(width / SLIDE_WIDTH, MAX_SCALE) : 1;
   return (
     <div ref={box} data-fx={depth || undefined}
-      className={cn('relative overflow-hidden rounded-[var(--radius-gallery)] shadow-[0_18px_40px_-24px_rgb(26_25_23/0.45)]', compact && 'h-[260px]')}
+      className={cn('relative overflow-hidden rounded-[var(--radius-gallery)] shadow-[0_18px_40px_-24px_rgb(26_25_23/0.45)]', compact && 'h-[232px]')}
       style={compact ? undefined : { height: Math.round(SLIDE_HEIGHT * scale) }}>
       {compact ? children : (
         <div className="absolute left-0 top-0"
-          style={{ width: SLIDE_WIDTH, height: SLIDE_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+          style={{ width: width > 0 ? width / scale : SLIDE_WIDTH, height: SLIDE_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
           {children}
         </div>
       )}

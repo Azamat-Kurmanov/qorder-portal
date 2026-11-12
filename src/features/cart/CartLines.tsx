@@ -1,5 +1,6 @@
 import { useSetCartLine } from './useCart';
 import { PackContents, packMembers } from '../catalog/PackContents';
+import { StockNote } from '../catalog/StockNote';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Info, X } from '../../ui/icons';
@@ -195,6 +196,10 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
                     {t(`cart.mode.${lineMode(line)}`)}
                   </span>
                   <LineSaving line={line} currency={currency} />
+                  {/* Наличие — по тому же правилу, что на плитке каталога: «уточняется» у каждой строки — шум. */}
+                  {showsStock(line) ? (
+                    <StockNote stock={line.stock} available={line.available} needed={line.quantity} short className="mt-0 text-caption" />
+                  ) : null}
                 </div>
                 <PriceLine line={line} editable currency={currency} />
                 {line.pack ? <PackContents label={t('pack.inPress')} members={packMembers(line.pack)} /> : null}
@@ -254,6 +259,11 @@ export function CartLines({ editable = true, withSkipped = true, className }: Ca
  * Карточка товара строки. Из выдвижной корзины переход её закрывает: иначе
  * карточка открылась бы под шторкой, и клиент решил бы, что ссылка не работает.
  */
+/** Есть ли что сказать о наличии строки: «уточняется» у каждой строки — шум, как на плитке каталога. */
+export function showsStock(line: CartLineDto): boolean {
+  return line.available != null || (line.stock != null && line.stock !== 'UNKNOWN');
+}
+
 function itemHref(line: CartLineDto): string {
   return `/catalog/${encodeURIComponent(line.itemId)}`;
 }
@@ -381,7 +391,7 @@ function LineSaving({ line, currency }: { line: CartLineDto; currency: Currency 
 }
 
 /**
- * Почём одна единица — цена первой: «6 060 ₸ / мешок (25 кг)», «250 ₸ / кг» —
+ * Почём одна единица — цена первой: «6 060 за мешок (25 кг)», «250 за кг» в валюте магазина —
  * без «Оптом:» и «В розницу:»: вид строки назван меткой над ценой (просьба владельца 2026-11-07).
  * Количество — в поле рядом, сумма строки — справа: расчёт «3 × 6 060 = 18 180» и подсказка
  * «добавьте ещё» в корзине лишние (просьба владельца 2026-11-07). Опт — серым, как розница: синий читался тяжело.

@@ -87,15 +87,3 @@ export function countryOptions(language: string): (Country & { name: string })[]
     ...named.filter((c) => !CIS_COUNTRIES.includes(c.iso)).sort(byName),
   ];
 }
-
-/**
- * Цифры номера после кода страны из набранного как угодно. Для +7 понимаются
- * «+7 701 …» и «8 701 …» (код попадал в номер второй раз), для остальных —
- * номер целиком с кодом и местный ведущий 0.
- */
-export function nationalDigits(input: string, code: string): string {
-  const digits = input.replace(/\D/g, '');
-  if (code === '7') return digits.length === 11 && /^[78]/.test(digits) ? digits.slice(1) : digits;
-  if (digits.startsWith(code) && digits.length - code.length >= 8) return digits.slice(code.length);
-  return digits.replace(/^0/, '');
-}

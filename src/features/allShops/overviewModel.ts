@@ -53,10 +53,6 @@ export type Overview = {
   debts: { supplierId: string; debt: number; overdue: number; nextDue?: string; nextDueLeft?: number; pending: number }[];
 };
 
-export function isTask(kind: string): boolean {
-  return kind in TASK_KINDS || kind === DEBT_REMINDER;
-}
-
 /** Дата `day` наступит не позже завтрашнего дня относительно `today` (обе — YYYY-MM-DD). */
 function soon(day: string, today: string): boolean {
   const tomorrow = new Date(`${today}T00:00:00Z`);

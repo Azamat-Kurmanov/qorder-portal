@@ -13,6 +13,8 @@ import { NotificationsPage } from '../notifications/NotificationsBell';
 import { AddedToast, CartPanel } from '../cart/CartPanel';
 import { cartOf, useCart } from '../cart/useCart';
 import { LanguageAsk } from '../language/LanguageAsk';
+import { languageChosen } from '../language/languageChoice';
+import { CityAsk } from '../city/CityAsk';
 import { destinationOf, opensWithoutSubject } from '../notifications/NotificationsBell';
 import { usePushDevice } from '../../shared/webview/push';
 import { ProfilePage } from '../profile/ProfilePage';
@@ -145,6 +147,9 @@ export function Shell() {
   const navigate = useNavigate();
   const [opened, setOpened] = useState(false);
   const [shopsOpen, setShopsOpen] = useState(false);
+  // Язык уже выбран (в этом браузере или в учётной записи) — можно спрашивать город.
+  const [languageDone, setLanguageDone] = useState(languageChosen);
+  const languageAnswered = useCallback(() => setLanguageDone(true), []);
   const openShops = useCallback(() => setShopsOpen(true), []);
   const [inviting, setInviting] = useState(false);
   const [toast, setToast] = useState('');
@@ -287,7 +292,9 @@ export function Shell() {
         Вопрос о языке — поверх всего и до всего: кабинет, открывшийся не на
         том языке, человек не читает, а разглядывает.
       */}
-      <LanguageAsk />
+      <LanguageAsk onAnswered={languageAnswered} />
+      {/* «Откуда вы?» — после языка, а не вместе с ним: вопрос читают уже на своём языке. */}
+      {languageDone ? <CityAsk /> : null}
 
       {/* Полоса объявлений — у тем, где она есть (Вспышка, Лукбук, Сезон). */}
       <ShopAnnounceBar enabled={!!design.style?.announce} />

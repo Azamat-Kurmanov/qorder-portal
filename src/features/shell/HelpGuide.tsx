@@ -421,12 +421,13 @@ export function HelpGuide({ className }: { className?: string }) {
 }
 
 /**
- * «Как пользоваться» в строке заголовка страницы — на телефоне: шапки оболочки там нет.
- * На мониторе та же кнопка стоит в шапке (ClientBar), поэтому здесь она скрыта.
+ * «Как пользоваться» в строке заголовка страницы — и на телефоне, и на мониторе: инструкция —
+ * к открытому экрану, ей место рядом с его названием. Из шапки монитора убрана (2026-11-11):
+ * там она отнимала место, и меню наезжало на «Оптом / В розницу».
  */
 export function PageHelp({ className }: { className?: string }) {
   return (
     // На телефоне — компактно (просьба владельца 2026-11-06): значок справки не теснит заголовок и переключатели.
-    <HelpGuide className={cn('size-9 rounded-[0.75rem] border-2 border-line bg-surface lg:hidden [&_svg]:size-[1.125rem]', className)} />
+    <HelpGuide className={cn('size-9 rounded-[0.75rem] border-2 border-line bg-surface [&_svg]:size-[1.125rem] lg:size-11 lg:[&_svg]:size-5', className)} />
   );
 }

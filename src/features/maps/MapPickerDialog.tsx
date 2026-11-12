@@ -13,13 +13,15 @@ import { coordinatesText, mapProvider, type MapPoint, type MapView } from './map
  * приближается к ней: человек видит, что выбрал, а не догадывается.
  * Адрес по нажатию берётся у карты, иначе — тот, что уже введён в форме.
  */
-export function MapPickerDialog({ title, address, initial, home = null, onClose, onPick }: {
+export function MapPickerDialog({ title, address, initial, home = null, cancelLabel, onClose, onPick }: {
   title: string;
   /** Адрес, уже введённый в форме. */
   address: string;
   initial: MapPoint | null;
   /** Где начать без точки — отмеченный пункт поставщика (`useMapHome`). */
   home?: MapPoint | null;
+  /** Подпись кнопки отказа; по умолчанию «Отмена». */
+  cancelLabel?: string;
   onClose: () => void;
   /** Точка и адрес, найденный картой (если нашёлся). */
   onPick: (point: MapPoint, foundAddress: string | null) => void;
@@ -169,7 +171,7 @@ export function MapPickerDialog({ title, address, initial, home = null, onClose,
         </p>
 
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>{t('maps.cancel')}</Button>
+          <Button type="button" variant="ghost" onClick={onClose}>{cancelLabel ?? t('maps.cancel')}</Button>
           <Button type="button" variant="accent" disabled={!point} onClick={() => point && onPick(point, found)}>
             {t('maps.done')}
           </Button>

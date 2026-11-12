@@ -14,6 +14,7 @@ import {
 import { cn } from '../../ui/cn';
 import { Pagination } from '../../ui/Pagination';
 import { BackTitle } from '../../ui/BackTitle';
+import { CITY_CHIP, HeaderCity } from '../city/HeaderCity';
 import { OrderLink, OrderPane, OrderPick } from './OrderRow';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { OrderStatement } from './OrderStatement';
@@ -54,7 +55,13 @@ export function MyOrdersPage() {
   const wide = useWideScreen();
   const [picked, setPicked] = useState<string>();
 
-  const title = <BackTitle title={t('orders.title')} />;
+  // Телефон: под заголовком — город клиента (для него наличие и доставка); нажатие — в профиль.
+  const title = (
+    <>
+      <BackTitle title={t('orders.title')} />
+      {wide ? null : <HeaderCity className={cn(CITY_CHIP, 'self-start')} />}
+    </>
+  );
 
   if (response.isPending) {
     return (

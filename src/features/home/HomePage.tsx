@@ -13,6 +13,7 @@ import { answerText, kindOf } from '../orders/myOrdersModel';
 import { useLogoutConfirm } from '../shell/LogoutConfirm';
 import { PhoneLine } from '../shell/PhoneLine';
 import { ShopTile } from '../shell/ShopTile';
+import { HeaderCity } from '../city/HeaderCity';
 import { useCurrentShop } from '../shell/Shops';
 import { HomeCart, HomeMessages, HomeRepeat } from './homeIcons';
 import { useAllShops } from '../allShops/useAllShops';
@@ -52,7 +53,9 @@ export function HomePage() {
         Только на телефоне (просьба владельца 2026-11-07): над баннером — кто вошёл (организация или ФИО);
         нажатие раскрывает «Профиль» и под ним «Выйти». На мониторе то же в шапке.
       */}
-      <details className="group relative lg:hidden">
+      {/* Телефон: шапки нет — город стоит в строке «кто вошёл», справа (просьба владельца 2026-11-11). */}
+      <div className="flex items-center gap-2 lg:hidden">
+      <details className="group relative min-w-0 flex-1">
         <summary className="qo-hit flex h-12 w-full cursor-pointer list-none items-center gap-2 rounded-full border-2 border-line bg-surface px-3.5 text-body font-extrabold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-details-marker]:hidden">
           <User aria-hidden="true" className="size-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate">{name ?? t('shell.profile')}</span>
@@ -70,6 +73,8 @@ export function HomePage() {
           </button>
         </div>
       </details>
+      <HeaderCity className="qo-hit h-12 max-w-[45%] border-2 border-line bg-surface px-3.5 font-extrabold" />
+      </div>
       {/*
         Баннер магазина (решение владельца 2026-11-05): знак, имя, часы и адрес — внутри обложки цвета
         магазина; в углу — «Другие магазины», внизу справа — номер с кнопкой звонка.
@@ -131,10 +136,13 @@ export function HomePage() {
       </h1>
 
       <ul aria-label={t('home.sections')} className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-4">
-        <Tile to="/catalog" icon={HomeCart} label={t('home.order')} tone={TILE.order} iconTone={ICON.order} />
+        <Tile to="/catalog" icon={HomeCart} label={t('home.order')} tone={TILE.order} iconTone={ICON.order}
+          // Крупнее соседей (просьба владельца 2026-11-09); -my-1.5 держит подпись на одной линии с соседями.
+          iconSize="size-11 -my-1.5 lg:size-14" />
         <Tile to="/orders" icon={ClipboardList} label={t('home.myOrders')} tone={TILE.orders} iconTone={ICON.orders}
           badge={going.length || undefined} badgeLabel={t('home.inProgress', { count: going.length })} />
-        <Tile to={last ? `/orders/${last.id}` : '/orders'} icon={HomeRepeat} label={t('home.likeLastTime')} tone={TILE.repeat} iconTone={ICON.repeat} />
+        <Tile to={last ? `/orders/${last.id}` : '/orders'} icon={HomeRepeat} label={t('home.likeLastTime')} tone={TILE.repeat} iconTone={ICON.repeat}
+          iconSize="size-11 -my-1.5 lg:size-14" />
         <Tile to="/questions" icon={HomeMessages} label={t('home.askSeller')} tone={TILE.ask} iconTone={ICON.ask}
           // Крупнее соседей на телефоне (просьба владельца 2026-11-06): облачко читалось мелким.
           // -my-1.5: крупный значок не сдвигает подпись — она на одной линии с соседней плиткой.

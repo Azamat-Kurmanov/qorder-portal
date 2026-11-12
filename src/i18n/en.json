@@ -246,7 +246,11 @@
     },
     "pageTitle": "Profile",
     "shops_one": "{{count}} shop",
-    "shops_other": "{{count}} shops"
+    "shops_other": "{{count}} shops",
+    "password": {
+      "title": "Sign-in password",
+      "hint": "Set or change it to sign in with phone and password"
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -444,11 +448,12 @@
       "pickupOnly": "The supplier hands the order over for pickup only.",
       "pickupMethod": "Pickup method",
       "deliveryMethod": "Delivery method",
-      "chooseMethod": "Choose a method",
       "zone": "Where to deliver",
       "pickupPoint": "Where to collect",
       "address": "Delivery address",
       "addressPlaceholder": "Street, building, site",
+      "addressMapPlaceholder": "Tap to find the address on the map",
+      "addressManual": "Type it in",
       "addressHint": "Used before:",
       "floor": "Floor",
       "date": "When",
@@ -2362,7 +2367,7 @@
     "settings": "Profile & settings",
     "hello": "Hello, {{name}}! What shall we do?",
     "helloAnon": "Hello! What shall we do?",
-    "order": "Order",
+    "order": "Product catalogue",
     "myOrders": "My orders",
     "likeLastTime": "Repeat order",
     "askSeller": "Ask the seller",
@@ -2460,6 +2465,7 @@
     "setPassword": "Create a password. You will sign in with the phone number from the request and this password.",
     "savePassword": "Save password",
     "passwordSaved": "Password saved. Sign in: your login is your phone number.",
+    "codeLoginHint": "You have already confirmed your number in WhatsApp — no password needed. Press “Sign in”: the cabinet will remember you on this phone.",
     "ownPassword": "You already use Q-Order — sign in with your own password, by phone number.",
     "signIn": "Sign in",
     "lost": "We could not find your request — the shop may have changed the link. Send the request again.",
@@ -2758,5 +2764,27 @@
     "messagesLine_few": "New messages from {{count}} shops",
     "messagesLine_many": "New messages from {{count}} shops",
     "messagesLine_other": "New messages from {{count}} shops"
+  },
+  "enter": {
+    "opening": "Opening your cabinet…",
+    "failed": "Could not open sign-in. Check your connection and try again.",
+    "retry": "Try again"
+  },
+  "city": {
+    "title": "Where are you from?",
+    "guess": "Looks like you are in {{name}}",
+    "confirm": "Yes, I'm here",
+    "other": "Choose another city",
+    "country": "Country",
+    "city": "City",
+    "placeholder": "Start typing the name",
+    "typed": "Not on the list — save “{{q}}”",
+    "failed": "Could not save. Please try again.",
+    "label": "City",
+    "change": "Change",
+    "none": "Not set",
+    "branch": "Branch: {{name}}",
+    "branchHint": "Stock and prices are this branch's. Change your city in the profile.",
+    "header": "Your city: {{name}}. Change it in the profile"
   }
 }

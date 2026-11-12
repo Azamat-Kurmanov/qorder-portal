@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { AskQuestionForm } from './AskQuestionForm';
 import { QuestionsPage } from './QuestionsPage';
 import { Route, Routes } from 'react-router-dom';
 import { renderScreen } from '../../test/render';
@@ -82,35 +81,6 @@ const CARD = {
 
 describe('вопросы продавцу', () => {
   afterEach(() => vi.unstubAllGlobals());
-
-  it('вопрос о товаре уходит вместе с позицией, о которой спрашивают', async () => {
-    const { calls } = stubFetch([
-      method('POST', '/api/portal/questions', { ...WAITING, itemId: 'item-1', question: 'Сколько сохнет?' }, 201),
-      get('/api/portal/questions/whatsapp-archive', []),
-      get('/api/portal/questions', []),
-    ]);
-
-    renderScreen(<AskQuestionForm itemId="item-1" itemName="Цемент М400" />);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Спросить продавца' }));
-    await userEvent.type(screen.getByLabelText('Вопрос'), 'Сколько сохнет?');
-    await userEvent.click(screen.getByRole('button', { name: 'Отправить' }));
-
-    await waitFor(() => {
-      const sent = calls.find((call) => call.init?.method === 'POST');
-      expect(sent).toBeDefined();
-      // Позиция уезжает вместе с вопросом: без неё менеджер читает «сколько
-      // сохнет?» и не знает, о чём речь.
-      expect(JSON.parse(String(sent?.init?.body))).toEqual({
-        itemId: 'item-1',
-        text: 'Сколько сохнет?',
-      });
-    });
-
-    expect(await screen.findByText(/вопрос отправлен/i)).toBeInTheDocument();
-    // Подтверждение приходит вместо формы — диктор должен его прочесть сам.
-    expect(screen.getByRole('status')).toHaveTextContent('Вопрос отправлен продавцу.');
-  });
 
   it('список — ветками: тема, последнее сообщение, ждёт ли ответа и новые ответы', async () => {
     stubFetch([
@@ -340,24 +310,6 @@ describe('вопросы продавцу', () => {
     expect(screen.queryByTestId('thread-q2')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Все вопросы' })).toHaveAttribute('href', '/questions');
     expect(await screen.findByText('О товаре «Цемент М500»')).toBeInTheDocument();
-  });
-
-  it('Enter в вопросе о товаре отправляет его продавцу', async () => {
-    const { calls } = stubFetch([
-      method('POST', '/api/portal/questions', { ...WAITING, itemId: 'item-1' }, 201),
-      get('/api/portal/questions/whatsapp-archive', []),
-      get('/api/portal/questions', []),
-    ]);
-
-    renderScreen(<AskQuestionForm itemId="item-1" itemName="Цемент М400" />);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Спросить продавца' }));
-    await userEvent.type(screen.getByLabelText('Вопрос'), 'Сколько сохнет?{Enter}');
-
-    await waitFor(() => {
-      const sent = calls.find((call) => call.init?.method === 'POST');
-      expect(JSON.parse(String(sent?.init?.body))).toEqual({ itemId: 'item-1', text: 'Сколько сохнет?' });
-    });
   });
 
   it('готовая тема одним нажатием ставит вопрос в поле', async () => {

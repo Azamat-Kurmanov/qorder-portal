@@ -2,9 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useNavigate } from 'react-router-dom';
-import { CartButton, useHeaderSearch } from './headerParts';
+import { useHeaderSearch } from './headerParts';
 import { renderScreen } from '../../../test/render';
-import { get, stubFetch } from '../../../test/http';
 
 /** Поле поиска шапки и кнопка, которая, как кнопка баннера, снимает запрос адресом. */
 function Probe() {
@@ -44,24 +43,5 @@ describe('поиск в шапке', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Карточка' }));
 
     expect(field).toHaveValue('цемент');
-  });
-});
-
-describe('корзина в шапке шаблона', () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it('сумма — в валюте магазина, без «₸»', async () => {
-    stubFetch([
-      get('/api/portal/cart', {
-        lines: [{ itemId: 'item-1', name: 'Цемент М400', quantity: 1, unit: 'мешок', priceAtAdding: 9900, price: 9900, priceChanged: false, total: 9900 }],
-        total: 9900,
-        skipped: [],
-      }),
-    ]);
-
-    renderScreen(<CartButton ready />, { currency: 'RUB' });
-
-    expect(await screen.findByText(/9\s900\s₽/)).toBeInTheDocument();
-    expect(screen.getByRole('button')).not.toHaveTextContent('₸');
   });
 });

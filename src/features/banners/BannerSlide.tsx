@@ -125,7 +125,8 @@ export function BannerSlide({ slide: given, brand, compact, onAction, hidden, sk
       <div
         data-rise="1"
         className={cn(
-          'font-extrabold [text-wrap:balance]',
+          // На телефоне длинное слово («поступление») не влезало в колонку и заходило под картинку — переносим по слогам.
+          'font-extrabold [text-wrap:balance]', compact && 'hyphens-auto [overflow-wrap:anywhere]',
           big
             ? compact ? 'text-display leading-[1.02] tracking-[-0.03em]' : 'text-[3.5rem] leading-[0.98] tracking-[-0.035em]'
             : compact ? 'text-title leading-[1.1] tracking-[-0.025em]' : 'text-hero leading-[1.04] tracking-[-0.025em]',

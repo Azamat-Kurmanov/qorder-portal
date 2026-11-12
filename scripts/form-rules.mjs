@@ -10,6 +10,21 @@
 const REQUEST_SCHEMA = /Request$/;
 
 /**
+ * Тела запросов и всё, что в них вложено по `$ref` (адрес доставки внутри
+ * заявки — тоже поля формы, и потолок у них тот же, что на сервере).
+ */
+function requestSchemas(schemas) {
+  const names = new Set(Object.keys(schemas).filter((name) => REQUEST_SCHEMA.test(name)));
+  const queue = [...names];
+  while (queue.length) {
+    for (const [, ref] of JSON.stringify(schemas[queue.pop()] ?? {}).matchAll(/"\$ref":"#\/components\/schemas\/([^"]+)"/g)) {
+      if (!names.has(ref)) { names.add(ref); queue.push(ref); }
+    }
+  }
+  return names;
+}
+
+/**
  * Правило одного поля.
  *
  * Шаблон якорится и заворачивается в группу. Без якорей он совпал бы
@@ -40,8 +55,9 @@ export function fieldRule(property, { required }) {
 
 /** Исходный текст модуля правил. */
 export function buildRules(schemas) {
+  const forms = requestSchemas(schemas);
   const entries = Object.entries(schemas)
-    .filter(([name, schema]) => REQUEST_SCHEMA.test(name) && schema.properties)
+    .filter(([name, schema]) => forms.has(name) && schema.properties)
     .map(([name, schema]) => {
       const required = new Set(schema.required ?? []);
       const fields = Object.entries(schema.properties)

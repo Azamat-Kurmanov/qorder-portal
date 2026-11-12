@@ -24,6 +24,7 @@ import {
   type PortalOrderDto,
   type SnapshotDiffDto,
   type SnapshotLineDto,
+  type PortalLineStockDto,
 } from '../../api/generated';
 import { AskForm, OrderMessages, quoteOf } from './OrderMessages';
 import { RateOrder } from './RateOrder';
@@ -38,6 +39,7 @@ import { OrderReturns } from './OrderReturns';
 import { OrderTotals, type OrderBreakdown } from './OrderTotals';
 import type { Currency } from '../../shared/currency';
 import { LinkedLineThumb } from '../cart/LineThumb';
+import { StockNote } from '../catalog/StockNote';
 import { fileNameFrom, saveFile } from '../../shared/download';
 import { dayMonth, decimal, money } from '../../shared/format';
 import { quantityWithUnit } from '../../shared/units';
@@ -315,6 +317,7 @@ export function OrderPage() {
         lines={order.submitted}
         total={order.total}
         testId="submitted"
+        stock={order.stock}
         breakdown={order}
         currency={order.currency}
       />
@@ -325,6 +328,7 @@ export function OrderPage() {
           lines={order.proposed}
           total={order.proposedTotal ?? 0}
           testId="proposed"
+          stock={order.stock}
           currency={order.currency}
           diff={order.diff}
         />
@@ -459,8 +463,10 @@ function OrderHelp({ order, phone, onAsk }: { order: PortalOrderDto; phone?: str
 }
 
 /** Одна редакция состава: то, что предъявлено, и её итог. */
-function Revision({ title, lines, total, testId, breakdown, currency, diff = [] }: {
+function Revision({ title, lines, total, testId, breakdown, currency, diff = [], stock = [] }: {
   title: string;
+  /** Наличие позиций сейчас — сервер присылает только у открытой заявки. */
+  stock?: PortalLineStockDto[];
   /** Отличия предложения: замены и добавленное продавцом выделены оттенком (просьба владельца 2026-11-05). */
   diff?: SnapshotDiffDto[];
   lines: SnapshotLineDto[];
@@ -511,6 +517,7 @@ function Revision({ title, lines, total, testId, breakdown, currency, diff = [] 
                   {line.unit ? quantityWithUnit(line.quantity, line.unit) : decimal(line.quantity)}{packNote(line, t)}
                   {line.price === undefined ? null : <> × {money(line.price, currency)}</>}
                 </span>
+                <LineStock line={line} stock={stock} />
                 {/* Сейчас нет, но продавец ждёт к дате склада — клиент соглашается ждать или отказывается. */}
                 {line.expectedOn ? (
                   <span data-testid="order-line-expected" className="text-xs font-semibold text-sale-ink">
@@ -531,5 +538,18 @@ function Revision({ title, lines, total, testId, breakdown, currency, diff = [] 
       <div className="my-2 h-px bg-hairline" />
       <OrderTotals total={total} breakdown={breakdown} currency={currency} />
     </Card>
+  );
+}
+
+/**
+ * Наличие строки открытой заявки — тем же правилом, что в корзине: «уточняется» не пишется,
+ * число жёлтое, когда свободного меньше, чем в строке. Строка «будет к дате» уже сказала своё.
+ */
+function LineStock({ line, stock }: { line: SnapshotLineDto; stock: PortalLineStockDto[] }) {
+  const found = line.itemId && !line.expectedOn ? stock.find((s) => s.itemId === line.itemId) : undefined;
+  if (!found || (found.available == null && (found.stock == null || found.stock === 'UNKNOWN'))) return null;
+  return (
+    <StockNote stock={found.stock} available={found.available} needed={line.quantity * (line.packQty ?? 1)}
+      short className="mt-0 text-xs" />
   );
 }

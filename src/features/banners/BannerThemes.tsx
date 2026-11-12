@@ -74,7 +74,7 @@ function Photo({ src, c, frame, style, template }: {
     }}>
       {src ? <img src={src} alt="" className="size-full object-cover" /> : (
         // Пока фото нет — иллюстрация шаблона, а не общий силуэт сумки.
-        <ArtSvg template={template} c={c} className="absolute inset-0 m-auto h-[82%] w-auto" />
+        <ArtSvg template={template} c={c} className="absolute inset-0 m-auto h-[82%] w-auto max-w-[88%]" />
       )}
     </div>
   );
@@ -206,7 +206,7 @@ export function ThemedLayout({ slide, c, compact, parts }: {
           <Stamp c={c} compact={compact} discount={slide.discount} note={slide.discountNote}
             style={photo ? { right: compact ? '32%' : 290, top: compact ? 10 : 22 } : { right: compact ? 12 : 270, top: compact ? 10 : 24 }} />
           <Text c={c} slide={slide} parts={parts} compact={compact}
-            style={{ ...edge, left: pad, right: compact ? (slide.discount ? 'calc(32% + 84px)' : '40%') : slide.discount ? 430 : 340 }} />
+            style={{ ...edge, left: pad, right: compact ? (slide.discount ? 'calc(32% + 84px)' : 'calc(36% + 24px)') : slide.discount ? 430 : 340 }} />
         </>
       );
   }

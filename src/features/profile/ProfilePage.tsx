@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useGetPortalProfile, useGetPortalSuppliers } from '../../api/generated';
 import { useAuth } from '../../auth/useAuth';
-import { currentViewer, entryChooseUrl } from '../../auth/oidcConfig';
+import { currentViewer, entryChooseUrl, getUserManager } from '../../auth/oidcConfig';
 import { phone as formatPhone } from '../../shared/format';
 import { SUPPORTED_LANGUAGES, currentLanguage } from '../../i18n';
 import { useAccountLanguage } from '../language/accountLanguage';
@@ -13,7 +13,7 @@ import { chooseTheme, useTheme } from '../../ui/theme';
 import { Switch } from '../../ui/Switch';
 import { BackTitle } from '../../ui/BackTitle';
 import { cn } from '../../ui/cn';
-import { ALargeSmall, ChevronLeft, ChevronRight, Globe, LogOut, Moon, Plus, Store, User } from '../../ui/icons';
+import { ALargeSmall, ChevronLeft, ChevronRight, Globe, LogOut, Moon, Plus, ShieldCheck, Store, User } from '../../ui/icons';
 import { useWideScreen } from '../../ui/useWideScreen';
 import { useLogoutConfirm } from '../shell/LogoutConfirm';
 import { BACK } from '../shell/SectionHead';
@@ -26,6 +26,7 @@ import { CompanyBlock } from './CompanyBlock';
 import { PromoSubscription } from './PromoSubscription';
 import { PushBlock } from './PushBlock';
 import { ConsentsBlock } from './ConsentsBlock';
+import { ProfileCity } from './ProfileCity';
 
 /**
  * Профиль — «Вариант Б» (макеты SimplePicProfile / SimplePicWebProfile): кто вы, магазины,
@@ -68,10 +69,12 @@ export function ProfilePage() {
           <div className="flex flex-col gap-3.5">
             <CompanyBlock />
             <ShopsCard />
+            <PasswordBlock />
           </div>
           <div className="flex flex-col gap-3.5">
             <PushBlock />
             <PromoSubscription />
+            <ProfileCity />
             {settings}
             <ConsentsBlock />
             <div className="flex gap-3">{logout}</div>
@@ -99,10 +102,12 @@ export function ProfilePage() {
         </span>
       </div>
       <ShopsCard />
+      <PasswordBlock />
       <CompanyBlock />
       <PushBlock />
       <ConsentsBlock />
       <PromoSubscription />
+      <ProfileCity />
       {settings}
       {logout}
       {switchCabinet}
@@ -124,6 +129,31 @@ function RowBody({ icon, label, hint, note }: { icon: ReactNode; label: string; 
       </span>
       <ChevronRight aria-hidden="true" className="size-5 shrink-0 text-ink-faint" />
     </>
+  );
+}
+
+/**
+ * «Пароль для входа»: задать или сменить — штатной страницей Keycloak (`kc_action=UPDATE_PASSWORD`), без бэкенда.
+ * Входящему кодом из WhatsApp пароль не нужен; он для входа по номеру и паролю (docs/work/2026-11-10-login-code-or-password).
+ * Сотруднику, смотрящему кабинет, строки нет: его пароль — в realm сотрудников.
+ */
+export function PasswordBlock() {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  if (currentViewer() === 'staff') return null;
+  return (
+    <div className="overflow-hidden rounded-[var(--radius-card)] border-2 border-solid border-hairline bg-surface">
+      <button type="button" disabled={busy} className={ROW} onClick={() => {
+        setBusy(true);
+        void getUserManager().signinRedirect({
+          state: { returnTo: '/profile' },
+          extraQueryParams: { kc_action: 'UPDATE_PASSWORD' },
+          ui_locales: currentLanguage(),
+        }).catch(() => setBusy(false));
+      }}>
+        <RowBody icon={<ShieldCheck className="size-6" />} label={t('profile.password.title')} hint={t('profile.password.hint')} />
+      </button>
+    </div>
   );
 }
 

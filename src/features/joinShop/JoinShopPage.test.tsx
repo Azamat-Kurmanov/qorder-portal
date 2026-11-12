@@ -6,6 +6,12 @@ import { JoinShopPage } from './JoinShopPage';
 import { renderScreen } from '../../test/render';
 import { get, method, stubFetch } from '../../test/http';
 
+const signinRedirect = vi.fn(() => Promise.resolve());
+vi.mock('../../auth/oidcConfig', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../auth/oidcConfig')>();
+  return { ...actual, getUserManager: () => ({ signinRedirect }) };
+});
+
 const notice = { version: '2026-10-14', language: 'ru', text: '# Согласие\n\nТекст.' };
 const shop = get('/api/portal/join-shop/abc', { shopName: 'ИП Мухамедиева' });
 const later = new Date(Date.now() + 10 * 60_000).toISOString();
@@ -70,7 +76,8 @@ describe('заявка в магазин по ссылке', () => {
     // Номер не спрашивается: им станет номер, с которого придёт код.
     expect(screen.queryByLabelText('Ваш номер WhatsApp')).toBeNull();
     await userEvent.type(screen.getByLabelText('Ваше имя'), 'Ержан');
-    await userEvent.type(screen.getByLabelText('Город'), 'Астана');
+    // Частному лицу хватает имени (pilot-rollout, этап 5): города нет.
+    expect(screen.queryByLabelText('Город')).toBeNull();
     const send = screen.getByRole('button', { name: 'Отправить заявку' });
     expect(send).toBeDisabled();
 
@@ -79,7 +86,7 @@ describe('заявка в магазин по ссылке', () => {
 
     const post = calls.find((call) => call.init?.method === 'POST');
     expect(JSON.parse(String(post?.init?.body))).toEqual({
-      companyName: 'Ержан', city: 'Астана', consentVersion: '2026-10-14',
+      name: 'Ержан', consentVersion: '2026-10-14',
     });
     expect(await screen.findByRole('link', { name: 'Открыть WhatsApp' })).toHaveAttribute('href', phoneCode.waLink);
     expect(screen.getByText(/Отправьте сообщение «Код 123456».*станет вашим номером для входа/)).toBeInTheDocument();
@@ -171,6 +178,17 @@ describe('заявка в магазин по ссылке', () => {
 
     expect(calls.some((call) => call.url.includes('/password') && call.init?.method === 'POST')).toBe(true);
     expect(await screen.findByRole('button', { name: 'Войти в кабинет' })).toBeInTheDocument();
+  });
+
+  it('одобрено при входе кодом из WhatsApp — без пароля, вход токеном заявки', async () => {
+    localStorage.setItem('qo.portal.joinShop.abc', 't1');
+    stubFetch([get('/api/portal/join-shop/abc/requests/t1', { status: 'APPROVED', passwordNeeded: true, codeLogin: true }), shop]);
+    open();
+
+    expect(await screen.findByText(/пароль не нужен/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Придумайте пароль')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Войти в кабинет' }));
+    expect(signinRedirect).toHaveBeenCalledWith(expect.objectContaining({ login_hint: 'join:t1' }));
   });
 
   it('заявки по сохранённому токену нет — предлагает отправить заново', async () => {

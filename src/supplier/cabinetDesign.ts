@@ -79,18 +79,6 @@ export interface CabinetTemplate {
 
 export const TEMPLATE_FONTS: Record<string, string> = registry.fonts;
 
-const OWN_TEMPLATES = (registry.templates as CabinetTemplate[]).map((template) => [template.id, template] as const);
-
-/**
- * Шаблоны по коду. Коды, ушедшие из выбора (`aliases`), ведут на ближайший
- * шаблон: продавец, выбравший их раньше, не теряет оформление.
- */
-export const CABINET_TEMPLATES: Record<string, CabinetTemplate> = Object.fromEntries([
-  ...OWN_TEMPLATES,
-  ...Object.entries(registry.aliases as Record<string, string>)
-    .map(([code, target]) => [code, OWN_TEMPLATES.find(([id]) => id === target)![1]] as const),
-]);
-
 /**
  * Характер живой темы (этап 1 — только данные; экраны переходят на них в этапах 3–4).
  * `bannerSkin` — одежда баннеров, `display` — крупный заголовок, `motion` —

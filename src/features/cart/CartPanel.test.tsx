@@ -75,7 +75,7 @@ describe('корзина на телефоне — нижний лист', () =>
 
   it('за кредитным лимитом — предупреждение без сумм; в пределах лимита — тишина', async () => {
     stubFetch([
-      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза' }]),
+      get('/api/portal/suppliers', [{ supplierId: 'supplier-1', name: 'СтройБаза', credit: true }]),
       get('/api/portal/cart', { ...cart, creditLimitExceeded: true }),
     ]);
     renderScreen(<CartPanel />);

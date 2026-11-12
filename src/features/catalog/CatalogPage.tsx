@@ -22,6 +22,8 @@ import {
 import { cartOf, useCart } from '../cart/useCart';
 import { QuickInput } from './QuickInput';
 import { PriceListDownload } from './PriceListDownload';
+import { BranchNote } from '../city/BranchNote';
+import { CITY_CHIP, HeaderCity } from '../city/HeaderCity';
 import { FavoriteButton } from '../favorites/FavoriteButton';
 import { ItemThumb } from './ItemThumb';
 import { ColourCountBadge } from './ColourCountBadge';
@@ -472,7 +474,15 @@ export function CatalogPage() {
           {/* Порядок — только значком со стрелками (решение владельца 2026-11-05); варианты — окном снизу. */}
           <SortButton value={sortShown} onChange={setSort}
             options={[...PHONE_SORTS, ...(dealCount > 0 ? ['DISCOUNT' as const] : [])]} />
+          <PriceListDownload compact categoryId={categoryId}
+            note={vatRate !== undefined ? t(items[0].vatIncluded ? 'catalog.leadVatIncluded' : 'catalog.leadVat', { rate: decimal(vatRate) }) : t('catalog.lead')} />
         </div>
+        </div>
+        {/* Город клиента (для него наличие и доставка) и филиал («Филиалы»): строкой под поиском — в верхней строке
+            места нет. Нажатие — в профиль, где город меняется. Магазин без филиалов — только город. */}
+        <div className="flex flex-wrap items-center gap-2 empty:hidden">
+          <HeaderCity className={CITY_CHIP} />
+          <BranchNote />
         </div>
         {/* Фильтры — одной строкой: значок со всеми фильтрами слева и кнопка на каждое поле (решение владельца 2026-11-05). */}
         <PhoneFilters
@@ -612,6 +622,8 @@ export function CatalogPage() {
             {title}
             {total !== undefined && <span className="font-bold text-ink-muted"> · {total}</span>}
           </h1>
+          {/* «Как пользоваться» — у названия экрана: из шапки монитора кнопка убрана. */}
+          <PageHelp className="shrink-0" />
           {/* Плашка магазина с одним способом; переключатель «Оптом / В розницу» — в верхней панели. */}
           {only ? (
             <p role="note" className="m-0 flex h-10 shrink-0 items-center whitespace-nowrap rounded-xl bg-night px-3.5 text-sm font-extrabold text-white">
@@ -644,6 +656,7 @@ export function CatalogPage() {
           <SearchField className="h-13 min-w-[20rem] max-w-[40rem] rounded-2xl border-2 bg-surface pl-4 [&_input]:text-base [&_svg]:size-5" />
           <ChosenChips facets={facets} value={{ fields, marks: MARKS.filter((mark) => marks[mark]), presence }}
             onApply={(next) => { setFields(next.fields); setPresence(next.presence); }} />
+          <BranchNote />
           {/* Прайс-лист — в строке поиска, справа (просьба владельца 2026-11-05). */}
           <div className="ml-auto shrink-0">
             <PriceListDownload categoryId={categoryId}
@@ -752,7 +765,7 @@ export function ItemTile({
         {/* В две строки, а не обрезкой: «за линейку (6 шт.)» — главное в строке опта. */}
         <WholesaleNote item={view} className="line-clamp-2 leading-snug" />
         {/* «Уточняется» у каждой позиции — шум: пишется только то, что что-то говорит. */}
-        {shown.stock && shown.stock !== 'UNKNOWN'
+        {shown.available != null || (shown.stock && shown.stock !== 'UNKNOWN')
           ? <StockNote stock={shown.stock} available={shown.available} short className="mt-0 text-xs" />
           : null}
         <ItemFacts item={view} inline />

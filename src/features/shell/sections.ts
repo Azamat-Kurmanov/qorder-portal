@@ -2,7 +2,6 @@ import {
   Building2,
   ClipboardList,
   Heart,
-  House,
   LayoutGrid,
   LayoutTemplate,
   MessageCircleQuestion,
@@ -27,9 +26,6 @@ export interface Section {
   path: string;
   icon: IconComponent;
 }
-
-/** «Главная» — плитки всех разделов и то, что ждёт клиента. */
-export const HOME_SECTION: Section = { key: 'home', path: '/home', icon: House };
 
 /** «Новые поступления»: виден, пока у магазина есть действующие новинки. */
 export const ARRIVALS: Section = { key: 'newArrivals', path: '/new-arrivals', icon: NewArrivalsIcon as IconComponent };

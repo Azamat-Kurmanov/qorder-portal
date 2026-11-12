@@ -123,10 +123,13 @@ export async function tenant(browser: Browser, label: string,
   const staffToken = await tokenBySignIn(browser, `${FRONT_URL}/queue`, phone, account.temporaryPassword, NEW_PASSWORD);
   const staff = await api(staffToken);
 
+  // Остаток товара пишется, только когда учёт включён на весь каталог: без этого
+  // stockQuantity при создании молча не сохраняется.
+  await json(await staff.put('/api/catalog/settings', { data: { trackStock: true } }), 'учёт остатков');
   const saved: Tenant['items'] = {};
   for (const item of items) {
     const body = await json<{ id: string }>(await staff.post('/api/catalog/items', {
-      data: { ...item, trackStock: true, stockQuantity: 100, vatRate: 16 },
+      data: { ...item, stockQuantity: 100, vatRate: 16 },
     }), `позиция ${item.sku}`);
     saved[item.sku] = { ...item, id: body.id };
   }

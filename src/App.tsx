@@ -33,6 +33,8 @@ const router = withViewTransitions(createBrowserRouter(createRoutesFromElements(
     <Route path="/join/:code?" lazy={() => import('./features/join/JoinPage').then((module) => ({ Component: module.JoinPage }))} />
     {/* Заявка клиента в магазин по его ссылке или QR — гость без входа (backend.md §18.28, п. 6). */}
     <Route path="/join-shop/:code" lazy={() => import('./features/joinShop/JoinShopPage').then((module) => ({ Component: module.JoinShopPage }))} />
+    {/* Одноразовая ссылка входа от продавца (pilot-rollout, 5.6) — до защищённой части: входа ещё нет. */}
+    <Route path="/enter/:token" lazy={() => import('./features/enter/EnterPage').then((module) => ({ Component: module.EnterPage }))} />
     <Route path="/callback" element={<CallbackPage />} />
     <Route
       path="/*"

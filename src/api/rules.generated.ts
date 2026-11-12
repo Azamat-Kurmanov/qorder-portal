@@ -41,6 +41,10 @@ export const rules = {
     bankKbe: { required: false, pattern: /^(?:^\s*$|^\d{2}$)$/, example: "17" },
     goodsVatMode: { required: false, pattern: /^(?:INCLUDED|ON_TOP)$/, example: "INCLUDED" },
   },
+  PermissionDto: {
+    section: { required: true },
+    level: { required: true },
+  },
   SaveRoleRequest: {
     name: { required: true, maxLength: 64, example: "Старший кладовщик" },
   },
@@ -56,6 +60,9 @@ export const rules = {
   },
   SetTenantOwnerRequest: {
     userId: { required: true },
+  },
+  SetTenantFeaturesRequest: {
+
   },
   SetAccountAccessRequest: {
 
@@ -80,6 +87,10 @@ export const rules = {
     code: { required: true, pattern: /^(?:^[A-Z0-9_]{2,20}$)$/, minLength: 1, example: "HALYK" },
     name: { required: true, maxLength: 60, example: "Halyk" },
   },
+  UpdateFeedbackRequest: {
+    status: { required: true, pattern: /^(?:NEW|ACCEPTED|IN_PROGRESS|RELEASED|DECLINED)$/ },
+    answer: { required: false, maxLength: 1000 },
+  },
   UpdateWhatsappPackageRequest: {
 
   },
@@ -96,6 +107,13 @@ export const rules = {
     currency: { required: true, example: "KZT" },
     workspaceColor: { required: false, pattern: /^(?:^\s*$|^\s*#[0-9A-Fa-f]{6}\s*$)$/, example: "#1F5C57" },
     workspaceBackground: { required: false, example: "SAND" },
+  },
+  CabinetPhoto: {
+    url: { required: false, maxLength: 2048, example: "https://drive.google.com/file/d/1AbC_dEfG-42/view" },
+    fileId: { required: false },
+    fit: { required: false, example: "COVER" },
+    veil: { required: false, example: "MEDIUM" },
+    blur: { required: false, example: "NONE" },
   },
   SaveCabinetDesignRequest: {
     template: { required: true, example: "VITRINA" },
@@ -121,6 +139,7 @@ export const rules = {
   SaveWarehouseRequest: {
     name: { required: true, maxLength: 255 },
     address: { required: false, maxLength: 500, example: "Алматы, ул. Райымбека, 212" },
+    priceTypeId: { required: false },
   },
   SaveFloorRequest: {
 
@@ -132,11 +151,20 @@ export const rules = {
   SaveKeeperRequest: {
 
   },
+  LineInput: {
+    itemId: { required: true },
+    cellId: { required: false },
+    producedOn: { required: false },
+    producedAt: { required: false },
+    expiresOn: { required: false },
+    expiresAt: { required: false },
+  },
   SaveDocumentRequest: {
     type: { required: true },
     warehouseId: { required: true },
     targetWarehouseId: { required: false },
     comment: { required: false, maxLength: 512 },
+    receivedOn: { required: false },
   },
   SaveCellRequest: {
     purpose: { required: true },
@@ -190,6 +218,9 @@ export const rules = {
     currency: { required: true },
     status: { required: true },
   },
+  ShipmentLineInput: {
+    lineId: { required: true },
+  },
   SaveShipmentRequest: {
     shippedOn: { required: true },
     placesText: { required: false, maxLength: 64 },
@@ -208,6 +239,9 @@ export const rules = {
   SaveSizesRequest: {
 
   },
+  SizePartInput: {
+    itemId: { required: true },
+  },
   LinkLineRequest: {
     itemId: { required: false },
   },
@@ -215,6 +249,9 @@ export const rules = {
     kind: { required: true },
     currency: { required: true },
     note: { required: false, maxLength: 500 },
+  },
+  BatchPlaceInput: {
+    placeId: { required: true },
   },
   SaveBatchRequest: {
     kind: { required: false, maxLength: 16 },
@@ -232,6 +269,9 @@ export const rules = {
     saleStartsOn: { required: false, example: "2026-09-20" },
     saleEndsOn: { required: false, example: "2026-09-30" },
   },
+  VolumeTierDto: {
+
+  },
   PromoMarkRequest: {
 
   },
@@ -245,6 +285,9 @@ export const rules = {
     startsOn: { required: true, example: "2026-10-22" },
     endsOn: { required: true, example: "2026-11-05" },
   },
+  Line: {
+    itemId: { required: true },
+  },
   UpdateTemplateRequest: {
     name: { required: true, maxLength: 255, example: "Еженедельный завоз" },
   },
@@ -255,12 +298,19 @@ export const rules = {
   PromoSubscriptionRequest: {
 
   },
+  ItemSaleTerms: {
+    noveltySince: { required: false, example: "2026-09-12" },
+  },
   RateOrderRequest: {
     reason: { required: false },
     comment: { required: false, maxLength: 1000, example: "Привезли на день позже" },
   },
   SetPortalLanguageRequest: {
     language: { required: true, pattern: /^(?:ru|kk|en)$/, example: "kk" },
+  },
+  SetPortalCityRequest: {
+    country: { required: true, pattern: /^(?:[A-Z]{2})$/, example: "KZ" },
+    cityName: { required: false, maxLength: 128, example: "Измир" },
   },
   SetCartLineRequest: {
     mode: { required: false },
@@ -276,6 +326,27 @@ export const rules = {
   },
   LinkItemCodeRequest: {
     code: { required: true, maxLength: 64, example: "00-000012391" },
+  },
+  Delivery: {
+    methodId: { required: false },
+    pickupPointId: { required: false },
+    zoneId: { required: false },
+    address: { required: false, maxLength: 512 },
+    city: { required: false, maxLength: 255 },
+    date: { required: false },
+    slot: { required: false, maxLength: 64 },
+    note: { required: false, maxLength: 512 },
+    carrierId: { required: false },
+    deliverTo: { required: false },
+    deliveryVatMode: { required: false },
+    loadersVatMode: { required: false },
+    ownCarrier: { required: false, maxLength: 255 },
+  },
+  LinePatch: {
+    name: { required: false },
+    unit: { required: false },
+    catalogItemId: { required: false },
+    availabilityStatus: { required: false },
   },
   UpdateDraftRequest: {
     customerName: { required: false },
@@ -301,12 +372,25 @@ export const rules = {
   DeliveryModeRequest: {
     mode: { required: true },
   },
+  DeliveryLoaders: {
+    mode: { required: true },
+    tariff: { required: false },
+    provider: { required: false },
+    payee: { required: false },
+  },
   DeliveryMethodRequest: {
     name: { required: true, maxLength: 255, example: "Доставка по Алматы" },
     type: { required: true },
     tariffRule: { required: true },
     deliveryVatMode: { required: false },
     loadersVatMode: { required: false },
+  },
+  DeliveryReceipt: {
+    control: { required: true },
+  },
+  DeliveryTransport: {
+    by: { required: true },
+    payee: { required: false },
   },
   CarrierRequest: {
     name: { required: true, maxLength: 255, example: "СДЭК" },
@@ -353,6 +437,9 @@ export const rules = {
   ReorderSellerUnitsRequest: {
 
   },
+  ItemPrice: {
+    id: { required: true },
+  },
   SetPricesRequest: {
 
   },
@@ -371,6 +458,19 @@ export const rules = {
   ReorderItemMediaRequest: {
 
   },
+  FieldValueDto: {
+    code: { required: false, example: "TARE" },
+    value: { required: false, example: "GLASS" },
+    date: { required: false, example: "2026-12-31" },
+  },
+  ItemAttributeDto: {
+    name: { required: true, maxLength: 60, example: "Цвет" },
+    value: { required: true, maxLength: 500, example: "Серый" },
+  },
+  ItemWholesale: {
+    saleMode: { required: false, example: "BOTH" },
+    unitId: { required: false },
+  },
   PackLineRequest: {
     itemId: { required: true, example: "018f3c2a-7b4e-7c1a-9f2d-3b5e6a7c8d90" },
   },
@@ -383,6 +483,9 @@ export const rules = {
     storageLocation: { required: false, maxLength: 255, example: "Склад · ряд 2, полка 3" },
     article: { required: false, maxLength: 64, example: "LOW-CIT" },
     ageRule: { required: false },
+  },
+  WholesaleTier: {
+
   },
   SetItemVisibilityRequest: {
 
@@ -430,11 +533,21 @@ export const rules = {
     name: { required: true, minLength: 1, example: "Айгуль Сериковна" },
     email: { required: true, minLength: 1, format: "email", example: "aigul@example.kz" },
   },
+  PublishNewsRequest: {
+    title: { required: true, maxLength: 200, example: "Остаток можно править прямо в строке каталога" },
+    body: { required: false, maxLength: 2000 },
+    feature: { required: false },
+    featureKey: { required: false, maxLength: 32, example: "catalog" },
+  },
   IssueServiceInvoiceRequest: {
     currency: { required: true, pattern: /^(?:[A-Z]{3})$/ },
   },
   CancelServiceRequestRequest: {
     reason: { required: true, maxLength: 512 },
+  },
+  SendFeedbackRequest: {
+    text: { required: true, maxLength: 2000, example: "Хочу видеть остаток по размерам сразу в списке" },
+    feature: { required: false, maxLength: 32, example: "catalog" },
   },
   AddChannelRequest: {
     phone: { required: true, pattern: /^(?:\d{10,15})$/, minLength: 1 },
@@ -453,6 +566,14 @@ export const rules = {
     reason: { required: true },
     from: { required: true, example: "2026-11-05" },
     until: { required: false, example: "2026-11-12" },
+  },
+  QuickReceiptLine: {
+    itemId: { required: true },
+  },
+  QuickReceiptRequest: {
+    receivedOn: { required: false, example: "2026-11-10" },
+    warehouseId: { required: false },
+    comment: { required: false, maxLength: 512, example: "Гуля, накладная 0007" },
   },
   WriteOffLotRequest: {
     lotId: { required: true },
@@ -510,6 +631,9 @@ export const rules = {
   RejectReviewRequest: {
     reason: { required: false, example: "SPAM" },
   },
+  ReceiptLineInput: {
+    lineId: { required: true },
+  },
   SaveReceiptRequest: {
     shipmentId: { required: true },
     warehouseId: { required: true },
@@ -526,6 +650,9 @@ export const rules = {
     note: { required: false, maxLength: 500 },
   },
   InvoiceImportRequest: {
+
+  },
+  InvoiceMapping: {
 
   },
   NoveltyBatchRequest: {
@@ -547,6 +674,19 @@ export const rules = {
     invitationId: { required: true },
     consentVersion: { required: false, maxLength: 32, example: "2026-09-01" },
   },
+  SubmitOrderDelivery: {
+    methodId: { required: false },
+    pickupPointId: { required: false },
+    address: { required: false, maxLength: 512 },
+    city: { required: false, maxLength: 255 },
+    date: { required: false },
+    slot: { required: false, maxLength: 64 },
+    note: { required: false, maxLength: 512 },
+    zoneId: { required: false },
+    carrierId: { required: false },
+    deliverTo: { required: false },
+    ownCarrier: { required: false, maxLength: 255, example: "inDriver" },
+  },
   SubmitOrderRequest: {
     note: { required: false, maxLength: 1000, example: "позвоните за час" },
     mode: { required: false },
@@ -565,6 +705,10 @@ export const rules = {
   },
   AnswerOrderRequest: {
     message: { required: false, maxLength: 2000, example: "Замену беру, если цвет тёмный" },
+  },
+  LineDecisionDto: {
+    lineId: { required: true },
+    decision: { required: true },
   },
   SupplierLeadRequest: {
     code: { required: false, maxLength: 32 },
@@ -597,10 +741,11 @@ export const rules = {
   },
   AccessRequestRequest: {
     phone: { required: false, pattern: /^(?:^\+?\d{10,15}$)$/, example: "77011234567" },
-    companyName: { required: true, maxLength: 255, example: "ТОО Кафе" },
+    companyName: { required: false, maxLength: 255, example: "ТОО Кафе" },
     bin: { required: false, pattern: /^(?:^\d{12}$)$/, example: "123456789013" },
-    city: { required: true, maxLength: 255, example: "Астана" },
+    city: { required: false, maxLength: 255, example: "Астана" },
     consentVersion: { required: true, maxLength: 32, example: "2026-10-14" },
+    name: { required: false, maxLength: 255, example: "Айгуль" },
   },
   JoinPasswordRequest: {
     password: { required: true, maxLength: 128 },
@@ -624,6 +769,11 @@ export const rules = {
   },
   CreateOrderReturnRequest: {
     reason: { required: true, maxLength: 500, example: "Клиент не подошёл цвет" },
+  },
+  OrderReturnLineInput: {
+    orderLineId: { required: true },
+    disposition: { required: true },
+    cellId: { required: false },
   },
   ReopenOrderRequest: {
     reason: { required: true, maxLength: 512 },
@@ -653,6 +803,7 @@ export const rules = {
   CreateManagerDraftRequest: {
     phone: { required: false, pattern: /^(?:7\d{10}|[1-689]\d{7,14})$/, example: "77010000312" },
     name: { required: false, maxLength: 255, example: "Ерлан" },
+    shop: { required: false, maxLength: 255, example: "Магазин «Береке»" },
     pickupPointId: { required: false },
   },
   PaymentRejectRequest: {
@@ -666,6 +817,10 @@ export const rules = {
   },
   ReplyToCustomerRequest: {
     text: { required: true, maxLength: 2000, example: "Доставка на Абая 15 завтра после обеда, 2 000. Подходит?" },
+  },
+  LineNote: {
+    lineId: { required: true },
+    note: { required: false, maxLength: 300, example: "Motion закончились, больше не будет" },
   },
   RenegotiateRequest: {
     note: { required: false, maxLength: 500, example: "Есть аналог, по посадке ближе всего" },
@@ -721,6 +876,16 @@ export const rules = {
   DeclineAccessRequest: {
     reason: { required: false, maxLength: 500, example: "Работаем только с Астаной" },
   },
+  CreateModelColour: {
+    name: { required: true, maxLength: 120, example: "шоколад" },
+  },
+  CreateModelRequest: {
+    name: { required: true, maxLength: 255, example: "Куртка женская" },
+    categoryId: { required: true },
+    modelCode: { required: false, maxLength: 40, example: "61251-75" },
+    unit: { required: false, maxLength: 32, example: "шт" },
+    sizes: { required: true, maxLength: 200, example: "46-56" },
+  },
   AddItemMediaRequest: {
     kind: { required: true },
     url: { required: true, maxLength: 2048, example: "https://drive.google.com/file/d/1AbC_dEfG-42/view?usp=sharing" },
@@ -733,6 +898,9 @@ export const rules = {
 
   },
   ApplyIndustryRequest: {
+
+  },
+  ColumnMapping: {
 
   },
   CommitImportRequest: {
@@ -762,5 +930,8 @@ export const rules = {
   AddCatalogAliasRequest: {
     itemId: { required: true },
     text: { required: true, maxLength: 512, example: "брюки элеганс белые" },
+  },
+  HideDemandRequest: {
+    text: { required: true, maxLength: 120, example: "ананас" },
   },
 } as const satisfies Record<string, Record<string, FieldRule>>;

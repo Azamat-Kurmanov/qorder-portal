@@ -15,7 +15,8 @@ import { ShopTile, useShops } from '../Shops';
 import { InvitesPill } from '../Invitations';
 import { HeaderOrderMode } from '../../catalog/OrderModeSwitch';
 import { toTop } from '../toTop';
-import { HelpGuide } from '../HelpGuide';
+import { LanguagePicker } from '../LanguagePicker';
+import { HeaderCity } from '../../city/HeaderCity';
 
 /**
  * Шапка монитора — по «Варианту Б» канвы (SimplePicWeb*): белая панель 76 точек.
@@ -46,7 +47,7 @@ export function ClientBar({ activated, ready, others, onOpenShops, current }: {
     <header data-testid="client-bar" data-shell-header className="z-20 border-b-2 border-hairline bg-surface lg:sticky lg:top-0">
       {/* Края шапки — по краям содержимого страницы (76rem + поля 2rem, как у main): шире они
           разъезжались к краям окна, а карточки под ними стояли уже (просьба владельца 2026-11-06). */}
-      <div className="mx-auto flex h-16 w-full max-w-[80rem] items-center gap-4 px-8">
+      <div className="mx-auto flex h-16 w-full max-w-[80rem] items-center gap-3 px-8 xl:gap-4">
         <Link to="/home" aria-label={t('shell.supplier')} className="shrink-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
           {shop && <ShopTile supplier={{ name: shop.name, logoUrl: shop.logoUrl }} alt="" initials className="size-11 rounded-xl text-base" />}
         </Link>
@@ -65,7 +66,7 @@ export function ClientBar({ activated, ready, others, onOpenShops, current }: {
             Кнопки с подписями и постоянной ширины (раскрытие под курсором владелец отверг 2026-11-05: перескоки).
             Только если подписи не влезают в место между магазином и профилем — остаются значки. */}
         <div ref={wrap} className="flex min-w-0 flex-1 justify-center">
-        <nav aria-label={t('shell.sectionsRail')} className="flex items-center gap-1 px-1.5 py-2.5">
+        <nav aria-label={t('shell.sectionsRail')} className={cn('flex items-center gap-1 py-2.5', compact ? 'px-0' : 'px-1.5')}>
           <Item compact={compact} to="/home" icon={HomeHouse} label={t('shell.tabs.home')} tip={t('shell.tips.home')} active={on('/home', '/orders')} />
           <Item compact={compact} to="/catalog" icon={HomeCatalog} label={t('shell.tabs.catalog')} tip={t('shell.tips.catalog')} active={on('/catalog')} />
           <Item compact={compact} to="/messages" icon={HomeMessages} label={t('shell.tabs.messages')} tip={t('shell.tips.messages')} count={unread}
@@ -76,7 +77,7 @@ export function ClientBar({ activated, ready, others, onOpenShops, current }: {
             aria-haspopup="dialog"
             onClick={toggleCart}
             {...{ [CART_TARGET]: '' }}
-            className={itemClass(drawer.open || on('/checkout'))}
+            className={itemClass(drawer.open || on('/checkout'), compact)}
           >
             <HomeCart aria-hidden="true" className="size-6 shrink-0 text-home-icon transition-transform duration-150 group-hover:scale-110 group-hover:-rotate-6 motion-reduce:transition-none" />
             <span className={cn(compact && 'sr-only')}>{t('shell.tabs.checkout')}</span>
@@ -90,8 +91,13 @@ export function ClientBar({ activated, ready, others, onOpenShops, current }: {
 
         {/* Режим заказа — в верхней панели, на любой странице (решение владельца 2026-11-05); запрос — только когда магазин известен. */}
         {activated && ready ? <HeaderOrderMode /> : null}
-        {/* «Как пользоваться» — инструкция к открытому экрану; у экрана без инструкции кнопки нет. */}
-        <HelpGuide className="size-11 rounded-full text-ink-muted hover:text-ink" />
+        {/* Город — на виду: по нему считаются доставка и наличие; щелчок — в профиль, где он меняется. */}
+        {/* Узкий монитор: в шапке тесно — один значок, название — в подсказке и для диктора. */}
+        {ready ? <HeaderCity className="max-xl:w-11 max-xl:justify-center max-xl:px-0" labelClassName="max-xl:sr-only" /> : null}
+        {/* Язык — на виду, в шапке (просьба владельца 2026-11-11): прежде он был только в «Все разделы»,
+            и клиент на мониторе его не находил. Тот же переключатель сохраняет язык в учётную запись. */}
+        <LanguagePicker />
+        {/* «Как пользоваться» — не здесь, а в строке заголовка страницы (PageHelp): в шапке ему не хватало места. */}
         {/* ponytail: колокольчик остаётся, пока уведомления не встанут в «Все разделы» (этап 1), как в макете. */}
         {activated && <NotificationsBell active={ready} dot className="size-11 rounded-full text-ink-muted hover:text-ink" />}
         {/* Имя ведёт в профиль, а не в «Все разделы»: два входа в одно место путали. */}
@@ -99,13 +105,14 @@ export function ClientBar({ activated, ready, others, onOpenShops, current }: {
           to="/profile"
           aria-label={name ?? t('shell.profile')}
           onClick={toTop}
-          className="group relative flex h-12 shrink-0 items-center gap-2 rounded-full border-2 border-hairline pl-1.5 pr-1.5 text-body 2xl:pr-4 font-bold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="group relative flex h-12 shrink-0 items-center gap-2 rounded-full border-2 border-hairline pl-1.5 pr-1.5 text-body font-bold text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <span className="flex size-9 items-center justify-center rounded-full bg-accent-soft text-accent-ink">
             <User aria-hidden="true" className="size-5" />
           </span>
-          <span className="hidden max-w-[8rem] truncate 2xl:inline">{name ?? t('shell.profile')}</span>
-          <Tip text={t('shell.tips.profile')} end />
+          {/* Имени на кнопке нет: шапка не шире 80rem, а имя включалось по ширине экрана (2xl) —
+              на большом мониторе оно отнимало ~150 точек, и меню наезжало на «Оптом». Имя — в подсказке. */}
+          <Tip text={name ? `${name} · ${t('shell.tips.profile')}` : t('shell.tips.profile')} end />
           {others > 0 && (
             <span role="img" aria-label={t('shell.othersHaveNews')} className="absolute right-0 top-0 size-3 rounded-full bg-sale ring-2 ring-surface" />
           )}
@@ -139,11 +146,13 @@ function useCompact(wrap: RefObject<HTMLDivElement | null>): boolean {
   return compact;
 }
 
-function itemClass(active: boolean): string {
+function itemClass(active: boolean, compact = false): string {
   return cn(
     // Толщина шрифта у выбранного та же: иначе пункт шире, и меню по центру «ездит» при переходах.
     // Отклик под курсором — только transform (подъём, увеличение, вдавливание): соседей он не сдвигает.
-    'group relative flex h-12 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl px-2.5 text-body font-extrabold',
+    'group relative flex h-12 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-2xl text-body font-extrabold',
+    // Одни значки (подписи не влезли) — поуже: шесть пунктов отдают ~25 точек «Оптом / В розницу» на узком мониторе.
+    compact ? 'px-2' : 'px-2.5',
     'transition-[transform,background-color,color,box-shadow] duration-150 ease-out motion-reduce:transition-none',
     'hover:-translate-y-0.5 hover:scale-[1.06] hover:shadow-[0_6px_16px_-6px_rgba(1,86,64,.35)] active:translate-y-0 active:scale-95',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
@@ -162,7 +171,7 @@ function Item({ to, icon: Icon, label, tip, active, count = 0, countLabel, compa
   countLabel?: string;
 }) {
   return (
-    <NavLink to={to} onClick={toTop} aria-current={active ? 'page' : undefined} className={itemClass(active)}>
+    <NavLink to={to} onClick={toTop} aria-current={active ? 'page' : undefined} className={itemClass(active, compact)}>
       <Icon aria-hidden="true" className="size-6 shrink-0 text-home-icon transition-transform duration-150 group-hover:scale-110 group-hover:-rotate-6 motion-reduce:transition-none" />
       <span className={cn(compact && 'sr-only')}>{label}</span>
       {count > 0 && <Count value={count} label={countLabel ?? ''} />}

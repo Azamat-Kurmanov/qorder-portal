@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { BranchNote } from '../city/BranchNote';
+import { CITY_CHIP, HeaderCity } from '../city/HeaderCity';
 import { useTranslation } from 'react-i18next';
 import { rules } from '../../api/rules.generated';
 import { Link, useNavigate } from 'react-router-dom';
@@ -11,7 +13,8 @@ import { Button } from '../../ui/Button';
 import { Card } from '../../ui/Card';
 import { cn } from '../../ui/cn';
 import { cartOf, useCart, useClearCart } from './useCart';
-import { CartLines, SkippedNotice } from './CartLines';
+import { CartLines, SkippedNotice, showsStock } from './CartLines';
+import { StockNote } from '../catalog/StockNote';
 import { DeliveryBlock, hasDeliveryExtras, missingToFree, useDeliveryOptions } from './DeliveryBlock';
 import { money } from '../../shared/format';
 import { useSupplierCurrency } from '../../supplier/SupplierCurrency';
@@ -106,7 +109,10 @@ export function CheckoutPage() {
         <div className="flex flex-wrap items-center gap-3">
           {back}
           <h1 className="qo-page-title">{title}</h1>
+          <BranchNote />
           <div className="ml-auto"><Steps current={current} wide /></div>
+          {/* «Как пользоваться» — у названия экрана: из шапки монитора кнопка убрана. */}
+          <PageHelp className="shrink-0" />
         </div>
         <div data-testid="checkout-layout" className="grid grid-cols-[minmax(0,1fr)_400px] items-start gap-6">
           <div className="flex min-w-0 flex-col gap-4">
@@ -132,6 +138,11 @@ export function CheckoutPage() {
         <PageHelp />
       </div>
       {step === 1 && <PartSwitch parts={parts} />}
+      {/* Город клиента — для него считается доставка; нажатие — в профиль, где он меняется. */}
+      <div className="flex flex-wrap items-center gap-2 empty:hidden">
+        <HeaderCity className={CITY_CHIP} />
+        <BranchNote />
+      </div>
       <Steps current={current} />
       <Notices checkout={checkout} />
 
@@ -223,9 +234,11 @@ function DeliveryFoot({ method, shipping, goodsTotal }: {
 }) {
   const { t } = useTranslation();
   const currency = useSupplierCurrency();
-  if (!method || method.pickup) return null;
+  // Цены нет (договорная, зона не выбрана, платят перевозчику) — молчим: «Доставка по договорённости»
+  // над «Дальше» путала (владелец 2026-11-09), а договорную уже назвала карточка способа.
+  if (!method || method.pickup || shipping === undefined) return null;
   const missing = missingToFree(method, goodsTotal);
-  const cost = shipping === undefined ? t('checkout.summary.negotiable') : shipping === 0 ? t('checkout.steps.free') : money(shipping, currency);
+  const cost = shipping === 0 ? t('checkout.steps.free') : money(shipping, currency);
   return (
     <p data-testid="delivery-foot" className="m-0 text-base font-bold text-ok-ink">
       {t('checkout.steps.deliveryFoot', { cost })}
@@ -347,6 +360,17 @@ function Summary({ checkout, wide }: { checkout: Checkout; wide: boolean }) {
                 <LineThumb key={`${line.itemId}:${line.mode ?? ''}`} seed={line.itemId} src={line.imageUrl} className="size-14 shrink-0 rounded-[var(--radius-control)]" />
               ))}
             </div>
+          )}
+          {/* Наличие по строкам — миниатюры его не показывают, а «Продавец проверит, всё ли есть» ниже. */}
+          {lines.some(showsStock) && (
+            <ul data-testid="checkout-stock" className="m-0 flex list-none flex-col gap-1 p-0">
+              {lines.filter(showsStock).map((line) => (
+                <li key={`${line.itemId}:${line.mode ?? ''}`} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate text-ink">{line.name}</span>
+                  <StockNote stock={line.stock} available={line.available} needed={line.quantity} short className="mt-0 shrink-0 text-caption" />
+                </li>
+              ))}
+            </ul>
           )}
         </>
       )}

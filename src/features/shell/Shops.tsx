@@ -2,9 +2,8 @@ import { ScanQrButton } from '../scanQr/ScanQrButton';
 import { CHIP_ROW } from '../../ui/chipRow';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Check, ChevronLeft, ChevronRight, Clock, Search, Star, X, Plus } from '../../ui/icons';
+import { ChevronLeft, ChevronRight, Clock, Search, Star, X, Plus } from '../../ui/icons';
 import { useWideScreen } from '../../ui/useWideScreen';
 import {
   useGetPortalSuppliers,
@@ -52,98 +51,6 @@ export function useCurrentShop(): PortalSupplierDto | undefined {
   const suppliers = useGetPortalSuppliers({ query: { refetchOnMount: false, retryOnMount: false } });
   const list = suppliers.data?.status === 200 ? suppliers.data.data : [];
   return list.find((supplier) => supplier.supplierId === supplierId);
-}
-
-/**
- * Порядок в колонке: текущий, закреплённые, недавние.
- *
- * Остальными не добирается: подпись блока — «избранные и недавние», и
- * случайный магазин в нём читался бы как недавний. Не больше пяти строк:
- * колонка — это быстрый переход к своим, а весь список живёт в окне
- * «Мои магазины».
- */
-function sideOrder(list: PortalSupplierDto[], currentId: string | null, pinned: string[], recent: string[]) {
-  const ids: string[] = [];
-  [currentId, ...pinned, ...recent].forEach((id) => {
-    // Скрытый — только когда клиент сейчас в нём: иначе колонка возвращала бы то, что он убрал с глаз.
-    if (id && !ids.includes(id)
-      && list.some((supplier) => supplier.supplierId === id && (!supplier.hidden || id === currentId))) ids.push(id);
-  });
-  return ids.slice(0, 5).map((id) => list.find((supplier) => supplier.supplierId === id)!);
-}
-
-/**
- * «Мои магазины» — в колонке под карточкой «Вы сейчас в».
- *
- * Магазинов у клиента бывает несколько, и у каждого свой каталог, цены
- * и корзина. Переключаться между ними приходится чаще, чем раз в месяц,
- * поэтому переход стоит на виду, а не в профиле. «Все мои магазины»
- * и приглашения здесь не повторяются: они в карточке прямо над блоком.
- */
-export function MyShopsBlock({ onSwitch }: { onSwitch: (supplierId: string) => void }) {
-  const { t } = useTranslation();
-  const { list, supplierId, unreadOf } = useShops();
-  const { pinned, recent } = useShopMemory();
-
-  if (list.length === 0) return null;
-
-  const rows = sideOrder(list, supplierId, pinned, recent);
-
-  return (
-    <section
-      aria-labelledby="my-shops-title"
-      className="flex flex-col gap-1 rounded-[calc(var(--radius-tile)*1.25)] bg-surface p-3 shadow-[0_0_0_1px_var(--color-hairline)]"
-    >
-      <div className="flex items-baseline justify-between gap-2 px-1 pb-1">
-        <h2 id="my-shops-title" className="text-body font-extrabold text-ink">{t('shops.title')}</h2>
-        <span className="text-xs text-ink-subtle">{t('shops.hint')}</span>
-      </div>
-
-      {rows.map((supplier) => {
-        const current = supplier.supplierId === supplierId;
-        return (
-          <button
-            key={supplier.supplierId}
-            type="button"
-            title={supplier.name}
-            aria-current={current ? 'true' : undefined}
-            onClick={() => onSwitch(supplier.supplierId)}
-            className={cn(
-              'flex min-h-13 w-full items-center gap-2.5 rounded-[var(--radius-control)] border-[1.5px] px-2 py-1.5 text-left',
-              'transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-              current ? 'border-accent bg-bar' : 'border-transparent hover:bg-canvas',
-            )}
-          >
-            <ShopTile supplier={supplier} className="size-[2.125rem] text-body" />
-            <span className="flex min-w-0 flex-1 flex-col gap-px">
-              <span className="truncate text-sm font-bold text-ink">{supplier.name}</span>
-              <span className="truncate text-xs text-ink-muted">
-                {current ? t('shops.youAreHere') : shopNote(supplier, unreadOf(supplier.supplierId), t)}
-              </span>
-            </span>
-            {current && <Check aria-hidden="true" className="size-[18px] shrink-0 text-accent" />}
-          </button>
-        );
-      })}
-    </section>
-  );
-}
-
-/**
- * Подпись строки магазина в колонке: «тип · в корзине N», как в макете.
- *
- * Новости важнее вида товаров — они ждут ответа; подпись продавца называет,
- * чем он торгует, — это полезнее приглашения открыть каталог, который и так
- * открывает клик. Начатая корзина дописывается к любой из них: ради неё
- * в чужой магазин и возвращаются.
- */
-function shopNote(supplier: PortalSupplierDto, unread: number, t: TFunction): string {
-  const lead = unread > 0 ? t('shops.news', { count: unread }) : supplier.tagline;
-  const cart = supplier.cartLines && supplier.cartLines > 0
-    ? t('shops.inCart', { count: supplier.cartLines })
-    : undefined;
-  const parts = [lead, cart].filter((part): part is string => !!part);
-  return parts.length > 0 ? parts.join(' · ') : t('shops.open');
 }
 
 /** Сравнение имён без «ИП» и «ТОО»: иначе все ИП собрались бы под буквой «И». */

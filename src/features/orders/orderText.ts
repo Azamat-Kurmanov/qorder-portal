@@ -20,15 +20,6 @@ export function orderDay(iso: string): string {
   return dayMonth(iso);
 }
 
-/** Время сообщения: «сегодня, 11:40» или «21 сентября, 10:05». */
-export function dayTime(iso: string, t: (key: string) => string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const time = new Intl.DateTimeFormat(intlLocale(), { hour: '2-digit', minute: '2-digit' }).format(date);
-  const today = new Date().toDateString() === date.toDateString();
-  return `${today ? t('orders.v2.today') : orderDay(iso)}, ${time}`;
-}
-
 /**
  * «Продавец ответит сегодня до 15:30» — пока ход за продавцом. Без неё
  * клиент не знает, ждать или звонить; сервер не присылает прошедший срок.

@@ -106,14 +106,6 @@ const MOTIFS: Record<string, readonly [string, string]> = {
   ],
 };
 
-/** Группы узоров на экране продавца. */
-export const PATTERN_GROUPS: Record<'industry' | 'season' | 'holiday' | 'event', readonly string[]> = {
-  industry: ['FOOD', 'BUILD', 'FASHION', 'BEAUTY', 'TECH', 'AUTO', 'HOME', 'GARDEN', 'KIDS', 'SPORT', 'HEALTH', 'OFFICE'],
-  season: ['WINTER', 'SPRING', 'SUMMER', 'AUTUMN'],
-  holiday: ['NEW_YEAR', 'MARCH_8', 'NAURYZ', 'RAMADAN', 'BACK_TO_SCHOOL'],
-  event: ['BIRTHDAY', 'SALE', 'CELEBRATION'],
-};
-
 /** Коды узоров: отрасли, сезоны, праздники, события и акции. */
 export const PATTERN_CODES: readonly string[] = Object.keys(MOTIFS);
 

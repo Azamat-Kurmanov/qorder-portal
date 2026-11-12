@@ -30,6 +30,8 @@ import { SharedIntro, shareOf } from './SharedIntro';
 import { LanguagePicker } from '../shell/LanguagePicker';
 import { OpenInApp } from '../openInApp/OpenInApp';
 import { formatPhone } from '../../shared/phone';
+import { getUserManager, DEFAULT_RETURN_TO } from '../../auth/oidcConfig';
+import { currentLanguage } from '../../i18n';
 
 const INPUT = cn(
   'h-14 rounded-[var(--radius-control)] border-2 border-field-line bg-surface px-4',
@@ -47,12 +49,17 @@ function fieldsOf(kind: Kind): { key: Key; label: string; inputMode?: 'numeric' 
     kind === 'company'
       ? { key: 'companyName', label: 'joinShop.company', autoComplete: 'organization' }
       : { key: 'companyName', label: 'joinShop.personName', autoComplete: 'name' },
-    ...(kind === 'company' ? [{ key: 'bin' as const, label: 'joinShop.bin', inputMode: 'numeric' as const }] : []),
-    { key: 'city', label: 'joinShop.city', autoComplete: 'address-level2' },
+    // Частному лицу хватает имени (pilot-rollout, этап 5): город и прочее — потом, в профиле.
+    ...(kind === 'company' ? [
+      { key: 'bin' as const, label: 'joinShop.bin', inputMode: 'numeric' as const },
+      { key: 'city' as const, label: 'joinShop.city', autoComplete: 'address-level2' },
+    ] : []),
   ];
 }
 /** У компании БИН/ИИН обязателен; у частного лица поля нет, и правило пустому значению не мешает. */
-const { phone: _phone, ...PERSON_RULES } = rules.AccessRequestRequest;
+const { phone: _phone, name: _name, ...BASE_RULES } = rules.AccessRequestRequest;
+/** Имя или компания обязательны на экране: сервер примет одно из двух, и пустая форма — это отказ. */
+const PERSON_RULES = { ...BASE_RULES, companyName: { ...rules.AccessRequestRequest.companyName, required: true } };
 const COMPANY_RULES = { ...PERSON_RULES, bin: { ...rules.AccessRequestRequest.bin, required: true } };
 
 /** Последнее непустое значение: перезагрузка после смены языка не должна стирать форму на экране. */
@@ -204,9 +211,10 @@ function RequestForm({ code, shopName, managerName, onCreated }: {
       const response = await create.mutateAsync({
         code,
         data: {
-          companyName: form.values.companyName.trim(),
-          bin: kind === 'company' ? form.values.bin.trim() : undefined,
-          city: form.values.city.trim(),
+          // Частное лицо называет себя: на сервере это имя, а не компания.
+          ...(kind === 'company'
+            ? { companyName: form.values.companyName.trim(), bin: form.values.bin.trim(), city: form.values.city.trim() || undefined }
+            : { name: form.values.companyName.trim() }),
           consentVersion: notice.version,
         },
       });
@@ -353,6 +361,8 @@ function StateView({ state, code, token, shopName, phoneCode, onPhoneCode, note 
         </>
       );
     case 'APPROVED':
+      // Вход кодом из WhatsApp включён: пароля нет вовсе, входим токеном этой заявки (pilot-rollout, этап 5).
+      if (state.codeLogin) return <ApprovedByCode token={token} shopName={shopName} />;
       return state.passwordNeeded
         ? <SetPassword code={code} token={token} shopName={shopName} />
         : <Approved shopName={shopName} hint={t('joinShop.ownPassword')} />;
@@ -515,6 +525,29 @@ function Approved({ shopName, hint }: { shopName: string; hint: string }) {
       <p className="text-base text-ink-muted">{hint}</p>
       {/* Полный переход: вход начинает защищённая часть кабинета и вернёт гостя в каталог. */}
       <Button size="lg" onClick={() => window.location.assign('/catalog')}>{t('joinShop.signIn')}</Button>
+    </>
+  );
+}
+
+/**
+ * Заявка одобрена, вход кодом из WhatsApp включён: номер клиент уже подтвердил кодом, второй раз не просим.
+ * Keycloak обменяет токен заявки на вход один раз (плагин «Код из WhatsApp», `login_hint=join:<токен>`).
+ */
+function ApprovedByCode({ token, shopName }: { token: string; shopName: string }) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <h1 className="text-display font-extrabold leading-tight text-ink">{t('joinShop.approvedTitle', { shop: shopName })}</h1>
+      <p className="text-base text-ink-muted">{t('joinShop.codeLoginHint')}</p>
+      <Button size="lg" disabled={busy} onClick={() => {
+        setBusy(true);
+        void getUserManager().signinRedirect({
+          state: { returnTo: DEFAULT_RETURN_TO },
+          login_hint: `join:${token}`,
+          ui_locales: currentLanguage(),
+        }).catch(() => setBusy(false));
+      }}>{t('joinShop.signIn')}</Button>
     </>
   );
 }

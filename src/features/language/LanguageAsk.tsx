@@ -26,7 +26,7 @@ import { cn } from '../../ui/cn';
  * запрещён — в WebView он выглядит чужеродно и блокирует страницу, — а у Radix
  * есть ловушка фокуса, возврат фокуса, Escape и блокировка прокрутки под окном.
  */
-export function LanguageAsk() {
+export function LanguageAsk({ onAnswered }: { onAnswered?: () => void } = {}) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
 
@@ -52,7 +52,8 @@ export function LanguageAsk() {
     }
     rememberLanguageChoice(serverLanguage);
     setUnanswered(false);
-  }, [serverLanguage, i18n, queryClient]);
+    onAnswered?.();
+  }, [serverLanguage, i18n, queryClient, onAnswered]);
 
   // Пока учётная запись не ответила, окно не всплывает: язык, может быть, уже выбран.
   const asking = unanswered && serverLanguage === null;
@@ -74,6 +75,7 @@ export function LanguageAsk() {
     rememberLanguageChoice(language);
     save(language);
     setUnanswered(false);
+    onAnswered?.();
   };
 
   return (

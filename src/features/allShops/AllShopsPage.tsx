@@ -65,7 +65,9 @@ export function AllShopsPage({ onSwitch }: { onSwitch: (supplierId: string) => v
   const active = view === 'messages' ? 'messages' : view === 'shops' ? 'shops' : view === 'debts' ? 'debts' : 'tasks';
   return wide ? (
     <div className="flex min-h-screen bg-canvas">
-      <HubSide active={active} counts={counts} go={go} shopCount={list.length} />
+      <HubSide active={active} counts={counts} go={go} shopCount={list.length}
+        // «Долги» — если хоть один магазин даёт в долг или долг уже есть (решение владельца 2026-11-09).
+        debts={list.some((shop) => shop.credit) || (overview?.debts.length ?? 0) > 0} />
       <main className="min-w-0 flex-1 px-8 py-7"><div className="mx-auto max-w-[72rem]">{content}</div></main>
     </div>
   ) : (
@@ -148,7 +150,7 @@ function HubBottom({ active, counts, go }: HubProps) {
 }
 
 /** Боковое меню раздела на мониторе: кто вошёл, Магазины (главный), Сообщения, Дела, Долги; внизу — Профиль. */
-function HubSide({ active, counts, go, shopCount }: HubProps & { shopCount: number }) {
+function HubSide({ active, counts, go, shopCount, debts }: HubProps & { shopCount: number; debts: boolean }) {
   const { t } = useTranslation();
   const name = useCustomerName();
   const { current } = useShops();
@@ -161,7 +163,7 @@ function HubSide({ active, counts, go, shopCount }: HubProps & { shopCount: numb
     { key: 'shops', icon: Store },
     { key: 'messages', icon: MessageCircle, count: counts.messages },
     { key: 'tasks', icon: TASKS_ICON, count: counts.tasks },
-    { key: 'debts', icon: Wallet },
+    ...(debts ? [{ key: 'debts' as const, icon: Wallet }] : []),
   ];
   return (
     <aside className="sticky top-0 flex h-screen w-[17rem] shrink-0 flex-col gap-1.5 border-r-2 border-hairline bg-surface px-4 py-5">

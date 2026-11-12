@@ -17,6 +17,7 @@ import { serviceVat } from './serviceVat';
 import { useMotion } from '../../ui/motion/motionLevel';
 import { confetti, shouldCelebrate } from '../../ui/motion/confetti';
 import { useCabinetDesign } from '../../supplier/cabinetDesign';
+import { useCurrentShop } from '../shell/Shops';
 
 /**
  * Выбор по доставке или его отсутствие.
@@ -48,8 +49,9 @@ export function useCheckout(initialDelivery?: SubmitOrderDelivery) {
   const [note, setNote] = useState('');
   // За оплату (false) или в долг под реализацию (true); пусто — ещё не выбрал, отправить нельзя.
   const [chosenCredit, setCredit] = useState<boolean | null>(null);
-  // В долг — только оптом (решение владельца 2026-11-07): в рознице не спрашиваем, всегда за оплату.
-  const askCredit = part === 'WHOLESALE';
+  // В долг — только оптом (решение владельца 2026-11-07) и только если владелец магазина даёт в долг (2026-11-09).
+  const shopGivesCredit = !!useCurrentShop()?.credit;
+  const askCredit = part === 'WHOLESALE' && shopGivesCredit;
   const credit = askCredit ? chosenCredit : false;
   const [delivery, setDelivery] = useState<SubmitOrderDelivery>(initialDelivery ?? {});
   const [submitted, setSubmitted] = useState<string | null>(null);
